@@ -8,6 +8,20 @@
       "when": 1793002943488,
       "tag": "0000_cute_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793005705472,
+      "tag": "0001_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793028511428,
+      "tag": "0002_practice_invitations",
+      "breakpoints": true
     }
   ]
 }

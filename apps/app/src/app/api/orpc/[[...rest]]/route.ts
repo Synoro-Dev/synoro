@@ -1,9 +1,10 @@
-import { appRouter, createORPCContext } from "@acme/api";
+import { appRouter, createORPCContext, errorStatusMap } from "@acme/api";
 import { logger } from "@acme/config";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 
 const handler = new RPCHandler(appRouter, {
+  errorStatusMap,
   interceptors: [
     onError((error) => {
       logger.error("orpc.handler_error", error);

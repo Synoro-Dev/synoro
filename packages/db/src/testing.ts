@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 
@@ -18,7 +19,8 @@ import * as schema from "./schema";
  *   afterAll(close);
  */
 export async function createTestDb() {
-  const client = new PGlite();
+  // btree_gist backs the `bookings_no_overlap` exclusion constraint.
+  const client = new PGlite({ extensions: { btree_gist } });
   const pglite = drizzle({ client, schema, casing: "snake_case" });
   await migrate(pglite, { migrationsFolder });
 

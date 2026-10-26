@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
+import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
@@ -19,7 +20,7 @@ const migrations = readMigrationFiles({ migrationsFolder });
  * first `count` migrations exists, but nothing is recorded as applied.
  */
 async function pushedDb(count: number) {
-  const client = new PGlite();
+  const client = new PGlite({ extensions: { btree_gist } });
   for (const migration of migrations.slice(0, count)) {
     for (const statement of migration.sql) await client.exec(statement);
   }
@@ -36,12 +37,12 @@ async function hasTable(client: PGlite, name: string) {
 describe("baselineMigrations", () => {
   it("adopts a pushed database so migrate applies only newer migrations", async () => {
     const { client, db } = await pushedDb(1);
-    expect(await hasTable(client, "rate_limits")).toBe(false);
+    expect(await hasTable(client, "bookings")).toBe(false);
 
     expect(await baselineMigrations(db)).toBe("baselined");
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "rate_limits")).toBe(true);
+    expect(await hasTable(client, "bookings")).toBe(true);
     expect(await baselineMigrations(db)).toBe("already-tracked");
     await client.close();
   });
@@ -52,7 +53,7 @@ describe("baselineMigrations", () => {
     await baselineMigrations(db);
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "rate_limits")).toBe(true);
+    expect(await hasTable(client, "bookings")).toBe(true);
     await client.close();
   });
 

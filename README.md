@@ -163,7 +163,7 @@ bun install
 ### Setup
 
 > [!NOTE]
-> The database driver is selected automatically: a `*.neon.tech` URL uses the Neon HTTP driver, anything else (local Docker Postgres, Supabase, self-hosted) uses `node-postgres`. Override with `DB_DRIVER=node|neon-http`. A local Postgres, MinIO (S3) and inbucket (email) are provided via `docker-compose.yml`.
+> The database driver is selected automatically: a `*.neon.tech` URL uses the Neon HTTP driver, anything else (local Docker Postgres, Supabase, self-hosted) uses `node-postgres`. Override with `DB_DRIVER=node|neon-http`. A local Postgres, MinIO (S3) and inbucket (email) are provided via `docker-compose.yml`. Before recreating an existing Postgres 18 container with the corrected volume mount, follow [the cluster backup and restore procedure](docs/postgres-volume.md).
 
 **Step 1: Install dependencies & configure environment**
 

@@ -20,6 +20,7 @@ type RouterInputs = InferRouterInputs<AppRouter>;
  */
 type RouterOutputs = InferRouterOutputs<AppRouter>;
 
+export { errorStatusMap } from "./errors";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
 export type { RouterInputs, RouterOutputs };
