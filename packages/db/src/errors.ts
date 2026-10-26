@@ -26,6 +26,17 @@ export function findPgError(error: unknown): PgErrorLike {
 }
 
 /**
+ * True for an exclusion-constraint violation (SQLSTATE 23P01), optionally
+ * only for the named constraint, e.g. `bookings_no_overlap`.
+ */
+export function isExclusionViolation(error: unknown, constraint?: string) {
+  const pg = findPgError(error);
+  if (pg.code !== "23P01") return false;
+  if (!constraint) return true;
+  return (pg.constraint ?? pg.message ?? "").includes(constraint);
+}
+
+/**
  * True for a unique-constraint violation (SQLSTATE 23505), optionally only
  * for the named constraint, e.g. `users_email_unique`.
  */

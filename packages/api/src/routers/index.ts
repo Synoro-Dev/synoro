@@ -14,16 +14,30 @@
  *   post.delete     – delete a post                            (admin)
  *   admin.users.*   – user management                          (admin)
  *   admin.stats.*   – system-wide statistics                   (admin)
+ *
+ *   Booking (multi-tenant: access is checked per practice membership)
+ *   practice.*      – create a practice, join it, members      (protected / public bySlug)
+ *   availability.*  – weekly working hours                     (public list, staff replace)
+ *   booking.*       – slots, book, free consults, blocks, cancel, calendar
+ *   credit.*        – paid consultation balance + history      (staff grant)
  */
 
 import { adminRouter } from "./admin";
+import { availabilityRouter } from "./availability";
+import { bookingRouter } from "./booking";
+import { creditRouter } from "./credit";
 import { postRouter } from "./post";
+import { practiceRouter } from "./practice";
 import { userRouter } from "./user";
 
 export const appRouter = {
   user: userRouter,
   post: postRouter,
   admin: adminRouter,
+  practice: practiceRouter,
+  availability: availabilityRouter,
+  booking: bookingRouter,
+  credit: creditRouter,
 };
 
 export type AppRouter = typeof appRouter;

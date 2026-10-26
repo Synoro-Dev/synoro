@@ -12,6 +12,7 @@ import {
   SidebarRail,
 } from "@acme/ui";
 import {
+  IconCalendarEvent,
   IconChartBar,
   IconDashboard,
   IconDatabase,
@@ -36,10 +37,19 @@ import {
 const data = {
   navMain: [
     {
+      title: "Бронирование",
+      url: paths.booking.practices,
+      icon: IconCalendarEvent,
+      isActive: true,
+      items: [
+        { title: "Мои практики", url: paths.booking.practices },
+        { title: "Мои записи", url: paths.booking.mine },
+      ],
+    },
+    {
       title: "Панель управления",
       url: paths.dashboard.root,
       icon: IconDashboard,
-      isActive: true,
       items: [
         { title: "Обзор", url: paths.dashboard.root },
         { title: "Аналитика", url: "#" },

@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { accountFormSchema } from "./account";
+import {
+  availabilityFormSchema,
+  creditGrantFormSchema,
+  freeConsultationFormSchema,
+  practiceFormSchema,
+} from "./booking";
 import { loginFormSchema } from "./login";
 import { otpFormSchema } from "./otp";
 import { changePasswordFormSchema } from "./password";
@@ -141,5 +147,87 @@ describe("changePasswordFormSchema", () => {
     });
     expect(result.success).toBe(false);
     expect(result.error?.issues[0]?.path).toEqual(["newPassword"]);
+  });
+});
+
+describe("practiceFormSchema", () => {
+  test("lowercases and accepts a valid slug", () => {
+    const result = practiceFormSchema.parse({
+      name: "Психолог Анна",
+      slug: "Anna-Psy",
+    });
+    expect(result.slug).toBe("anna-psy");
+  });
+
+  test("rejects a slug with a leading dash or Cyrillic", () => {
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "-anna" }).success,
+    ).toBe(false);
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "анна" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("availabilityFormSchema", () => {
+  test("accepts non-overlapping half-hour intervals", () => {
+    const result = availabilityFormSchema.safeParse({
+      rules: [
+        { weekday: 1, startMinute: 600, endMinute: 780 },
+        { weekday: 1, startMinute: 900, endMinute: 1140 },
+        { weekday: 2, startMinute: 600, endMinute: 1440 },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects intervals off the 30-minute grid", () => {
+    const result = availabilityFormSchema.safeParse({
+      rules: [{ weekday: 1, startMinute: 615, endMinute: 780 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects an interval that ends before it starts", () => {
+    const result = availabilityFormSchema.safeParse({
+      rules: [{ weekday: 3, startMinute: 780, endMinute: 600 }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects overlapping intervals on the same day", () => {
+    const result = availabilityFormSchema.safeParse({
+      rules: [
+        { weekday: 1, startMinute: 600, endMinute: 780 },
+        { weekday: 1, startMinute: 720, endMinute: 900 },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("creditGrantFormSchema", () => {
+  test("accepts positive and negative amounts", () => {
+    expect(creditGrantFormSchema.safeParse({ delta: 5 }).success).toBe(true);
+    expect(creditGrantFormSchema.safeParse({ delta: -2 }).success).toBe(true);
+  });
+
+  test("rejects zero and fractions", () => {
+    expect(creditGrantFormSchema.safeParse({ delta: 0 }).success).toBe(false);
+    expect(creditGrantFormSchema.safeParse({ delta: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("freeConsultationFormSchema", () => {
+  test("requires a guest name", () => {
+    expect(
+      freeConsultationFormSchema.safeParse({ guestName: "  " }).success,
+    ).toBe(false);
+    expect(
+      freeConsultationFormSchema.safeParse({
+        guestName: "Иван",
+        guestContact: "+7 900 000-00-00",
+      }).success,
+    ).toBe(true);
   });
 });

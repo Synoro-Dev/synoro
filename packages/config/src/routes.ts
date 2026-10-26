@@ -2,6 +2,7 @@ const ROOTS = {
   DASHBOARD: "/",
   AUTH: "/auth",
   SETTINGS: "/settings",
+  PRACTICES: "/practices",
 } as const;
 
 export const paths = {
@@ -20,5 +21,15 @@ export const paths = {
     root: ROOTS.SETTINGS,
     profile: `${ROOTS.SETTINGS}/profile`,
     security: `${ROOTS.SETTINGS}/security`,
+  },
+  booking: {
+    /** Practices the user runs or is a client of; create a new one. */
+    practices: ROOTS.PRACTICES,
+    practice: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}` as const,
+    /** The client's own consultations. */
+    mine: "/bookings",
+    /** Public booking page of a practice. */
+    public: (slug: string) => `/p/${slug}` as const,
   },
 } as const;
