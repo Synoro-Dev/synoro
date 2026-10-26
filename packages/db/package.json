@@ -1,0 +1,59 @@
+{
+  "name": "@acme/db",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./client": {
+      "default": "./src/client.ts"
+    },
+    "./client.ws": {
+      "default": "./src/client.ws.ts"
+    },
+    "./schema": {
+      "default": "./src/schema/index.ts"
+    },
+    "./testing": {
+      "default": "./src/testing.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "check:migrations": "drizzle-kit check",
+    "push": "bun --env-file=../../.env run drizzle-kit push",
+    "studio": "bun --env-file=../../.env run drizzle-kit studio",
+    "drop": "bun --env-file=../../.env run src/scripts/drop-schema.ts",
+    "generate": "bun --env-file=../../.env run drizzle-kit generate",
+    "migrate": "bun --env-file=../../.env run src/scripts/migrate.ts",
+    "baseline": "bun --env-file=../../.env run src/scripts/baseline.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@acme/config": "workspace:*",
+    "@neondatabase/serverless": "^1.2.0",
+    "drizzle-orm": "0.45.4",
+    "drizzle-zod": "0.8.3",
+    "pg": "^8.23.1",
+    "ws": "^8.22.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@acme/tsconfig": "workspace:*",
+    "@electric-sql/pglite": "^0.5.11",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.5",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "7.0.2"
+  }
+}

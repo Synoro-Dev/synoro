@@ -1,0 +1,47 @@
+{
+  "name": "@acme/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/components/index.ts",
+    "./hooks": "./src/hooks/index.ts",
+    "./reui/*": "./src/components/reui/*.tsx"
+  },
+  "license": "MIT",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false",
+    "ui-add": "bunx shadcn@latest add && bun scripts/fix-imports.ts && biome format --write src"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.9.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tanstack/react-table": "^9.3.1",
+    "@tanstack/react-virtual": "^3.14.22",
+    "class-variance-authority": "^0.7.1",
+    "date-fns": "^4.4.0",
+    "input-otp": "^1.5.0",
+    "lucide-react": "^1.61.0",
+    "react-day-picker": "^10.0.2",
+    "react-hook-form": "^7.91.0",
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.7.0",
+    "vaul": "^1.1.2"
+  },
+  "devDependencies": {
+    "@acme/tsconfig": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "7.0.2",
+    "zod": "4.6.7"
+  }
+}

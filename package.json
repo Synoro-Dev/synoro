@@ -1,0 +1,50 @@
+{
+  "name": "@acme/root",
+  "private": true,
+  "engines": {
+    "node": ">=24.11.1 <25",
+    "bun": ">=1.4.0 <2"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "clean": "bun scripts/clean.mjs",
+    "clean:workspaces": "turbo run clean",
+    "auth:generate": "bun --filter @acme/auth generate",
+    "db:push": "turbo -F @acme/db push",
+    "db:generate": "bun run --cwd packages/db generate",
+    "db:migrate": "bun run --cwd packages/db migrate",
+    "db:baseline": "bun run --cwd packages/db baseline",
+    "db:check": "bun run --cwd packages/db check:migrations",
+    "db:studio": "turbo -F @acme/db studio",
+    "dev": "turbo watch dev -F @acme/app...",
+    "dev:all": "turbo watch dev --continue",
+    "dev:next": "turbo watch dev -F @acme/app...",
+    "jobs:dev": "bun run --cwd packages/jobs worker",
+    "format": "biome format . --skip-parse-errors",
+    "format:fix": "biome format --write . --skip-parse-errors",
+    "lint": "biome lint . --skip-parse-errors",
+    "lint:fix": "biome lint --write . --skip-parse-errors",
+    "check": "biome check . --skip-parse-errors",
+    "check:fix": "biome check --write . --skip-parse-errors",
+    "lint:ws": "sherif",
+    "lint:deps": "knip",
+    "postinstall": "bun lint:ws",
+    "test": "turbo run test",
+    "e2e": "turbo run e2e",
+    "typecheck": "turbo run typecheck",
+    "ui-add": "turbo run ui-add"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "knip": "6.42.1",
+    "sherif": "1.13.0",
+    "turbo": "2.11.10",
+    "typescript": "7.0.2"
+  },
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "tooling/*"
+  ]
+}

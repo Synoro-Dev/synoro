@@ -1,0 +1,63 @@
+"use client";
+
+import type { appRouter } from "@acme/api";
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { RouterClient } from "@orpc/server";
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import type { QueryClient } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { env } from "~/env";
+import { createQueryClient } from "./query-client";
+
+let clientQueryClientSingleton: QueryClient | undefined;
+const getQueryClient = () => {
+  if (typeof window === "undefined") {
+    // Server: всегда создаем новый query client
+    return createQueryClient();
+  } else {
+    // Browser: используем singleton паттерн для сохранения одного query client
+    return (clientQueryClientSingleton ??= createQueryClient());
+  }
+};
+
+const API_PATH = "/api/orpc";
+
+const getApiOrigin = () => {
+  // The standalone server is opt-in. By default, browser requests stay on the
+  // current origin and are handled by apps/app/src/app/api/orpc.
+  if (env.NEXT_PUBLIC_API_URL) return new URL(env.NEXT_PUBLIC_API_URL).origin;
+  if (typeof window !== "undefined") return window.location.origin;
+  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
+  return `http://localhost:${env.PORT}`;
+};
+
+// Создаем RPCLink
+const link = new RPCLink({
+  origin: getApiOrigin(),
+  url: API_PATH,
+});
+
+// Создаем oRPC клиент (используем глобальный $client если доступен для SSR оптимизации)
+export const client: RouterClient<typeof appRouter> =
+  globalThis.$client ?? createORPCClient(link);
+
+// Создаем утилиты для TanStack Query
+export const orpc = createTanstackQueryUtils(client);
+
+/**
+ * Хук для получения типизированного oRPC клиента с TanStack Query утилитами
+ */
+export const useORPC = () => {
+  return orpc;
+};
+
+export function ORPCReactProvider(props: { children: React.ReactNode }) {
+  const queryClient = getQueryClient();
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {props.children}
+    </QueryClientProvider>
+  );
+}

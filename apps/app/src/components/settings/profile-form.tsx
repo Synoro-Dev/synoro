@@ -1,0 +1,173 @@
+"use client";
+
+import { Button, Input, Label, Textarea, toast } from "@acme/ui";
+import { type ProfileFormValues, profileFormSchema } from "@acme/validators";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { isDefinedError } from "@orpc/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { User } from "lucide-react";
+import Image from "next/image";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+
+import { orpc } from "~/orpc/react";
+
+export function ProfileForm({
+  initialData,
+}: {
+  initialData?: ProfileFormValues;
+}) {
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: initialData || {
+      username: "",
+      email: "",
+      bio: "",
+    },
+    mode: "onChange",
+  });
+  const { errors } = form.formState;
+
+  const updateProfile = useMutation({
+    ...orpc.user.updateProfile.mutationOptions(),
+    onSuccess: async () => {
+      toast.success("Профиль успешно обновлён");
+      await queryClient.invalidateQueries({
+        queryKey: orpc.user.key(),
+      });
+    },
+    onError: (error) => {
+      // Defined errors (`.errors()` on the procedure) are typed: code + data.
+      if (isDefinedError(error) && error.code === "CONFLICT") {
+        form.setError(error.data.field, { message: error.message });
+        return;
+      }
+      toast.error(error.message || "Не удалось обновить профиль");
+    },
+  });
+
+  function onSubmit(data: ProfileFormValues) {
+    updateProfile.mutate(data);
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      {/* Avatar section */}
+      <div className="flex items-center gap-4">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          {avatarUrl ? (
+            <Image
+              src={avatarUrl || "/placeholder.svg"}
+              alt="Аватар"
+              width={64}
+              height={64}
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          ) : (
+            <User className="h-8 w-8 text-muted-foreground" />
+          )}
+        </div>
+        <Button
+          type="button"
+          className="bg-foreground text-background hover:bg-foreground/90"
+          onClick={() => document.getElementById("avatar-upload")?.click()}
+        >
+          Загрузить изображение
+        </Button>
+        <input
+          id="avatar-upload"
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              const url = URL.createObjectURL(file);
+              setAvatarUrl(url);
+            }
+          }}
+        />
+      </div>
+
+      {/* Username */}
+      <div className="space-y-2">
+        <Label htmlFor="username">Имя пользователя</Label>
+        <Input
+          id="username"
+          placeholder="shadcn"
+          aria-invalid={!!errors.username}
+          aria-describedby={errors.username ? "username-error" : undefined}
+          {...form.register("username")}
+        />
+        {errors.username && (
+          <p
+            id="username-error"
+            role="alert"
+            className="text-sm text-destructive"
+          >
+            {errors.username.message}
+          </p>
+        )}
+        <p className="text-sm text-amber-700/70">
+          Это ваше публичное имя. Это может быть настоящее имя или псевдоним.
+          Менять его можно не чаще одного раза в 30 дней.
+        </p>
+      </div>
+
+      {/* Email */}
+      <div className="space-y-2">
+        <Label htmlFor="email">Электронная почта</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="email@example.com"
+          aria-invalid={!!errors.email}
+          aria-describedby={errors.email ? "email-error" : undefined}
+          {...form.register("email")}
+        />
+        {errors.email && (
+          <p id="email-error" role="alert" className="text-sm text-destructive">
+            {errors.email.message}
+          </p>
+        )}
+        <p className="text-sm text-muted-foreground">
+          Подтверждённые адреса электронной почты можно изменить в настройках
+          почты.
+        </p>
+      </div>
+
+      {/* Bio */}
+      <div className="space-y-2">
+        <Label htmlFor="bio">О себе</Label>
+        <Textarea
+          id="bio"
+          placeholder="Расскажите немного о себе"
+          className="resize-none"
+          aria-invalid={!!errors.bio}
+          aria-describedby={errors.bio ? "bio-error" : undefined}
+          {...form.register("bio")}
+        />
+        {errors.bio && (
+          <p id="bio-error" role="alert" className="text-sm text-destructive">
+            {errors.bio.message}
+          </p>
+        )}
+        <p className="text-sm text-muted-foreground">
+          Упоминайте других пользователей и организации через @, чтобы добавить
+          ссылку на них.
+        </p>
+      </div>
+
+      <Button
+        type="submit"
+        className="bg-foreground text-background hover:bg-foreground/90"
+        disabled={updateProfile.isPending}
+      >
+        {updateProfile.isPending ? "Обновление…" : "Обновить профиль"}
+      </Button>
+    </form>
+  );
+}
