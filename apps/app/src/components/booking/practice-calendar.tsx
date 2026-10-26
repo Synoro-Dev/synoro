@@ -7,7 +7,7 @@ import { EventCalendarNav } from "@acme/ui/reui/event-calendar/event-calendar-na
 import type { CalendarEvent } from "@acme/ui/reui/event-calendar/event-calendar-types";
 import { Frame, FramePanel } from "@acme/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
-import { startOfWeek } from "date-fns";
+import { addDays, startOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -71,12 +71,12 @@ export function PracticeCalendar({
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
-  const from = dateKey(range.start);
+  const from = dateKey(addDays(range.start, -1));
   const days = Math.min(
     62,
     Math.max(
       1,
-      Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS),
+      Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS) + 2,
     ),
   );
   const bookings = useQuery({

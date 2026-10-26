@@ -103,13 +103,13 @@ function RulesForm({
       const last = all
         .filter((r) => r.weekday === weekday)
         .sort((a, b) => b.endMinute - a.endMinute)[0];
-      const interval =
-        last && last.endMinute <= 1380
-          ? {
-              startMinute: last.endMinute + 60,
-              endMinute: Math.min(1440, last.endMinute + 180),
-            }
-          : DEFAULT_INTERVAL;
+      if (last && last.endMinute >= 1380) return all;
+      const interval = last
+        ? {
+            startMinute: last.endMinute + 60,
+            endMinute: Math.min(1440, last.endMinute + 180),
+          }
+        : DEFAULT_INTERVAL;
       return [...all, { key: crypto.randomUUID(), weekday, ...interval }];
     });
   const toggleDay = (weekday: number, on: boolean) =>
@@ -218,6 +218,7 @@ function RulesForm({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Добавить интервал"
+                            disabled={dayRules.some((r) => r.endMinute >= 1380)}
                             onClick={() => addInterval(weekday)}
                           >
                             <PlusIcon />
