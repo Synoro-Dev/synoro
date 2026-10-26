@@ -24,6 +24,10 @@ export const auth = initAuth({
   baseUrl,
   productionUrl,
   secret: env.AUTH_SECRET,
+  cookieDomain: env.AUTH_COOKIE_DOMAIN,
+  trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   googleClientId: env.AUTH_GOOGLE_ID,
   googleClientSecret: env.AUTH_GOOGLE_SECRET,
   extraPlugins: [nextCookies()],

@@ -29,6 +29,12 @@ export const env = createEnv({
     AUTH_GOOGLE_SECRET: z.string().optional(),
     // Comma-separated list of emails granted `adminProcedure` access
     ADMIN_EMAILS: z.string().optional(),
+    // Share the session cookie across subdomains, e.g. ".synoro.ru" for
+    // app.synoro.ru + synoro.ru. Unset: the cookie stays on the app host.
+    AUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Comma-separated extra origins allowed to call the auth API and to be
+    // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
+    AUTH_TRUSTED_ORIGINS: z.string().optional(),
 
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
@@ -62,6 +68,8 @@ export const env = createEnv({
     AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
     AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+    AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,
