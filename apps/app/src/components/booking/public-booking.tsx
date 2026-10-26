@@ -83,10 +83,16 @@ export function PublicBooking({
   });
 
   const byDay = new Map<string, Slot[]>();
+  const monthStart = dateKey(
+    new Date(month.getFullYear(), month.getMonth(), 1),
+  );
+  const monthEnd = dateKey(
+    new Date(month.getFullYear(), month.getMonth() + 1, 0),
+  );
   const viewerToday = dateKey(new Date());
   for (const slot of slots.data?.slots ?? []) {
     const key = dateKey(slot.startsAt);
-    if (key < viewerToday) continue;
+    if (key < monthStart || key > monthEnd || key < viewerToday) continue;
     byDay.set(key, [...(byDay.get(key) ?? []), slot]);
   }
   // Default to the first day with free time once slots arrive.
