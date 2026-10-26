@@ -1,6 +1,25 @@
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
+const httpOrigin = z
+  .url({ protocol: /^https?$/ })
+  .refine(
+    (value) => !new URL(value).hostname.includes("*"),
+    "Expected an HTTP(S) URL without host wildcards",
+  )
+  .transform((value) => new URL(value).origin);
+
+// Better Auth matches wildcard patterns against the origin (with a scheme)
+// or host (without one). Keep patterns intact rather than parsing them as URLs.
+const wildcardOrigin = z
+  .string()
+  .regex(/^(?:https?:\/\/)?[a-z0-9.*?-]+(?::[0-9*?]+)?$/i)
+  .refine((value) => /[*?]/.test(value), "Expected a wildcard pattern")
+  .refine((value) => {
+    const url = value.includes("://") ? value : `https://${value}`;
+    return httpOrigin.safeParse(url.replace(/[*?]/g, "1")).success;
+  }, "Invalid origin wildcard pattern");
+
 export const env = createEnv({
   server: {
     // Node environment
@@ -34,7 +53,17 @@ export const env = createEnv({
     AUTH_COOKIE_DOMAIN: z.string().optional(),
     // Comma-separated extra origins allowed to call the auth API and to be
     // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
-    AUTH_TRUSTED_ORIGINS: z.string().optional(),
+    AUTH_TRUSTED_ORIGINS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.union([wildcardOrigin, httpOrigin])))
+      .transform((origins) => origins.join(","))
+      .optional(),
 
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
