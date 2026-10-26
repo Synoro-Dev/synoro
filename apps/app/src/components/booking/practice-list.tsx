@@ -14,6 +14,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { orpc } from "~/orpc/react";
 import { ROLE_LABELS } from "../sidebar/types";
 import { CreatePracticeDialog } from "./create-practice-form";
+import { PracticeInvitations } from "./practice-invitations";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 
 /** Practices the user runs (→ console) or is a client of (→ booking page). */
@@ -39,6 +40,8 @@ export function PracticeList() {
           </Button>
         }
       />
+
+      <PracticeInvitations />
 
       {practices.isError ? (
         <ErrorState onRetry={() => practices.refetch()} />

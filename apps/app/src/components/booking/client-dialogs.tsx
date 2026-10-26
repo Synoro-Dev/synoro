@@ -289,7 +289,7 @@ export function AddMemberDialog({
     ...orpc.practice.addMember.mutationOptions(),
     onSuccess: async () => {
       toast.success(
-        role === "admin" ? "Администратор добавлен" : "Клиент добавлен",
+        "Приглашение отправлено. Его примут в разделе «Практики» после входа с этой почтой.",
       );
       setEmail("");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
@@ -313,9 +313,9 @@ export function AddMemberDialog({
       <DialogContent className="sm:max-w-sm">
         <form onSubmit={submit} className="flex flex-col gap-5">
           <DialogHeader>
-            <DialogTitle>Добавить в практику</DialogTitle>
+            <DialogTitle>Пригласить в практику</DialogTitle>
             <DialogDescription>
-              Человек должен быть зарегистрирован в Синоро.
+              Приглашение действует 7 дней и принимается с подтверждённой почты.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
@@ -350,7 +350,7 @@ export function AddMemberDialog({
               Отмена
             </Button>
             <Button type="submit" disabled={add.isPending}>
-              Добавить
+              Пригласить
             </Button>
           </DialogFooter>
         </form>

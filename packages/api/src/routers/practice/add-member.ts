@@ -1,4 +1,4 @@
-import { and, eq, PracticeMember, sql, user } from "@acme/db";
+import { PracticeInvitation, sql } from "@acme/db";
 import { memberInviteFormSchema } from "@acme/validators";
 import { z } from "zod";
 
@@ -8,18 +8,13 @@ import {
 } from "../../lib/practice-access";
 
 /**
- * Add a registered user to the practice by email — staff only; making
- * someone an administrator is reserved for the owner. An existing client
- * added as administrator is promoted; the owner's role never changes.
+ * Invite by email without looking up or disclosing the recipient's account.
+ * Membership (including promotion to administrator) requires acceptance.
+ * Only the owner may invite administrators.
  *
  * @example client.practice.addMember({ practiceId, email, role: "client" })
  */
 export const addMember = practiceProcedure
-  .errors({
-    NOT_FOUND: {
-      message: "Пользователь с такой почтой ещё не зарегистрирован",
-    },
-  })
   .input(memberInviteFormSchema.extend({ practiceId: z.uuid() }))
   .handler(async ({ context, input, errors }) => {
     const staff = await findStaffMembership(
@@ -34,44 +29,25 @@ export const addMember = practiceProcedure
       });
     }
 
-    const found = await context.db.query.user.findFirst({
-      where: sql`lower(${user.email}) = ${input.email.toLowerCase()}`,
-      columns: { id: true },
-    });
-    if (!found) throw errors.NOT_FOUND();
-
     await context.db
-      .insert(PracticeMember)
+      .insert(PracticeInvitation)
       .values({
         practiceId: input.practiceId,
-        userId: found.id,
+        email: input.email.toLowerCase(),
         role: input.role,
+        invitedById: context.session.user.id,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [
+          PracticeInvitation.practiceId,
+          PracticeInvitation.email,
+          PracticeInvitation.role,
+        ],
+        set: {
+          invitedById: context.session.user.id,
+          expiresAt: sql`now() + interval '7 days'`,
+        },
+      });
 
-    if (input.role === "admin") {
-      await context.db
-        .update(PracticeMember)
-        .set({ role: "admin" })
-        .where(
-          and(
-            eq(PracticeMember.practiceId, input.practiceId),
-            eq(PracticeMember.userId, found.id),
-            eq(PracticeMember.role, "client"),
-          ),
-        );
-    }
-
-    const [member] = await context.db
-      .select()
-      .from(PracticeMember)
-      .where(
-        and(
-          eq(PracticeMember.practiceId, input.practiceId),
-          eq(PracticeMember.userId, found.id),
-        ),
-      );
-    if (!member) throw new Error("Failed to add member");
-
-    return member;
+    return { invited: true };
   });

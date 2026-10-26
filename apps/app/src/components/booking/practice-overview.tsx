@@ -327,7 +327,7 @@ export function PracticeOverview({
               },
               {
                 icon: UsersIcon,
-                label: "Добавить клиента",
+                label: "Пригласить клиента",
                 hint: "По адресу почты",
                 href: paths.booking.clients(practice.id),
               },

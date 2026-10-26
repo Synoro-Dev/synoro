@@ -238,7 +238,7 @@ export function PracticeClients({
         actions={
           <Button size="sm" onClick={() => setAdding(true)}>
             <UserPlusIcon />
-            Добавить
+            Пригласить
           </Button>
         }
       />
@@ -250,8 +250,8 @@ export function PracticeClients({
           <UsersIcon />
           <AlertTitle>Клиентов пока нет</AlertTitle>
           <AlertDescription>
-            Они появятся, когда откроют вашу ссылку для записи. Или добавьте
-            зарегистрированного человека по почте.
+            Они появятся, когда откроют вашу ссылку для записи. Или пригласите
+            человека по почте.
           </AlertDescription>
         </Alert>
       ) : null}
