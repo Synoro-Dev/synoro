@@ -38,8 +38,8 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@synoro/config": "workspace:*",
     "@neondatabase/serverless": "^1.2.0",
+    "@synoro/config": "workspace:*",
     "drizzle-orm": "0.45.4",
     "drizzle-zod": "0.8.3",
     "pg": "^8.23.1",
@@ -47,8 +47,8 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@synoro/tsconfig": "workspace:*",
     "@electric-sql/pglite": "^0.5.11",
+    "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",
     "@types/pg": "^8.23.1",
