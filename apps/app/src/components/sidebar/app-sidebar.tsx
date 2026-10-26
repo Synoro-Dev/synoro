@@ -1,10 +1,12 @@
 "use client";
 
-import { APP_CONFIG, paths } from "@acme/config";
+import { paths } from "@acme/config";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -12,130 +14,160 @@ import {
   SidebarRail,
 } from "@acme/ui";
 import {
-  IconCalendarEvent,
-  IconChartBar,
-  IconDashboard,
-  IconDatabase,
-  IconFileWord,
-  IconFolder,
-  IconHelp,
-  IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
-  IconUsers,
-} from "@tabler/icons-react";
+  CalendarCheckIcon,
+  CalendarDaysIcon,
+  Clock3Icon,
+  ExternalLinkIcon,
+  LayoutDashboardIcon,
+  type LucideIcon,
+  PlusIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "lucide-react";
+import type { Route } from "next";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type * as React from "react";
-import {
-  NavDocuments,
-  NavMain,
-  NavSecondary,
-  NavUser,
-} from "~/components/sidebar";
 
-const data = {
-  navMain: [
-    {
-      title: "Бронирование",
-      url: paths.booking.practices,
-      icon: IconCalendarEvent,
-      isActive: true,
-      items: [
-        { title: "Мои практики", url: paths.booking.practices },
-        { title: "Мои записи", url: paths.booking.mine },
-      ],
-    },
-    {
-      title: "Панель управления",
-      url: paths.dashboard.root,
-      icon: IconDashboard,
-      items: [
-        { title: "Обзор", url: paths.dashboard.root },
-        { title: "Аналитика", url: "#" },
-        { title: "Отчёты", url: "#" },
-      ],
-    },
-    {
-      title: "Жизненный цикл",
-      url: "#",
-      icon: IconListDetails,
-      items: [
-        { title: "Активные", url: "#" },
-        { title: "Архив", url: "#" },
-      ],
-    },
-    {
-      title: "Аналитика",
-      url: "#",
-      icon: IconChartBar,
-      items: [
-        { title: "Обзор", url: "#" },
-        { title: "Тренды", url: "#" },
-      ],
-    },
-    {
-      title: "Проекты",
-      url: "#",
-      icon: IconFolder,
-      items: [
-        { title: "Активные проекты", url: "#" },
-        { title: "Архив", url: "#" },
-      ],
-    },
-    {
-      title: "Команда",
-      url: "#",
-      icon: IconUsers,
-      items: [
-        { title: "Участники", url: "#" },
-        { title: "Роли", url: "#" },
-      ],
-    },
-  ],
-  navSecondary: [
-    { title: "Настройки", url: paths.settings.root, icon: IconSettings },
-  ],
-  documents: [
-    { name: "Библиотека данных", url: "#", icon: IconDatabase },
-    { name: "Отчёты", url: "#", icon: IconReport },
-    { name: "Помощник по Word", url: "#", icon: IconFileWord },
-  ],
-};
+import { NavUser } from "./nav-user";
+import { PracticeSwitcher } from "./practice-switcher";
+import type { SidebarPractice } from "./types";
+
+const PRACTICE_PATH = /^\/practices\/([0-9a-f-]{36})(?:\/|$)/;
+
+interface NavItem {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+  active: boolean;
+  external?: boolean;
+}
+
+function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarMenu>
+        {items.map((item) => (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton
+              tooltip={item.title}
+              isActive={item.active}
+              render={
+                <Link
+                  href={item.href as Route}
+                  target={item.external ? "_blank" : undefined}
+                />
+              }
+            >
+              <item.icon />
+              <span>{item.title}</span>
+              {item.external && (
+                <ExternalLinkIcon className="ml-auto opacity-50" />
+              )}
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  );
+}
 
 export function AppSidebar({
   user,
+  practices,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string };
+  practices: SidebarPractice[];
 }) {
+  const pathname = usePathname();
+  const staffPractices = practices.filter((p) => p.role !== "client");
+  const fromPath = PRACTICE_PATH.exec(pathname)?.[1];
+  const current =
+    staffPractices.find((p) => p.practiceId === fromPath) ?? staffPractices[0];
+  const isClient = practices.some((p) => p.role === "client");
+
+  const practiceItems: NavItem[] = current
+    ? [
+        {
+          title: "Обзор",
+          href: paths.booking.practice(current.practiceId),
+          icon: LayoutDashboardIcon,
+          active: pathname === paths.booking.practice(current.practiceId),
+        },
+        {
+          title: "Календарь",
+          href: paths.booking.calendar(current.practiceId),
+          icon: CalendarDaysIcon,
+          active: pathname === paths.booking.calendar(current.practiceId),
+        },
+        {
+          title: "Клиенты",
+          href: paths.booking.clients(current.practiceId),
+          icon: UsersIcon,
+          active: pathname === paths.booking.clients(current.practiceId),
+        },
+        {
+          title: "Расписание",
+          href: paths.booking.schedule(current.practiceId),
+          icon: Clock3Icon,
+          active: pathname === paths.booking.schedule(current.practiceId),
+        },
+        {
+          title: "Страница записи",
+          href: paths.booking.public(current.slug),
+          icon: ExternalLinkIcon,
+          active: false,
+          external: true,
+        },
+      ]
+    : [
+        {
+          title: "Создать практику",
+          href: `${paths.booking.practices}?new=1`,
+          icon: PlusIcon,
+          active: false,
+        },
+      ];
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
+        <PracticeSwitcher practices={practices} current={current} />
+      </SidebarHeader>
+      <SidebarContent>
+        <NavGroup
+          label={current ? "Практика" : "Специалисту"}
+          items={practiceItems}
+        />
+        {(isClient || !current) && (
+          <NavGroup
+            label="Я клиент"
+            items={[
+              {
+                title: "Мои записи",
+                href: paths.booking.mine,
+                icon: CalendarCheckIcon,
+                active: pathname === paths.booking.mine,
+              },
+            ]}
+          />
+        )}
+      </SidebarContent>
+      <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              size="lg"
-              render={<a href={paths.dashboard.root} />}
+              tooltip="Настройки"
+              isActive={pathname.startsWith(paths.settings.root)}
+              render={<Link href={paths.settings.root} />}
             >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                <IconInnerShadowTop className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">
-                  {APP_CONFIG.name}
-                </span>
-              </div>
+              <SettingsIcon />
+              <span>Настройки</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <NavMain items={data.navMain} />
-        <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
-      </SidebarContent>
-      <SidebarFooter>
         <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />

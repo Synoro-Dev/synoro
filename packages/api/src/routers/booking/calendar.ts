@@ -19,7 +19,8 @@ export const calendar = practiceProcedure
     z.object({
       practiceId: z.uuid(),
       from: z.iso.date(),
-      days: z.number().int().min(1).max(31).default(7),
+      // Up to 62: a month view shows six weeks.
+      days: z.number().int().min(1).max(62).default(7),
     }),
   )
   .handler(async ({ context, input, errors }) => {

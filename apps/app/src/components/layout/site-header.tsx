@@ -10,32 +10,46 @@ import {
   Separator,
   SidebarTrigger,
 } from "@acme/ui";
+import type { Route } from "next";
+import Link from "next/link";
+import type { ReactNode } from "react";
 
 interface SiteHeaderProps {
-  title?: string;
+  title: string;
+  /** Breadcrumb before the title, e.g. the practice name. */
+  parent?: { label: string; href: string };
+  /** Page actions, right-aligned. */
+  actions?: ReactNode;
 }
 
-export function SiteHeader({ title = "Документы" }: SiteHeaderProps) {
+export function SiteHeader({ title, parent, actions }: SiteHeaderProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-      <div className="flex items-center gap-2 px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator
-          orientation="vertical"
-          className="mr-2 data-[orientation=vertical]:h-4"
-        />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem className="hidden md:block">
-              <BreadcrumbLink href="#">Панель управления</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator className="hidden md:block" />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      </div>
+    <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="my-auto mr-1 h-4" />
+      <Breadcrumb className="min-w-0 flex-1">
+        <BreadcrumbList className="flex-nowrap">
+          {parent && (
+            <>
+              <BreadcrumbItem className="hidden min-w-0 md:block">
+                <BreadcrumbLink
+                  className="truncate"
+                  render={<Link href={parent.href as Route} />}
+                >
+                  {parent.label}
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator className="hidden md:block" />
+            </>
+          )}
+          <BreadcrumbItem className="min-w-0">
+            <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+      {actions && (
+        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+      )}
     </header>
   );
 }

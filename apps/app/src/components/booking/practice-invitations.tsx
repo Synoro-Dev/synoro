@@ -1,21 +1,30 @@
 "use client";
 
+import { Button, Skeleton, toast } from "@acme/ui";
+import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
+import { Badge } from "@acme/ui/reui/badge";
 import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  toast,
-} from "@acme/ui";
+  Frame,
+  FrameDescription,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@acme/ui/reui/frame";
+import { IconTile } from "@acme/ui/reui/icon-tile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MailIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { orpc } from "~/orpc/react";
-import { ROLE_LABELS } from "./practice-list";
-import { QueryError } from "./query-error";
+import { ROLE_LABELS } from "../sidebar/types";
+import { ErrorState } from "./states";
 
+/**
+ * Pending invitations for the caller's verified email. Accepting one makes
+ * them a client or administrator of that practice.
+ */
 export function PracticeInvitations() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const pending = useQuery(orpc.practice.invitations.queryOptions());
   const accept = useMutation({
@@ -23,52 +32,65 @@ export function PracticeInvitations() {
     onSuccess: async () => {
       toast.success("Приглашение принято");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+      // The sidebar's practice list is rendered on the server.
+      router.refresh();
     },
     onError: (error) => toast.error(error.message),
   });
 
-  if (pending.isPending) return <Skeleton className="h-24 w-full" />;
-  if (pending.isError)
+  if (pending.isPending) return <Skeleton className="h-20 w-full rounded-xl" />;
+  if (pending.isError) {
     return (
-      <QueryError
+      <ErrorState
         message="Не удалось загрузить приглашения."
-        retry={() => pending.refetch()}
-        isFetching={pending.isFetching}
+        onRetry={() => pending.refetch()}
       />
     );
-  if (!pending.data.emailVerified)
+  }
+  if (!pending.data.emailVerified) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Чтобы увидеть и принять приглашения, выйдите и войдите по одноразовому
-        коду из почты.
-      </p>
+      <Alert variant="info">
+        <MailIcon />
+        <AlertTitle>Почта не подтверждена</AlertTitle>
+        <AlertDescription>
+          Чтобы увидеть приглашения в практики, войдите по одноразовому коду из
+          письма.
+        </AlertDescription>
+      </Alert>
     );
-  if (!pending.data.invitations.length) return null;
+  }
+  if (pending.data.invitations.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Приглашения в практики</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {pending.data.invitations.map((invitation) => (
-          <div
-            key={invitation.id}
-            className="flex flex-wrap items-center justify-between gap-2"
-          >
-            <span>
-              {invitation.practiceName} · {ROLE_LABELS[invitation.role]}
+    <Frame spacing="default" stacked>
+      <FramePanel>
+        <FrameHeader className="p-0">
+          <FrameTitle>Приглашения</FrameTitle>
+          <FrameDescription>Вас пригласили в практики</FrameDescription>
+        </FrameHeader>
+      </FramePanel>
+      {pending.data.invitations.map((invitation) => (
+        <FramePanel key={invitation.id} className="flex items-center gap-3">
+          <IconTile variant="soft" aria-hidden="true">
+            {invitation.practiceName.charAt(0).toUpperCase()}
+          </IconTile>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate text-sm font-medium">
+              {invitation.practiceName}
             </span>
-            <Button
-              size="sm"
-              disabled={accept.isPending}
-              onClick={() => accept.mutate({ invitationId: invitation.id })}
-            >
-              Принять приглашение
-            </Button>
+            <Badge variant="primary-light">
+              {ROLE_LABELS[invitation.role]}
+            </Badge>
           </div>
-        ))}
-      </CardContent>
-    </Card>
+          <Button
+            size="sm"
+            disabled={accept.isPending}
+            onClick={() => accept.mutate({ invitationId: invitation.id })}
+          >
+            Принять
+          </Button>
+        </FramePanel>
+      ))}
+    </Frame>
   );
 }

@@ -17,13 +17,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@acme/ui";
-import {
-  IconCreditCard,
-  IconDotsVertical,
-  IconLogout,
-  IconNotification,
-  IconUserCircle,
-} from "@tabler/icons-react";
+import { CircleUserIcon, EllipsisVerticalIcon, LogOutIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "~/auth/client";
@@ -67,7 +62,7 @@ export function NavUser({
               />
             }
           >
-            <Avatar className="h-8 w-8 rounded-lg grayscale">
+            <Avatar className="size-8 rounded-lg">
               <AvatarImage src={user.avatar} alt={user.name} />
               <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
@@ -77,10 +72,10 @@ export function NavUser({
                 {user.email}
               </span>
             </div>
-            <IconDotsVertical className="ml-auto size-4" />
+            <EllipsisVerticalIcon className="ml-auto" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            className="min-w-56"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}
@@ -105,22 +100,14 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle />
+              <DropdownMenuItem render={<Link href={paths.settings.root} />}>
+                <CircleUserIcon />
                 Аккаунт
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard />
-                Оплата
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification />
-                Уведомления
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout />
+              <LogOutIcon />
               Выйти
             </DropdownMenuItem>
           </DropdownMenuContent>

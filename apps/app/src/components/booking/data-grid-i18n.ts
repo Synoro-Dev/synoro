@@ -1,0 +1,37 @@
+import type { DataGridI18nOverrides } from "@acme/ui/reui/data-grid/data-grid-i18n";
+
+/** Russian labels for the ReUI data grid. */
+export const dataGridI18n: DataGridI18nOverrides = {
+  labels: {
+    sortAscending: "По возрастанию",
+    sortDescending: "По убыванию",
+    pinColumnStart: "Закрепить слева",
+    pinColumnEnd: "Закрепить справа",
+    moveColumnStart: "Сдвинуть влево",
+    moveColumnEnd: "Сдвинуть вправо",
+    columnsMenu: "Столбцы",
+    unpinColumn: (title) => `Открепить столбец «${title}»`,
+    toggleColumns: "Показать или скрыть столбцы",
+    rowCreate: "Добавить строку",
+    pinRow: "Закрепить строку",
+    unpinRow: "Открепить строку",
+    selectRow: "Выбрать строку",
+    selectAll: "Выбрать все",
+    expandRow: "Развернуть строку",
+    collapseRow: "Свернуть строку",
+    dragToReorder: "Перетащите, чтобы изменить порядок",
+    dragToReorderRow: "Перетащите строку, чтобы изменить порядок",
+    reorderingUnavailable: "Изменение порядка недоступно",
+    loading: "Загрузка…",
+    empty: "Нет данных",
+    allRowsLoaded: "Все записи загружены",
+    rowsPerPage: "Строк на странице",
+    paginationInfo: ({ from, to, count }) => `${from} - ${to} из ${count}`,
+    previousPage: "Предыдущая страница",
+    nextPage: "Следующая страница",
+    goToPage: (page) => `Перейти на страницу ${page}`,
+    filterSelectedCount: (count) => `Выбрано: ${count}`,
+    filterNoResults: "Ничего не найдено.",
+    filterClear: "Сбросить фильтры",
+  },
+};

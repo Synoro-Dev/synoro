@@ -1,20 +1,41 @@
 "use client";
 
-import { Button, Skeleton, toast } from "@acme/ui";
+import { Button, Label, Skeleton, Switch, toast } from "@acme/ui";
+import {
+  Frame,
+  FrameDescription,
+  FrameFooter,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@acme/ui/reui/frame";
 import {
   type AvailabilityRuleValues,
   availabilityFormSchema,
 } from "@acme/validators";
-import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
-import { QueryError } from "./query-error";
+import { ErrorState, PageHeading } from "./states";
 import { WEEKDAY_NAMES } from "./time";
 import { TimeSelect } from "./time-select";
 
-/** Weekly working hours, edited as a whole and saved with one call. */
+type DraftRule = AvailabilityRuleValues & { key: string };
+
+const DEFAULT_INTERVAL = { startMinute: 600, endMinute: 1080 };
+
+const toPayload = (rules: DraftRule[]) =>
+  rules
+    .map(({ weekday, startMinute, endMinute }) => ({
+      weekday,
+      startMinute,
+      endMinute,
+    }))
+    .sort((a, b) => a.weekday - b.weekday || a.startMinute - b.startMinute);
+
+/** Weekly working hours, cal.com style: a switch and intervals per day. */
 export function AvailabilityEditor({
   practiceId,
   timezone,
@@ -22,49 +43,46 @@ export function AvailabilityEditor({
   practiceId: string;
   timezone: string;
 }) {
-  const { data, isPending, isError, refetch, isFetching } = useQuery(
+  const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
   );
 
-  if (isPending) return <Skeleton className="h-96 w-full" />;
-  if (isError || !data) {
-    return (
-      <QueryError
-        message="Не удалось загрузить расписание."
-        retry={() => refetch()}
-        isFetching={isFetching}
-      />
-    );
-  }
-  // Keyed by the loaded rules, so a refetch after saving resets the draft.
   return (
-    <RulesForm
-      key={JSON.stringify(data)}
-      practiceId={practiceId}
-      timezone={timezone}
-      initial={data}
-    />
+    <div className="flex flex-col gap-6">
+      <PageHeading
+        title="Расписание"
+        description={`Часы приёма по времени ${timezone}`}
+      />
+      {rules.isError ? (
+        <ErrorState onRetry={() => rules.refetch()} />
+      ) : rules.isPending ? (
+        <Skeleton className="h-[480px] w-full rounded-xl" />
+      ) : (
+        // Keyed by the saved rules, so a refetch after saving resets the draft.
+        <RulesForm
+          key={JSON.stringify(rules.data)}
+          practiceId={practiceId}
+          initial={rules.data}
+        />
+      )}
+    </div>
   );
 }
 
 function RulesForm({
   practiceId,
-  timezone,
   initial,
 }: {
   practiceId: string;
-  timezone: string;
   initial: AvailabilityRuleValues[];
 }) {
   const queryClient = useQueryClient();
-  const [rules, setRules] = useState(() =>
-    initial.map(({ weekday, startMinute, endMinute }) => ({
-      key: crypto.randomUUID(),
-      weekday,
-      startMinute,
-      endMinute,
-    })),
+  const [rules, setRules] = useState<DraftRule[]>(() =>
+    initial.map((r) => ({ ...r, key: crypto.randomUUID() })),
   );
+  const dirty =
+    JSON.stringify(toPayload(rules)) !==
+    JSON.stringify(toPayload(initial.map((r) => ({ ...r, key: "" }))));
 
   const save = useMutation({
     ...orpc.availability.replace.mutationOptions(),
@@ -80,14 +98,42 @@ function RulesForm({
 
   const update = (key: string, patch: Partial<AvailabilityRuleValues>) =>
     setRules((all) => all.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+  const addInterval = (weekday: number) =>
+    setRules((all) => {
+      const last = all
+        .filter((r) => r.weekday === weekday)
+        .sort((a, b) => b.endMinute - a.endMinute)[0];
+      if (last && last.endMinute >= 1380) return all;
+      const interval = last
+        ? {
+            startMinute: last.endMinute + 60,
+            endMinute: Math.min(1440, last.endMinute + 180),
+          }
+        : DEFAULT_INTERVAL;
+      return [...all, { key: crypto.randomUUID(), weekday, ...interval }];
+    });
+  const toggleDay = (weekday: number, on: boolean) =>
+    setRules((all) =>
+      on
+        ? [...all, { key: crypto.randomUUID(), weekday, ...DEFAULT_INTERVAL }]
+        : all.filter((r) => r.weekday !== weekday),
+    );
+  const copyToWeekdays = (weekday: number) =>
+    setRules((all) => {
+      const source = all.filter((r) => r.weekday === weekday);
+      const others = [1, 2, 3, 4, 5].filter((d) => d !== weekday);
+      return [
+        ...all.filter((r) => !others.includes(r.weekday)),
+        ...others.flatMap((d) =>
+          source.map((r) => ({ ...r, weekday: d, key: crypto.randomUUID() })),
+        ),
+      ];
+    });
 
   function onSave() {
-    const payload = rules.map(({ weekday, startMinute, endMinute }) => ({
-      weekday,
-      startMinute,
-      endMinute,
-    }));
-    const parsed = availabilityFormSchema.safeParse({ rules: payload });
+    const parsed = availabilityFormSchema.safeParse({
+      rules: toPayload(rules),
+    });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Проверьте интервалы");
       return;
@@ -95,86 +141,145 @@ function RulesForm({
     save.mutate({ practiceId, rules: parsed.data.rules });
   }
 
+  const hours =
+    rules.reduce((sum, r) => sum + (r.endMinute - r.startMinute), 0) / 60;
+
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Часы приёма по времени {timezone}. Платные консультации — по часу с
-        начала каждого часа, бесплатные — по 30 минут.
-      </p>
-      {WEEKDAY_NAMES.map((name, index) => {
-        const weekday = index + 1;
-        const dayRules = rules.filter((r) => r.weekday === weekday);
-        return (
-          <div
-            key={name}
-            className="flex flex-col gap-2 border-b pb-3 sm:flex-row sm:items-start"
-          >
-            <span className="w-32 shrink-0 pt-2 text-sm font-medium">
-              {name}
-            </span>
-            <div className="flex flex-1 flex-col gap-2">
-              {dayRules.length === 0 && (
-                <span className="pt-2 text-sm text-muted-foreground">
+    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_17rem]">
+      <Frame spacing="default" className="min-w-0" stacked>
+        <FramePanel>
+          <FrameHeader className="p-0">
+            <FrameTitle>Рабочие дни</FrameTitle>
+            <FrameDescription>
+              Клиенты записываются только в эти часы
+            </FrameDescription>
+          </FrameHeader>
+        </FramePanel>
+        {WEEKDAY_NAMES.map((name, index) => {
+          const weekday = index + 1;
+          const dayRules = rules
+            .filter((r) => r.weekday === weekday)
+            .sort((a, b) => a.startMinute - b.startMinute);
+          const on = dayRules.length > 0;
+          return (
+            <FramePanel
+              key={name}
+              className="flex flex-col gap-3 sm:flex-row sm:items-start"
+            >
+              <div className="flex w-40 shrink-0 items-center gap-3 pt-1.5">
+                <Switch
+                  checked={on}
+                  onCheckedChange={(checked) => toggleDay(weekday, checked)}
+                  id={`day-${weekday}`}
+                />
+                <Label htmlFor={`day-${weekday}`} className="cursor-pointer">
+                  {name}
+                </Label>
+              </div>
+
+              {on ? (
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  {dayRules.map((rule, i) => (
+                    <div
+                      key={rule.key}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <TimeSelect
+                        label={`${name}: начало`}
+                        value={rule.startMinute}
+                        onChange={(startMinute) =>
+                          update(rule.key, { startMinute })
+                        }
+                      />
+                      <span className="text-muted-foreground">—</span>
+                      <TimeSelect
+                        label={`${name}: конец`}
+                        value={rule.endMinute}
+                        endOfDay
+                        onChange={(endMinute) =>
+                          update(rule.key, { endMinute })
+                        }
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label="Удалить интервал"
+                        onClick={() =>
+                          setRules((all) =>
+                            all.filter((r) => r.key !== rule.key),
+                          )
+                        }
+                      >
+                        <Trash2Icon />
+                      </Button>
+                      {i === 0 && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Добавить интервал"
+                            disabled={dayRules.some((r) => r.endMinute >= 1380)}
+                            onClick={() => addInterval(weekday)}
+                          >
+                            <PlusIcon />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Скопировать на все будни"
+                            title="Скопировать на все будни"
+                            onClick={() => copyToWeekdays(weekday)}
+                          >
+                            <CopyIcon />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="pt-1.5 text-sm text-muted-foreground">
                   Выходной
                 </span>
               )}
-              {dayRules.map((rule) => (
-                <div key={rule.key} className="flex items-center gap-2">
-                  <TimeSelect
-                    label={`${name}: начало`}
-                    value={rule.startMinute}
-                    min={0}
-                    max={1410}
-                    onChange={(startMinute) =>
-                      update(rule.key, { startMinute })
-                    }
-                  />
-                  <span>—</span>
-                  <TimeSelect
-                    label={`${name}: конец`}
-                    value={rule.endMinute}
-                    min={30}
-                    max={1440}
-                    onChange={(endMinute) => update(rule.key, { endMinute })}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Удалить интервал"
-                    onClick={() =>
-                      setRules((all) => all.filter((r) => r.key !== rule.key))
-                    }
-                  >
-                    <IconTrash />
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setRules((all) => [
-                  ...all,
-                  {
-                    key: crypto.randomUUID(),
-                    weekday,
-                    startMinute: 600,
-                    endMinute: 1080,
-                  },
-                ])
-              }
-            >
-              <IconPlus /> Интервал
-            </Button>
-          </div>
-        );
-      })}
-      <div>
-        <Button onClick={onSave} disabled={save.isPending}>
-          {save.isPending ? "Сохранение…" : "Сохранить расписание"}
-        </Button>
-      </div>
+            </FramePanel>
+          );
+        })}
+        <FrameFooter className="flex-row items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
+            {dirty ? "Есть несохранённые изменения" : "Все изменения сохранены"}
+          </span>
+          <Button
+            size="sm"
+            onClick={onSave}
+            disabled={!dirty || save.isPending}
+          >
+            {save.isPending ? "Сохранение…" : "Сохранить"}
+          </Button>
+        </FrameFooter>
+      </Frame>
+
+      <Frame spacing="default" className="min-w-0 self-start">
+        <FramePanel className="flex flex-col gap-1">
+          <span className="text-sm text-muted-foreground">В неделю</span>
+          <span className="text-2xl font-semibold tracking-tight tabular-nums">
+            {hours} ч
+          </span>
+          <span className="text-xs text-muted-foreground">
+            рабочего времени по расписанию
+          </span>
+        </FramePanel>
+        <FramePanel className="flex flex-col gap-2 text-sm">
+          <FrameTitle>Как считаются слоты</FrameTitle>
+          <p className="text-muted-foreground">
+            Платная консультация — 1 час, с начала каждого часа. Бесплатная — 30
+            минут, по сетке :00 и :30.
+          </p>
+          <p className="text-muted-foreground">
+            Закрытое время и существующие записи из слотов исключаются.
+          </p>
+        </FramePanel>
+      </Frame>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { getSession } from "~/auth/server";
 import { AppSidebar } from "~/components/sidebar";
+import { api } from "~/orpc/server";
 
 /**
  * The shell (sidebar frame, page slot) is static and prerendered; only the
@@ -23,7 +24,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={<SidebarSkeleton />}>
         <SessionSidebar />
       </Suspense>
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="min-w-0">{children}</SidebarInset>
     </SidebarProvider>
   );
 }
@@ -33,6 +34,8 @@ async function SessionSidebar() {
   // proxy.ts already redirects without a session cookie; this enforces it.
   if (!session?.user) redirect(paths.auth.login);
 
+  const practices = await api.practice.mine();
+
   return (
     <AppSidebar
       user={{
@@ -40,6 +43,7 @@ async function SessionSidebar() {
         email: session.user.email,
         avatar: session.user.image || "",
       }}
+      practices={practices}
     />
   );
 }

@@ -397,6 +397,29 @@ describe("practice", () => {
   });
 });
 
+describe("booking.slots", () => {
+  it("accepts a month padded on both sides and rejects longer windows", async () => {
+    const { slots } = await call(
+      bookingRouter.slots,
+      { practiceId, from: MONDAY, days: 33 },
+      { context: api.context() },
+    );
+    expect(slots).toHaveLength(15);
+    expect(slots[0]?.startsAt.toISOString()).toBe(`${MONDAY}T07:00:00.000Z`);
+    expect(slots.at(-1)?.startsAt.toISOString()).toBe(
+      "2030-02-04T09:00:00.000Z",
+    );
+
+    await expect(
+      call(
+        bookingRouter.slots,
+        { practiceId, from: MONDAY, days: 34 },
+        { context: api.context() },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+});
+
 describe("booking.book", () => {
   it("refuses to book without paid consultations", async () => {
     const { session } = await newClient();

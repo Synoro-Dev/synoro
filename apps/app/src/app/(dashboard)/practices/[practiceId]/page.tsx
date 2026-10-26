@@ -1,48 +1,45 @@
-import { paths } from "@acme/config";
 import { Skeleton } from "@acme/ui";
-import { ORPCError } from "@orpc/server";
-import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { PracticeWorkspace } from "~/components/booking";
+import { PracticeOverview } from "~/components/booking/practice-overview";
+import { loadStaffPractice } from "~/components/booking/staff-practice";
+import { PageHeading } from "~/components/booking/states";
 import { SiteHeader } from "~/components/layout";
-import { api } from "~/orpc/server";
 
-export default function PracticePage({
+export default function PracticeOverviewPage({
   params,
 }: PageProps<"/practices/[practiceId]">) {
   return (
+    <Suspense fallback={<PageSkeleton />}>
+      <Overview params={params} />
+    </Suspense>
+  );
+}
+
+async function Overview({
+  params,
+}: Pick<PageProps<"/practices/[practiceId]">, "params">) {
+  const practice = await loadStaffPractice((await params).practiceId);
+  return (
     <>
-      <SiteHeader title="Практика" />
-      {/* Params and membership are request-time data: stream them in. */}
-      <Suspense fallback={<Skeleton className="m-6 h-96 rounded-xl" />}>
-        <PracticeWithData params={params} />
-      </Suspense>
+      <SiteHeader title="Обзор" />
+      <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
+        <PageHeading
+          title={practice.name}
+          description="Записи, свободное время и клиенты на этой неделе"
+        />
+        <PracticeOverview practice={practice} />
+      </main>
     </>
   );
 }
 
-async function PracticeWithData({
-  params,
-}: Pick<PageProps<"/practices/[practiceId]">, "params">) {
-  const { practiceId } = await params;
-  const practice = await api.practice
-    .get({ practiceId })
-    .catch((error: unknown) => {
-      // Not a member (FORBIDDEN) or not a uuid (BAD_REQUEST): no such page.
-      if (
-        error instanceof ORPCError &&
-        (error.code === "FORBIDDEN" || error.code === "BAD_REQUEST")
-      ) {
-        notFound();
-      }
-      throw error;
-    });
-
-  // Clients don't run the practice: send them to the booking page.
-  if (practice.membership.role === "client") {
-    redirect(paths.booking.public(practice.slug));
-  }
-
-  return <PracticeWorkspace practice={practice} />;
+function PageSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 p-4 lg:p-6">
+      <Skeleton className="h-8 w-56" />
+      <Skeleton className="h-28 w-full rounded-xl" />
+      <Skeleton className="h-80 w-full rounded-xl" />
+    </div>
+  );
 }
