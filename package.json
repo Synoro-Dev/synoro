@@ -14,6 +14,7 @@
     "db:generate": "bun run --cwd packages/db generate",
     "db:migrate": "bun run --cwd packages/db migrate",
     "db:baseline": "bun run --cwd packages/db baseline",
+    "db:seed": "bun run --cwd packages/auth seed",
     "db:check": "bun run --cwd packages/db check:migrations",
     "db:studio": "turbo -F @acme/db studio",
     "dev": "turbo watch dev -F @acme/app...",
