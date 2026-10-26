@@ -1,8 +1,8 @@
 import "server-only";
 
-import { initAuth } from "@acme/auth";
-import { env, logger } from "@acme/config";
-import { dispatchEmail } from "@acme/jobs";
+import { initAuth } from "@synoro/auth";
+import { env, logger } from "@synoro/config";
+import { dispatchEmail } from "@synoro/jobs";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
 import { after } from "next/server";

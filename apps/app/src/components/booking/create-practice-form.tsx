@@ -1,6 +1,6 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import {
   Button,
   Dialog,
@@ -15,8 +15,8 @@ import {
   InputGroupInput,
   Label,
   toast,
-} from "@acme/ui";
-import { type PracticeFormValues, practiceFormSchema } from "@acme/validators";
+} from "@synoro/ui";
+import { type PracticeFormValues, practiceFormSchema } from "@synoro/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isDefinedError } from "@orpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";

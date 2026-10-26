@@ -1,6 +1,6 @@
 import "server-only";
 
-import { appRouter, createORPCContext } from "@acme/api";
+import { appRouter, createORPCContext } from "@synoro/api";
 import { createRouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { headers } from "next/headers";

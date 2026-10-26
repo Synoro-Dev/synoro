@@ -9,17 +9,17 @@
  * wrap this and provide the required context.
  *
  * The context is intentionally decoupled from any concrete `better-auth` instance: callers resolve
- * the session themselves (via `auth.api.getSession`) and pass it in. This keeps `@acme/api` free of
+ * the session themselves (via `auth.api.getSession`) and pass it in. This keeps `@synoro/api` free of
  * the `Auth` type, which previously caused cross-package type mismatches when `better-auth` resolved
  * to more than one instance in the workspace.
  *
  * @see https://orpc.dev/docs/server/context
  */
 
-import type { Session } from "@acme/auth";
-import { isAdmin } from "@acme/auth/roles";
-import { logger } from "@acme/config";
-import { db } from "@acme/db";
+import type { Session } from "@synoro/auth";
+import { isAdmin } from "@synoro/auth/roles";
+import { logger } from "@synoro/config";
+import { db } from "@synoro/db";
 import { os } from "@orpc/server";
 
 export interface CreateORPCContextOptions {

@@ -1,5 +1,5 @@
 {
-  "name": "@acme/api",
+  "name": "@synoro/api",
   "private": true,
   "type": "module",
   "exports": {
@@ -20,15 +20,15 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@acme/auth": "workspace:*",
-    "@acme/config": "workspace:*",
-    "@acme/db": "workspace:*",
-    "@acme/validators": "workspace:*",
+    "@synoro/auth": "workspace:*",
+    "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
+    "@synoro/validators": "workspace:*",
     "@orpc/server": "2.0.0-beta.46",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",
     "typescript": "7.0.2"

@@ -1,6 +1,6 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import {
   Button,
   Skeleton,
@@ -9,10 +9,10 @@ import {
   TabsList,
   TabsTrigger,
   toast,
-} from "@acme/ui";
-import { Badge } from "@acme/ui/reui/badge";
-import { Frame, FramePanel } from "@acme/ui/reui/frame";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+} from "@synoro/ui";
+import { Badge } from "@synoro/ui/reui/badge";
+import { Frame, FramePanel } from "@synoro/ui/reui/frame";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarCheckIcon,

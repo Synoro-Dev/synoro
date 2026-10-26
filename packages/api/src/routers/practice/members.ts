@@ -1,4 +1,4 @@
-import { asc, eq, PracticeMember, sql, user } from "@acme/db";
+import { asc, eq, PracticeMember, sql, user } from "@synoro/db";
 import { z } from "zod";
 
 import {

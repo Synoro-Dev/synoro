@@ -1,4 +1,4 @@
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 

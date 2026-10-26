@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import type { Session } from "@acme/auth";
+import type { Session } from "@synoro/auth";
 import {
   Booking,
   eq,
   PracticeInvitation,
   PracticeMember,
   user,
-} from "@acme/db";
+} from "@synoro/db";
 import { call, isDefinedError } from "@orpc/server";
 
 import { createSession, setupTestApi } from "../../../test/helpers";

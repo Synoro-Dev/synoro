@@ -1,5 +1,5 @@
 {
-  "name": "@acme/db",
+  "name": "@synoro/db",
   "private": true,
   "type": "module",
   "exports": {
@@ -38,7 +38,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@acme/config": "workspace:*",
+    "@synoro/config": "workspace:*",
     "@neondatabase/serverless": "^1.2.0",
     "drizzle-orm": "0.45.4",
     "drizzle-zod": "0.8.3",
@@ -47,7 +47,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@electric-sql/pglite": "^0.5.11",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",

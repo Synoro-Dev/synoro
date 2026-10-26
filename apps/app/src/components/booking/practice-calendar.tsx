@@ -1,11 +1,11 @@
 "use client";
 
-import { Button, Skeleton } from "@acme/ui";
-import { EventCalendar } from "@acme/ui/reui/event-calendar/event-calendar";
-import { EventCalendarContent } from "@acme/ui/reui/event-calendar/event-calendar-content";
-import { EventCalendarNav } from "@acme/ui/reui/event-calendar/event-calendar-nav";
-import type { CalendarEvent } from "@acme/ui/reui/event-calendar/event-calendar-types";
-import { Frame, FramePanel } from "@acme/ui/reui/frame";
+import { Button, Skeleton } from "@synoro/ui";
+import { EventCalendar } from "@synoro/ui/reui/event-calendar/event-calendar";
+import { EventCalendarContent } from "@synoro/ui/reui/event-calendar/event-calendar-content";
+import { EventCalendarNav } from "@synoro/ui/reui/event-calendar/event-calendar-nav";
+import type { CalendarEvent } from "@synoro/ui/reui/event-calendar/event-calendar-types";
+import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, startOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";

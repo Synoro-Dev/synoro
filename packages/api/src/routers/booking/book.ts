@@ -1,4 +1,4 @@
-import { Booking, isExclusionViolation } from "@acme/db";
+import { Booking, isExclusionViolation } from "@synoro/db";
 import { z } from "zod";
 
 import { adjustCredits, loadRules, recordCredit } from "../../lib/bookings";

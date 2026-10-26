@@ -1,5 +1,5 @@
 {
-  "name": "@acme/auth",
+  "name": "@synoro/auth",
   "private": true,
   "type": "module",
   "exports": {
@@ -18,12 +18,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@acme/config": "workspace:*",
-    "@acme/db": "workspace:*",
+    "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
     "better-auth": "1.7.13"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@better-auth/cli": "1.4.21",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",

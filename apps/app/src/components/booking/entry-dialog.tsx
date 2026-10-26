@@ -15,8 +15,8 @@ import {
   TabsTrigger,
   Textarea,
   toast,
-} from "@acme/ui";
-import { freeConsultationFormSchema } from "@acme/validators";
+} from "@synoro/ui";
+import { freeConsultationFormSchema } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LockIcon, UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";

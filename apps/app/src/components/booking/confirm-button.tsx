@@ -11,7 +11,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
   Button,
-} from "@acme/ui";
+} from "@synoro/ui";
 import { type ReactNode, useState } from "react";
 
 /** A button that asks before running an irreversible action. */

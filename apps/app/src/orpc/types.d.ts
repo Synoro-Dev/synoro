@@ -1,4 +1,4 @@
-import type { appRouter } from "@acme/api";
+import type { appRouter } from "@synoro/api";
 import type { RouterClient } from "@orpc/server";
 
 declare global {

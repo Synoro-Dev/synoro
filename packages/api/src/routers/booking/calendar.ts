@@ -1,4 +1,4 @@
-import { asc, Booking, eq, PracticeMember, user } from "@acme/db";
+import { asc, Booking, eq, PracticeMember, user } from "@synoro/db";
 import { z } from "zod";
 
 import { activeBookingOverlaps, localDaysRange } from "../../lib/bookings";

@@ -1,6 +1,6 @@
 "use client";
 
-import type { appRouter } from "@acme/api";
+import type { appRouter } from "@synoro/api";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";

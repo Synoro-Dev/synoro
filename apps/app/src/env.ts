@@ -1,4 +1,4 @@
-import { env as baseEnv } from "@acme/config";
+import { env as baseEnv } from "@synoro/config";
 import { createEnv } from "@t3-oss/env-nextjs";
 import { vercel } from "@t3-oss/env-nextjs/presets-zod";
 import { z } from "zod";

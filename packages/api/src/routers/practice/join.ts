@@ -1,4 +1,4 @@
-import { PracticeMember } from "@acme/db";
+import { PracticeMember } from "@synoro/db";
 import { z } from "zod";
 
 import { findMembership, findPractice } from "../../lib/practice-access";

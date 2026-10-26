@@ -1,4 +1,4 @@
-import { Booking } from "@acme/db";
+import { Booking } from "@synoro/db";
 import { z } from "zod";
 
 import {

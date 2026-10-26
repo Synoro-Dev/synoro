@@ -1,5 +1,5 @@
-import { isUniqueViolation, Practice, PracticeMember } from "@acme/db";
-import { practiceFormSchema } from "@acme/validators";
+import { isUniqueViolation, Practice, PracticeMember } from "@synoro/db";
+import { practiceFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../orpc";

@@ -19,15 +19,15 @@ import {
   ToggleGroup,
   ToggleGroupItem,
   toast,
-} from "@acme/ui";
-import { Badge } from "@acme/ui/reui/badge";
+} from "@synoro/ui";
+import { Badge } from "@synoro/ui/reui/badge";
 import {
   NumberField,
   NumberFieldDecrement,
   NumberFieldGroup,
   NumberFieldIncrement,
   NumberFieldInput,
-} from "@acme/ui/reui/number-field";
+} from "@synoro/ui/reui/number-field";
 import {
   Timeline,
   TimelineContent,
@@ -37,12 +37,12 @@ import {
   TimelineItem,
   TimelineSeparator,
   TimelineTitle,
-} from "@acme/ui/reui/timeline";
+} from "@synoro/ui/reui/timeline";
 import {
   creditGrantFormSchema,
   type MemberInviteFormValues,
   memberInviteFormSchema,
-} from "@acme/validators";
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HistoryIcon } from "lucide-react";
 import { useState } from "react";

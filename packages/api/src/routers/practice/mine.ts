@@ -1,4 +1,4 @@
-import { asc, eq, Practice, PracticeMember } from "@acme/db";
+import { asc, eq, Practice, PracticeMember } from "@synoro/db";
 
 import { protectedProcedure } from "../../orpc";
 

@@ -6,7 +6,7 @@ import { baselineMigrations } from "../migrations";
  * `bun db:baseline && bun db:migrate`. Safe to re-run.
  *
  * Plain console output, like `migrate.ts`: a CLI that must run before
- * `@acme/config` is built.
+ * `@synoro/config` is built.
  */
 async function main() {
   try {

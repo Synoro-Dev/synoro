@@ -1,6 +1,6 @@
 /**
  * Preloaded by `bun test` (see bunfig.toml) before any test module, so the
- * env-reading modules (`@acme/config`, `@acme/db`, `adminProcedure`) see
+ * env-reading modules (`@synoro/config`, `@synoro/db`, `adminProcedure`) see
  * deterministic values instead of whatever a local `.env` contains.
  *
  * Nothing connects to POSTGRES_URL: tests run procedures against PGlite.

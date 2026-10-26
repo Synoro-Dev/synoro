@@ -1,5 +1,5 @@
-import { and, eq, PracticeMember } from "@acme/db";
-import { creditGrantFormSchema } from "@acme/validators";
+import { and, eq, PracticeMember } from "@synoro/db";
+import { creditGrantFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { adjustCredits, recordCredit } from "../../lib/bookings";

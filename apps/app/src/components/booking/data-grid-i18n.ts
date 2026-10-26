@@ -1,4 +1,4 @@
-import type { DataGridI18nOverrides } from "@acme/ui/reui/data-grid/data-grid-i18n";
+import type { DataGridI18nOverrides } from "@synoro/ui/reui/data-grid/data-grid-i18n";
 
 /** Russian labels for the ReUI data grid. */
 export const dataGridI18n: DataGridI18nOverrides = {

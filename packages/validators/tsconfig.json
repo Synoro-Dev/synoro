@@ -1,5 +1,5 @@
 {
-  "extends": "@acme/tsconfig/compiled-package.json",
+  "extends": "@synoro/tsconfig/compiled-package.json",
   "compilerOptions": {
     "rootDir": "./src"
   },

@@ -1,4 +1,4 @@
-import { eq, Practice } from "@acme/db";
+import { eq, Practice } from "@synoro/db";
 import { z } from "zod";
 
 import { findMembership } from "../../lib/practice-access";

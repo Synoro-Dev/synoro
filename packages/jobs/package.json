@@ -1,5 +1,5 @@
 {
-  "name": "@acme/jobs",
+  "name": "@synoro/jobs",
   "private": true,
   "type": "module",
   "exports": {
@@ -24,12 +24,12 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@acme/config": "workspace:*",
-    "@acme/emails": "workspace:*",
+    "@synoro/config": "workspace:*",
+    "@synoro/emails": "workspace:*",
     "@hatchet-dev/typescript-sdk": "1.43.0"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@types/node": "26.6.5",
     "typescript": "7.0.2"
   }

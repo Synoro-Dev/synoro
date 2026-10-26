@@ -1,6 +1,6 @@
 import "server-only";
 
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import { ORPCError } from "@orpc/server";
 import { notFound, redirect } from "next/navigation";
 

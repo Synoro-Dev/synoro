@@ -1,4 +1,4 @@
-import { logger } from "@acme/config";
+import { logger } from "@synoro/config";
 import { sql } from "drizzle-orm";
 import { db } from "../client";
 

@@ -1,5 +1,5 @@
-import { eq, isUniqueViolation, sql, user } from "@acme/db";
-import { profileFormSchema } from "@acme/validators";
+import { eq, isUniqueViolation, sql, user } from "@synoro/db";
+import { profileFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../orpc";

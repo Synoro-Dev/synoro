@@ -24,10 +24,10 @@ Check, in priority order:
    `.returning()` destructured with `noUncheckedIndexedAccess` in mind),
    `ORPCError` codes, Zod input bounds, React Query invalidation after
    mutations.
-3. **Boundaries** — `server-only` code (`~/orpc/server`, `@acme/db`,
-   `@acme/auth`) not imported from `"use client"` files; `"use client"` only
+3. **Boundaries** — `server-only` code (`~/orpc/server`, `@synoro/db`,
+   `@synoro/auth`) not imported from `"use client"` files; `"use client"` only
    where needed.
-4. **Conventions** — env vars go through `@acme/config` / `~/env` (and
+4. **Conventions** — env vars go through `@synoro/config` / `~/env` (and
    `.env.example`, `turbo.json` `globalEnv`); `logger` not `console.log`;
    `import type`; new procedures wired into routers; new UI components
    exported from `packages/ui/src/components/index.ts`; new schema domains

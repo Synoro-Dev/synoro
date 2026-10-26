@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, Practice, PracticeInvitation, sql } from "@acme/db";
+import { and, asc, eq, gt, Practice, PracticeInvitation, sql } from "@synoro/db";
 
 import { invitationRecipient } from "../../lib/invitation-recipient";
 import { protectedProcedure } from "../../orpc";

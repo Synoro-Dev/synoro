@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Label, Skeleton, Switch, toast } from "@acme/ui";
+import { Button, Label, Skeleton, Switch, toast } from "@synoro/ui";
 import {
   Frame,
   FrameDescription,
@@ -8,11 +8,11 @@ import {
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@acme/ui/reui/frame";
+} from "@synoro/ui/reui/frame";
 import {
   type AvailabilityRuleValues,
   availabilityFormSchema,
-} from "@acme/validators";
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";

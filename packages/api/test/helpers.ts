@@ -1,6 +1,6 @@
-import type { Session } from "@acme/auth";
-import { type Database, user } from "@acme/db";
-import { createTestDb } from "@acme/db/testing";
+import type { Session } from "@synoro/auth";
+import { type Database, user } from "@synoro/db";
+import { createTestDb } from "@synoro/db/testing";
 
 import { createORPCContext } from "../src/orpc";
 

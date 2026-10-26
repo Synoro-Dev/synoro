@@ -1,11 +1,11 @@
 "use client";
 
-import type { RouterOutputs } from "@acme/api";
-import { paths } from "@acme/config";
-import { Button, Calendar, Card, Separator, Skeleton, toast } from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+import type { RouterOutputs } from "@synoro/api";
+import { paths } from "@synoro/config";
+import { Button, Calendar, Card, Separator, Skeleton, toast } from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";

@@ -1,4 +1,4 @@
-import { and, eq, gt, PracticeInvitation, PracticeMember, sql } from "@acme/db";
+import { and, eq, gt, PracticeInvitation, PracticeMember, sql } from "@synoro/db";
 import { z } from "zod";
 
 import { invitationRecipient } from "../../lib/invitation-recipient";

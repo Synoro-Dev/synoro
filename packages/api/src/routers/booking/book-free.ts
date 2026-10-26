@@ -1,5 +1,5 @@
-import { Booking, isExclusionViolation } from "@acme/db";
-import { freeConsultationFormSchema } from "@acme/validators";
+import { Booking, isExclusionViolation } from "@synoro/db";
+import { freeConsultationFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { loadRules } from "../../lib/bookings";

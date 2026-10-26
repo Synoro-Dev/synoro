@@ -11,7 +11,7 @@ export interface HelloWorldInput {
  * observability built in. Trigger from anywhere in your app:
  *
  * ```ts
- * import { helloWorldTask } from "@acme/jobs";
+ * import { helloWorldTask } from "@synoro/jobs";
  *
  * // Fire-and-forget (returns a run reference)
  * const ref = await helloWorldTask.runNoWait({ name: "World" });

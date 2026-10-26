@@ -1,5 +1,5 @@
 {
-  "name": "@acme/ui",
+  "name": "@synoro/ui",
   "private": true,
   "type": "module",
   "exports": {
@@ -37,7 +37,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "react": "19.3.1",

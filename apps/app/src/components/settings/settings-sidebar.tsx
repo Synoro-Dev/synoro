@@ -1,7 +1,7 @@
 "use client";
 
-import { paths } from "@acme/config";
-import { cn } from "@acme/ui";
+import { paths } from "@synoro/config";
+import { cn } from "@synoro/ui";
 import { Circle, KeyRound, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

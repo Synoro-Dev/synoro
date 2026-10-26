@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@acme/root",
+      "name": "@synoro/root",
       "devDependencies": {
         "@biomejs/biome": "2.6.3",
         "knip": "6.42.1",
@@ -13,15 +13,15 @@
       },
     },
     "apps/app": {
-      "name": "@acme/app",
+      "name": "@synoro/app",
       "dependencies": {
-        "@acme/api": "workspace:*",
-        "@acme/auth": "workspace:*",
-        "@acme/config": "workspace:*",
-        "@acme/db": "workspace:*",
-        "@acme/jobs": "workspace:*",
-        "@acme/ui": "workspace:*",
-        "@acme/validators": "workspace:*",
+        "@synoro/api": "workspace:*",
+        "@synoro/auth": "workspace:*",
+        "@synoro/config": "workspace:*",
+        "@synoro/db": "workspace:*",
+        "@synoro/jobs": "workspace:*",
+        "@synoro/ui": "workspace:*",
+        "@synoro/validators": "workspace:*",
         "@hookform/resolvers": "^6.0.0",
         "@opentelemetry/api": "1.9.1",
         "@opentelemetry/instrumentation": "0.219.0",
@@ -46,8 +46,8 @@
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@acme/tailwind-config": "workspace:*",
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tailwind-config": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@playwright/test": "1.64.1",
         "@tailwindcss/postcss": "4.3.3",
         "@types/node": "26.6.5",
@@ -60,31 +60,31 @@
       },
     },
     "packages/api": {
-      "name": "@acme/api",
+      "name": "@synoro/api",
       "dependencies": {
-        "@acme/auth": "workspace:*",
-        "@acme/config": "workspace:*",
-        "@acme/db": "workspace:*",
-        "@acme/validators": "workspace:*",
+        "@synoro/auth": "workspace:*",
+        "@synoro/config": "workspace:*",
+        "@synoro/db": "workspace:*",
+        "@synoro/validators": "workspace:*",
         "@orpc/server": "2.0.0-beta.46",
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/bun": "1.4.4",
         "@types/node": "26.6.5",
         "typescript": "7.0.2",
       },
     },
     "packages/auth": {
-      "name": "@acme/auth",
+      "name": "@synoro/auth",
       "dependencies": {
-        "@acme/config": "workspace:*",
-        "@acme/db": "workspace:*",
+        "@synoro/config": "workspace:*",
+        "@synoro/db": "workspace:*",
         "better-auth": "1.7.13",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@better-auth/cli": "1.4.21",
         "@types/bun": "1.4.4",
         "@types/node": "26.6.5",
@@ -92,7 +92,7 @@
       },
     },
     "packages/config": {
-      "name": "@acme/config",
+      "name": "@synoro/config",
       "version": "0.0.0",
       "dependencies": {
         "@opentelemetry/api": "1.9.1",
@@ -100,7 +100,7 @@
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@opentelemetry/context-async-hooks": "2.8.0",
         "@types/bun": "1.4.4",
         "@types/node": "26.6.5",
@@ -109,9 +109,9 @@
       },
     },
     "packages/db": {
-      "name": "@acme/db",
+      "name": "@synoro/db",
       "dependencies": {
-        "@acme/config": "workspace:*",
+        "@synoro/config": "workspace:*",
         "@neondatabase/serverless": "^1.2.0",
         "drizzle-orm": "0.45.4",
         "drizzle-zod": "0.8.3",
@@ -120,7 +120,7 @@
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@electric-sql/pglite": "^0.5.11",
         "@types/bun": "1.4.4",
         "@types/node": "26.6.5",
@@ -131,10 +131,10 @@
       },
     },
     "packages/emails": {
-      "name": "@acme/emails",
+      "name": "@synoro/emails",
       "version": "1.0.0",
       "dependencies": {
-        "@acme/config": "workspace:*",
+        "@synoro/config": "workspace:*",
         "@radix-ui/colors": "3.0.0",
         "@react-email/components": "1.0.12",
         "nodemailer": "^10.2.1",
@@ -144,7 +144,7 @@
         "resend": "^6.34.1",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@react-email/preview-server": "5.2.10",
         "@types/node": "26.6.5",
         "@types/nodemailer": "^8.0.2",
@@ -155,35 +155,35 @@
       },
     },
     "packages/jobs": {
-      "name": "@acme/jobs",
+      "name": "@synoro/jobs",
       "dependencies": {
-        "@acme/config": "workspace:*",
-        "@acme/emails": "workspace:*",
+        "@synoro/config": "workspace:*",
+        "@synoro/emails": "workspace:*",
         "@hatchet-dev/typescript-sdk": "1.43.0",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/node": "26.6.5",
         "typescript": "7.0.2",
       },
     },
     "packages/storage": {
-      "name": "@acme/storage",
+      "name": "@synoro/storage",
       "version": "0.1.0",
       "dependencies": {
-        "@acme/config": "workspace:*",
+        "@synoro/config": "workspace:*",
         "@aws-sdk/client-s3": "3.1156.0",
         "@aws-sdk/s3-request-presigner": "3.1156.0",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/node": "26.6.5",
         "tsdown": "0.23.2",
         "typescript": "7.0.2",
       },
     },
     "packages/ui": {
-      "name": "@acme/ui",
+      "name": "@synoro/ui",
       "dependencies": {
         "@base-ui/react": "^1.9.0",
         "@date-fns/tz": "^1.5.0",
@@ -205,7 +205,7 @@
         "vaul": "^1.1.2",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/react": "19.3.0",
         "@types/react-dom": "19.3.0",
         "react": "19.3.1",
@@ -215,62 +215,62 @@
       },
     },
     "packages/validators": {
-      "name": "@acme/validators",
+      "name": "@synoro/validators",
       "dependencies": {
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/bun": "1.4.4",
         "typescript": "7.0.2",
       },
     },
     "tooling/github": {
-      "name": "@acme/github",
+      "name": "@synoro/github",
     },
     "tooling/tailwind": {
-      "name": "@acme/tailwind-config",
+      "name": "@synoro/tailwind-config",
       "dependencies": {
         "@tailwindcss/postcss": "4.3.3",
         "postcss": "^8.5.26",
         "tailwindcss": "4.3.3",
       },
       "devDependencies": {
-        "@acme/tsconfig": "workspace:*",
+        "@synoro/tsconfig": "workspace:*",
         "@types/node": "26.6.5",
         "typescript": "7.0.2",
       },
     },
     "tooling/typescript": {
-      "name": "@acme/tsconfig",
+      "name": "@synoro/tsconfig",
     },
   },
   "packages": {
-    "@acme/api": ["@acme/api@workspace:packages/api"],
+    "@synoro/api": ["@synoro/api@workspace:packages/api"],
 
-    "@acme/app": ["@acme/app@workspace:apps/app"],
+    "@synoro/app": ["@synoro/app@workspace:apps/app"],
 
-    "@acme/auth": ["@acme/auth@workspace:packages/auth"],
+    "@synoro/auth": ["@synoro/auth@workspace:packages/auth"],
 
-    "@acme/config": ["@acme/config@workspace:packages/config"],
+    "@synoro/config": ["@synoro/config@workspace:packages/config"],
 
-    "@acme/db": ["@acme/db@workspace:packages/db"],
+    "@synoro/db": ["@synoro/db@workspace:packages/db"],
 
-    "@acme/emails": ["@acme/emails@workspace:packages/emails"],
+    "@synoro/emails": ["@synoro/emails@workspace:packages/emails"],
 
-    "@acme/github": ["@acme/github@workspace:tooling/github"],
+    "@synoro/github": ["@synoro/github@workspace:tooling/github"],
 
-    "@acme/jobs": ["@acme/jobs@workspace:packages/jobs"],
+    "@synoro/jobs": ["@synoro/jobs@workspace:packages/jobs"],
 
-    "@acme/storage": ["@acme/storage@workspace:packages/storage"],
+    "@synoro/storage": ["@synoro/storage@workspace:packages/storage"],
 
-    "@acme/tailwind-config": ["@acme/tailwind-config@workspace:tooling/tailwind"],
+    "@synoro/tailwind-config": ["@synoro/tailwind-config@workspace:tooling/tailwind"],
 
-    "@acme/tsconfig": ["@acme/tsconfig@workspace:tooling/typescript"],
+    "@synoro/tsconfig": ["@synoro/tsconfig@workspace:tooling/typescript"],
 
-    "@acme/ui": ["@acme/ui@workspace:packages/ui"],
+    "@synoro/ui": ["@synoro/ui@workspace:packages/ui"],
 
-    "@acme/validators": ["@acme/validators@workspace:packages/validators"],
+    "@synoro/validators": ["@synoro/validators@workspace:packages/validators"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

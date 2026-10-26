@@ -1,5 +1,5 @@
 {
-  "name": "@acme/tailwind-config",
+  "name": "@synoro/tailwind-config",
   "private": true,
   "type": "module",
   "exports": {
@@ -20,7 +20,7 @@
     "tailwindcss": "4.3.3"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@types/node": "26.6.5",
     "typescript": "7.0.2"
   }
