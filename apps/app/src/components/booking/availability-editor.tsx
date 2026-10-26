@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { QueryError } from "./query-error";
 import { WEEKDAY_NAMES } from "./time";
 import { TimeSelect } from "./time-select";
 
@@ -21,11 +22,20 @@ export function AvailabilityEditor({
   practiceId: string;
   timezone: string;
 }) {
-  const { data, isPending } = useQuery(
+  const { data, isPending, isError, refetch, isFetching } = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
   );
 
-  if (isPending || !data) return <Skeleton className="h-96 w-full" />;
+  if (isPending) return <Skeleton className="h-96 w-full" />;
+  if (isError || !data) {
+    return (
+      <QueryError
+        message="Не удалось загрузить расписание."
+        retry={() => refetch()}
+        isFetching={isFetching}
+      />
+    );
+  }
   // Keyed by the loaded rules, so a refetch after saving resets the draft.
   return (
     <RulesForm

@@ -22,6 +22,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "./confirm-button";
+import { QueryError } from "./query-error";
 import { dateKey, formatDayHeading, formatTime, groupIntoDays } from "./time";
 import { TimeSelect } from "./time-select";
 import { WEEK_DAYS, WeekNav } from "./week-nav";
@@ -135,6 +136,17 @@ export function StaffCalendar({
 
       {calendar.isPending || freeSlots.isPending ? (
         <Skeleton className="h-96 w-full" />
+      ) : calendar.isError || freeSlots.isError ? (
+        <QueryError
+          message="Не удалось загрузить календарь."
+          retry={() =>
+            Promise.all([
+              ...(calendar.isError ? [calendar.refetch()] : []),
+              ...(freeSlots.isError ? [freeSlots.refetch()] : []),
+            ])
+          }
+          isFetching={calendar.isFetching || freeSlots.isFetching}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {groupIntoDays(items, from, WEEK_DAYS).map(([day, dayItems]) => (
@@ -336,6 +348,10 @@ function BlockTimeForm({
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!date) {
+      toast.error("Укажите дату");
+      return;
+    }
     if (end <= start) {
       toast.error("Конец должен быть позже начала");
       return;

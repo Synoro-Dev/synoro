@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
 import { orpc } from "~/orpc/react";
+import { PracticeInvitations } from "./practice-invitations";
 
 export const ROLE_LABELS = {
   owner: "Специалист",
@@ -23,6 +24,15 @@ export const ROLE_LABELS = {
 
 /** Practices the user runs (→ console) or is a client of (→ booking page). */
 export function PracticeList() {
+  return (
+    <div className="flex flex-col gap-6">
+      <PracticeInvitations />
+      <Memberships />
+    </div>
+  );
+}
+
+function Memberships() {
   const { data, isPending } = useQuery(orpc.practice.mine.queryOptions());
 
   if (isPending) return <Skeleton className="h-24 w-full rounded-xl" />;

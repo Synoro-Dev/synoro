@@ -15,6 +15,13 @@
       "when": 1793005705472,
       "tag": "0001_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793028511428,
+      "tag": "0002_practice_invitations",
+      "breakpoints": true
     }
   ]
 }

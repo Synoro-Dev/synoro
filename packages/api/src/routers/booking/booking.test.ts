@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import type { Session } from "@acme/auth";
-import { Booking } from "@acme/db";
+import {
+  Booking,
+  eq,
+  PracticeInvitation,
+  PracticeMember,
+  user,
+} from "@acme/db";
 import { call, isDefinedError } from "@orpc/server";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -8,6 +14,7 @@ import { errorStatusMap } from "../../errors";
 import { availabilityRouter } from "../availability";
 import { creditRouter } from "../credit";
 import { practiceRouter } from "../practice";
+import { userRouter } from "../user";
 import { bookingRouter } from ".";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
@@ -70,7 +77,9 @@ beforeAll(async () => {
     { context: api.context(owner) },
   );
 });
-afterAll(() => api.close());
+afterAll(async () => {
+  if (api) await api.close();
+});
 
 describe("practice", () => {
   it("rejects a taken slug with a typed CONFLICT", async () => {
@@ -100,29 +109,291 @@ describe("practice", () => {
     expect(mine.membership?.role).toBe("owner");
   });
 
-  it("lets only the owner appoint administrators", async () => {
+  it("requires recipient acceptance and reserves admin invitations for the owner", async () => {
     const admin = await createSession(api.db, { email: "admin@anna.test" });
-    const added = await call(
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, admin.user.id));
+    const invited = await call(
       practiceRouter.addMember,
       { practiceId, email: "ADMIN@anna.test", role: "admin" },
       { context: api.context(owner) },
     );
-    expect(added.role).toBe("admin");
-
-    await createSession(api.db, { email: "other@anna.test" });
-    const promise = call(
-      practiceRouter.addMember,
-      { practiceId, email: "other@anna.test", role: "admin" },
+    expect(invited).toEqual({ invited: true });
+    expect(
+      await call(practiceRouter.mine, undefined, {
+        context: api.context(admin),
+      }),
+    ).toEqual([]);
+    const pending = await call(practiceRouter.invitations, undefined, {
+      context: api.context(admin),
+    });
+    const invitationId = pending.invitations[0]?.id ?? "";
+    const accepted = await call(
+      practiceRouter.acceptInvitation,
+      { invitationId },
       { context: api.context(admin) },
     );
-    await expect(promise).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(accepted.role).toBe("admin");
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId },
+        { context: api.context(admin) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const client = await call(
-      practiceRouter.addMember,
-      { practiceId, email: "other@anna.test", role: "client" },
-      { context: api.context(admin) },
+    await expect(
+      call(
+        practiceRouter.addMember,
+        { practiceId, email: "other@anna.test", role: "admin" },
+        { context: api.context(admin) },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(
+      await call(
+        practiceRouter.addMember,
+        { practiceId, email: "other@anna.test", role: "client" },
+        { context: api.context(admin) },
+      ),
+    ).toEqual(invited);
+  });
+
+  it("invites unregistered emails without disclosure and hides profiles until acceptance", async () => {
+    const input = {
+      practiceId,
+      email: "future@anna.test",
+      role: "client" as const,
+    };
+    expect(
+      await call(practiceRouter.addMember, input, {
+        context: api.context(owner),
+      }),
+    ).toEqual({ invited: true });
+    // Repeating the invitation is idempotent.
+    await call(practiceRouter.addMember, input, {
+      context: api.context(owner),
+    });
+    const future = await createSession(api.db, {
+      email: "future@anna.test",
+      name: "Private name",
+    });
+    const stranger = await createSession(api.db);
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, stranger.user.id));
+    const [invitation] = await api.db
+      .select()
+      .from(PracticeInvitation)
+      .where(eq(PracticeInvitation.email, input.email));
+    const invitationId = invitation?.id ?? "";
+    expect(
+      await call(practiceRouter.invitations, undefined, {
+        context: api.context(future),
+      }),
+    ).toEqual({ emailVerified: false, invitations: [] });
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId },
+        { context: api.context(future) },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId },
+        { context: api.context(stranger) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(
+      (
+        await call(
+          practiceRouter.members,
+          { practiceId },
+          { context: api.context(owner) },
+        )
+      ).some((m) => m.email === input.email),
+    ).toBe(false);
+
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, future.user.id));
+    const pending = await call(practiceRouter.invitations, undefined, {
+      context: api.context(future),
+    });
+    expect(pending.invitations).toHaveLength(1);
+    const accepted = await call(
+      practiceRouter.acceptInvitation,
+      { invitationId },
+      { context: api.context(future) },
     );
-    expect(client.role).toBe("client");
+    expect(accepted.role).toBe("client");
+    expect(
+      (
+        await call(
+          practiceRouter.members,
+          { practiceId },
+          { context: api.context(owner) },
+        )
+      ).find((m) => m.email === input.email)?.name,
+    ).toBe("Private name");
+  });
+
+  it("requires fresh verification after changing email, even with a stale verified session", async () => {
+    const recipient = await createSession(api.db);
+    recipient.user.emailVerified = true;
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, recipient.user.id));
+    await call(
+      userRouter.updateProfile,
+      { username: "recipient", email: recipient.user.email },
+      { context: api.context(recipient) },
+    );
+    expect(
+      (
+        await call(userRouter.me, undefined, {
+          context: api.context(recipient),
+        })
+      )?.emailVerified,
+    ).toBe(true);
+    const email = "unverified-recipient@anna.test";
+    await call(
+      practiceRouter.addMember,
+      { practiceId, email, role: "client" },
+      { context: api.context(owner) },
+    );
+    await call(
+      userRouter.updateProfile,
+      { username: "recipient", email },
+      { context: api.context(recipient) },
+    );
+    expect(
+      (
+        await call(userRouter.me, undefined, {
+          context: api.context(recipient),
+        })
+      )?.emailVerified,
+    ).toBe(false);
+    const [invitation] = await api.db
+      .select()
+      .from(PracticeInvitation)
+      .where(eq(PracticeInvitation.email, email));
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId: invitation?.id ?? "" },
+        { context: api.context(recipient) },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await call(practiceRouter.invitations, undefined, {
+        context: api.context(recipient),
+      }),
+    ).toEqual({ emailVerified: false, invitations: [] });
+  });
+
+  it("preserves credits and existing roles when accepting invitations", async () => {
+    const client = await newClient(3);
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, client.session.user.id));
+    await call(
+      practiceRouter.addMember,
+      { practiceId, email: client.session.user.email, role: "admin" },
+      { context: api.context(owner) },
+    );
+    const pending = await call(practiceRouter.invitations, undefined, {
+      context: api.context(client.session),
+    });
+    const invitationId = pending.invitations[0]?.id ?? "";
+    const results = await Promise.allSettled([
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId },
+        { context: api.context(client.session) },
+      ),
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId },
+        { context: api.context(client.session) },
+      ),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(results.find((r) => r.status === "fulfilled")?.value).toMatchObject({
+      role: "admin",
+      credits: 3,
+    });
+    // Accepting a client invitation must not demote an administrator.
+    await call(
+      practiceRouter.addMember,
+      { practiceId, email: client.session.user.email, role: "client" },
+      { context: api.context(owner) },
+    );
+    const next = await call(practiceRouter.invitations, undefined, {
+      context: api.context(client.session),
+    });
+    expect(
+      await call(
+        practiceRouter.acceptInvitation,
+        { invitationId: next.invitations[0]?.id ?? "" },
+        { context: api.context(client.session) },
+      ),
+    ).toMatchObject({ role: "admin", credits: 3 });
+  });
+
+  it("rejects expired invitations and ones whose inviter lost authority", async () => {
+    const recipient = await createSession(api.db);
+    await api.db
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, recipient.user.id));
+    const [expired] = await api.db
+      .insert(PracticeInvitation)
+      .values({
+        practiceId,
+        email: recipient.user.email,
+        role: "admin",
+        invitedById: owner.user.id,
+        expiresAt: new Date(0),
+      })
+      .returning();
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId: expired?.id ?? "" },
+        { context: api.context(recipient) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    const inviter = await newClient();
+    const [revoked] = await api.db
+      .insert(PracticeInvitation)
+      .values({
+        practiceId,
+        email: recipient.user.email,
+        role: "client",
+        invitedById: inviter.session.user.id,
+      })
+      .returning();
+    await expect(
+      call(
+        practiceRouter.acceptInvitation,
+        { invitationId: revoked?.id ?? "" },
+        { context: api.context(recipient) },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await api.db.query.PracticeMember.findFirst({
+        where: eq(PracticeMember.userId, recipient.user.id),
+      }),
+    ).toBeUndefined();
   });
 });
 

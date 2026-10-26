@@ -18,6 +18,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { QueryError } from "./query-error";
 import {
   dateKey,
   formatDateTime,
@@ -151,6 +152,12 @@ export function PublicBooking({
 
       {slots.isPending ? (
         <Skeleton className="h-64 w-full rounded-xl" />
+      ) : slots.isError ? (
+        <QueryError
+          message="Не удалось загрузить свободное время."
+          retry={() => slots.refetch()}
+          isFetching={slots.isFetching}
+        />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           {groupIntoDays(slots.data?.slots ?? [], from, WEEK_DAYS).map(

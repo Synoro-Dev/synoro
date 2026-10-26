@@ -16,6 +16,7 @@ import Link from "next/link";
 
 import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "./confirm-button";
+import { QueryError } from "./query-error";
 import { formatDateTime, formatTime } from "./time";
 
 /** The client's consultations across practices, with balances and cancel. */
@@ -40,16 +41,16 @@ export function MyBookings() {
     onError: (error) => toast.error(error.message),
   });
 
-  const clientOf = practices.data?.filter((p) => p.role === "client") ?? [];
+  const clientOf = (practices.isSuccess ? practices.data : []).filter(
+    (p) => p.role === "client",
+  );
   const now = Date.now();
-  const upcoming =
-    bookings.data?.filter(
-      (b) => b.status === "active" && b.endsAt.getTime() > now,
-    ) ?? [];
-  const past =
-    bookings.data?.filter(
-      (b) => b.status !== "active" || b.endsAt.getTime() <= now,
-    ) ?? [];
+  const upcoming = (bookings.isSuccess ? bookings.data : []).filter(
+    (b) => b.status === "active" && b.endsAt.getTime() > now,
+  );
+  const past = (bookings.isSuccess ? bookings.data : []).filter(
+    (b) => b.status !== "active" || b.endsAt.getTime() <= now,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,7 +60,14 @@ export function MyBookings() {
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {practices.isPending && <Skeleton className="h-8 w-64" />}
-          {!practices.isPending && clientOf.length === 0 && (
+          {practices.isError && (
+            <QueryError
+              message="Не удалось загрузить оплаченные консультации."
+              retry={() => practices.refetch()}
+              isFetching={practices.isFetching}
+            />
+          )}
+          {practices.isSuccess && clientOf.length === 0 && (
             <p className="text-sm text-muted-foreground">
               Вы ещё не клиент ни одного специалиста — откройте его ссылку для
               записи.
@@ -95,7 +103,14 @@ export function MyBookings() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {bookings.isPending && <Skeleton className="h-12 w-full" />}
-          {!bookings.isPending && upcoming.length === 0 && (
+          {bookings.isError && (
+            <QueryError
+              message="Не удалось загрузить записи."
+              retry={() => bookings.refetch()}
+              isFetching={bookings.isFetching}
+            />
+          )}
+          {bookings.isSuccess && upcoming.length === 0 && (
             <p className="text-sm text-muted-foreground">Записей нет.</p>
           )}
           {upcoming.map((b) => (

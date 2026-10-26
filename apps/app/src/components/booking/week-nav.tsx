@@ -47,7 +47,7 @@ export function WeekNav({
           <IconChevronRight />
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p suppressHydrationWarning className="text-xs text-muted-foreground">
         Время указано по вашему часовому поясу ({viewerTimeZone()})
       </p>
     </div>

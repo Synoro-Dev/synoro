@@ -185,7 +185,9 @@ function AddMemberForm({
   const add = useMutation({
     ...orpc.practice.addMember.mutationOptions(),
     onSuccess: async () => {
-      toast.success("Добавлено");
+      toast.success(
+        "Приглашение создано. Получатель сможет принять его в разделе «Практики» после входа с этой почтой.",
+      );
       setEmail("");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
@@ -205,9 +207,7 @@ function AddMemberForm({
   return (
     <form onSubmit={submit} className="flex flex-wrap items-end gap-2">
       <div className="min-w-64 flex-1 space-y-1">
-        <Label htmlFor="member-email">
-          Добавить зарегистрированного пользователя
-        </Label>
+        <Label htmlFor="member-email">Пригласить по электронной почте</Label>
         <Input
           id="member-email"
           type="email"
@@ -228,7 +228,7 @@ function AddMemberForm({
         {isOwner && <option value="admin">Администратор</option>}
       </select>
       <Button type="submit" disabled={add.isPending}>
-        Добавить
+        Пригласить
       </Button>
     </form>
   );
