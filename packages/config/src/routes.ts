@@ -27,6 +27,12 @@ export const paths = {
     practices: ROOTS.PRACTICES,
     practice: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}` as const,
+    calendar: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/calendar` as const,
+    clients: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/clients` as const,
+    schedule: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/schedule` as const,
     /** The client's own consultations. */
     mine: "/bookings",
     /** Public booking page of a practice. */

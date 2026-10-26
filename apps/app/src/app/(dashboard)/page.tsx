@@ -1,26 +1,27 @@
-import {
-  ChartAreaInteractive,
-  DataTable,
-  SectionCards,
-} from "~/components/dashboard";
-import { SiteHeader } from "~/components/layout";
-import data from "./data.json";
+import { paths } from "@acme/config";
+import { Skeleton } from "@acme/ui";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-export default function Page() {
+import { api } from "~/orpc/server";
+
+/**
+ * Home: specialists and administrators land in their first practice,
+ * clients in their bookings, newcomers on the practices page.
+ */
+export default function HomePage() {
   return (
-    <>
-      <SiteHeader />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-            <SectionCards />
-            <div className="px-4 lg:px-6">
-              <ChartAreaInteractive />
-            </div>
-            <DataTable data={data} />
-          </div>
-        </div>
-      </div>
-    </>
+    <Suspense fallback={<Skeleton className="m-6 h-64 rounded-xl" />}>
+      <RedirectHome />
+    </Suspense>
   );
+}
+
+async function RedirectHome(): Promise<null> {
+  const practices = await api.practice.mine();
+  const staff = practices.find((p) => p.role !== "client");
+
+  if (staff) redirect(paths.booking.practice(staff.practiceId));
+  if (practices.length > 0) redirect(paths.booking.mine);
+  redirect(paths.booking.practices);
 }

@@ -1,35 +1,56 @@
 "use client";
 
+import {
+  TimePicker,
+  type TimePickerI18nOverrides,
+} from "@acme/ui/reui/time-picker";
+
 import { minutesToTime } from "./time";
 
-const HALF_HOURS = Array.from({ length: 49 }, (_, i) => i * 30);
+const RU: TimePickerI18nOverrides = {
+  labels: {
+    placeholder: "Время",
+    hour: "Часы",
+    minute: "Минуты",
+    now: "Сейчас",
+    clear: "Сбросить",
+    confirm: "OK",
+    panelLabel: "Выберите время",
+    openPicker: "Открыть выбор времени",
+  },
+};
 
-/** Native select of half-hour times ("10:30"), as minutes since midnight. */
+/**
+ * Half-hour time of day as minutes since midnight, on the ReUI time picker.
+ * `endOfDay` lets "00:00" stand for 24:00, the end of a working day.
+ */
 export function TimeSelect({
   value,
   onChange,
-  min,
-  max,
   label,
+  endOfDay = false,
+  disabled,
 }: {
   value: number;
   onChange: (minute: number) => void;
-  min: number;
-  max: number;
   label: string;
+  endOfDay?: boolean;
+  disabled?: boolean;
 }) {
   return (
-    <select
+    <TimePicker
       aria-label={label}
-      value={value}
-      onChange={(e) => onChange(Number(e.target.value))}
-      className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs dark:bg-input/30"
-    >
-      {HALF_HOURS.filter((m) => m >= min && m <= max).map((m) => (
-        <option key={m} value={m}>
-          {minutesToTime(m)}
-        </option>
-      ))}
-    </select>
+      className="w-24"
+      minuteStep={30}
+      disabled={disabled}
+      i18n={RU}
+      value={minutesToTime(value % 1440)}
+      onValueChange={(next) => {
+        if (!next) return;
+        const [h = 0, m = 0] = next.split(":").map(Number);
+        const minute = h * 60 + m;
+        onChange(endOfDay && minute === 0 ? 1440 : minute);
+      }}
+    />
   );
 }

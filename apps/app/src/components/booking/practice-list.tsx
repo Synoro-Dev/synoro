@@ -1,80 +1,104 @@
 "use client";
 
 import { paths } from "@acme/config";
-import {
-  Badge,
-  Button,
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-} from "@acme/ui";
+import { Button, Skeleton } from "@acme/ui";
+import { Badge } from "@acme/ui/reui/badge";
+import { Frame, FramePanel } from "@acme/ui/reui/frame";
+import { IconTile } from "@acme/ui/reui/icon-tile";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRightIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { orpc } from "~/orpc/react";
-
-export const ROLE_LABELS = {
-  owner: "Специалист",
-  admin: "Администратор",
-  client: "Клиент",
-} as const;
+import { ROLE_LABELS } from "../sidebar/types";
+import { CreatePracticeDialog } from "./create-practice-form";
+import { EmptyState, ErrorState, PageHeading } from "./states";
 
 /** Practices the user runs (→ console) or is a client of (→ booking page). */
 export function PracticeList() {
-  const { data, isPending } = useQuery(orpc.practice.mine.queryOptions());
-
-  if (isPending) return <Skeleton className="h-24 w-full rounded-xl" />;
-  if (!data?.length) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Вы пока не состоите ни в одной практике. Создайте свою или откройте
-        ссылку на страницу записи, которую дал специалист.
-      </p>
+  const router = useRouter();
+  const pathname = usePathname();
+  const creating = useSearchParams().get("new") === "1";
+  const practices = useQuery(orpc.practice.mine.queryOptions());
+  const setCreating = (open: boolean) =>
+    router.replace(
+      (open ? `${paths.booking.practices}?new=1` : pathname) as Route,
     );
-  }
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {data.map((p) => {
-        const staff = p.role !== "client";
-        return (
-          <Card key={p.practiceId}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                {p.name}
-                <Badge variant={staff ? "default" : "secondary"}>
-                  {ROLE_LABELS[p.role]}
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                {staff
-                  ? `Страница записи: /p/${p.slug}`
-                  : `Оплаченных консультаций: ${p.credits}`}
-              </CardDescription>
-              <div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  nativeButton={false}
-                  render={
-                    <Link
-                      href={
-                        staff
-                          ? paths.booking.practice(p.practiceId)
-                          : paths.booking.public(p.slug)
-                      }
-                    />
-                  }
-                >
-                  {staff ? "Открыть" : "Записаться"}
+    <div className="flex flex-col gap-6">
+      <PageHeading
+        title="Практики"
+        description="Где вы специалист, администратор или клиент"
+        actions={
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <PlusIcon />
+            Новая практика
+          </Button>
+        }
+      />
+
+      {practices.isError ? (
+        <ErrorState onRetry={() => practices.refetch()} />
+      ) : practices.isPending ? (
+        <Skeleton className="h-40 w-full rounded-xl" />
+      ) : practices.data.length === 0 ? (
+        <Frame spacing="default">
+          <FramePanel>
+            <EmptyState
+              icon={LayoutGridIcon}
+              title="Здесь пока пусто"
+              description="Создайте практику, чтобы принимать записи."
+              action={
+                <Button size="sm" onClick={() => setCreating(true)}>
+                  <PlusIcon />
+                  Новая практика
                 </Button>
-              </div>
-            </CardHeader>
-          </Card>
-        );
-      })}
+              }
+            />
+          </FramePanel>
+        </Frame>
+      ) : (
+        <Frame spacing="default" stacked>
+          {practices.data.map((p) => {
+            const staff = p.role !== "client";
+            return (
+              <FramePanel key={p.practiceId} className="p-0">
+                <Link
+                  href={
+                    staff
+                      ? paths.booking.practice(p.practiceId)
+                      : paths.booking.public(p.slug)
+                  }
+                  className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                >
+                  <IconTile variant="soft" aria-hidden="true">
+                    {p.name.charAt(0).toUpperCase()}
+                  </IconTile>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex items-center gap-2 truncate text-sm font-medium">
+                      {p.name}
+                      <Badge variant={staff ? "primary-light" : "outline"}>
+                        {ROLE_LABELS[p.role]}
+                      </Badge>
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {staff
+                        ? `/p/${p.slug}`
+                        : `Оплачено консультаций: ${p.credits}`}
+                    </span>
+                  </div>
+                  <ChevronRightIcon className="size-4 text-muted-foreground" />
+                </Link>
+              </FramePanel>
+            );
+          })}
+        </Frame>
+      )}
+
+      <CreatePracticeDialog open={creating} onOpenChange={setCreating} />
     </div>
   );
 }
