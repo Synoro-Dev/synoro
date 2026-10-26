@@ -10,7 +10,7 @@ const httpOrigin = z
   .transform((value) => new URL(value).origin);
 
 // Better Auth matches wildcard patterns against the origin (with a scheme)
-// or host (without one). Keep patterns intact rather than parsing them as URLs.
+// or host (without one). Normalize without parsing wildcard characters as URLs.
 const wildcardOrigin = z
   .string()
   .regex(/^(?:https?:\/\/)?[a-z0-9.*?-]+(?::[0-9*?]+)?$/i)
@@ -18,7 +18,15 @@ const wildcardOrigin = z
   .refine((value) => {
     const url = value.includes("://") ? value : `https://${value}`;
     return httpOrigin.safeParse(url.replace(/[*?]/g, "1")).success;
-  }, "Invalid origin wildcard pattern");
+  }, "Invalid origin wildcard pattern")
+  .transform((value) =>
+    value
+      .toLowerCase()
+      .replace(/^(https?:\/\/[^:]+):\d+$/, (pattern, origin) => {
+        const port = new URL(pattern.replace(/[*?]/g, "1")).port;
+        return `${origin}${port ? `:${port}` : ""}`;
+      }),
+  );
 
 export const env = createEnv({
   server: {

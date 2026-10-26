@@ -52,6 +52,27 @@ describe("AUTH_TRUSTED_ORIGINS", () => {
   });
 
   it.each([
+    ["HTTPS://*.EXAMPLE.COM:443", "https://*.example.com"],
+    ["HTTP://APP?.EXAMPLE.COM:80", "http://app?.example.com"],
+    ["https://*.Example.com:00443", "https://*.example.com"],
+    ["http://*.Example.com:00080", "http://*.example.com"],
+    [
+      "HTTPS://PREVIEW-*.EXAMPLE.COM:8443",
+      "https://preview-*.example.com:8443",
+    ],
+    ["http://*.EXAMPLE.COM:443", "http://*.example.com:443"],
+    ["https://*.EXAMPLE.COM:80", "https://*.example.com:80"],
+    ["HTTPS://APP?.EXAMPLE.COM:4*?", "https://app?.example.com:4*?"],
+    ["*.EXAMPLE.COM", "*.example.com"],
+    ["APP?.EXAMPLE.COM:443", "app?.example.com:443"],
+  ])("normalizes wildcard pattern %s to %s", (pattern, expected) => {
+    const result = readOrigins(pattern);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout.toString())).toBe(expected);
+  });
+
+  it.each([
     "not-a-url",
     "example.com",
     "ftp://example.com",
