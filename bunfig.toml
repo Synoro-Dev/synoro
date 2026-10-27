@@ -33,4 +33,7 @@ linker = "isolated"
 [test]
 # Root `bun test` runs every package's tests in one process; preload the API
 # test env here too (packages/api/bunfig.toml covers `bun test` in-package).
-preload = ["./packages/api/test/setup.ts"]
+preload = [
+  "./apps/app/test/async-local-storage.ts",
+  "./packages/api/test/setup.ts",
+]
