@@ -4,6 +4,7 @@ import {
   availabilityFormSchema,
   creditGrantFormSchema,
   freeConsultationFormSchema,
+  normalizeHostname,
   practiceFormSchema,
 } from "./booking";
 import { loginFormSchema } from "./login";
@@ -203,6 +204,44 @@ describe("availabilityFormSchema", () => {
       ],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("practiceFormSchema reserved slugs", () => {
+  test("rejects slugs reserved for platform subdomains", () => {
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "www" }).success,
+    ).toBe(false);
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "API" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("normalizeHostname", () => {
+  test("strips scheme, path, port and trailing dot", () => {
+    expect(normalizeHostname(" https://Anna-Psy.ru/zapis?x=1 ")).toBe(
+      "anna-psy.ru",
+    );
+    expect(normalizeHostname("zapis.anna.ru:443")).toBe("zapis.anna.ru");
+    expect(normalizeHostname("anna.ru.")).toBe("anna.ru");
+  });
+
+  test("converts Cyrillic domains to punycode", () => {
+    expect(normalizeHostname("Анна.рф")).toBe("xn--80aa2ba.xn--p1ai");
+  });
+
+  test("rejects non-hosts", () => {
+    for (const value of [
+      "",
+      "anna",
+      "localhost",
+      "1.2.3.4",
+      "a b.ru",
+      "-a.ru",
+    ]) {
+      expect(normalizeHostname(value)).toBeNull();
+    }
   });
 });
 

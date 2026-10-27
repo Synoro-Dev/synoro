@@ -1,5 +1,6 @@
 import { acceptInvitation } from "./accept-invitation";
 import { addMember } from "./add-member";
+import { byHost } from "./by-host";
 import { bySlug } from "./by-slug";
 import { create } from "./create";
 import { get } from "./get";
@@ -12,6 +13,7 @@ export const practiceRouter = {
   create,
   mine,
   bySlug,
+  byHost,
   get,
   join,
   members,

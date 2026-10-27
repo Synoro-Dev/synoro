@@ -49,9 +49,15 @@ const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 export function PublicBooking({
   practice,
   signedIn,
+  bookingUrl,
 }: {
   practice: PublicPractice;
   signedIn: boolean;
+  /**
+   * Set on the practice's own host: sign-in happens on the app host, so the
+   * call to action leads to this page there instead of the login form.
+   */
+  bookingUrl?: string;
 }) {
   const queryClient = useQueryClient();
   const today = dateKey(new Date(), practice.timezone);
@@ -270,9 +276,16 @@ export function PublicBooking({
                       <Button
                         size="sm"
                         nativeButton={false}
-                        render={<Link href={paths.auth.login} />}
+                        render={
+                          bookingUrl ? (
+                            // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
+                            <a href={bookingUrl} />
+                          ) : (
+                            <Link href={paths.auth.login} />
+                          )
+                        }
                       >
-                        Войти
+                        {bookingUrl ? "Войти и записаться" : "Войти"}
                       </Button>
                     </AlertDescription>
                   </Alert>

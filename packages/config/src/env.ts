@@ -17,6 +17,14 @@ export const env = createEnv({
     // App
     APP_URL: z.url().default("http://localhost:3000"),
 
+    // Practice pages on their own hosts (see docs/custom-domains.md).
+    // `<slug>.<root>` serves a practice's booking page; unset: no subdomains.
+    PRACTICE_ROOT_DOMAIN: z.string().optional(),
+    // DNS targets shown to specialists connecting their own domain:
+    // CNAME for a subdomain, A record for an apex domain.
+    CUSTOM_DOMAIN_CNAME: z.string().optional(),
+    CUSTOM_DOMAIN_IP: z.ipv4().optional(),
+
     // Email
     RESEND_API_KEY: z.string().optional(),
     EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
@@ -54,6 +62,9 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
     APP_URL: process.env.APP_URL,
+    PRACTICE_ROOT_DOMAIN: process.env.PRACTICE_ROOT_DOMAIN,
+    CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
+    CUSTOM_DOMAIN_IP: process.env.CUSTOM_DOMAIN_IP,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_SANDBOX_ENABLED: process.env.EMAIL_SANDBOX_ENABLED === "true",
     EMAIL_SANDBOX_HOST: process.env.EMAIL_SANDBOX_HOST,

@@ -33,9 +33,14 @@ export const paths = {
       `${ROOTS.PRACTICES}/${practiceId}/clients` as const,
     schedule: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/schedule` as const,
+    /** Platform subdomain and the practice's own domain. */
+    domain: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/domain` as const,
     /** The client's own consultations. */
     mine: "/bookings",
     /** Public booking page of a practice. */
     public: (slug: string) => `/p/${slug}` as const,
+    /** The same page on a practice's own host; proxy.ts rewrites `/` here. */
+    site: (host: string) => `/site/${host}` as const,
   },
 } as const;
