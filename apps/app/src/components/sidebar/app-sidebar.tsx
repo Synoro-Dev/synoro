@@ -18,6 +18,7 @@ import {
   CalendarDaysIcon,
   Clock3Icon,
   ExternalLinkIcon,
+  GlobeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
   PlusIcon,
@@ -113,6 +114,12 @@ export function AppSidebar({
           href: paths.booking.schedule(current.practiceId),
           icon: Clock3Icon,
           active: pathname === paths.booking.schedule(current.practiceId),
+        },
+        {
+          title: "Домен",
+          href: paths.booking.domain(current.practiceId),
+          icon: GlobeIcon,
+          active: pathname === paths.booking.domain(current.practiceId),
         },
         {
           title: "Страница записи",

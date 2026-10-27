@@ -1,0 +1,68 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@synoro/ui";
+import { MessageCircleQuestionIcon } from "lucide-react";
+
+import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
+
+const questions = [
+  {
+    q: "Нужно ли клиенту регистрироваться?",
+    a: "Для оплаченных консультаций — да: клиент входит по коду из письма и видит свои записи и баланс. На бесплатное знакомство администратор может записать гостя — достаточно имени и телефона или email.",
+  },
+  {
+    q: "Как работают пакеты консультаций?",
+    a: "Клиент оплачивает пакет удобным для вас способом, а вы или администратор начисляете ему консультации. Каждая запись списывает одну, своевременная отмена — возвращает. Все изменения, включая ручные корректировки, видны в журнале.",
+  },
+  {
+    q: "Может ли клиент отменить запись?",
+    a: "Да, сам — не позднее чем за 24 часа до начала. Консультация автоматически вернётся на баланс. Позже отменить запись может только специалист или администратор.",
+  },
+  {
+    q: "Что если двое запишутся на одно и то же время?",
+    a: "Это невозможно: пересечения записей запрещены на уровне базы данных. Слот достанется тому, кто успел первым, второй клиент увидит, что время уже занято.",
+  },
+  {
+    q: "Как подключить свой домен?",
+    a: "Укажите домен или поддомен в настройках практики и добавьте у регистратора две DNS-записи: CNAME (или A-запись для корневого домена) и TXT для подтверждения. Мы проверим их и откроем страницу по новому адресу.",
+  },
+  {
+    q: "Подходит ли сервис, если клиенты в разных часовых поясах?",
+    a: "Да. Расписание задаётся в часовом поясе практики, а время каждой записи хранится однозначно — окна не «съезжают» при переходе на другое время или в поездках.",
+  },
+];
+
+export function Faq() {
+  return (
+    <Section
+      id="faq"
+      containerClassName="grid gap-10 px-4 py-16 sm:px-10 sm:py-24 lg:grid-cols-[1fr_1.4fr]"
+    >
+      <div className="flex flex-col gap-5">
+        <Eyebrow icon={MessageCircleQuestionIcon} tone="rose">
+          Вопросы
+        </Eyebrow>
+        <SectionHeading>Частые вопросы</SectionHeading>
+        <Lead>
+          Не нашли ответ? Напишите нам — поможем настроить практику и перенести
+          клиентов.
+        </Lead>
+      </div>
+      <Accordion className="border-t">
+        {questions.map((item) => (
+          <AccordionItem key={item.q} value={item.q}>
+            <AccordionTrigger className="py-5 text-base hover:no-underline">
+              {item.q}
+            </AccordionTrigger>
+            <AccordionContent className="text-muted-foreground pr-8 text-[15px] leading-relaxed">
+              {item.a}
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </Section>
+  );
+}

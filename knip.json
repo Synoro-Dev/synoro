@@ -11,6 +11,9 @@
     "apps/app": {
       "ignoreDependencies": ["@synoro/db", "@tailwindcss/postcss"]
     },
+    "apps/web": {
+      "ignoreDependencies": ["@tailwindcss/postcss"]
+    },
     "packages/auth": {
       "entry": ["script/auth-cli.ts"]
     },

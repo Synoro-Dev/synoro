@@ -8,20 +8,14 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { cache } from "react";
 
-const vercelUrl =
-  env.VERCEL_ENV === "production" && env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : env.VERCEL_ENV === "preview" && env.VERCEL_URL
-      ? `https://${env.VERCEL_URL}`
-      : undefined;
+import { appUrl } from "~/lib/hosts";
 
-const baseUrl = vercelUrl ?? env.APP_URL;
 const productionUrl = env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
   : env.APP_URL;
 
 export const auth = initAuth({
-  baseUrl,
+  baseUrl: appUrl,
   productionUrl,
   secret: env.AUTH_SECRET,
   cookieDomain: env.AUTH_COOKIE_DOMAIN,

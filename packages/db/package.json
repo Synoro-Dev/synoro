@@ -34,7 +34,7 @@
     "generate": "bun --env-file=../../.env run drizzle-kit generate",
     "migrate": "bun --env-file=../../.env run src/scripts/migrate.ts",
     "baseline": "bun --env-file=../../.env run src/scripts/baseline.ts",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {

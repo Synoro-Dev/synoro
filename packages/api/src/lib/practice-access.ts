@@ -47,6 +47,43 @@ export async function findStaffMembership(
   return member && isStaff(member.role) ? member : undefined;
 }
 
+/** The caller's membership if they own the practice. */
+export async function findOwnerMembership(
+  db: Database,
+  practiceId: string,
+  userId: string,
+) {
+  const member = await findMembership(db, practiceId, userId);
+  return member?.role === "owner" ? member : undefined;
+}
+
+/**
+ * What a public booking page shows: practice info plus the caller's
+ * membership (role, balance) when signed in.
+ */
+export async function publicPractice(
+  context: { db: Database; session: { user: { id: string } } | null },
+  practiceId: string,
+) {
+  const practice = await context.db.query.Practice.findFirst({
+    where: eq(Practice.id, practiceId),
+    columns: { id: true, name: true, slug: true, timezone: true },
+  });
+  if (!practice) return undefined;
+
+  const userId = context.session?.user.id;
+  const member = userId
+    ? await findMembership(context.db, practice.id, userId)
+    : undefined;
+
+  return {
+    ...practice,
+    membership: member
+      ? { id: member.id, role: member.role, credits: member.credits }
+      : null,
+  };
+}
+
 export function findPractice(db: Database, practiceId: string) {
   return db.query.Practice.findFirst({ where: eq(Practice.id, practiceId) });
 }

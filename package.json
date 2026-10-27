@@ -20,6 +20,7 @@
     "dev": "turbo watch dev -F @synoro/app...",
     "dev:all": "turbo watch dev --continue",
     "dev:next": "turbo watch dev -F @synoro/app...",
+    "dev:web": "turbo watch dev -F @synoro/web...",
     "jobs:dev": "bun run --cwd packages/jobs worker",
     "format": "biome format . --skip-parse-errors",
     "format:fix": "biome format --write . --skip-parse-errors",
