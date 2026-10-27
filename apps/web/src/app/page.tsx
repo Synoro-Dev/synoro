@@ -9,6 +9,7 @@ import { Pricing } from "~/components/landing/pricing";
 import { Section } from "~/components/landing/primitives";
 import { Scheduling } from "~/components/landing/scheduling";
 import { Steps } from "~/components/landing/steps";
+import { StickyCta } from "~/components/landing/sticky-cta";
 import { site } from "~/lib/site";
 
 export default function HomePage() {
@@ -30,6 +31,9 @@ export default function HomePage() {
         <FinalCta links={links} />
       </main>
       <Footer links={links} />
+      {/* Room for the mobile sticky CTA, so it never covers the footer. */}
+      <div aria-hidden className="h-18 md:hidden" />
+      <StickyCta signupUrl={links.signup} />
     </>
   );
 }

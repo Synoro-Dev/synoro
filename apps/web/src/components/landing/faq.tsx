@@ -6,9 +6,27 @@ import {
 } from "@synoro/ui";
 import { MessageCircleQuestionIcon } from "lucide-react";
 
+import {
+  featuredPlan,
+  perMonth,
+  rubles,
+  trialDays,
+  yearlySavings,
+} from "~/lib/pricing";
+
 import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
 
+const savings = yearlySavings(featuredPlan);
+
 const questions = [
+  {
+    q: "Почему выгоднее платить за год?",
+    a: `«${featuredPlan.name}» за год стоит ${rubles(featuredPlan.yearly)} — это ${rubles(perMonth(featuredPlan.yearly))} в месяц вместо ${rubles(featuredPlan.monthly)} при помесячной оплате. За год экономия — ${rubles(savings?.amount ?? 0)}, а цена не изменится до конца оплаченного срока.`,
+  },
+  {
+    q: "Можно сначала попробовать?",
+    a: `Да. Любой платный тариф — ${trialDays} дней бесплатно и без привязки карты. А тариф «Старт» бесплатен навсегда: на нём можно принимать первых клиентов и перейти на платный, когда понадобятся пакеты и свой домен.`,
+  },
   {
     q: "Нужно ли клиенту регистрироваться?",
     a: "Для оплаченных консультаций — да: клиент входит по коду из письма и видит свои записи и баланс. На бесплатное знакомство администратор может записать гостя — достаточно имени и телефона или email.",

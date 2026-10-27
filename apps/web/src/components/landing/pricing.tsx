@@ -1,71 +1,122 @@
 "use client";
 
 import { buttonVariants, cn } from "@synoro/ui";
-import { CheckIcon, CreditCardIcon } from "lucide-react";
+import {
+  CalendarCheckIcon,
+  CheckIcon,
+  CoinsIcon,
+  CreditCardIcon,
+  GiftIcon,
+} from "lucide-react";
 import { useState } from "react";
 
-import { Eyebrow, Lead, SectionHeading } from "./primitives";
+import {
+  featuredPlan,
+  maxYearlyPercent,
+  type Period,
+  type Plan,
+  perDay,
+  perMonth,
+  planSignupUrl,
+  plans,
+  rubles,
+  signupGoal,
+  trialDays,
+  yearlySavings,
+} from "~/lib/pricing";
 
-type Plan = {
-  name: string;
-  description: string;
-  /** Rubles per month; `null` — free. */
-  monthly: number | null;
-  yearly: number | null;
-  features: string[];
-  cta: string;
-  featured?: boolean;
-};
+import {
+  Eyebrow,
+  IconTile,
+  Lead,
+  SectionHeading,
+  type Tone,
+} from "./primitives";
 
-// Placeholder prices: replace with the real ones before launch.
-const plans: Plan[] = [
+const perks: {
+  icon: typeof CoinsIcon;
+  tone: Tone;
+  title: string;
+  text: string;
+}[] = [
   {
-    name: "Старт",
-    description: "Чтобы попробовать и принять первых клиентов.",
-    monthly: null,
-    yearly: null,
-    features: [
-      "Страница записи на платформе",
-      "Расписание и закрытое время",
-      "Бесплатные знакомства на 30 минут",
-      "Кабинет клиента",
-    ],
-    cta: "Начать бесплатно",
+    icon: CoinsIcon,
+    tone: "emerald",
+    title: `≈${perDay(featuredPlan.yearly)} ₽ в день`,
+    text: `Столько стоит «${featuredPlan.name}» при оплате за год.`,
   },
   {
-    name: "Практика",
-    description: "Для специалиста с постоянными клиентами.",
-    monthly: 990,
-    yearly: 790,
-    features: [
-      "Всё из «Старта»",
-      "Пакеты консультаций и журнал баланса",
-      "Свой домен для страницы записи",
-      "Администратор в команде",
-      "Неограниченные записи",
-    ],
-    cta: "Попробовать 14 дней",
-    featured: true,
+    icon: CalendarCheckIcon,
+    tone: "violet",
+    title: "Цена не вырастет",
+    text: "Оплатили год — цена зафиксирована до конца срока.",
   },
   {
-    name: "Студия",
-    description: "Для центров и нескольких специалистов.",
-    monthly: 2490,
-    yearly: 1990,
-    features: [
-      "Всё из «Практики»",
-      "Несколько практик в одном аккаунте",
-      "До 5 администраторов",
-      "Помощь с переносом клиентов",
-    ],
-    cta: "Попробовать 14 дней",
+    icon: GiftIcon,
+    tone: "amber",
+    title: `${trialDays} дней бесплатно`,
+    text: "Попробуйте любой платный тариф без привязки карты, а потом решайте.",
   },
 ];
 
-const rubles = new Intl.NumberFormat("ru-RU");
+function Price({ plan, period }: { plan: Plan; period: Period }) {
+  if (plan.monthly === null || plan.yearly === null) {
+    return (
+      <div>
+        <p className="flex items-baseline gap-1.5">
+          <span className="text-4xl font-medium tracking-tight">0 ₽</span>
+          <span className="text-muted-foreground text-sm">навсегда</span>
+        </p>
+        <p className="text-muted-foreground mt-1.5 min-h-10 text-sm">
+          Без ограничений по времени
+        </p>
+      </div>
+    );
+  }
+
+  const savings = yearlySavings(plan);
+  if (period === "month") {
+    return (
+      <div>
+        <p className="flex items-baseline gap-1.5">
+          <span className="text-4xl font-medium tracking-tight tabular-nums">
+            {rubles(plan.monthly)}
+          </span>
+          <span className="text-muted-foreground text-sm">в месяц</span>
+        </p>
+        <p className="text-muted-foreground mt-1.5 min-h-10 text-sm">
+          Или {rubles(plan.yearly)} за год — выгоднее на {savings?.percent}%
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="flex items-baseline gap-1.5">
+        <span className="text-4xl font-medium tracking-tight tabular-nums">
+          {rubles(plan.yearly)}
+        </span>
+        <span className="text-muted-foreground text-sm">за год</span>
+      </p>
+      {/* Two fixed lines, so CTAs line up across cards. */}
+      <div className="text-muted-foreground mt-1.5 min-h-10 text-sm">
+        <p>{rubles(perMonth(plan.yearly))} в месяц</p>
+        {savings && (
+          <p className="flex gap-2">
+            <s className="tabular-nums">{rubles(savings.full)}</s>
+            <span className="font-medium text-emerald-700">
+              выгода {rubles(savings.amount)}
+            </span>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function Pricing({ signupUrl }: { signupUrl: string }) {
-  const [yearly, setYearly] = useState(true);
+  const [period, setPeriod] = useState<Period>("year");
 
   return (
     <>
@@ -73,33 +124,38 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
         <Eyebrow icon={CreditCardIcon} tone="sky">
           Тарифы
         </Eyebrow>
-        <SectionHeading>Растёт вместе с практикой</SectionHeading>
+        <SectionHeading>
+          Год онлайн-записи — по цене одной консультации
+        </SectionHeading>
         <Lead className="mx-auto">
-          Начните бесплатно и переходите на платный тариф, когда понадобятся
-          пакеты и свой домен.
+          «{featuredPlan.name}» за {rubles(featuredPlan.yearly)} в год — это{" "}
+          {rubles(perMonth(featuredPlan.yearly))} в месяц. Одна запись, которую
+          не пришлось согласовывать в переписке, уже окупает тариф.
         </Lead>
         <fieldset className="bg-muted mt-2 inline-flex rounded-full border p-1 text-sm">
           <legend className="sr-only">Период оплаты</legend>
-          {[
-            { value: false, label: "Помесячно" },
-            { value: true, label: "За год" },
-          ].map((option) => (
+          {(
+            [
+              { value: "month", label: "Помесячно" },
+              { value: "year", label: "За год" },
+            ] as const
+          ).map((option) => (
             <button
-              key={option.label}
+              key={option.value}
               type="button"
-              aria-pressed={yearly === option.value}
-              onClick={() => setYearly(option.value)}
+              aria-pressed={period === option.value}
+              onClick={() => setPeriod(option.value)}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-4 py-1.5 transition-colors",
-                yearly === option.value
+                period === option.value
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               {option.label}
-              {option.value && (
+              {option.value === "year" && (
                 <span className="rounded-full bg-emerald-500/10 px-1.5 text-xs font-medium text-emerald-700">
-                  −20%
+                  до −{maxYearlyPercent}%
                 </span>
               )}
             </button>
@@ -109,13 +165,14 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
 
       <div className="grid border-t md:grid-cols-3 md:divide-x">
         {plans.map((plan) => {
-          const price = yearly ? plan.yearly : plan.monthly;
+          const free = plan.monthly === null;
           return (
             <div
-              key={plan.name}
+              key={plan.id}
               className={cn(
-                "relative flex flex-col gap-6 border-b p-6 last:border-b-0 sm:p-8 md:border-b-0",
-                plan.featured && "bg-muted/60",
+                "relative flex flex-col gap-6 border-b p-6 sm:p-8 md:border-b-0",
+                // On a phone the offer goes first, ahead of the free plan.
+                plan.featured && "bg-muted/60 max-md:order-first",
               )}
             >
               {plan.featured && (
@@ -129,7 +186,7 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
                   <p className="text-lg font-medium">{plan.name}</p>
                   {plan.featured && (
                     <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-700 ring-1 ring-violet-500/20 ring-inset">
-                      Популярный
+                      Выбирают чаще всего
                     </span>
                   )}
                 </div>
@@ -137,26 +194,31 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
                   {plan.description}
                 </p>
               </div>
-              <p className="flex items-baseline gap-1.5">
-                <span className="text-4xl font-medium tracking-tight tabular-nums">
-                  {price === null ? "0 ₽" : `${rubles.format(price)} ₽`}
-                </span>
-                <span className="text-muted-foreground text-sm">
-                  {price === null ? "навсегда" : "в месяц"}
-                </span>
-              </p>
-              <a
-                href={signupUrl}
-                className={cn(
-                  buttonVariants({
-                    variant: plan.featured ? "default" : "outline",
-                    size: "lg",
-                  }),
-                  "rounded-full",
-                )}
-              >
-                {plan.cta}
-              </a>
+              <Price plan={plan} period={period} />
+              <div className="flex flex-col gap-2">
+                <a
+                  href={planSignupUrl(signupUrl, plan.id, period)}
+                  data-goal={signupGoal(plan.id, period)}
+                  className={cn(
+                    buttonVariants({
+                      variant: plan.featured ? "default" : "outline",
+                      size: "lg",
+                    }),
+                    "rounded-full",
+                  )}
+                >
+                  {free
+                    ? "Начать бесплатно"
+                    : period === "year"
+                      ? "Подключить на год"
+                      : "Подключить помесячно"}
+                </a>
+                <p className="text-muted-foreground text-center text-xs">
+                  {free
+                    ? "Без карты и пробных периодов"
+                    : `Первые ${trialDays} дней — бесплатно`}
+                </p>
+              </div>
               <ul className="flex flex-col gap-3 text-sm">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex gap-2.5">
@@ -169,6 +231,21 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
           );
         })}
       </div>
+
+      <ul className="grid border-t sm:grid-cols-3 sm:divide-x">
+        {perks.map((perk) => (
+          <li
+            key={perk.title}
+            className="flex gap-3 border-b p-6 last:border-b-0 sm:border-b-0 sm:p-8"
+          >
+            <IconTile icon={perk.icon} tone={perk.tone} className="shrink-0" />
+            <div>
+              <p className="font-medium">{perk.title}</p>
+              <p className="text-muted-foreground mt-1 text-sm">{perk.text}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

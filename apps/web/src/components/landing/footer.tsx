@@ -2,6 +2,13 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
+import {
+  featuredPlan,
+  planSignupUrl,
+  rubles,
+  signupGoal,
+  trialDays,
+} from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Logo } from "./logo";
@@ -25,20 +32,22 @@ export function FinalCta({ links }: { links: SiteLinks }) {
           className="absolute -bottom-40 left-1/2 -z-10 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-[conic-gradient(from_180deg,#8b5cf6,#22d3ee,#34d399,#8b5cf6)] opacity-40 blur-[100px]"
         />
         <h2 className="mx-auto max-w-2xl text-3xl font-medium tracking-tight text-balance sm:text-5xl">
-          Откройте онлайн‑запись уже сегодня
+          Год онлайн‑записи за {rubles(featuredPlan.yearly)}
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-zinc-400 sm:text-lg">
           Пять минут на настройку — и больше никаких «а есть окошко в четверг?».
+          Первые {trialDays} дней — бесплатно.
         </p>
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
           <a
-            href={links.signup}
+            href={planSignupUrl(links.signup, featuredPlan.id, "year")}
+            data-goal={signupGoal(featuredPlan.id, "year")}
             className={cn(
               buttonVariants({ size: "lg" }),
               "h-11 rounded-full bg-white px-6 text-[15px] text-zinc-950 hover:bg-zinc-200",
             )}
           >
-            Создать практику
+            Подключить на год
             <ArrowRightIcon data-icon="inline-end" />
           </a>
           {links.demo && (
