@@ -6,6 +6,46 @@
       "runtimeExecutable": "bun",
       "runtimeArgs": ["dev"],
       "port": 3000
+    },
+    {
+      "name": "app-local-db",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "apps/app", "start"],
+      "port": 3001,
+      "env": {
+        "POSTGRES_URL": "postgres://postgres:password@localhost:5432/acme",
+        "DB_DRIVER": "node",
+        "EMAIL_SANDBOX_ENABLED": "true",
+        "EMAIL_SANDBOX_HOST": "localhost",
+        "HATCHET_CLIENT_TOKEN": "",
+        "PORT": "3001",
+        "APP_URL": "http://localhost:3001"
+      }
+    },
+    {
+      "name": "app-dev-local-db",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "apps/app", "dev"],
+      "port": 3002,
+      "env": {
+        "POSTGRES_URL": "postgres://postgres:password@localhost:5432/acme",
+        "DB_DRIVER": "node",
+        "EMAIL_SANDBOX_ENABLED": "true",
+        "EMAIL_SANDBOX_HOST": "localhost",
+        "HATCHET_CLIENT_TOKEN": "",
+        "PORT": "3002",
+        "APP_URL": "http://localhost:3002",
+        "NEXT_PUBLIC_APP_URL": "http://localhost:3002",
+        "PRACTICE_ROOT_DOMAIN": "localhost",
+        "CUSTOM_DOMAIN_CNAME": "domains.example.com",
+        "CUSTOM_DOMAIN_IP": "203.0.113.10"
+      }
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--cwd", "apps/web", "dev"],
+      "port": 3003
     }
   ]
 }
