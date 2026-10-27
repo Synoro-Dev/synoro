@@ -39,9 +39,16 @@ function platformUrl(slug: string) {
   return url.origin;
 }
 
+/** Hostnames of the exact (non-wildcard) AUTH_TRUSTED_ORIGINS. */
+const trustedHosts = () =>
+  (env.AUTH_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .filter((origin) => origin && !/[*?]/.test(origin))
+    .map((origin) => new URL(origin).hostname);
+
 /** The platform's own hosts and everything under them can't be claimed. */
 export function isPlatformHost(hostname: string) {
-  return [platformRoot(), appUrl().hostname].some(
+  return [platformRoot(), appUrl().hostname, ...trustedHosts()].some(
     (own) => own && (hostname === own || hostname.endsWith(`.${own}`)),
   );
 }

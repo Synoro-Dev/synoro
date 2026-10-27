@@ -19,6 +19,15 @@ const hostnameOf = (url: string | undefined) => {
   }
 };
 
+/**
+ * Exact AUTH_TRUSTED_ORIGINS (e.g. https://synoro.ru) serve the app too.
+ * Wildcards are left out: `*.synoro.ru` also matches practice subdomains.
+ */
+const trustedAppOrigins = () =>
+  (env.AUTH_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .filter((origin) => origin && !/[*?]/.test(origin));
+
 export interface HostConfig {
   /** Hosts that serve the app rather than a practice page. */
   appHosts: ReadonlySet<string>;
@@ -35,6 +44,7 @@ export function hostConfig(): HostConfig {
     env.NEXT_PUBLIC_APP_URL,
     env.VERCEL_URL,
     env.VERCEL_PROJECT_PRODUCTION_URL,
+    ...trustedAppOrigins(),
   ].map(hostnameOf);
   return {
     appHosts: new Set(
