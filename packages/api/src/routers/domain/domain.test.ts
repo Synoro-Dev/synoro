@@ -277,6 +277,27 @@ describe("domain.verify", () => {
       }
     });
   }
+
+  it("reports an expired reservation without a DNS lookup", async () => {
+    const own = await newPractice("verify-stale");
+    await connect(own.session, own.practiceId, "verify-stale.ru");
+    await api.db
+      .update(PracticeDomain)
+      .set({ createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) })
+      .where(eq(PracticeDomain.practiceId, own.practiceId));
+    const dns = spyOn(domains, "checkDomainDns");
+    try {
+      const error = await call(
+        domainRouter.verify,
+        { practiceId: own.practiceId },
+        { context: api.context(own.session) },
+      ).catch((e: unknown) => e);
+      expect(isDefinedError(error) && error.code).toBe("RESERVATION_EXPIRED");
+      expect(dns).not.toHaveBeenCalled();
+    } finally {
+      dns.mockRestore();
+    }
+  });
 });
 
 describe("checkDomainDns", () => {

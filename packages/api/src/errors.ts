@@ -11,4 +11,5 @@ export const errorStatusMap: Record<string, number> = {
   TOO_LATE: 409,
   NEGATIVE_BALANCE: 409,
   PLATFORM_DOMAIN: 422,
+  RESERVATION_EXPIRED: 409,
 };

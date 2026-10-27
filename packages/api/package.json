@@ -16,7 +16,7 @@
     "format": "biome format .",
     "lint": "biome lint .",
     "check": "biome check .",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {

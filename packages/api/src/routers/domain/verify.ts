@@ -17,7 +17,12 @@ import { ownerProcedure } from "./owner";
  * @example client.domain.verify({ practiceId })
  */
 export const verify = ownerProcedure
-  .errors({ NOT_FOUND: { message: "Домен не подключён" } })
+  .errors({
+    NOT_FOUND: { message: "Домен не подключён" },
+    RESERVATION_EXPIRED: {
+      message: "Срок проверки истёк — подключите домен заново",
+    },
+  })
   .input(z.object({ practiceId: z.uuid() }))
   .handler(async ({ context, input, errors }) => {
     const owner = await findOwnerMembership(
@@ -31,6 +36,14 @@ export const verify = ownerProcedure
       where: eq(PracticeDomain.practiceId, input.practiceId),
     });
     if (!row) throw errors.NOT_FOUND();
+    // An expired reservation can't be activated (the UPDATE below requires a
+    // live one), so say so instead of reporting a DNS miss.
+    if (
+      row.status === "pending" &&
+      row.createdAt.getTime() <= Date.now() - DOMAIN_RESERVATION_MS
+    ) {
+      throw errors.RESERVATION_EXPIRED();
+    }
 
     const check = await checkDomainDns(row.hostname, row.verificationToken);
     const now = new Date();

@@ -36,7 +36,7 @@ function DnsPanel() {
         </span>
         <div className="flex-1">
           <p className="text-sm font-medium text-white">zapis.anna-psy.ru</p>
-          <p className="text-xs text-zinc-500">Добавлен 2 минуты назад</p>
+          <p className="text-xs text-zinc-400">Добавлен 2 минуты назад</p>
         </div>
         <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20">
           <span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />
@@ -45,7 +45,7 @@ function DnsPanel() {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="text-zinc-500">
+          <thead className="text-zinc-400">
             <tr>
               <th className="px-4 py-2.5 font-normal">Тип</th>
               <th className="px-4 py-2.5 font-normal">Имя</th>
@@ -67,7 +67,7 @@ function DnsPanel() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center gap-2 border-t border-white/10 px-4 py-3 text-xs text-zinc-500">
+      <div className="flex items-center gap-2 border-t border-white/10 px-4 py-3 text-xs text-zinc-400">
         <CheckIcon className="size-3.5 text-emerald-400" />
         Записи проверены — страница открывается по новому адресу
       </div>
@@ -125,7 +125,7 @@ export function Domain() {
                   {index + 1}
                 </span>
                 <div>
-                  <p className="text-xs text-zinc-500">{stage.label}</p>
+                  <p className="text-xs text-zinc-400">{stage.label}</p>
                   <p
                     className={cn(
                       "mt-0.5 font-mono text-sm",
