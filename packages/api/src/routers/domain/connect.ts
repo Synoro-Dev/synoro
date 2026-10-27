@@ -1,8 +1,12 @@
-import { eq, isUniqueViolation, PracticeDomain } from "@acme/db";
+import { and, eq, isUniqueViolation, lte, PracticeDomain } from "@acme/db";
 import { customDomainFormSchema } from "@acme/validators";
 import { z } from "zod";
 
-import { domainSettings, isPlatformHost } from "../../lib/domains";
+import {
+  DOMAIN_RESERVATION_MS,
+  domainSettings,
+  isPlatformHost,
+} from "../../lib/domains";
 import { findOwnerMembership } from "../../lib/practice-access";
 import { ownerProcedure } from "./owner";
 
@@ -28,11 +32,25 @@ export const connect = ownerProcedure
     if (!owner) throw errors.FORBIDDEN();
     if (isPlatformHost(input.hostname)) throw errors.PLATFORM_DOMAIN();
 
+    const now = new Date();
+    await context.db
+      .delete(PracticeDomain)
+      .where(
+        and(
+          eq(PracticeDomain.hostname, input.hostname),
+          eq(PracticeDomain.status, "pending"),
+          lte(
+            PracticeDomain.createdAt,
+            new Date(now.getTime() - DOMAIN_RESERVATION_MS),
+          ),
+        ),
+      );
+
     const current = await context.db.query.PracticeDomain.findFirst({
       where: eq(PracticeDomain.practiceId, input.practiceId),
       columns: { hostname: true },
     });
-    // Re-submitting the same host keeps its token and status.
+    // Re-submitting an unexpired or active host keeps its token and status.
     if (current?.hostname !== input.hostname) {
       const fresh = {
         hostname: input.hostname,
@@ -40,6 +58,8 @@ export const connect = ownerProcedure
         status: "pending" as const,
         verifiedAt: null,
         lastCheckedAt: null,
+        // A replacement hostname starts a new reservation period.
+        createdAt: now,
       };
       try {
         await context.db

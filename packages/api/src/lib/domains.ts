@@ -9,6 +9,9 @@ type DomainRow = typeof PracticeDomain.$inferSelect;
 /** TXT record (under the connected host) that proves ownership. */
 const VERIFICATION_PREFIX = "_booking-verification";
 
+/** Pending reservations expire 24 hours after the hostname/token is set. */
+export const DOMAIN_RESERVATION_MS = 24 * 60 * 60 * 1000;
+
 const verificationRecordName = (hostname: string) =>
   `${VERIFICATION_PREFIX}.${hostname}`;
 

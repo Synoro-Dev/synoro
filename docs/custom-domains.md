@@ -24,7 +24,10 @@ A practice's booking page opens at three kinds of address:
   token. `domain.verify` looks up `TXT _booking-verification.<host>`; once the
   token is there the domain becomes `active`. Without that step anyone could
   claim a domain they don't control. The CNAME/A check only tells the owner
-  whether traffic already reaches us.
+  whether traffic already reaches us. A pending reservation lasts 24 hours
+  from connection (or hostname replacement); after expiry, connecting the
+  hostname again issues a fresh token and allows another practice to claim it.
+  Active domains do not expire.
 
 ## Environment
 
@@ -51,7 +54,7 @@ Specialists' domains need TLS certificates issued on demand.
   }
 }
 
-app.example.com, *.example.com {
+example.com, app.example.com, *.example.com {
   tls {
     dns <provider> {env.DNS_API_TOKEN} # wildcard needs the DNS challenge
   }

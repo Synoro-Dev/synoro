@@ -1,9 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import type { Session } from "@acme/auth";
 import { eq, PracticeDomain } from "@acme/db";
 import { call, isDefinedError } from "@orpc/server";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import * as domains from "../../lib/domains";
 import { checkDomainDns, type DnsResolver } from "../../lib/domains";
 import { practiceRouter } from "../practice";
 import { domainRouter } from ".";
@@ -149,6 +150,133 @@ describe("domain.disconnect", () => {
     const error = await byHost("anna-psy.ru").catch((e: unknown) => e);
     expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
   });
+});
+
+describe("domain reservation expiry", () => {
+  const expiredAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+
+  it("reclaims an expired pending host with a fresh token", async () => {
+    const first = await newPractice("expired-first");
+    const next = await newPractice("expired-next");
+    const before = await connect(first.session, first.practiceId, "expired.ru");
+    await api.db
+      .update(PracticeDomain)
+      .set({ createdAt: expiredAt })
+      .where(eq(PracticeDomain.practiceId, first.practiceId));
+    const after = await connect(next.session, next.practiceId, "expired.ru");
+    expect(after.domain?.status).toBe("pending");
+    expect(after.domain?.records[0]?.value).not.toBe(
+      before.domain?.records[0]?.value,
+    );
+    expect(
+      await api.db.query.PracticeDomain.findFirst({
+        where: eq(PracticeDomain.practiceId, first.practiceId),
+      }),
+    ).toBeUndefined();
+  });
+
+  it("renews an owner's expired reservation and resets time on replacement", async () => {
+    const own = await newPractice("expired-own");
+    const before = await connect(own.session, own.practiceId, "renew.ru");
+    const age = () =>
+      api.db
+        .update(PracticeDomain)
+        .set({ createdAt: expiredAt })
+        .where(eq(PracticeDomain.practiceId, own.practiceId));
+    await age();
+    const renewed = await connect(own.session, own.practiceId, "renew.ru");
+    expect(renewed.domain?.records[0]?.value).not.toBe(
+      before.domain?.records[0]?.value,
+    );
+    await age();
+    await connect(own.session, own.practiceId, "replacement.ru");
+    const row = await api.db.query.PracticeDomain.findFirst({
+      where: eq(PracticeDomain.practiceId, own.practiceId),
+    });
+    expect(row?.createdAt.getTime()).toBeGreaterThan(expiredAt.getTime());
+  });
+
+  it("never reclaims an active host, regardless of its age", async () => {
+    const first = await newPractice("active-first");
+    const next = await newPractice("active-next");
+    const before = await connect(first.session, first.practiceId, "active.ru");
+    await activate("active.ru");
+    await api.db
+      .update(PracticeDomain)
+      .set({ createdAt: expiredAt })
+      .where(eq(PracticeDomain.practiceId, first.practiceId));
+    const error = await connect(
+      next.session,
+      next.practiceId,
+      "active.ru",
+    ).catch((e: unknown) => e);
+    expect(isDefinedError(error) && error.code).toBe("CONFLICT");
+    const own = await connect(first.session, first.practiceId, "active.ru");
+    expect(own.domain?.status).toBe("active");
+    expect(own.domain?.records[0]?.value).toBe(
+      before.domain?.records[0]?.value,
+    );
+  });
+});
+
+describe("domain.verify", () => {
+  for (const change of [
+    "none",
+    "hostname",
+    "token",
+    "status",
+    "expired",
+    "recreated",
+  ] as const) {
+    it(`activates only the checked pending reservation: ${change}`, async () => {
+      const own = await newPractice(`verify-${change}`);
+      const hostname = `verify-${change}.ru`;
+      await connect(own.session, own.practiceId, hostname);
+      const verifiedAt = new Date("2025-01-01T00:00:00Z");
+      const dns = spyOn(domains, "checkDomainDns").mockImplementationOnce(
+        async () => {
+          if (change === "recreated") {
+            await api.db
+              .delete(PracticeDomain)
+              .where(eq(PracticeDomain.practiceId, own.practiceId));
+            await connect(own.session, own.practiceId, hostname);
+          } else if (change !== "none") {
+            await api.db
+              .update(PracticeDomain)
+              .set(
+                change === "hostname"
+                  ? { hostname: "changed.ru" }
+                  : change === "token"
+                    ? { verificationToken: "changed" }
+                    : change === "status"
+                      ? { status: "active", verifiedAt }
+                      : {
+                          createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+                        },
+              )
+              .where(eq(PracticeDomain.practiceId, own.practiceId));
+          }
+          return { ownership: true, routing: true };
+        },
+      );
+      try {
+        const result = await call(
+          domainRouter.verify,
+          { practiceId: own.practiceId },
+          { context: api.context(own.session) },
+        );
+        expect(dns).toHaveBeenCalledTimes(1);
+        expect(result.domain?.status).toBe(
+          change === "none" || change === "status" ? "active" : "pending",
+        );
+        if (change === "status")
+          expect(result.domain?.verifiedAt).toEqual(verifiedAt);
+        if (change !== "none") expect(result.domain?.lastCheckedAt).toBeNull();
+      } finally {
+        dns.mockRestore();
+      }
+    });
+  }
 });
 
 describe("checkDomainDns", () => {

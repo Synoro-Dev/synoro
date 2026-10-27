@@ -1,14 +1,17 @@
+import { env } from "@acme/config";
 import {
   AvailabilityRule,
   account,
+  and,
   Booking,
   CreditEntry,
-  db,
+  type Database,
   eq,
   inArray,
   Practice,
   PracticeInvitation,
   PracticeMember,
+  db as seedDb,
   user,
 } from "@acme/db";
 import { hashPassword } from "better-auth/crypto";
@@ -23,11 +26,11 @@ import { hashPassword } from "better-auth/crypto";
  * cascades to their practice, bookings and balances. Lives in `@acme/auth`
  * because sign-in needs Better Auth's password hash.
  *
- * Plain console output and `process.env` on purpose, like `db:migrate`: a
- * CLI for humans that must not need `@acme/config` built first.
+ * Only loopback databases named acme (local compose), acme_test or test
+ * are accepted, without URL query overrides or production environment flags.
+ * Each account receives a fresh random password, printed for local sign-in.
  */
 
-const PASSWORD = "demo12345";
 const TIME_ZONE = "Europe/Moscow";
 /** Moscow is UTC+3 all year (no DST since 2014). */
 const UTC_OFFSET_HOURS = 3;
@@ -136,10 +139,13 @@ function isoWeekday(dayStart: number) {
 const demoEmails = [OWNER.email, ADMIN.email, ...CLIENTS.map((c) => c.email)];
 
 async function createUser(
+  db: Database,
   data: { name: string; email: string; bio?: string },
-  passwordHash: string,
   createdAt: Date,
+  passwords: Map<string, string>,
 ) {
+  const password = crypto.randomUUID();
+  const passwordHash = await hashPassword(password);
   const id = crypto.randomUUID();
   await db.insert(user).values({
     id,
@@ -160,29 +166,69 @@ async function createUser(
     createdAt,
     updatedAt: createdAt,
   });
+  passwords.set(data.email, password);
   return id;
 }
 
-async function main() {
-  if (!process.env.POSTGRES_URL) {
-    console.error("✗ POSTGRES_URL is not set (root .env).");
+export async function main(
+  db: Database = seedDb,
+  target: Pick<typeof env, "POSTGRES_URL" | "NODE_ENV" | "VERCEL_ENV"> = env,
+) {
+  let allowed = false;
+  try {
+    const url = new URL(target.POSTGRES_URL ?? "");
+    allowed =
+      target.NODE_ENV !== "production" &&
+      target.VERCEL_ENV !== "production" &&
+      ["postgres:", "postgresql:"].includes(url.protocol) &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
+      ["/acme", "/acme_test", "/test"].includes(url.pathname) &&
+      !url.search &&
+      !url.hash;
+  } catch {
+    // Missing or malformed connection settings are never a seed target.
+  }
+  if (!allowed) {
+    console.error(
+      "✗ Seed requires a non-production loopback Postgres database named acme, acme_test or test, without URL query overrides.",
+    );
     return 1;
   }
 
   const today = moscowToday();
   const longAgo = new Date(today - (PAST_DAYS + 14) * DAY_MS);
 
+  const demoPractice = await db.query.Practice.findFirst({
+    where: and(
+      eq(Practice.slug, "klyuev"),
+      inArray(
+        Practice.ownerId,
+        db
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.email, OWNER.email)),
+      ),
+    ),
+    columns: { id: true },
+  });
+  if (demoPractice) {
+    await db
+      .delete(PracticeInvitation)
+      .where(
+        and(
+          eq(PracticeInvitation.practiceId, demoPractice.id),
+          eq(PracticeInvitation.email, INVITED_EMAIL),
+        ),
+      );
+  }
   await db.delete(user).where(inArray(user.email, demoEmails));
-  await db
-    .delete(PracticeInvitation)
-    .where(inArray(PracticeInvitation.email, [INVITED_EMAIL]));
 
-  const passwordHash = await hashPassword(PASSWORD);
-  const ownerId = await createUser(OWNER, passwordHash, longAgo);
-  const adminId = await createUser(ADMIN, passwordHash, longAgo);
+  const passwords = new Map<string, string>();
+  const ownerId = await createUser(db, OWNER, longAgo, passwords);
+  const adminId = await createUser(db, ADMIN, longAgo, passwords);
   const clientUserIds: string[] = [];
   for (const client of CLIENTS) {
-    clientUserIds.push(await createUser(client, passwordHash, longAgo));
+    clientUserIds.push(await createUser(db, client, longAgo, passwords));
   }
 
   const [practice] = await db
@@ -229,10 +275,22 @@ async function main() {
     const day = today + offset * DAY_MS;
     const weekday = isoWeekday(day);
     if (weekday === 7) continue;
-    const plan =
+    const dayPlan =
       weekday === 6
         ? SATURDAY_PLAN
         : (WEEKDAY_PLANS[workday++ % WEEKDAY_PLANS.length] ?? []);
+    const plan =
+      weekday === 5
+        ? dayPlan.filter((entry) => {
+            const duration =
+              entry.kind === "blocked"
+                ? entry.hours
+                : entry.kind === "free"
+                  ? 0.5
+                  : 1;
+            return entry.hour >= 10 && entry.hour + duration <= 16;
+          })
+        : dayPlan;
 
     for (const entry of plan) {
       const startsAt = moscowTime(day, entry.hour);
@@ -339,13 +397,15 @@ async function main() {
   console.log(
     `  ${count("consultation")} consultations, ${count("free")} free, ${count("blocked")} blocked, ${inserted.filter((b) => b.status === "cancelled").length} cancelled`,
   );
-  console.log(`\n  Sign in (password "${PASSWORD}" for everyone):`);
-  console.log(`    owner   ${OWNER.email}`);
-  console.log(`    admin   ${ADMIN.email}`);
+  console.log("\n  Sign in (unique passwords):");
+  console.log(`    owner   ${OWNER.email}  ${passwords.get(OWNER.email)}`);
+  console.log(`    admin   ${ADMIN.email}  ${passwords.get(ADMIN.email)}`);
   for (const client of CLIENTS) {
-    console.log(`    client  ${client.email}  (${client.left} left)`);
+    console.log(
+      `    client  ${client.email}  ${passwords.get(client.email)}  (${client.left} left)`,
+    );
   }
   return 0;
 }
 
-process.exit(await main());
+if (import.meta.main) process.exit(await main());

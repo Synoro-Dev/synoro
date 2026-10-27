@@ -1,7 +1,11 @@
-import { eq, PracticeDomain } from "@acme/db";
+import { and, eq, gt, PracticeDomain } from "@acme/db";
 import { z } from "zod";
 
-import { checkDomainDns, domainSettings } from "../../lib/domains";
+import {
+  checkDomainDns,
+  DOMAIN_RESERVATION_MS,
+  domainSettings,
+} from "../../lib/domains";
 import { findOwnerMembership } from "../../lib/practice-access";
 import { ownerProcedure } from "./owner";
 
@@ -37,7 +41,20 @@ export const verify = ownerProcedure
           ? { status: "active", verifiedAt: now, lastCheckedAt: now }
           : { lastCheckedAt: now },
       )
-      .where(eq(PracticeDomain.id, row.id));
+      .where(
+        and(
+          eq(PracticeDomain.id, row.id),
+          eq(PracticeDomain.hostname, row.hostname),
+          eq(PracticeDomain.verificationToken, row.verificationToken),
+          eq(PracticeDomain.status, row.status),
+          row.status === "pending"
+            ? gt(
+                PracticeDomain.createdAt,
+                new Date(now.getTime() - DOMAIN_RESERVATION_MS),
+              )
+            : undefined,
+        ),
+      );
 
     return { ...(await domainSettings(context.db, input.practiceId)), check };
   });
