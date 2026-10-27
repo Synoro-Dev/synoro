@@ -4,13 +4,13 @@ import { Geist, Geist_Mono } from "next/font/google";
 
 import { Metrika } from "~/components/metrika";
 import { env } from "~/env";
-import { featuredPlan, perMonth, rubles } from "~/lib/pricing";
+import { paidPlan, rubles } from "~/lib/pricing";
 import { site } from "~/lib/site";
 
 import "~/app/styles.css";
 
-const title = `${site.name} — онлайн-запись для частной практики от ${rubles(perMonth(featuredPlan.yearly))}/мес`;
-const description = `${site.description} Год за ${rubles(featuredPlan.yearly)}, есть бесплатный тариф.`;
+const title = `${site.name} — бесплатная онлайн-запись для частной практики`;
+const description = `${site.description} Бесплатно и без лимита записей, онлайн-оплата через ЮKassa — ${rubles(paidPlan.monthly)}/мес.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),

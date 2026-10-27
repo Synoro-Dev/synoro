@@ -3,16 +3,10 @@
 import { buttonVariants, cn } from "@synoro/ui";
 import { useEffect, useState } from "react";
 
-import {
-  featuredPlan,
-  perMonth,
-  planSignupUrl,
-  rubles,
-  signupGoal,
-} from "~/lib/pricing";
+import { signupGoal } from "~/lib/pricing";
 
 /**
- * Mobile-only bottom bar with the yearly offer, so ad visitors can buy from
+ * Mobile-only bottom bar with the free sign-up, so ad visitors can start from
  * anywhere on the page. Hidden while a section with its own CTAs (the hero,
  * the pricing table) is on screen.
  */
@@ -46,19 +40,15 @@ export function StickyCta({ signupUrl }: { signupUrl: string }) {
     >
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1 text-sm leading-tight">
-          <p className="font-medium">
-            «{featuredPlan.name}» — {rubles(featuredPlan.yearly)} за год
-          </p>
-          <p className="text-muted-foreground">
-            {rubles(perMonth(featuredPlan.yearly))} в месяц
-          </p>
+          <p className="font-medium">Онлайн-запись — бесплатно</p>
+          <p className="text-muted-foreground">Навсегда, без лимита записей</p>
         </div>
         <a
-          href={planSignupUrl(signupUrl, featuredPlan.id, "year")}
-          data-goal={signupGoal(featuredPlan.id, "year")}
+          href={signupUrl}
+          data-goal={signupGoal("free")}
           className={cn(buttonVariants({ size: "lg" }), "rounded-full px-5")}
         >
-          Подключить
+          Начать
         </a>
       </div>
     </div>

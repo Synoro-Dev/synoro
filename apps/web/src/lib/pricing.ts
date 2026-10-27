@@ -1,60 +1,59 @@
 /**
  * Plans and prices shown on the landing — the single place to change them.
  * Client-safe (no env access): the pricing table is a client component.
+ *
+ * Freemium: a solo practice runs on the free plan for good; people pay once
+ * they take money online (ЮKassa) or grow into a team. See
+ * docs/pricing-strategy.md.
  */
 
-export type PlanId = "start" | "practice" | "studio";
-export type Period = "month" | "year";
+export type PlanId = "free" | "pro" | "studio";
 
 export type Plan = {
   id: PlanId;
   name: string;
   description: string;
-  /** Rubles for one month; `null` — free. */
+  /** Rubles a month; `null` — free. */
   monthly: number | null;
-  /** Rubles for the whole year, paid upfront; `null` — free. */
-  yearly: number | null;
   features: string[];
   featured?: boolean;
 };
 
 export const plans: Plan[] = [
   {
-    id: "start",
-    name: "Старт",
-    description: "Чтобы попробовать и принять первых клиентов.",
+    id: "free",
+    name: "Бесплатный",
+    description: "Всё, чтобы вести практику и принимать клиентов.",
     monthly: null,
-    yearly: null,
     features: [
-      "Страница записи на платформе",
-      "Расписание и закрытое время",
-      "Бесплатные знакомства на 30 минут",
-      "Кабинет клиента",
+      "Неограниченные записи и клиенты",
+      "Страница записи и расписание",
+      "Бесплатные знакомства для новых клиентов",
+      "Пакеты консультаций и журнал баланса",
+      "Кабинет клиента и отмена без звонков",
     ],
+    featured: true,
   },
   {
-    id: "practice",
-    name: "Практика",
-    description: "Для специалиста с постоянными клиентами.",
-    monthly: 490,
-    yearly: 2990,
+    id: "pro",
+    name: "Про",
+    description: "Когда клиенты готовы платить онлайн.",
+    monthly: 290,
     features: [
-      "Всё из «Старта»",
-      "Неограниченные записи",
-      "Пакеты консультаций и журнал баланса",
+      "Всё из бесплатного",
+      "Оплата пакетов онлайн через ЮKassa",
+      "Консультации начисляются сразу после оплаты",
       "Свой домен для страницы записи",
       "Администратор в команде",
     ],
-    featured: true,
   },
   {
     id: "studio",
     name: "Студия",
     description: "Для центров и нескольких специалистов.",
-    monthly: 1490,
-    yearly: 8990,
+    monthly: 790,
     features: [
-      "Всё из «Практики»",
+      "Всё из «Про»",
       "Несколько практик в одном аккаунте",
       "До 5 администраторов",
       "Помощь с переносом клиентов",
@@ -71,49 +70,22 @@ function getPlan(id: PlanId) {
   return plan;
 }
 
-/** The plan the landing sells: ads, hero and the sticky CTA point here. */
-export const featuredPlan = getPlan("practice") as Plan & {
-  monthly: number;
-  yearly: number;
-};
+/** The plan for online payments: the upsell the landing mentions. */
+export const paidPlan = getPlan("pro") as Plan & { monthly: number };
 
 export const rubles = (value: number) =>
   `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
-
-/** Yearly price spread over 12 months, rounded down like price tags are. */
-export const perMonth = (yearly: number) => Math.floor(yearly / 12);
-
-/** Yearly price spread over 365 days. */
-export const perDay = (yearly: number) => Math.round(yearly / 365);
-
-/** What paying for a year saves against 12 monthly payments. */
-export function yearlySavings(plan: Plan) {
-  if (plan.monthly === null || plan.yearly === null) return null;
-  const full = plan.monthly * 12;
-  return {
-    full,
-    amount: full - plan.yearly,
-    percent: Math.round((1 - plan.yearly / full) * 100),
-  };
-}
-
-/** Biggest yearly discount across plans, for the period switch badge. */
-export const maxYearlyPercent = Math.max(
-  ...plans.map((plan) => yearlySavings(plan)?.percent ?? 0),
-);
 
 /**
  * Sign-up link that remembers the chosen plan, so the app can preselect it
  * once billing lands. The free plan needs no parameters.
  */
-export function planSignupUrl(signupUrl: string, id: PlanId, period: Period) {
-  if (id === "start") return signupUrl;
+export function planSignupUrl(signupUrl: string, id: PlanId) {
+  if (id === "free") return signupUrl;
   const url = new URL(signupUrl);
   url.searchParams.set("plan", id);
-  url.searchParams.set("period", period);
   return url.toString();
 }
 
 /** Yandex Metrika goal names fired by sign-up CTAs (`data-goal`). */
-export const signupGoal = (id: PlanId, period: Period) =>
-  id === "start" ? "signup_free" : `signup_${id}_${period}`;
+export const signupGoal = (id: PlanId) => `signup_${id}`;
