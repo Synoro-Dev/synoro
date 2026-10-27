@@ -1,0 +1,87 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@acme/tailwind-config/theme";
+
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+@theme {
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-fade-up: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+}
+
+/* The landing is light-only, like the product pages it is modelled on. */
+:root {
+  --background: oklch(0.99 0 0);
+  --muted: oklch(0.975 0.002 286);
+  --border: oklch(0.925 0.004 286);
+}
+
+/* Fine square grid, used behind the hero and in dark panels. */
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-color, oklch(0 0 0 / 6%)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-color, oklch(0 0 0 / 6%)) 1px, transparent 1px);
+  background-size: var(--grid-size, 48px) var(--grid-size, 48px);
+}
+
+/* Dotted texture for mockup surfaces. */
+@utility bg-dots {
+  background-image: radial-gradient(oklch(0 0 0 / 9%) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
