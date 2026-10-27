@@ -34,7 +34,7 @@ WORKDIR /app
 FROM base AS prune
 ARG TURBO_VERSION
 COPY . .
-RUN bunx turbo@${TURBO_VERSION} prune @synoro/web --docker
+RUN bun x turbo@${TURBO_VERSION} prune @synoro/web --docker
 
 FROM base AS build
 # Dependencies first: manifests and lockfile only (bun's isolated linker puts
