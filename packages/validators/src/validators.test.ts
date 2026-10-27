@@ -172,6 +172,19 @@ describe("practiceFormSchema", () => {
 });
 
 describe("availabilityFormSchema", () => {
+  test("rejects more than 168 non-overlapping intervals", () => {
+    const rules = Array.from({ length: 169 }, (_, i) => ({
+      weekday: Math.floor(i / 48) + 1,
+      startMinute: (i % 48) * 30,
+      endMinute: (i % 48) * 30 + 30,
+    }));
+    const result = availabilityFormSchema.safeParse({ rules });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toContainEqual(
+      expect.objectContaining({ code: "too_big", path: ["rules"] }),
+    );
+  });
+
   test("accepts non-overlapping half-hour intervals", () => {
     const result = availabilityFormSchema.safeParse({
       rules: [

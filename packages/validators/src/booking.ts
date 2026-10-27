@@ -71,7 +71,7 @@ export type AvailabilityRuleValues = z.infer<typeof availabilityRuleSchema>;
 export const availabilityFormSchema = z.object({
   rules: z
     .array(availabilityRuleSchema)
-    .max(50, "Не больше 50 интервалов")
+    .max(168, "Не больше 168 интервалов")
     .refine(
       (rules) =>
         rules.every((a, i) =>
