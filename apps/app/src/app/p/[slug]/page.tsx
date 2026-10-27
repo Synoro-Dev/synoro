@@ -1,5 +1,5 @@
-import { Skeleton } from "@synoro/ui";
 import { isDefinedError } from "@orpc/server";
+import { Skeleton } from "@synoro/ui";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";

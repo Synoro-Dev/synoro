@@ -1,9 +1,9 @@
 "use client";
 
-import { Button, Input, Label, Textarea, toast } from "@synoro/ui";
-import { type ProfileFormValues, profileFormSchema } from "@synoro/validators";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isDefinedError } from "@orpc/client";
+import { Button, Input, Label, Textarea, toast } from "@synoro/ui";
+import { type ProfileFormValues, profileFormSchema } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { User } from "lucide-react";
 import Image from "next/image";

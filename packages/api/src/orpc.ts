@@ -16,11 +16,11 @@
  * @see https://orpc.dev/docs/server/context
  */
 
+import { os } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { isAdmin } from "@synoro/auth/roles";
 import { logger } from "@synoro/config";
 import { db } from "@synoro/db";
-import { os } from "@orpc/server";
 
 export interface CreateORPCContextOptions {
   /** Request headers, kept on the context for procedures that need them. */

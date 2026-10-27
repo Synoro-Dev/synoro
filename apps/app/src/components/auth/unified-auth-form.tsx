@@ -1,5 +1,6 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { paths } from "@synoro/config";
 import {
   Button,
@@ -21,7 +22,6 @@ import {
   TabsList,
   TabsTrigger,
 } from "@synoro/ui";
-import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

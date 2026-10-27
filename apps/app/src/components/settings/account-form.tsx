@@ -1,5 +1,6 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Form,
@@ -16,7 +17,6 @@ import {
   toast,
 } from "@synoro/ui";
 import { type AccountFormValues, accountFormSchema } from "@synoro/validators";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 
