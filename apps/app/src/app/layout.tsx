@@ -12,15 +12,15 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     env.VERCEL_ENV === "production" ? APP_CONFIG.url : "http://localhost:3000",
   ),
-  title: "Bun Turbo Starter",
+  title: "Synoro",
   description:
     "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
   openGraph: {
-    title: "Bun Turbo Starter",
+    title: "Synoro",
     description:
       "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
     url: APP_CONFIG.url,
-    siteName: "Bun Turbo Starter",
+    siteName: "Synoro",
   },
 };
 
