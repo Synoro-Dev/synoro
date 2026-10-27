@@ -1,6 +1,5 @@
 import { APP_CONFIG } from "@synoro/config";
 import { cn, ThemeProvider, ThemeToggle, Toaster } from "@synoro/ui";
-import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { env } from "~/env";
@@ -57,7 +56,6 @@ export default function RootLayout(props: { children: React.ReactNode }) {
           </div>
           <Toaster />
         </ThemeProvider>
-        <Analytics />
       </body>
     </html>
   );
