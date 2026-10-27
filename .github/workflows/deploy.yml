@@ -1,0 +1,181 @@
+name: Deploy
+
+# Builds the images and rolls out everything in the infra repo to k3s:
+# PostgreSQL, the app (app.synoro.ru, synoro.ru/p/*), worker, landing and the
+# demo stand (demo.synoro.ru). See infra/README.md for the one-time setup.
+#
+# Runs after CI passes on a push to main, or by hand (Actions -> Deploy -> Run
+# workflow) to redeploy a commit of main.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One rollout at a time; a newer commit waits instead of cancelling a rollout
+# halfway through.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/synoro-dev
+  # workflow_run carries the commit CI tested; a manual run deploys the tip.
+  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+jobs:
+  build:
+    # This repo is public: CI also runs for pull requests from forks, and
+    # workflow_run would hand their code our secrets. Deploy pushes to main of
+    # this repo only.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          # NEXT_PUBLIC_* are baked into the client bundle: keep them in sync
+          # with the ConfigMaps in infra/synoro/config.yaml and demo.yaml.
+          - name: app
+            target: app
+            image: synoro-app
+            tag: ""
+            moving-tag: latest
+            build-args: |
+              NEXT_PUBLIC_APP_URL=https://app.synoro.ru
+              NEXT_PUBLIC_APP_NAME=Synoro
+              NEXT_PUBLIC_APP_SHORT_NAME=Synoro
+          - name: app-demo
+            target: app
+            image: synoro-app
+            tag: demo-
+            moving-tag: demo
+            build-args: |
+              NEXT_PUBLIC_APP_URL=https://demo.synoro.ru
+              NEXT_PUBLIC_APP_NAME=Synoro Demo
+              NEXT_PUBLIC_APP_SHORT_NAME=Synoro
+          # Migrations and the worker, for production and the demo alike.
+          - name: tools
+            target: tools
+            image: synoro-tools
+            tag: ""
+            moving-tag: latest
+            build-args: ""
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The commit tag is what the cluster runs; the moving tag (`latest`,
+      # `demo`) keeps the manual commands in infra/README.md working.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          build-args: ${{ matrix.build-args }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ matrix.image }}:${{ matrix.tag }}${{ env.SHA }}
+            ${{ env.REGISTRY }}/${{ matrix.image }}:${{ matrix.moving-tag }}
+          # Links the package to this repo, which grants this workflow write
+          # access to it.
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://app.synoro.ru
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      # `infra` is a submodule of a private repo: deploy the manifests at the
+      # commit this one points to, so a rollout is reproducible from its SHA.
+      - name: Resolve infra commit
+        id: infra
+        run: echo "sha=$(git rev-parse HEAD:infra)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          repository: Synoro-Dev/infra
+          ref: ${{ steps.infra.outputs.sha }}
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          path: .deploy/infra
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.34.1
+
+      - name: Configure kubectl
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          install -m 600 /dev/null "$RUNNER_TEMP/kubeconfig"
+          printf '%s\n' "$KUBECONFIG_DATA" > "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      # The manifests name the moving tags; pin this commit's images instead.
+      # Every deploy then changes the pod templates, so pods also pick up
+      # ConfigMap changes.
+      - name: Pin image tags
+        working-directory: .deploy/infra/synoro
+        run: |
+          sed -i \
+            -e "s#${REGISTRY}/synoro-app:latest#${REGISTRY}/synoro-app:${SHA}#" \
+            -e "s#${REGISTRY}/synoro-app:demo#${REGISTRY}/synoro-app:demo-${SHA}#" \
+            -e "s#${REGISTRY}/synoro-tools:\(latest\|demo\)#${REGISTRY}/synoro-tools:${SHA}#" \
+            app.yaml worker.yaml demo.yaml
+          if grep -nE "synoro-(app|tools):(latest|demo)$" app.yaml worker.yaml demo.yaml; then
+            echo "::error::Unpinned image left in the manifests above"
+            exit 1
+          fi
+
+      - name: Apply manifests
+        working-directory: .deploy/infra
+        run: |
+          kubectl apply -f postgresql/postgresql.yaml
+          kubectl apply -f synoro/config.yaml
+          kubectl apply -f synoro/
+          # Left over from the single synoro/synoro.yaml; its routes now live
+          # in one IngressRoute per service.
+          kubectl delete ingressroute synoro --ignore-not-found
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status statefulset/postgresql --timeout=5m
+          for deploy in synoro-app synoro-demo synoro-worker synoro-landing; do
+            kubectl rollout status "deploy/$deploy" --timeout=10m
+          done
+
+      # Pod logs stay out of this public log: read them with
+      #   kubectl logs deploy/synoro-app -c migrate
+      - name: Show pods on failure
+        if: failure()
+        run: |
+          kubectl get pods -l app.kubernetes.io/part-of=synoro -o wide || true
+          kubectl get events --sort-by=.lastTimestamp | tail -n 30 || true
