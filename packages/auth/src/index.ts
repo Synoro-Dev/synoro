@@ -114,7 +114,14 @@ export function initAuth<
       oAuthProxy({
         productionURL: options.productionUrl,
       }),
+      /**
+       * The main way in: a 6-digit code mailed to the address. `sign-in`
+       * codes also sign up unknown addresses; the password is secondary.
+       * `expiresIn` matches the "10 minutes" promised in the email.
+       */
       emailOTP({
+        otpLength: 6,
+        expiresIn: 10 * 60,
         async sendVerificationOTP(data) {
           if (options.sendEmail) {
             await options.sendEmail({
@@ -139,8 +146,15 @@ export function initAuth<
       user: {
         create: {
           async before(user) {
-            if (!isAdminEmail(user.email)) return;
-            return { data: { ...user, role: ADMIN_ROLE } };
+            // Email-code sign-up creates the user with an empty name.
+            const name = user.name || user.email.split("@")[0] || user.email;
+            return {
+              data: {
+                ...user,
+                name,
+                ...(isAdminEmail(user.email) && { role: ADMIN_ROLE }),
+              },
+            };
           },
         },
       },
