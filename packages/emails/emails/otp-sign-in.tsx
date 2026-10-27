@@ -41,9 +41,9 @@ export default function OtpSignInEmail({
               Здравствуйте!
             </Text>
             <Text className="text-[14px] leading-[24px] text-black">
-              Ваш одноразовый код для {actionGenitive}:
+              Ваш 6-значный код для {actionGenitive}:
             </Text>
-            <Text className="my-[20px] text-center text-[24px] font-bold">
+            <Text className="mx-auto my-[24px] w-fit rounded-[8px] bg-[#f4f4f5] px-[24px] py-[12px] text-center font-mono text-[32px] font-bold tracking-[8px] text-black">
               {otp}
             </Text>
             <Text className="text-[14px] leading-[24px] text-black">

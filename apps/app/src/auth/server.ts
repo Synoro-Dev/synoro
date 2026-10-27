@@ -70,10 +70,11 @@ export const auth = initAuth({
       await dispatchEmail({
         template: "otp-sign-in",
         to: [email],
+        // The code in the subject is readable from the notification alone.
         subject:
           type === "sign-in"
-            ? "Ваш код для входа"
-            : "Подтвердите адрес электронной почты",
+            ? `${otp} — код для входа`
+            : `${otp} — код подтверждения почты`,
         props: { otp, isSignUp: type !== "sign-in" },
       });
     }
