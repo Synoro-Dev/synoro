@@ -1,12 +1,13 @@
 name: Deploy
 
-# Builds the images (app, demo, tools, landing) and pushes them to GHCR. That is the whole deploy: the
-# cluster picks the new images up itself (Keel polls GHCR and restarts the
-# Deployments annotated in the infra repo), so this workflow needs no
-# kubeconfig, no access to the infra repo and no reachable k3s API.
+# Builds the images (app, demo, tools, landing), pushes them to GHCR and then
+# restarts the Deployments in k3s: the manifests use moving tags (`latest`,
+# `demo`) with `imagePullPolicy: Always`, so a restarted pod pulls the new image.
+# Needs the repository secret KUBECONFIG (a kubeconfig whose server is
+# reachable from GitHub runners) and nothing from the infra repo.
 #
 # Runs after CI passes on a push to main, or by hand (Actions -> Deploy -> Run
-# workflow) to rebuild a commit of main.
+# workflow) to rebuild and redeploy a commit of main.
 on:
   workflow_run:
     workflows: [CI]
@@ -176,3 +177,35 @@ jobs:
             org.opencontainers.image.revision=${{ env.SHA }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
+
+  # Runs only when every image above was pushed. The app's `migrate` init
+  # container runs the new migrations before the new pod takes over.
+  deploy:
+    needs: [tools, app, web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          umask 077
+          mkdir -p ~/.kube
+          printf '%s' "$KUBECONFIG_DATA" > ~/.kube/config
+
+      # The worker is left out: it ships scaled to zero.
+      - name: Restart deployments
+        run: |
+          kubectl rollout restart deploy/synoro-app deploy/synoro-demo deploy/synoro-landing
+          for d in synoro-app synoro-demo synoro-landing; do
+            kubectl rollout status "deploy/$d" --timeout=10m
+          done
+
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl get pods -l app.kubernetes.io/name=synoro -o wide || true
+          for d in synoro-app synoro-demo; do
+            kubectl logs "deploy/$d" -c migrate --tail=50 || true
+          done
