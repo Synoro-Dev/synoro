@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
-    "knip": "6.42.1",
+    "knip": "6.43.0",
     "sherif": "1.13.0",
     "turbo": "2.11.10",
     "typescript": "7.0.2"
