@@ -1,5 +1,5 @@
 {
-  "name": "@acme/storage",
+  "name": "@synoro/storage",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,12 +22,12 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@acme/config": "workspace:*",
     "@aws-sdk/client-s3": "3.1156.0",
-    "@aws-sdk/s3-request-presigner": "3.1156.0"
+    "@aws-sdk/s3-request-presigner": "3.1156.0",
+    "@synoro/config": "workspace:*"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
+    "@synoro/tsconfig": "workspace:*",
     "@types/node": "26.6.5",
     "tsdown": "0.23.2",
     "typescript": "7.0.2"

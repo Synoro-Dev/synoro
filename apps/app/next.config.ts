@@ -46,16 +46,16 @@ export default async function createNextConfig(): Promise<NextConfig> {
     output: "standalone",
     /**
      * Workspace packages consumed as TypeScript source (`exports` → src/).
-     * Packages that ship a built `dist/` (@acme/config, @acme/emails,
-     * @acme/storage) don't belong here.
+     * Packages that ship a built `dist/` (@synoro/config, @synoro/emails,
+     * @synoro/storage) don't belong here.
      */
     transpilePackages: [
-      "@acme/api",
-      "@acme/auth",
-      "@acme/db",
-      "@acme/jobs",
-      "@acme/ui",
-      "@acme/validators",
+      "@synoro/api",
+      "@synoro/auth",
+      "@synoro/db",
+      "@synoro/jobs",
+      "@synoro/ui",
+      "@synoro/validators",
     ],
     /** `Link href` / `router.push` are checked against the app's routes. */
     typedRoutes: true,

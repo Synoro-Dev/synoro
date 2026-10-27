@@ -1,8 +1,8 @@
 /**
- * Hatchet client and task declarations (`@acme/jobs/workflows`).
+ * Hatchet client and task declarations (`@synoro/jobs/workflows`).
  *
  * Importing this module creates the Hatchet client, which throws without
- * HATCHET_CLIENT_TOKEN. App code should go through `@acme/jobs` instead.
+ * HATCHET_CLIENT_TOKEN. App code should go through `@synoro/jobs` instead.
  */
 export { hatchet } from "./client";
 export type { HelloWorldInput } from "./hello-world";

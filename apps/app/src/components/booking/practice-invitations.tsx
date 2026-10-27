@@ -1,16 +1,16 @@
 "use client";
 
-import { Button, Skeleton, toast } from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
+import { Button, Skeleton, toast } from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
 import {
   Frame,
   FrameDescription,
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@acme/ui/reui/frame";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+} from "@synoro/ui/reui/frame";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MailIcon } from "lucide-react";
 import { useRouter } from "next/navigation";

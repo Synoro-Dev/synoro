@@ -1,4 +1,4 @@
-import { env } from "@acme/config";
+import { env } from "@synoro/config";
 
 const vercelUrl =
   env.VERCEL_ENV === "production" && env.VERCEL_PROJECT_PRODUCTION_URL

@@ -1,5 +1,5 @@
 {
-  "name": "@acme/emails",
+  "name": "@synoro/emails",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -24,9 +24,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@acme/config": "workspace:*",
     "@radix-ui/colors": "3.0.0",
     "@react-email/components": "1.0.12",
+    "@synoro/config": "workspace:*",
     "nodemailer": "^10.2.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -34,8 +34,8 @@
     "resend": "^6.34.1"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
     "@react-email/preview-server": "5.2.10",
+    "@synoro/tsconfig": "workspace:*",
     "@types/node": "26.6.5",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "19.3.0",

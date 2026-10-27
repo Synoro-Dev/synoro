@@ -1,4 +1,4 @@
-import { Booking } from "@acme/db";
+import { Booking } from "@synoro/db";
 import { z } from "zod";
 
 import {
@@ -23,7 +23,7 @@ export const slots = publicProcedure
     z.object({
       practiceId: z.uuid(),
       from: z.iso.date(),
-      days: z.number().int().min(1).max(31).default(7),
+      days: z.number().int().min(1).max(33).default(7),
       kind: z.enum(["consultation", "free"]).default("consultation"),
     }),
   )

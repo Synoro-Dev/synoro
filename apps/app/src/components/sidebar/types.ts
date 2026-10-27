@@ -1,4 +1,4 @@
-import type { RouterOutputs } from "@acme/api";
+import type { RouterOutputs } from "@synoro/api";
 
 export type SidebarPractice = RouterOutputs["practice"]["mine"][number];
 

@@ -1,4 +1,4 @@
-import { Skeleton } from "@acme/ui";
+import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
 import { PracticeOverview } from "~/components/booking/practice-overview";

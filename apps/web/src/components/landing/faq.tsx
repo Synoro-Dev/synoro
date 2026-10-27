@@ -3,7 +3,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-} from "@acme/ui";
+} from "@synoro/ui";
 import { MessageCircleQuestionIcon } from "lucide-react";
 
 import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";

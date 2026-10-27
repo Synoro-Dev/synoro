@@ -1,7 +1,7 @@
-import { appRouter, createORPCContext, errorStatusMap } from "@acme/api";
-import { logger } from "@acme/config";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { appRouter, createORPCContext, errorStatusMap } from "@synoro/api";
+import { logger } from "@synoro/config";
 
 const handler = new RPCHandler(appRouter, {
   errorStatusMap,

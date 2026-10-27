@@ -1,1 +1,1 @@
-export { env } from "@acme/config";
+export { env } from "@synoro/config";

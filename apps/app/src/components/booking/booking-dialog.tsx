@@ -1,6 +1,6 @@
 "use client";
 
-import type { RouterOutputs } from "@acme/api";
+import type { RouterOutputs } from "@synoro/api";
 import {
   Button,
   Dialog,
@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
   toast,
-} from "@acme/ui";
-import { Badge } from "@acme/ui/reui/badge";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+} from "@synoro/ui";
+import { Badge } from "@synoro/ui/reui/badge";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Clock3Icon,

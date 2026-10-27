@@ -1,4 +1,4 @@
-import { eq, Post } from "@acme/db";
+import { eq, Post } from "@synoro/db";
 import { z } from "zod";
 
 import { adminProcedure } from "../../orpc";

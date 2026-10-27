@@ -1,8 +1,8 @@
-import { env, logger } from "@acme/config";
-import { sendTemplateEmail, type TemplateEmail } from "@acme/emails";
+import { env, logger } from "@synoro/config";
+import { sendTemplateEmail, type TemplateEmail } from "@synoro/emails";
 
 /**
- * App-facing entry of `@acme/jobs`: safe to import whether or not Hatchet is
+ * App-facing entry of `@synoro/jobs`: safe to import whether or not Hatchet is
  * configured. The Hatchet client (`./workflows`) is loaded lazily, only when
  * HATCHET_CLIENT_TOKEN is set — creating it without a token throws.
  */

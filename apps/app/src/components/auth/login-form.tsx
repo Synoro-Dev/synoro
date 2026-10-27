@@ -1,6 +1,7 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { paths } from "@synoro/config";
 import {
   Button,
   Card,
@@ -16,9 +17,8 @@ import {
   FormLabel,
   FormMessage,
   Input,
-} from "@acme/ui";
-import { type LoginFormData, loginFormSchema } from "@acme/validators";
-import { zodResolver } from "@hookform/resolvers/zod";
+} from "@synoro/ui";
+import { type LoginFormData, loginFormSchema } from "@synoro/validators";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";

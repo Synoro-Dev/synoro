@@ -1,4 +1,4 @@
-import { buttonVariants, cn } from "@acme/ui";
+import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon, PlayIcon } from "lucide-react";
 
 import { BookingPageMockup } from "~/components/mockups/booking-page";

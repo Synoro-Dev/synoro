@@ -1,5 +1,6 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Checkbox,
@@ -12,14 +13,13 @@ import {
   FormMessage,
   PasswordInput,
   toast,
-} from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
+} from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import {
   type ChangePasswordFormValues,
   changePasswordFormSchema,
   PASSWORD_MIN_LENGTH,
-} from "@acme/validators";
-import { zodResolver } from "@hookform/resolvers/zod";
+} from "@synoro/validators";
 import { CircleAlert } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";

@@ -97,14 +97,14 @@ jobs:
         run: bun db:migrate
 
       - name: Build app
-        run: bun turbo run build -F @acme/app
+        run: bun turbo run build -F @synoro/app
 
       - name: Install Playwright browser
         working-directory: apps/app
         run: bunx playwright install --with-deps chromium
 
       - name: E2E tests
-        run: bun turbo run e2e -F @acme/app
+        run: bun turbo run e2e -F @synoro/app
 
       - uses: actions/upload-artifact@v4
         if: failure()

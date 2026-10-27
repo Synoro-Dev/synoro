@@ -17,7 +17,7 @@ export interface ProcessDocumentInput {
  *
  * Trigger from your app:
  * ```ts
- * import { processDocumentWorkflow } from "@acme/jobs";
+ * import { processDocumentWorkflow } from "@synoro/jobs";
  *
  * const result = await processDocumentWorkflow.run({
  *   documentId: "doc_123",

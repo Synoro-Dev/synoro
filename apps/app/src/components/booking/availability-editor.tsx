@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Label, Skeleton, Switch, toast } from "@acme/ui";
+import { Button, Label, Skeleton, Switch, toast } from "@synoro/ui";
 import {
   Frame,
   FrameDescription,
@@ -8,11 +8,11 @@ import {
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@acme/ui/reui/frame";
+} from "@synoro/ui/reui/frame";
 import {
   type AvailabilityRuleValues,
   availabilityFormSchema,
-} from "@acme/validators";
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
@@ -103,13 +103,13 @@ function RulesForm({
       const last = all
         .filter((r) => r.weekday === weekday)
         .sort((a, b) => b.endMinute - a.endMinute)[0];
-      const interval =
-        last && last.endMinute <= 1380
-          ? {
-              startMinute: last.endMinute + 60,
-              endMinute: Math.min(1440, last.endMinute + 180),
-            }
-          : DEFAULT_INTERVAL;
+      if (last && last.endMinute >= 1380) return all;
+      const interval = last
+        ? {
+            startMinute: last.endMinute + 60,
+            endMinute: Math.min(1440, last.endMinute + 180),
+          }
+        : DEFAULT_INTERVAL;
       return [...all, { key: crypto.randomUUID(), weekday, ...interval }];
     });
   const toggleDay = (weekday: number, on: boolean) =>
@@ -218,6 +218,7 @@ function RulesForm({
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Добавить интервал"
+                            disabled={dayRules.some((r) => r.endMinute >= 1380)}
                             onClick={() => addInterval(weekday)}
                           >
                             <PlusIcon />

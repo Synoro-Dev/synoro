@@ -11,7 +11,7 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "utils": "@acme/ui",
+    "utils": "@synoro/ui",
     "components": "src/components/",
     "ui": "src/components/"
   },

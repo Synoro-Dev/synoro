@@ -1,4 +1,4 @@
-import { eq, PracticeDomain } from "@acme/db";
+import { eq, PracticeDomain } from "@synoro/db";
 import { z } from "zod";
 
 import { domainSettings } from "../../lib/domains";

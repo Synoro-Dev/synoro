@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
-import type { Session } from "@acme/auth";
-import { eq, PracticeDomain } from "@acme/db";
 import { call, isDefinedError } from "@orpc/server";
+import type { Session } from "@synoro/auth";
+import { eq, PracticeDomain } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import * as domains from "../../lib/domains";

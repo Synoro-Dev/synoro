@@ -1,6 +1,6 @@
-import { paths } from "@acme/config";
-import { Skeleton } from "@acme/ui";
 import { isDefinedError } from "@orpc/server";
+import { paths } from "@synoro/config";
+import { Skeleton } from "@synoro/ui";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";

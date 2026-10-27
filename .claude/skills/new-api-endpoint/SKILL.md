@@ -21,7 +21,7 @@ access level can't be inferred.
 
 - Insert/update shapes for a table: derive from Drizzle with `drizzle-zod`
   next to the table (see `CreatePostSchema` in
-  `packages/db/src/schema/post/post.ts`) and export it from `@acme/db`.
+  `packages/db/src/schema/post/post.ts`) and export it from `@synoro/db`.
 - Schemas shared with a frontend form: put them in `packages/validators/src/`,
   export from its `index.ts`, add a test case to `validators.test.ts`.
 - One-off params: inline `z.object({...})` in the procedure.
@@ -33,7 +33,7 @@ Follow the existing style — JSDoc with an `@example`, `context.db` for queries
 and **expected failures declared with `.errors()`** and thrown via `errors.*`:
 
 ```ts
-import { eq, Post } from "@acme/db";
+import { eq, Post } from "@synoro/db";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../orpc";
@@ -66,7 +66,7 @@ expected cases — it reaches the client untyped. `UNAUTHORIZED` and
 `FORBIDDEN` are already declared on `protectedProcedure` / `adminProcedure`.
 Codes map to HTTP status by name (`NOT_FOUND` → 404, `CONFLICT` → 409, …);
 DB unique violations: `isUniqueViolation(error, "<constraint>")` from
-`@acme/db`. Never return another user's data from a `protectedProcedure`
+`@synoro/db`. Never return another user's data from a `protectedProcedure`
 without an ownership check.
 
 ## 4. Wire it up
@@ -87,5 +87,5 @@ without an ownership check.
 
 ## 6. Verify
 
-`bun turbo typecheck -F @acme/api -F @acme/app` then `bun check`. If you added
+`bun turbo typecheck -F @synoro/api -F @synoro/app` then `bun check`. If you added
 validators, `bun test packages/validators`.

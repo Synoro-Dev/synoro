@@ -1,5 +1,5 @@
-import { PracticeInvitation, sql } from "@acme/db";
-import { memberInviteFormSchema } from "@acme/validators";
+import { PracticeInvitation, sql } from "@synoro/db";
+import { memberInviteFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import {

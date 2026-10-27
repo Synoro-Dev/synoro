@@ -1,4 +1,4 @@
-import { cn } from "@acme/ui";
+import { cn } from "@synoro/ui";
 import { LockIcon, MoreHorizontalIcon } from "lucide-react";
 
 import { Initials } from "~/components/landing/primitives";

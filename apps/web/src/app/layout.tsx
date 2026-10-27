@@ -1,4 +1,4 @@
-import { cn } from "@acme/ui";
+import { cn } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 

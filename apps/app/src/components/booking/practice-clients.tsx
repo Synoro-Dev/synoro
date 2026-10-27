@@ -1,6 +1,6 @@
 "use client";
 
-import type { RouterOutputs } from "@acme/api";
+import type { RouterOutputs } from "@synoro/api";
 import {
   Avatar,
   AvatarFallback,
@@ -12,19 +12,19 @@ import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
-} from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
+} from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
 import {
   DataGrid,
   type DataGridFeatures,
   dataGridFeatures,
-} from "@acme/ui/reui/data-grid/data-grid";
-import { DataGridColumnHeader } from "@acme/ui/reui/data-grid/data-grid-column-header";
-import { DataGridPagination } from "@acme/ui/reui/data-grid/data-grid-pagination";
-import { DataGridScrollArea } from "@acme/ui/reui/data-grid/data-grid-scroll-area";
-import { DataGridTable } from "@acme/ui/reui/data-grid/data-grid-table";
-import { Frame, FrameFooter, FramePanel } from "@acme/ui/reui/frame";
+} from "@synoro/ui/reui/data-grid/data-grid";
+import { DataGridColumnHeader } from "@synoro/ui/reui/data-grid/data-grid-column-header";
+import { DataGridPagination } from "@synoro/ui/reui/data-grid/data-grid-pagination";
+import { DataGridScrollArea } from "@synoro/ui/reui/data-grid/data-grid-scroll-area";
+import { DataGridTable } from "@synoro/ui/reui/data-grid/data-grid-table";
+import { Frame, FrameFooter, FramePanel } from "@synoro/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ColumnDef,

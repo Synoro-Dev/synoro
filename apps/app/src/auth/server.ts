@@ -1,8 +1,8 @@
 import "server-only";
 
-import { initAuth } from "@acme/auth";
-import { env, logger } from "@acme/config";
-import { dispatchEmail } from "@acme/jobs";
+import { initAuth } from "@synoro/auth";
+import { env, logger } from "@synoro/config";
+import { dispatchEmail } from "@synoro/jobs";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
 import { after } from "next/server";
@@ -18,6 +18,10 @@ export const auth = initAuth({
   baseUrl: appUrl,
   productionUrl,
   secret: env.AUTH_SECRET,
+  cookieDomain: env.AUTH_COOKIE_DOMAIN,
+  trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   googleClientId: env.AUTH_GOOGLE_ID,
   googleClientSecret: env.AUTH_GOOGLE_SECRET,
   extraPlugins: [nextCookies()],

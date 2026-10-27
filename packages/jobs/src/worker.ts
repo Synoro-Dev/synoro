@@ -1,4 +1,4 @@
-import { env, logger } from "@acme/config";
+import { env, logger } from "@synoro/config";
 
 /**
  * Hatchet worker — long-running process that polls the Hatchet engine

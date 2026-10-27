@@ -1,6 +1,7 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { isDefinedError } from "@orpc/client";
+import { paths } from "@synoro/config";
 import {
   Button,
   Field,
@@ -16,9 +17,9 @@ import {
   TableHeader,
   TableRow,
   toast,
-} from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
+} from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
 import {
   Frame,
   FrameDescription,
@@ -26,9 +27,8 @@ import {
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@acme/ui/reui/frame";
-import { customDomainFormSchema } from "@acme/validators";
-import { isDefinedError } from "@orpc/client";
+} from "@synoro/ui/reui/frame";
+import { customDomainFormSchema } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CircleCheckIcon,

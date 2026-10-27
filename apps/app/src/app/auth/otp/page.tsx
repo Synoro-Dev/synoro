@@ -1,4 +1,4 @@
-import { APP_CONFIG, paths } from "@acme/config";
+import { APP_CONFIG, paths } from "@synoro/config";
 import { GalleryVerticalEnd } from "lucide-react";
 import type { Metadata } from "next";
 import { OTPForm } from "~/components/auth";

@@ -1,4 +1,4 @@
-import { buttonVariants, cn } from "@acme/ui";
+import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";

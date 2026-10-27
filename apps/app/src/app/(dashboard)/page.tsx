@@ -1,5 +1,5 @@
-import { paths } from "@acme/config";
-import { Skeleton } from "@acme/ui";
+import { paths } from "@synoro/config";
+import { Skeleton } from "@synoro/ui";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 

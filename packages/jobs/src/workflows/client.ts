@@ -5,7 +5,7 @@ import { HatchetClient } from "@hatchet-dev/typescript-sdk/v1";
  *
  * Import this wherever you need to define tasks or workflows:
  * ```ts
- * import { hatchet } from "@acme/jobs";
+ * import { hatchet } from "@synoro/jobs";
  * ```
  *
  * The client reads credentials from the environment automatically:

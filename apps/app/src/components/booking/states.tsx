@@ -8,9 +8,9 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { IconStack } from "@acme/ui/reui/icon-stack";
+} from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { IconStack } from "@synoro/ui/reui/icon-stack";
 import { CircleAlertIcon, type LucideIcon, RotateCcwIcon } from "lucide-react";
 import type { ReactNode } from "react";
 

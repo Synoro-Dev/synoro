@@ -1,5 +1,5 @@
-import { logger } from "@acme/config";
 import { render } from "@react-email/components";
+import { logger } from "@synoro/config";
 import nodemailer from "nodemailer";
 import type Mail from "nodemailer/lib/mailer";
 import type { ReactNode } from "react";

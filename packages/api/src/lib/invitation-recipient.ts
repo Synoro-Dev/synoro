@@ -1,4 +1,4 @@
-import { type Database, eq, user } from "@acme/db";
+import { type Database, eq, user } from "@synoro/db";
 
 /** Read the current, verified email from the database rather than a cached session. */
 export async function invitationRecipient(db: Database, userId: string) {

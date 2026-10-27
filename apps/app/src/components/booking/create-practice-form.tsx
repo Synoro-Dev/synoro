@@ -1,6 +1,8 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { isDefinedError } from "@orpc/client";
+import { paths } from "@synoro/config";
 import {
   Button,
   Dialog,
@@ -15,10 +17,11 @@ import {
   InputGroupInput,
   Label,
   toast,
-} from "@acme/ui";
-import { type PracticeFormValues, practiceFormSchema } from "@acme/validators";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { isDefinedError } from "@orpc/client";
+} from "@synoro/ui";
+import {
+  type PracticeFormValues,
+  practiceFormSchema,
+} from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -54,7 +57,9 @@ const TRANSLIT: Record<string, string> = {
   ч: "ch",
   ш: "sh",
   щ: "sch",
+  ъ: "",
   ы: "y",
+  ь: "",
   э: "e",
   ю: "yu",
   я: "ya",

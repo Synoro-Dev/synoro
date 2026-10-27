@@ -1,6 +1,6 @@
 "use client";
 
-import { buttonVariants, cn } from "@acme/ui";
+import { buttonVariants, cn } from "@synoro/ui";
 import { CheckIcon, CreditCardIcon } from "lucide-react";
 import { useState } from "react";
 

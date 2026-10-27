@@ -5,7 +5,7 @@ import type { Config } from "drizzle-kit";
  * credentials are optional here: CI can verify migrations without a database
  * or a prior build. `push`, `migrate` and `studio` fail fast without a URL.
  *
- * Reads `process.env` directly instead of `@acme/config`, which is consumed
+ * Reads `process.env` directly instead of `@synoro/config`, which is consumed
  * from `dist/` and would force a build before every drizzle-kit command.
  */
 const url = process.env.POSTGRES_URL;

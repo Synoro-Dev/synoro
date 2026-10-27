@@ -1,4 +1,4 @@
-import { AvailabilityRule, asc, eq } from "@acme/db";
+import { AvailabilityRule, asc, eq } from "@synoro/db";
 import { z } from "zod";
 
 import { publicProcedure } from "../../orpc";

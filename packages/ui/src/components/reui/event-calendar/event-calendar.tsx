@@ -355,7 +355,7 @@ function resolveSettings<TData>(
   }
 }
 
-// Bundlers inline NODE_ENV; @acme/ui has no Node types.
+// Bundlers inline NODE_ENV; @synoro/ui has no Node types.
 declare const process: { env: { NODE_ENV?: string } }
 
 const warned = new Set<string>()

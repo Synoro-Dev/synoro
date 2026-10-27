@@ -1,11 +1,11 @@
 "use client";
 
-import type { RouterOutputs } from "@acme/api";
-import { paths } from "@acme/config";
-import { Button, Calendar, Card, Separator, Skeleton, toast } from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+import type { RouterOutputs } from "@synoro/api";
+import { paths } from "@synoro/config";
+import { Button, Calendar, Card, Separator, Skeleton, toast } from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -26,17 +26,21 @@ import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
 
-/** Days to fetch for the month of `month`: from today (or the 1st) to its end. */
+/** From today (or the 1st) to month end, with a day of padding on each side. */
 function monthWindow(month: Date, today: string) {
   const first = dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
   const last = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-  const from = first < today ? today : first;
+  const from = new Date(
+    Date.parse(`${first < today ? today : first}T00:00:00Z`) - 86_400_000,
+  )
+    .toISOString()
+    .slice(0, 10);
   const days =
     Math.round(
       (Date.parse(`${last}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
         86_400_000,
-    ) + 1;
-  return { from, days: Math.max(1, Math.min(31, days)) };
+    ) + 2;
+  return { from, days: Math.max(1, Math.min(33, days)) };
 }
 
 const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
@@ -85,8 +89,16 @@ export function PublicBooking({
   });
 
   const byDay = new Map<string, Slot[]>();
+  const monthStart = dateKey(
+    new Date(month.getFullYear(), month.getMonth(), 1),
+  );
+  const monthEnd = dateKey(
+    new Date(month.getFullYear(), month.getMonth() + 1, 0),
+  );
+  const viewerToday = dateKey(new Date());
   for (const slot of slots.data?.slots ?? []) {
     const key = dateKey(slot.startsAt);
+    if (key < monthStart || key > monthEnd || key < viewerToday) continue;
     byDay.set(key, [...(byDay.get(key) ?? []), slot]);
   }
   // Default to the first day with free time once slots arrive.

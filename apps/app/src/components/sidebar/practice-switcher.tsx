@@ -1,6 +1,6 @@
 "use client";
 
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +13,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@acme/ui";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+} from "@synoro/ui";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { ChevronsUpDownIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
 

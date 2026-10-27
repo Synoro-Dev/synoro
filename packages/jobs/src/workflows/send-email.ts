@@ -1,11 +1,11 @@
-import { sendTemplateEmail, type TemplateEmail } from "@acme/emails";
+import { sendTemplateEmail, type TemplateEmail } from "@synoro/emails";
 
 import { hatchet } from "./client";
 
 /**
  * Sends a template email from the worker, with retries.
  *
- * Enqueue it through `dispatchEmail` from `@acme/jobs`, which falls back to
+ * Enqueue it through `dispatchEmail` from `@synoro/jobs`, which falls back to
  * sending inline when Hatchet isn't configured.
  */
 export const sendEmailTask = hatchet.task({

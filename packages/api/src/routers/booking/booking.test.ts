@@ -1,13 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import type { Session } from "@acme/auth";
+import { call, isDefinedError } from "@orpc/server";
+import type { Session } from "@synoro/auth";
 import {
   Booking,
   eq,
   PracticeInvitation,
   PracticeMember,
   user,
-} from "@acme/db";
-import { call, isDefinedError } from "@orpc/server";
+} from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { errorStatusMap } from "../../errors";
@@ -394,6 +394,29 @@ describe("practice", () => {
         where: eq(PracticeMember.userId, recipient.user.id),
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("booking.slots", () => {
+  it("accepts a month padded on both sides and rejects longer windows", async () => {
+    const { slots } = await call(
+      bookingRouter.slots,
+      { practiceId, from: MONDAY, days: 33 },
+      { context: api.context() },
+    );
+    expect(slots).toHaveLength(15);
+    expect(slots[0]?.startsAt.toISOString()).toBe(`${MONDAY}T07:00:00.000Z`);
+    expect(slots.at(-1)?.startsAt.toISOString()).toBe(
+      "2030-02-04T09:00:00.000Z",
+    );
+
+    await expect(
+      call(
+        bookingRouter.slots,
+        { practiceId, from: MONDAY, days: 34 },
+        { context: api.context() },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });
 

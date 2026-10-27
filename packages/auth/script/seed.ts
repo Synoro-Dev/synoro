@@ -1,4 +1,4 @@
-import { env } from "@acme/config";
+import { env } from "@synoro/config";
 import {
   AvailabilityRule,
   account,
@@ -13,7 +13,7 @@ import {
   PracticeMember,
   db as seedDb,
   user,
-} from "@acme/db";
+} from "@synoro/db";
 import { hashPassword } from "better-auth/crypto";
 
 /**
@@ -23,7 +23,7 @@ import { hashPassword } from "better-auth/crypto";
  * invitation.
  *
  * Idempotent: demo users (all `@example.com`) are deleted first, which
- * cascades to their practice, bookings and balances. Lives in `@acme/auth`
+ * cascades to their practice, bookings and balances. Lives in `@synoro/auth`
  * because sign-in needs Better Auth's password hash.
  *
  * Only loopback databases named acme (local compose), acme_test or test

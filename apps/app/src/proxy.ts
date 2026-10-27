@@ -1,4 +1,4 @@
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 

@@ -1,11 +1,11 @@
-import { paths } from "@acme/config";
+import { paths } from "@synoro/config";
 import {
   Sidebar,
   SidebarContent,
   SidebarInset,
   SidebarProvider,
   Skeleton,
-} from "@acme/ui";
+} from "@synoro/ui";
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { getSession } from "~/auth/server";

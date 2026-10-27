@@ -1,5 +1,5 @@
-import { and, eq, Practice, PracticeDomain } from "@acme/db";
-import { normalizeHostname } from "@acme/validators";
+import { and, eq, Practice, PracticeDomain } from "@synoro/db";
+import { normalizeHostname } from "@synoro/validators";
 import { z } from "zod";
 
 import { slugFromPlatformHost } from "../../lib/domains";

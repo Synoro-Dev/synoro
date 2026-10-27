@@ -1,4 +1,4 @@
-import { and, Booking, eq } from "@acme/db";
+import { and, Booking, eq } from "@synoro/db";
 import { z } from "zod";
 
 import { adjustCredits, recordCredit } from "../../lib/bookings";

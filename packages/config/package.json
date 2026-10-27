@@ -1,5 +1,5 @@
 {
-  "name": "@acme/config",
+  "name": "@synoro/config",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -29,8 +29,8 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@acme/tsconfig": "workspace:*",
     "@opentelemetry/context-async-hooks": "2.8.0",
+    "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",
     "tsdown": "0.23.2",

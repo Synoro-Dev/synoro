@@ -1,8 +1,8 @@
 import { resolve4, resolveCname, resolveTxt } from "node:dns/promises";
 import { domainToUnicode } from "node:url";
-import { env } from "@acme/config";
-import { type Database, eq, Practice, PracticeDomain } from "@acme/db";
-import { RESERVED_SLUGS } from "@acme/validators";
+import { env } from "@synoro/config";
+import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
+import { RESERVED_SLUGS } from "@synoro/validators";
 
 type DomainRow = typeof PracticeDomain.$inferSelect;
 

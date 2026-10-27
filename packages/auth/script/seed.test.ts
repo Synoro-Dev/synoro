@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it, spyOn } from "bun:test";
-import { eq, Practice, PracticeInvitation, user } from "@acme/db";
-import { createTestDb } from "@acme/db/testing";
+import { eq, Practice, PracticeInvitation, user } from "@synoro/db";
+import { createTestDb } from "@synoro/db/testing";
 import { verifyPassword } from "better-auth/crypto";
 
 import { main } from "./seed";

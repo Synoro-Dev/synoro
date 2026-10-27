@@ -7,7 +7,7 @@
  *
  * `ORPCInstrumentation` adds a span per oRPC call (handler, middlewares,
  * input/output validation) under Next's request span, and propagates trace
- * context between the oRPC client and server. `logger` from `@acme/config`
+ * context between the oRPC client and server. `logger` from `@synoro/config`
  * stamps every log line with the active `trace_id` / `span_id`.
  *
  * @see https://nextjs.org/docs/app/guides/open-telemetry

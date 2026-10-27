@@ -26,7 +26,7 @@ import * as schema from "../schema";
  * Both migrators apply pending migrations in a single transaction.
  *
  * Plain console output and `process.env` on purpose: this is a CLI for
- * humans, and `@acme/config` is consumed from `dist/`, which would force a
+ * humans, and `@synoro/config` is consumed from `dist/`, which would force a
  * build before the first migration on a fresh clone.
  */
 /**

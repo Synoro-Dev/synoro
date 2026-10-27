@@ -1,9 +1,9 @@
 "use client";
 
-import { paths } from "@acme/config";
-import { Button, Input, Skeleton, toast } from "@acme/ui";
-import { Alert, AlertDescription, AlertTitle } from "@acme/ui/reui/alert";
-import { Badge } from "@acme/ui/reui/badge";
+import { paths } from "@synoro/config";
+import { Button, Input, Skeleton, toast } from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Badge } from "@synoro/ui/reui/badge";
 import {
   Frame,
   FrameDescription,
@@ -11,8 +11,8 @@ import {
   FrameHeader,
   FramePanel,
   FrameTitle,
-} from "@acme/ui/reui/frame";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+} from "@synoro/ui/reui/frame";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDaysIcon,

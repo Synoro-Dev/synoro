@@ -9,7 +9,7 @@ import {
   BreadcrumbSeparator,
   Separator,
   SidebarTrigger,
-} from "@acme/ui";
+} from "@synoro/ui";
 import type { Route } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";

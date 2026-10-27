@@ -10,7 +10,7 @@ import {
   lt,
   PracticeMember,
   sql,
-} from "@acme/db";
+} from "@synoro/db";
 
 import { addDays, zonedTimeToUtc } from "./schedule";
 

@@ -52,7 +52,7 @@ on a shared environment — add a new one. Never run `drop` scripts.
 
 ## 3. Verify
 
-`bun turbo typecheck -F @acme/db -F @acme/api` and
+`bun turbo typecheck -F @synoro/db -F @synoro/api` and
 `bun test packages/db packages/api` (PGlite runs the migrations, so a broken
 migration fails here).
 Then update any API procedures that should expose the change (see the

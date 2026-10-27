@@ -1,13 +1,13 @@
 "use client";
 
-import { Button, Skeleton } from "@acme/ui";
-import { EventCalendar } from "@acme/ui/reui/event-calendar/event-calendar";
-import { EventCalendarContent } from "@acme/ui/reui/event-calendar/event-calendar-content";
-import { EventCalendarNav } from "@acme/ui/reui/event-calendar/event-calendar-nav";
-import type { CalendarEvent } from "@acme/ui/reui/event-calendar/event-calendar-types";
-import { Frame, FramePanel } from "@acme/ui/reui/frame";
+import { Button, Skeleton } from "@synoro/ui";
+import { EventCalendar } from "@synoro/ui/reui/event-calendar/event-calendar";
+import { EventCalendarContent } from "@synoro/ui/reui/event-calendar/event-calendar-content";
+import { EventCalendarNav } from "@synoro/ui/reui/event-calendar/event-calendar-nav";
+import type { CalendarEvent } from "@synoro/ui/reui/event-calendar/event-calendar-types";
+import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
-import { startOfWeek } from "date-fns";
+import { addDays, startOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
@@ -71,12 +71,12 @@ export function PracticeCalendar({
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
-  const from = dateKey(range.start);
+  const from = dateKey(addDays(range.start, -1));
   const days = Math.min(
     62,
     Math.max(
       1,
-      Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS),
+      Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS) + 2,
     ),
   );
   const bookings = useQuery({

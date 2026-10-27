@@ -5,7 +5,7 @@ import {
   type MemberRole,
   Practice,
   PracticeMember,
-} from "@acme/db";
+} from "@synoro/db";
 
 import { protectedProcedure } from "../orpc";
 

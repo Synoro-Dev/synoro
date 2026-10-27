@@ -1,5 +1,5 @@
 {
-  "extends": "@acme/tsconfig/compiled-package.json",
+  "extends": "@synoro/tsconfig/compiled-package.json",
   "compilerOptions": {
     "rootDir": "./src",
     // Schemas run in browser forms and on the server; both have WHATWG `URL`.

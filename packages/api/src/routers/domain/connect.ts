@@ -1,5 +1,5 @@
-import { and, eq, isUniqueViolation, lte, PracticeDomain } from "@acme/db";
-import { customDomainFormSchema } from "@acme/validators";
+import { and, eq, isUniqueViolation, lte, PracticeDomain } from "@synoro/db";
+import { customDomainFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import {

@@ -3,7 +3,7 @@
 import {
   TimePicker,
   type TimePickerI18nOverrides,
-} from "@acme/ui/reui/time-picker";
+} from "@synoro/ui/reui/time-picker";
 
 import { minutesToTime } from "./time";
 

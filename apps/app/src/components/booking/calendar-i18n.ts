@@ -1,4 +1,4 @@
-import type { EventCalendarI18nOverrides } from "@acme/ui/reui/event-calendar/event-calendar-i18n";
+import type { EventCalendarI18nOverrides } from "@synoro/ui/reui/event-calendar/event-calendar-i18n";
 import { format, isSameMonth, isSameYear, subMilliseconds } from "date-fns";
 
 const plural = (n: number, one: string, few: string, many: string) => {

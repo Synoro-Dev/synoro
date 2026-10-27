@@ -1,4 +1,4 @@
-import { cn } from "@acme/ui";
+import { cn } from "@synoro/ui";
 import type { LucideIcon } from "lucide-react";
 
 /** Centered content column whose side borders draw the page "rails". */

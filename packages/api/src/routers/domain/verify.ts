@@ -1,4 +1,4 @@
-import { and, eq, gt, PracticeDomain } from "@acme/db";
+import { and, eq, gt, PracticeDomain } from "@synoro/db";
 import { z } from "zod";
 
 import {

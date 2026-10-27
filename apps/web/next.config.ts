@@ -14,7 +14,7 @@ export default async function createNextConfig(): Promise<NextConfig> {
   const config: NextConfig = {
     output: "standalone",
     /** Workspace packages consumed as TypeScript source (`exports` → src/). */
-    transpilePackages: ["@acme/ui"],
+    transpilePackages: ["@synoro/ui"],
     typedRoutes: true,
     reactCompiler: true,
     cacheComponents: true,

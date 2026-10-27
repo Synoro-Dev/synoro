@@ -1,10 +1,10 @@
 "use client";
 
-import { paths } from "@acme/config";
-import { Button, Skeleton } from "@acme/ui";
-import { Badge } from "@acme/ui/reui/badge";
-import { Frame, FramePanel } from "@acme/ui/reui/frame";
-import { IconTile } from "@acme/ui/reui/icon-tile";
+import { paths } from "@synoro/config";
+import { Button, Skeleton } from "@synoro/ui";
+import { Badge } from "@synoro/ui/reui/badge";
+import { Frame, FramePanel } from "@synoro/ui/reui/frame";
+import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
 import type { Route } from "next";

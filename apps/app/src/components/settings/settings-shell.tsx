@@ -1,5 +1,5 @@
-import { Skeleton } from "@acme/ui";
-import { Frame, FramePanel } from "@acme/ui/reui/frame";
+import { Skeleton } from "@synoro/ui";
+import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 
 import type { ReactNode } from "react";
 

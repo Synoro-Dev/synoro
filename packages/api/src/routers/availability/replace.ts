@@ -1,5 +1,5 @@
-import { AvailabilityRule, and, eq, notInArray } from "@acme/db";
-import { availabilityFormSchema } from "@acme/validators";
+import { AvailabilityRule, and, eq, notInArray } from "@synoro/db";
+import { availabilityFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import {
