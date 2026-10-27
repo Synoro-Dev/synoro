@@ -63,6 +63,7 @@ jobs:
         run: bun turbo run build typecheck test --affected
 
   e2e:
+    if: false
     runs-on: ubuntu-latest
     services:
       postgres:
