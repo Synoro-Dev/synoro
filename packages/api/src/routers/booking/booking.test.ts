@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import {
   Booking,
@@ -7,7 +8,6 @@ import {
   PracticeMember,
   user,
 } from "@synoro/db";
-import { call, isDefinedError } from "@orpc/server";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { errorStatusMap } from "../../errors";

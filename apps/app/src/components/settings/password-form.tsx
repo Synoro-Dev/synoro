@@ -1,5 +1,6 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Checkbox,
@@ -19,7 +20,6 @@ import {
   changePasswordFormSchema,
   PASSWORD_MIN_LENGTH,
 } from "@synoro/validators";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { CircleAlert } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
