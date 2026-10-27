@@ -56,16 +56,18 @@ export function Hero({ links }: { links: SiteLinks }) {
               Начать бесплатно
               <ArrowRightIcon data-icon="inline-end" />
             </a>
-            <a
-              href={links.demo}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "h-11 rounded-full px-6 text-[15px]",
-              )}
-            >
-              <PlayIcon data-icon="inline-start" className="size-3.5" />
-              Открыть демо-страницу
-            </a>
+            {links.demo && (
+              <a
+                href={links.demo}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "h-11 rounded-full px-6 text-[15px]",
+                )}
+              >
+                <PlayIcon data-icon="inline-start" className="size-3.5" />
+                Открыть демо-страницу
+              </a>
+            )}
           </div>
           <p className="text-muted-foreground mt-5 text-sm">
             Бесплатный тариф навсегда · Без привязки карты

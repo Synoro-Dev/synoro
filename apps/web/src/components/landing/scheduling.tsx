@@ -46,16 +46,18 @@ export function Scheduling({ links }: { links: SiteLinks }) {
           записывается в пару кликов. Вы видите все записи, знакомства и
           закрытое время в одном календаре.
         </Lead>
-        <a
-          href={links.demo}
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "mt-2 w-fit rounded-full px-4",
-          )}
-        >
-          Посмотреть, как видит клиент
-          <ArrowRightIcon data-icon="inline-end" />
-        </a>
+        {links.demo && (
+          <a
+            href={links.demo}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "mt-2 w-fit rounded-full px-4",
+            )}
+          >
+            Посмотреть, как видит клиент
+            <ArrowRightIcon data-icon="inline-end" />
+          </a>
+        )}
       </div>
 
       <div className="bg-muted/70 bg-dots relative border-y px-4 py-14 sm:px-10 sm:py-20">

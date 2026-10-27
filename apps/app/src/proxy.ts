@@ -7,7 +7,7 @@ import { appUrl, hostConfig, practiceHost } from "~/lib/hosts";
 const hosts = hostConfig();
 
 /** Open without a session on the app's own host. */
-const PUBLIC_PATHS = [paths.auth.root, "/p/", "/site/"];
+const PUBLIC_PATHS = [paths.auth.root, "/p/", "/site/", "/api/auth"];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -21,6 +21,13 @@ export async function proxy(request: NextRequest) {
       return NextResponse.rewrite(
         new URL(`${paths.booking.site(host)}${search}`, request.url),
       );
+    }
+    // The only API path the matcher lets through: Better Auth must never set
+    // a session cookie on a domain the practice owner controls. The rest of
+    // /api stays reachable here (the booking page calls /api/orpc on this
+    // host; Caddy asks /api/domains/tls via the internal `app` host).
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.redirect(new URL(`${pathname}${search}`, appUrl));
     }
     if (pathname.startsWith("/_next") || /\.[a-z0-9]+$/i.test(pathname)) {
       return NextResponse.next();
@@ -45,5 +52,8 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/api/auth/:path*",
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
 };

@@ -41,15 +41,17 @@ export function FinalCta({ links }: { links: SiteLinks }) {
             Создать практику
             <ArrowRightIcon data-icon="inline-end" />
           </a>
-          <a
-            href={links.demo}
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "lg" }),
-              "h-11 rounded-full px-6 text-[15px] text-white ring-1 ring-white/15 hover:bg-white/10 hover:text-white",
-            )}
-          >
-            Демо-страница
-          </a>
+          {links.demo && (
+            <a
+              href={links.demo}
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "lg" }),
+                "h-11 rounded-full px-6 text-[15px] text-white ring-1 ring-white/15 hover:bg-white/10 hover:text-white",
+              )}
+            >
+              Демо-страница
+            </a>
+          )}
         </div>
       </div>
     </Section>
@@ -72,7 +74,7 @@ export async function Footer({ links }: { links: SiteLinks }) {
       items: [
         { href: links.login, label: "Войти" },
         { href: links.signup, label: "Регистрация" },
-        { href: links.demo, label: "Демо-страница" },
+        ...(links.demo ? [{ href: links.demo, label: "Демо-страница" }] : []),
       ],
     },
   ];
