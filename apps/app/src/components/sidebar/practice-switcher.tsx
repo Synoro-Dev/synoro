@@ -51,7 +51,7 @@ export function PracticeSwitcher({
             </IconTile>
             <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
               <span className="truncate font-semibold">
-                {current?.name ?? "Синоро"}
+                {current?.name ?? "Synoro"}
               </span>
               <span className="truncate text-xs text-muted-foreground">
                 {current ? ROLE_LABELS[current.role] : "Выберите практику"}

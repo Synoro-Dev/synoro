@@ -4,11 +4,13 @@ import {
   availabilityFormSchema,
   creditGrantFormSchema,
   freeConsultationFormSchema,
+  normalizeHostname,
   practiceFormSchema,
 } from "./booking";
 import { loginFormSchema } from "./login";
 import { otpFormSchema } from "./otp";
 import { changePasswordFormSchema } from "./password";
+import { paymentAccountFormSchema, paymentPackagesFormSchema } from "./payment";
 import { profileFormSchema } from "./profile";
 
 describe("profileFormSchema", () => {
@@ -206,6 +208,44 @@ describe("availabilityFormSchema", () => {
   });
 });
 
+describe("practiceFormSchema reserved slugs", () => {
+  test("rejects slugs reserved for platform subdomains", () => {
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "www" }).success,
+    ).toBe(false);
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "API" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("normalizeHostname", () => {
+  test("strips scheme, path, port and trailing dot", () => {
+    expect(normalizeHostname(" https://Anna-Psy.ru/zapis?x=1 ")).toBe(
+      "anna-psy.ru",
+    );
+    expect(normalizeHostname("zapis.anna.ru:443")).toBe("zapis.anna.ru");
+    expect(normalizeHostname("anna.ru.")).toBe("anna.ru");
+  });
+
+  test("converts Cyrillic domains to punycode", () => {
+    expect(normalizeHostname("Анна.рф")).toBe("xn--80aa2ba.xn--p1ai");
+  });
+
+  test("rejects non-hosts", () => {
+    for (const value of [
+      "",
+      "anna",
+      "localhost",
+      "1.2.3.4",
+      "a b.ru",
+      "-a.ru",
+    ]) {
+      expect(normalizeHostname(value)).toBeNull();
+    }
+  });
+});
+
 describe("creditGrantFormSchema", () => {
   test("accepts positive and negative amounts", () => {
     expect(creditGrantFormSchema.safeParse({ delta: 5 }).success).toBe(true);
@@ -229,5 +269,57 @@ describe("freeConsultationFormSchema", () => {
         guestContact: "+7 900 000-00-00",
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("paymentAccountFormSchema", () => {
+  const base = {
+    provider: "tbank" as const,
+    merchantId: "1700000000000DEMO",
+    secret: "password",
+    receipts: false,
+    taxSystem: null,
+  };
+
+  test("accepts a Т-Банк terminal without receipts", () => {
+    expect(paymentAccountFormSchema.safeParse(base).success).toBe(true);
+  });
+
+  test("requires the taxation system for Т-Банк receipts", () => {
+    const result = paymentAccountFormSchema.safeParse({
+      ...base,
+      receipts: true,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["taxSystem"]);
+  });
+
+  test("lets ЮKassa receipts go without one (Чеки от ЮKassa)", () => {
+    const result = paymentAccountFormSchema.safeParse({
+      ...base,
+      provider: "yookassa",
+      merchantId: "123456",
+      receipts: true,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("paymentPackagesFormSchema", () => {
+  test("rejects two packages of the same size", () => {
+    const result = paymentPackagesFormSchema.safeParse({
+      packages: [
+        { credits: 5, price: 1_400_000 },
+        { credits: 5, price: 1_300_000 },
+      ],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects a price under one ruble", () => {
+    const result = paymentPackagesFormSchema.safeParse({
+      packages: [{ credits: 1, price: 50 }],
+    });
+    expect(result.success).toBe(false);
   });
 });

@@ -8,3 +8,7 @@
 process.env.POSTGRES_URL = "postgres://test:test@localhost:5432/test";
 process.env.ADMIN_EMAILS = "admin@test.local";
 process.env.LOG_LEVEL = "warn";
+process.env.PRACTICE_ROOT_DOMAIN = "pages.test";
+process.env.CUSTOM_DOMAIN_CNAME = "domains.pages.test";
+process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
+process.env.PAYMENTS_SECRET_KEY = "test-payments-secret-key-0123456789abcdef";

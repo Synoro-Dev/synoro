@@ -9,6 +9,30 @@ const halfHourMinute = (max: number) =>
     .max(max)
     .refine((m) => m % 30 === 0, "Время должно быть кратно 30 минутам");
 
+/**
+ * Slugs double as platform subdomains (`<slug>.<root>`), so names the
+ * platform itself may need as hosts are off limits.
+ */
+export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  "admin",
+  "api",
+  "app",
+  "assets",
+  "auth",
+  "blog",
+  "cdn",
+  "dashboard",
+  "docs",
+  "domains",
+  "help",
+  "mail",
+  "smtp",
+  "static",
+  "status",
+  "support",
+  "www",
+]);
+
 export const practiceFormSchema = z.object({
   name: z
     .string()
@@ -24,7 +48,8 @@ export const practiceFormSchema = z.object({
     .regex(
       /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
       "Только латинские буквы, цифры и дефис (не в начале и не в конце)",
-    ),
+    )
+    .refine((slug) => !RESERVED_SLUGS.has(slug), "Этот адрес зарезервирован"),
 });
 
 export type PracticeFormValues = z.infer<typeof practiceFormSchema>;
@@ -100,3 +125,46 @@ export const memberInviteFormSchema = z.object({
 });
 
 export type MemberInviteFormValues = z.infer<typeof memberInviteFormSchema>;
+
+const HOSTNAME =
+  /^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
+
+/**
+ * The bare host from whatever was pasted (`https://Анна.рф/`, `anna.ru:443`):
+ * lowercase ASCII, IDN as punycode — the form the `Host` header arrives in.
+ * Null when it isn't a host name at all.
+ */
+export function normalizeHostname(input: string): string | null {
+  const bare = input
+    .trim()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+    .split(/[/?#]/)[0]
+    ?.replace(/:\d*$/, "")
+    .replace(/\.$/, "");
+  if (!bare) return null;
+  try {
+    const { hostname } = new URL(`http://${bare}`);
+    return HOSTNAME.test(hostname) ? hostname : null;
+  } catch {
+    return null;
+  }
+}
+
+export const customDomainFormSchema = z.object({
+  hostname: z
+    .string()
+    .max(300)
+    .transform((value, ctx) => {
+      const hostname = normalizeHostname(value);
+      if (!hostname) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Введите домен, например anna-psy.ru или zapis.anna-psy.ru",
+        });
+        return z.NEVER;
+      }
+      return hostname;
+    }),
+});
+
+export type CustomDomainFormValues = z.input<typeof customDomainFormSchema>;

@@ -1,4 +1,12 @@
-import { and, asc, Booking, eq, gte, Practice, PracticeMember } from "@synoro/db";
+import {
+  and,
+  asc,
+  Booking,
+  eq,
+  gte,
+  Practice,
+  PracticeMember,
+} from "@synoro/db";
 
 import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";

@@ -9,7 +9,10 @@
       "entry": [".claude/hooks/*.ts", "scripts/*.mjs"]
     },
     "apps/app": {
-      "ignoreDependencies": ["@synoro/db", "@tailwindcss/postcss"]
+      "ignoreDependencies": ["@tailwindcss/postcss"]
+    },
+    "apps/web": {
+      "ignoreDependencies": ["@tailwindcss/postcss"]
     },
     "packages/auth": {
       "entry": ["script/auth-cli.ts"]

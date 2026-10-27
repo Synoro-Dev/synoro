@@ -26,6 +26,22 @@ export function initAuth<
    * `waitUntil`). Without it, emails are awaited inside the request.
    */
   runInBackground?: (promise: Promise<unknown>) => void;
+  /**
+   * Parent domain to share the session cookie on, e.g. `.synoro.ru` so a
+   * sign-in on app.synoro.ru also signs the user in on synoro.ru.
+   */
+  cookieDomain?: string;
+  /**
+   * Prefix of the auth cookie names instead of `better-auth`, so deployments
+   * whose cookies reach the same host (prod's `.synoro.ru` cookie on
+   * demo.synoro.ru) don't read each other's session.
+   */
+  cookiePrefix?: string;
+  /**
+   * Origins besides `baseUrl` allowed to call the auth API and to be used in
+   * `callbackURL` (Better Auth rejects any other cross-origin request).
+   */
+  trustedOrigins?: string[];
   extraPlugins?: TExtraPlugins;
   /** Defaults to the app database; tests pass an in-memory PGlite one. */
   database?: Database;
@@ -36,18 +52,36 @@ export function initAuth<
     }),
     baseURL: options.baseUrl,
     secret: options.secret,
+    // `baseUrl` is always trusted; these are the other hosts serving the app.
+    ...(options.trustedOrigins?.length && {
+      trustedOrigins: options.trustedOrigins,
+    }),
     /**
      * OTP, password-reset and verification emails go through Better Auth's
      * background tasks: the response no longer waits for the email provider,
      * so a slow or failing provider can't break sign-in, and response time
      * doesn't reveal whether an account exists. Failures are logged.
+     *
+     * `cookieDomain` shares the session cookie with sibling subdomains;
+     * `cookiePrefix` renames the cookies.
+     * `disableOriginCheck: false` is the production behaviour, stated
+     * explicitly because Better Auth otherwise skips origin checks under
+     * NODE_ENV=test, which would hide trustedOrigins mistakes from tests.
      * @see https://www.better-auth.com/docs/reference/options#advanced
      */
-    ...(options.runInBackground && {
-      advanced: {
+    advanced: {
+      disableOriginCheck: false,
+      ...(options.runInBackground && {
         backgroundTasks: { handler: options.runInBackground },
-      },
-    }),
+      }),
+      ...(options.cookieDomain && {
+        crossSubDomainCookies: {
+          enabled: true,
+          domain: options.cookieDomain,
+        },
+      }),
+      ...(options.cookiePrefix && { cookiePrefix: options.cookiePrefix }),
+    },
     /**
      * Built-in rate limiting protects auth endpoints (sign-in, OTP, password
      * reset) from brute-force and abuse. Tune per environment as needed.

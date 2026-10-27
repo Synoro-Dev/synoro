@@ -22,6 +22,20 @@
       "when": 1793028511428,
       "tag": "0002_practice_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793046026591,
+      "tag": "0003_practice_domains",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793101613042,
+      "tag": "0004_payments",
+      "breakpoints": true
     }
   ]
 }

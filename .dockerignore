@@ -3,6 +3,7 @@
 .kiro
 .turbo
 .vscode
+infra
 
 **/.cache
 **/.next

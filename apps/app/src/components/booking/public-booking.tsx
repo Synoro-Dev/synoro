@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { TopUpDialog } from "../payment/top-up-dialog";
 import { ErrorState } from "./states";
 import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
 
@@ -53,9 +54,15 @@ const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 export function PublicBooking({
   practice,
   signedIn,
+  bookingUrl,
 }: {
   practice: PublicPractice;
   signedIn: boolean;
+  /**
+   * Set on the practice's own host: sign-in happens on the app host, so the
+   * call to action leads to this page there instead of the login form.
+   */
+  bookingUrl?: string;
 }) {
   const queryClient = useQueryClient();
   const today = dateKey(new Date(), practice.timezone);
@@ -63,6 +70,7 @@ export function PublicBooking({
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
+  const [topUp, setTopUp] = useState(false);
 
   const { data: info } = useQuery({
     ...orpc.practice.bySlug.queryOptions({ input: { slug: practice.slug } }),
@@ -73,6 +81,13 @@ export function PublicBooking({
   const membership = isStaff ? null : info.membership;
   const credits = membership?.credits ?? 0;
   const canBook = !!membership && credits > 0;
+  const offer = useQuery({
+    ...orpc.payment.packages.queryOptions({
+      input: { practiceId: practice.id },
+    }),
+    enabled: signedIn && !isStaff,
+  });
+  const canPay = offer.data?.enabled ?? false;
 
   const range = monthWindow(month, today);
   const slots = useQuery({
@@ -166,6 +181,16 @@ export function PublicBooking({
                   >
                     {credits}
                   </Badge>
+                  {canPay && (
+                    <Button
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0"
+                      onClick={() => setTopUp(true)}
+                    >
+                      Пополнить
+                    </Button>
+                  )}
                 </li>
               )}
             </ul>
@@ -282,9 +307,16 @@ export function PublicBooking({
                       <Button
                         size="sm"
                         nativeButton={false}
-                        render={<Link href={paths.auth.login} />}
+                        render={
+                          bookingUrl ? (
+                            // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
+                            <a href={bookingUrl} />
+                          ) : (
+                            <Link href={paths.auth.login} />
+                          )
+                        }
                       >
-                        Войти
+                        {bookingUrl ? "Войти и записаться" : "Войти"}
                       </Button>
                     </AlertDescription>
                   </Alert>
@@ -292,21 +324,46 @@ export function PublicBooking({
                   <Alert variant="info">
                     <AlertTitle>Станьте клиентом</AlertTitle>
                     <AlertDescription className="flex flex-col items-start gap-2">
-                      <span>Затем администратор добавит оплату.</span>
-                      <Button
-                        size="sm"
-                        disabled={join.isPending}
-                        onClick={() => join.mutate({ practiceId: practice.id })}
-                      >
-                        Стать клиентом
-                      </Button>
+                      <span>
+                        {canPay
+                          ? "Оплатите консультации онлайн — и сразу выбирайте время."
+                          : "Затем администратор добавит оплату."}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {canPay && (
+                          <Button size="sm" onClick={() => setTopUp(true)}>
+                            <WalletIcon />
+                            Оплатить консультации
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant={canPay ? "outline" : "default"}
+                          disabled={join.isPending}
+                          onClick={() =>
+                            join.mutate({ practiceId: practice.id })
+                          }
+                        >
+                          Стать клиентом
+                        </Button>
+                      </div>
                     </AlertDescription>
                   </Alert>
                 ) : credits === 0 ? (
                   <Alert variant="warning">
-                    <AlertTitle>Нет оплаты</AlertTitle>
-                    <AlertDescription>
-                      Обратитесь к администратору, чтобы оплатить.
+                    <AlertTitle>Нет оплаченных консультаций</AlertTitle>
+                    <AlertDescription className="flex flex-col items-start gap-2">
+                      {canPay ? (
+                        <>
+                          <span>Пополните баланс, чтобы записаться.</span>
+                          <Button size="sm" onClick={() => setTopUp(true)}>
+                            <WalletIcon />
+                            Пополнить баланс
+                          </Button>
+                        </>
+                      ) : (
+                        "Обратитесь к администратору, чтобы оплатить."
+                      )}
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -369,6 +426,14 @@ export function PublicBooking({
           )}
         </div>
       </Card>
+      {canPay && (
+        <TopUpDialog
+          practice={{ id: practice.id, name: practice.name }}
+          balance={credits}
+          open={topUp}
+          onOpenChange={setTopUp}
+        />
+      )}
     </main>
   );
 }

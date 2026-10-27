@@ -13,14 +13,15 @@
     "format": "biome format .",
     "lint": "biome lint .",
     "check": "biome check .",
+    "seed": "bun run --cwd ../config build && bun --env-file=../../.env run script/seed.ts",
     "generate": "bun --env-file=../../.env x @better-auth/cli generate --config script/auth-cli.ts --output ../db/src/auth-schema.ts",
-    "test": "bun test",
+    "test": "bun run --cwd ../config build && bun test --timeout 30000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",
-    "better-auth": "1.7.13"
+    "better-auth": "1.7.14"
   },
   "devDependencies": {
     "@better-auth/cli": "1.4.21",
