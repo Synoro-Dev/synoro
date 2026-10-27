@@ -2,6 +2,15 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon, PlayIcon } from "lucide-react";
 
 import { BookingPageMockup } from "~/components/mockups/booking-page";
+import {
+  featuredPlan,
+  perDay,
+  perMonth,
+  planSignupUrl,
+  rubles,
+  signupGoal,
+  trialDays,
+} from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Container } from "./primitives";
@@ -22,13 +31,13 @@ export function Hero({ links }: { links: SiteLinks }) {
       <Container className="px-4 pt-20 pb-24 sm:px-10 sm:pt-28 sm:pb-32">
         <div className="animate-fade-up flex flex-col items-center text-center">
           <a
-            href="#domain"
+            href="#pricing"
             className="bg-background/70 hover:bg-background group mb-8 inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm shadow-xs backdrop-blur transition-colors"
           >
-            <span className="bg-foreground text-background rounded-full px-2 py-0.5 text-xs font-medium">
-              Новое
+            <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-white">
+              {rubles(perMonth(featuredPlan.yearly))}/мес
             </span>
-            Страница записи на вашем домене
+            Год онлайн-записи за {rubles(featuredPlan.yearly)}
             <ArrowRightIcon className="text-muted-foreground size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
           </a>
 
@@ -42,21 +51,22 @@ export function Hero({ links }: { links: SiteLinks }) {
           <p className="text-muted-foreground mt-6 max-w-2xl text-lg text-pretty sm:text-xl">
             Онлайн-запись для частной практики: расписание, пакеты консультаций,
             кабинет клиента и своя страница — без таблиц и переписки в
-            мессенджерах.
+            мессенджерах. Около {perDay(featuredPlan.yearly)} ₽ в день.
           </p>
 
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <a
-              href={links.signup}
+              href={planSignupUrl(links.signup, featuredPlan.id, "year")}
+              data-goal={signupGoal(featuredPlan.id, "year")}
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "h-11 rounded-full px-6 text-[15px]",
               )}
             >
-              Начать бесплатно
+              Подключить на год за {rubles(featuredPlan.yearly)}
               <ArrowRightIcon data-icon="inline-end" />
             </a>
-            {links.demo && (
+            {links.demo ? (
               <a
                 href={links.demo}
                 className={cn(
@@ -67,10 +77,27 @@ export function Hero({ links }: { links: SiteLinks }) {
                 <PlayIcon data-icon="inline-start" className="size-3.5" />
                 Открыть демо-страницу
               </a>
+            ) : (
+              <a
+                href="#pricing"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "h-11 rounded-full px-6 text-[15px]",
+                )}
+              >
+                Сравнить тарифы
+              </a>
             )}
           </div>
           <p className="text-muted-foreground mt-5 text-sm">
-            Бесплатный тариф навсегда · Без привязки карты
+            {trialDays} дней бесплатно · Без привязки карты · Есть{" "}
+            <a
+              href={links.signup}
+              data-goal={signupGoal("start", "year")}
+              className="hover:text-foreground underline underline-offset-4 transition-colors"
+            >
+              бесплатный тариф
+            </a>
           </p>
         </div>
 
