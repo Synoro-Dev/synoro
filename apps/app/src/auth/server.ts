@@ -19,6 +19,7 @@ export const auth = initAuth({
   productionUrl,
   secret: env.AUTH_SECRET,
   cookieDomain: env.AUTH_COOKIE_DOMAIN,
+  cookiePrefix: env.AUTH_COOKIE_PREFIX,
   trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),

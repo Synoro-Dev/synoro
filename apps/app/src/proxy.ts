@@ -1,4 +1,4 @@
-import { paths } from "@synoro/config";
+import { env, paths } from "@synoro/config";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -39,7 +39,9 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const sessionCookie = getSessionCookie(request);
+  const sessionCookie = getSessionCookie(request, {
+    cookiePrefix: env.AUTH_COOKIE_PREFIX,
+  });
 
   // THIS IS NOT SECURE!
   // This is the recommended approach to optimistically redirect users

@@ -32,6 +32,12 @@ export function initAuth<
    */
   cookieDomain?: string;
   /**
+   * Prefix of the auth cookie names instead of `better-auth`, so deployments
+   * whose cookies reach the same host (prod's `.synoro.ru` cookie on
+   * demo.synoro.ru) don't read each other's session.
+   */
+  cookiePrefix?: string;
+  /**
    * Origins besides `baseUrl` allowed to call the auth API and to be used in
    * `callbackURL` (Better Auth rejects any other cross-origin request).
    */
@@ -56,7 +62,8 @@ export function initAuth<
      * so a slow or failing provider can't break sign-in, and response time
      * doesn't reveal whether an account exists. Failures are logged.
      *
-     * `cookieDomain` shares the session cookie with sibling subdomains.
+     * `cookieDomain` shares the session cookie with sibling subdomains;
+     * `cookiePrefix` renames the cookies.
      * `disableOriginCheck: false` is the production behaviour, stated
      * explicitly because Better Auth otherwise skips origin checks under
      * NODE_ENV=test, which would hide trustedOrigins mistakes from tests.
@@ -73,6 +80,7 @@ export function initAuth<
           domain: options.cookieDomain,
         },
       }),
+      ...(options.cookiePrefix && { cookiePrefix: options.cookiePrefix }),
     },
     /**
      * Built-in rate limiting protects auth endpoints (sign-in, OTP, password

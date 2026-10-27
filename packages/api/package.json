@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@orpc/server": "2.0.0-beta.46",
+    "@orpc/server": "2.0.0-beta.47",
     "@synoro/auth": "workspace:*",
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",

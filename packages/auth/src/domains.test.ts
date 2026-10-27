@@ -82,6 +82,37 @@ describe("auth across app.synoro.ru and synoro.ru", () => {
     expect(session).not.toMatch(/Domain=/i);
   });
 
+  it("names the cookies after cookiePrefix", async () => {
+    const demo = initAuth({
+      baseUrl: "https://demo.synoro.ru",
+      productionUrl: "https://demo.synoro.ru",
+      secret: SECRET,
+      database: testDb.db,
+      cookiePrefix: "synoro-demo",
+    });
+    const response = await demo.handler(
+      new Request("https://demo.synoro.ru/api/auth/sign-up/email", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "https://demo.synoro.ru",
+          "x-forwarded-for": `10.0.0.${++ip}`,
+        },
+        body: JSON.stringify({
+          email: "demo@test.local",
+          password: "test-password-123",
+          name: "Test",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const session = response.headers
+      .getSetCookie()
+      .find((c) => c.includes("session_token"));
+    expect(session).toStartWith("__Secure-synoro-demo.session_token=");
+  });
+
   it("accepts the public origin and its callback URLs", async () => {
     const response = await signUp(
       shared,

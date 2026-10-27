@@ -94,6 +94,7 @@
     "HATCHET_CLIENT_TOKEN",
     "ADMIN_EMAILS",
     "AUTH_COOKIE_DOMAIN",
+    "AUTH_COOKIE_PREFIX",
     "AUTH_TRUSTED_ORIGINS"
   ],
   "globalPassThroughEnv": [

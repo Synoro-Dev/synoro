@@ -67,6 +67,13 @@ export const env = createEnv({
     // Share the session cookie across subdomains, e.g. ".synoro.ru" for
     // app.synoro.ru + synoro.ru. Unset: the cookie stays on the app host.
     AUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Prefix of the auth cookie names (Better Auth default: "better-auth").
+    // Set it when another deployment shares cookies with this host, e.g.
+    // demo.synoro.ru receives production's `.synoro.ru` session cookie.
+    AUTH_COOKIE_PREFIX: z
+      .string()
+      .regex(/^[a-z0-9-]+$/i, "Letters, digits and dashes only")
+      .optional(),
     // Comma-separated extra origins allowed to call the auth API and to be
     // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
     AUTH_TRUSTED_ORIGINS: z
@@ -117,6 +124,7 @@ export const env = createEnv({
     AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+    AUTH_COOKIE_PREFIX: process.env.AUTH_COOKIE_PREFIX,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
