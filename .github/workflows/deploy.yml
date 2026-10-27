@@ -63,7 +63,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          target: tools
+          file: packages/jobs/Dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/synoro-tools:${{ env.SHA }}
@@ -118,7 +118,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          target: app
+          file: apps/app/Dockerfile
           build-args: ${{ matrix.build-args }}
           push: true
           tags: |
@@ -162,7 +162,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          target: web
+          file: apps/web/Dockerfile
           build-args: |
             NEXT_PUBLIC_SITE_URL=https://synoro.ru
             NEXT_PUBLIC_DEMO_URL=${{ vars.NEXT_PUBLIC_DEMO_URL }}

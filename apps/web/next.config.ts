@@ -13,6 +13,12 @@ const securityHeaders = [
 export default async function createNextConfig(): Promise<NextConfig> {
   const config: NextConfig = {
     output: "standalone",
+    /**
+     * synoro.ru/_next/ is routed to the app (infra/synoro/app.yaml), so the
+     * landing serves its chunks from its own prefix. Next strips it itself;
+     * Traefik sends it to the landing via the synoro.ru catch-all.
+     */
+    assetPrefix: "/_landing",
     /** Workspace packages consumed as TypeScript source (`exports` → src/). */
     transpilePackages: ["@synoro/ui"],
     typedRoutes: true,
