@@ -1,6 +1,33 @@
 import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
+const httpOrigin = z
+  .url({ protocol: /^https?$/ })
+  .refine(
+    (value) => !new URL(value).hostname.includes("*"),
+    "Expected an HTTP(S) URL without host wildcards",
+  )
+  .transform((value) => new URL(value).origin);
+
+// Better Auth matches wildcard patterns against the origin (with a scheme)
+// or host (without one). Normalize without parsing wildcard characters as URLs.
+const wildcardOrigin = z
+  .string()
+  .regex(/^(?:https?:\/\/)?[a-z0-9.*?-]+(?::[0-9*?]+)?$/i)
+  .refine((value) => /[*?]/.test(value), "Expected a wildcard pattern")
+  .refine((value) => {
+    const url = value.includes("://") ? value : `https://${value}`;
+    return httpOrigin.safeParse(url.replace(/[*?]/g, "1")).success;
+  }, "Invalid origin wildcard pattern")
+  .transform((value) =>
+    value
+      .toLowerCase()
+      .replace(/^(https?:\/\/[^:]+):\d+$/, (pattern, origin) => {
+        const port = new URL(pattern.replace(/[*?]/g, "1")).port;
+        return `${origin}${port ? `:${port}` : ""}`;
+      }),
+  );
+
 export const env = createEnv({
   server: {
     // Node environment
@@ -29,6 +56,22 @@ export const env = createEnv({
     AUTH_GOOGLE_SECRET: z.string().optional(),
     // Comma-separated list of emails granted `adminProcedure` access
     ADMIN_EMAILS: z.string().optional(),
+    // Share the session cookie across subdomains, e.g. ".synoro.ru" for
+    // app.synoro.ru + synoro.ru. Unset: the cookie stays on the app host.
+    AUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Comma-separated extra origins allowed to call the auth API and to be
+    // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
+    AUTH_TRUSTED_ORIGINS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.union([wildcardOrigin, httpOrigin])))
+      .transform((origins) => origins.join(","))
+      .optional(),
 
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
@@ -62,6 +105,8 @@ export const env = createEnv({
     AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
     AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+    AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,
