@@ -19,9 +19,12 @@
 ARG BUN_VERSION=1.4.4
 ARG NODE_VERSION=24.22.1
 
+# `COPY --from` does not expand variables, so the bun image gets its own stage.
+FROM oven/bun:${BUN_VERSION} AS bun
+
 # Node + bun: `next build` must run under Node, the repo's scripts under bun.
 FROM node:${NODE_VERSION}-slim AS base
-COPY --from=oven/bun:${BUN_VERSION} /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
 # Sources + installed dependencies (bun's isolated linker: symlinks in
