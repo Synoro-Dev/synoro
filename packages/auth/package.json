@@ -15,7 +15,7 @@
     "check": "biome check .",
     "seed": "bun run --cwd ../config build && bun --env-file=../../.env run script/seed.ts",
     "generate": "bun --env-file=../../.env x @better-auth/cli generate --config script/auth-cli.ts --output ../db/src/auth-schema.ts",
-    "test": "bun test --timeout 30000",
+    "test": "bun run --cwd ../config build && bun test --timeout 30000",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
