@@ -24,9 +24,10 @@ test("signs up, keeps the session and signs back in", async ({
   await fillPasswordForm(page, email);
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
 
-  await expect(page).toHaveURL("/");
+  // "/" sends a newcomer (no practices yet) on to /practices.
+  await expect(page).toHaveURL("/practices");
   await page.reload();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/practices");
 
   // A fresh browser context has no cookies: sign in with the same account.
   const context = await browser.newContext();
@@ -35,7 +36,7 @@ test("signs up, keeps the session and signs back in", async ({
   await fillPasswordForm(fresh, email);
   await fresh.getByRole("button", { name: "Войти" }).click();
 
-  await expect(fresh).toHaveURL("/");
+  await expect(fresh).toHaveURL("/practices");
   await context.close();
 });
 
