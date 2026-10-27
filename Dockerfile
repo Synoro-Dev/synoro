@@ -1,12 +1,15 @@
 # syntax=docker/dockerfile:1
 #
-# Images deployed by infra/synoro (k3s). Build both from the repo root:
+# Images deployed by infra/synoro (k3s). Build them from the repo root:
 #
 #   docker build --target app   -t ghcr.io/synoro-dev/synoro-app:<tag> \
 #     --build-arg NEXT_PUBLIC_APP_URL=https://app.synoro.ru .
 #   docker build --target tools -t ghcr.io/synoro-dev/synoro-tools:<tag> .
+#   docker build --target web   -t ghcr.io/synoro-dev/synoro-landing:<tag> \
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://synoro.ru .
 #
 # app   Next.js `standalone` server (`node apps/app/server.js`, PORT 3000).
+# web   The landing (apps/web), same shape: `node apps/web/server.js`, PORT 8080.
 # tools Built workspace + bun: migrations (`packages/db/src/scripts/migrate.ts`)
 #       and the Hatchet worker (`packages/jobs/src/worker.ts`). Overrides the
 #       command in the manifests.
@@ -83,3 +86,35 @@ COPY --from=app-build --chown=1001:1001 /app/apps/app/public ./apps/app/public
 USER 1001:1001
 EXPOSE 3000
 CMD ["node", "apps/app/server.js"]
+
+# ---------------------------------------------------------------------------
+# web (landing)
+# ---------------------------------------------------------------------------
+FROM source AS web-build
+# NEXT_PUBLIC_* are inlined into the client bundle here. The optional ones must
+# be unset, not empty, when not given: an empty string is not "absent".
+ARG NEXT_PUBLIC_SITE_URL=http://localhost:3003
+ARG NEXT_PUBLIC_DEMO_URL
+ARG NEXT_PUBLIC_YANDEX_METRIKA_ID
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_TELEMETRY_DISABLED=1 \
+    CI=true
+RUN cp .env.example .env \
+    && { [ -n "$NEXT_PUBLIC_DEMO_URL" ] || unset NEXT_PUBLIC_DEMO_URL; } \
+    && { [ -n "$NEXT_PUBLIC_YANDEX_METRIKA_ID" ] || unset NEXT_PUBLIC_YANDEX_METRIKA_ID; } \
+    && bun turbo build -F @synoro/web
+
+FROM node:${NODE_VERSION}-slim AS web
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=8080 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+RUN groupadd --gid 1001 synoro \
+    && useradd --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin synoro
+COPY --from=web-build --chown=1001:1001 /app/apps/web/.next/standalone ./
+COPY --from=web-build --chown=1001:1001 /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=web-build --chown=1001:1001 /app/apps/web/public ./apps/web/public
+USER 1001:1001
+EXPOSE 8080
+CMD ["node", "apps/web/server.js"]
