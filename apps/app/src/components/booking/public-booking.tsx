@@ -6,6 +6,7 @@ import { Button, Calendar, Card, Separator, Skeleton, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
+import { capitalize, professionTerms } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -49,7 +50,7 @@ const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 /**
  * The client's booking page, cal.com style: practice details, a month with
  * the bookable days, and the free hours of the chosen day. Booking spends
- * one paid consultation.
+ * one paid credit.
  */
 export function PublicBooking({
   practice,
@@ -65,6 +66,7 @@ export function PublicBooking({
   bookingUrl?: string;
 }) {
   const queryClient = useQueryClient();
+  const terms = professionTerms(practice.profession);
   const today = dateKey(new Date(), practice.timezone);
   const [month, setMonth] = useState(() => keyToDate(today));
   const [day, setDay] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export function PublicBooking({
     ...orpc.practice.join.mutationOptions(),
     onSuccess: async () => {
       toast.success(
-        "Вы клиент. Администратор добавит оплаченные консультации.",
+        `Вы клиент. Администратор добавит оплаченные ${terms.credits}.`,
       );
       await refresh();
     },
@@ -161,7 +163,7 @@ export function PublicBooking({
                 {practice.name}
               </span>
               <h1 className="text-xl font-semibold tracking-tight">
-                Консультация
+                {capitalize(terms.credit[0])}
               </h1>
             </div>
             <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
@@ -196,8 +198,8 @@ export function PublicBooking({
             </ul>
             <Separator />
             <p className="text-xs text-muted-foreground">
-              Отменить запись и вернуть консультацию можно не позднее чем за 24
-              часа до начала.
+              Отменить запись и вернуть {terms.creditAccusative} на баланс можно
+              не позднее чем за 24 часа до начала.
             </p>
             {membership && (
               <Button
@@ -326,14 +328,14 @@ export function PublicBooking({
                     <AlertDescription className="flex flex-col items-start gap-2">
                       <span>
                         {canPay
-                          ? "Оплатите консультации онлайн — и сразу выбирайте время."
+                          ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
                           : "Затем администратор добавит оплату."}
                       </span>
                       <div className="flex flex-wrap gap-2">
                         {canPay && (
                           <Button size="sm" onClick={() => setTopUp(true)}>
                             <WalletIcon />
-                            Оплатить консультации
+                            Оплатить {terms.credits}
                           </Button>
                         )}
                         <Button
@@ -351,7 +353,7 @@ export function PublicBooking({
                   </Alert>
                 ) : credits === 0 ? (
                   <Alert variant="warning">
-                    <AlertTitle>Нет оплаченных консультаций</AlertTitle>
+                    <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
                     <AlertDescription className="flex flex-col items-start gap-2">
                       {canPay ? (
                         <>
@@ -428,7 +430,11 @@ export function PublicBooking({
       </Card>
       {canPay && (
         <TopUpDialog
-          practice={{ id: practice.id, name: practice.name }}
+          practice={{
+            id: practice.id,
+            name: practice.name,
+            profession: practice.profession,
+          }}
           balance={credits}
           open={topUp}
           onOpenChange={setTopUp}

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PracticeOverview } from "~/components/booking/practice-overview";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
 import { PageHeading } from "~/components/booking/states";
+import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
 
 export default function PracticeOverviewPage({
@@ -21,7 +22,7 @@ async function Overview({
 }: Pick<PageProps<"/practices/[practiceId]">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <>
+    <TermsProvider profession={practice.profession}>
       <SiteHeader title="Обзор" />
       <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
         <PageHeading
@@ -30,7 +31,7 @@ async function Overview({
         />
         <PracticeOverview practice={practice} />
       </main>
-    </>
+    </TermsProvider>
   );
 }
 

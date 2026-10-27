@@ -23,6 +23,7 @@ import {
   FrameTitle,
 } from "@synoro/ui/reui/frame";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
+import { capitalize, formatCredits } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CopyIcon, CreditCardIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
@@ -30,8 +31,9 @@ import { useState } from "react";
 import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
+import { useTerms } from "../booking/terms";
 import { formatDateTime } from "../booking/time";
-import { consultations, formatRub, PAYMENT_STATUS } from "./format";
+import { formatRub, PAYMENT_STATUS } from "./format";
 import { PackagesEditor } from "./packages-editor";
 import { ProviderForm, TAX_SYSTEM_LABELS } from "./provider-form";
 
@@ -79,6 +81,7 @@ function ConnectedAccount({
   onChange: (settings: Settings) => void;
   onEdit: () => void;
 }) {
+  const terms = useTerms();
   const account = settings.account;
   const disconnect = useMutation({
     ...orpc.payment.disconnect.mutationOptions(),
@@ -135,7 +138,7 @@ function ConnectedAccount({
         <Alert variant="warning">
           <AlertTitle>Тестовый магазин</AlertTitle>
           <AlertDescription>
-            Деньги не списываются, а консультации начисляются по-настоящему.
+            Деньги не списываются, а {terms.credits} начисляются по-настоящему.
             Перед запуском подключите боевые ключи.
           </AlertDescription>
         </Alert>
@@ -231,6 +234,7 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
 }
 
 function PaymentsSection({ practiceId }: { practiceId: string }) {
+  const terms = useTerms();
   const list = useQuery(
     orpc.payment.list.queryOptions({ input: { practiceId } }),
   );
@@ -238,7 +242,7 @@ function PaymentsSection({ practiceId }: { practiceId: string }) {
   return (
     <Section
       title="Платежи"
-      description="Онлайн-оплаты клиентов; консультации зачисляются автоматически"
+      description={`Онлайн-оплаты клиентов; ${terms.credits} зачисляются автоматически`}
     >
       {list.isError ? (
         <ErrorState onRetry={() => list.refetch()} />
@@ -249,7 +253,7 @@ function PaymentsSection({ practiceId }: { practiceId: string }) {
           <div className="grid grid-cols-3 gap-3">
             {[
               ["За 30 дней", formatRub(list.data.month.amount)],
-              ["Консультаций", String(list.data.month.credits)],
+              [capitalize(terms.credit[2]), String(list.data.month.credits)],
               ["Платежей", String(list.data.month.count)],
             ].map(([label, value]) => (
               <div
@@ -295,7 +299,7 @@ function PaymentsSection({ practiceId }: { practiceId: string }) {
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {consultations(p.credits)}
+                      {formatCredits(p.credits, terms)}
                     </TableCell>
                     <TableCell className="text-right font-medium tabular-nums whitespace-nowrap">
                       {formatRub(p.amount)}
@@ -327,18 +331,19 @@ export function PracticePayments({
   practiceId: string;
   isOwner: boolean;
 }) {
+  const terms = useTerms();
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeading
         title="Оплата"
-        description="Клиенты сами пополняют баланс консультаций онлайн"
+        description="Клиенты сами пополняют баланс онлайн"
       />
       {isOwner ? (
         <>
           <ProviderSection practiceId={practiceId} />
           <Section
             title="Цены"
-            description="Пакеты, которые клиент может купить: разовая консультация и абонементы со скидкой"
+            description={`Что клиент может купить: ${terms.credits} по одной цене или пакетом со скидкой`}
           >
             <PackagesEditor practiceId={practiceId} />
           </Section>

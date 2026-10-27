@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { PracticeCalendar } from "~/components/booking/practice-calendar";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
+import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
 
 export default function PracticeCalendarPage({
@@ -21,7 +22,7 @@ async function Calendar({
 }: Pick<PageProps<"/practices/[practiceId]/calendar">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <>
+    <TermsProvider profession={practice.profession}>
       <SiteHeader
         title="Календарь"
         parent={{
@@ -35,6 +36,6 @@ async function Calendar({
           timezone={practice.timezone}
         />
       </main>
-    </>
+    </TermsProvider>
   );
 }

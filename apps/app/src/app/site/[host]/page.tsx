@@ -11,10 +11,10 @@ import { PublicBooking } from "~/components/booking";
 import { appUrl } from "~/lib/hosts";
 import { api } from "~/orpc/server";
 
-export const metadata: Metadata = { title: "Запись на консультацию" };
+export const metadata: Metadata = { title: "Онлайн-запись" };
 
 /**
- * The booking page on a practice's own host (`anna.<root>`, `anna-psy.ru`):
+ * The booking page on a practice's own host (`anna.<root>`, `anna-ivanova.ru`):
  * proxy.ts rewrites `/` there to `/site/<host>`. Sign-in and booking happen
  * on the app host, where the session cookie is.
  */

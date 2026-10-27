@@ -36,14 +36,14 @@ export function Hero({ links }: { links: SiteLinks }) {
           <h1 className="max-w-4xl text-[2.6rem] leading-[1.05] font-medium tracking-tighter text-balance sm:text-6xl md:text-7xl">
             Клиенты записываются сами.{" "}
             <span className="bg-linear-to-b from-zinc-500 to-zinc-400 bg-clip-text text-transparent">
-              Вы — консультируете.
+              Вы — работаете с людьми.
             </span>
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-2xl text-lg text-pretty sm:text-xl">
-            Онлайн-запись для частной практики: расписание, пакеты консультаций,
-            кабинет клиента и своя страница — без таблиц и переписки в
-            мессенджерах. И всё это — бесплатно.
+            Онлайн-запись для частной практики: расписание, пакеты с
+            предоплатой, кабинет клиента и своя страница — без таблиц и
+            переписки в мессенджерах. И всё это — бесплатно.
           </p>
 
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">

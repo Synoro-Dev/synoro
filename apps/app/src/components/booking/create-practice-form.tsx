@@ -16,15 +16,22 @@ import {
   InputGroupAddon,
   InputGroupInput,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   toast,
 } from "@synoro/ui";
 import {
+  PROFESSION_TERMS,
+  PROFESSIONS,
   type PracticeFormValues,
   practiceFormSchema,
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 
 import { orpc } from "~/orpc/react";
 
@@ -76,6 +83,10 @@ function suggestSlug(name: string) {
     .slice(0, 48);
 }
 
+const PROFESSION_LABELS = Object.fromEntries(
+  PROFESSIONS.map((p) => [p, PROFESSION_TERMS[p].label]),
+);
+
 /** Start a practice: the signed-in user becomes its owner (specialist). */
 export function CreatePracticeDialog({
   open,
@@ -88,9 +99,10 @@ export function CreatePracticeDialog({
   const queryClient = useQueryClient();
   const form = useForm<PracticeFormValues>({
     resolver: zodResolver(practiceFormSchema),
-    defaultValues: { name: "", slug: "" },
+    defaultValues: { name: "", slug: "", profession: undefined },
   });
   const { errors, dirtyFields } = form.formState;
+  const profession = useWatch({ control: form.control, name: "profession" });
 
   const create = useMutation({
     ...orpc.practice.create.mutationOptions(),
@@ -137,13 +149,52 @@ export function CreatePracticeDialog({
             <Input
               id="practice-name"
               autoFocus
-              placeholder="Анна Иванова, психолог"
+              placeholder="Анна Иванова"
               aria-invalid={!!errors.name}
               {...nameField}
             />
             {errors.name && (
               <p role="alert" className="text-sm text-destructive">
                 {errors.name.message}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="practice-profession">Чем вы занимаетесь</Label>
+            <Select
+              items={PROFESSION_LABELS}
+              value={profession ?? null}
+              onValueChange={(value) =>
+                form.setValue(
+                  "profession",
+                  value as PracticeFormValues["profession"],
+                  { shouldValidate: true },
+                )
+              }
+            >
+              <SelectTrigger
+                id="practice-profession"
+                className="w-full"
+                aria-invalid={!!errors.profession}
+              >
+                <SelectValue placeholder="Выберите" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROFESSIONS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {PROFESSION_LABELS[p]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.profession ? (
+              <p role="alert" className="text-sm text-destructive">
+                {errors.profession.message}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                От этого зависит, как страница записи называет встречи:
+                консультации, занятия, приёмы.
               </p>
             )}
           </div>

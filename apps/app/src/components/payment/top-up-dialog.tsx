@@ -17,16 +17,23 @@ import {
   toast,
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
+import {
+  formatCredits,
+  type Profession,
+  professionTerms,
+} from "@synoro/validators";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LockIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
-import { consultations, formatRub, packageDeals } from "./format";
+import { formatRub, packageDeals } from "./format";
+
+type TopUpPractice = { id: string; name: string; profession: Profession };
 
 /**
- * Buy a package of consultations: pick one, go to the provider's payment
+ * Buy a package of credits: pick one, go to the provider's payment
  * page, come back to the cabinet where the payment is checked.
  */
 export function TopUpDialog({
@@ -35,7 +42,7 @@ export function TopUpDialog({
   open,
   onOpenChange,
 }: {
-  practice: { id: string; name: string };
+  practice: TopUpPractice;
   balance: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,9 +60,10 @@ function TopUpForm({
   practice,
   balance,
 }: {
-  practice: { id: string; name: string };
+  practice: TopUpPractice;
   balance: number;
 }) {
+  const terms = professionTerms(practice.profession);
   const offer = useQuery(
     orpc.payment.packages.queryOptions({ input: { practiceId: practice.id } }),
   );
@@ -80,7 +88,7 @@ function TopUpForm({
       <DialogHeader>
         <DialogTitle>Пополнить баланс</DialogTitle>
         <DialogDescription>
-          {practice.name} · сейчас оплачено: {consultations(balance)}
+          {practice.name} · сейчас оплачено: {formatCredits(balance, terms)}
         </DialogDescription>
       </DialogHeader>
 
@@ -93,14 +101,14 @@ function TopUpForm({
         </div>
       ) : !offer.data.enabled ? (
         <p className="text-sm text-muted-foreground">
-          Специалист пока не принимает оплату онлайн. Оплатите консультации
+          Специалист пока не принимает оплату онлайн. Оплатите {terms.credits}{" "}
           напрямую — администратор добавит их на баланс.
         </p>
       ) : (
         <RadioGroup
           value={selected?.id ?? ""}
           onValueChange={(value) => setPicked(String(value))}
-          aria-label="Пакет консультаций"
+          aria-label={`Пакет: ${terms.credit[2]}`}
           className="gap-2"
         >
           {deals.map((deal) => (
@@ -111,14 +119,14 @@ function TopUpForm({
               <RadioGroupItem value={deal.id} />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-center gap-2 font-medium">
-                  {consultations(deal.credits)}
+                  {formatCredits(deal.credits, terms)}
                   {deal.discount > 0 && (
                     <Badge variant="success-light">−{deal.discount}%</Badge>
                   )}
                 </span>
                 {deal.credits > 1 && (
                   <span className="text-xs font-normal text-muted-foreground">
-                    {formatRub(deal.unitPrice)} за консультацию
+                    {formatRub(deal.unitPrice)} за {terms.creditAccusative}
                   </span>
                 )}
               </span>
@@ -135,7 +143,7 @@ function TopUpForm({
           <div className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
             <span className="text-muted-foreground">После оплаты</span>
             <span className="font-medium">
-              {consultations(balance + selected.credits)}
+              {formatCredits(balance + selected.credits, terms)}
             </span>
           </div>
           <DialogFooter className="flex-col gap-3 sm:flex-col">

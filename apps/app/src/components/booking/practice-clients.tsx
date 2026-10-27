@@ -47,6 +47,7 @@ import { ROLE_LABELS } from "../sidebar/types";
 import { AddMemberDialog, CreditDialog, HistorySheet } from "./client-dialogs";
 import { dataGridI18n } from "./data-grid-i18n";
 import { ErrorState, PageHeading } from "./states";
+import { useTerms } from "./terms";
 
 export type Member = RouterOutputs["practice"]["members"][number];
 
@@ -186,7 +187,7 @@ function getColumns(actions: {
   ];
 }
 
-/** Members of a practice: balances, crediting paid consultations, history. */
+/** Members of a practice: balances, crediting paid credits, history. */
 export function PracticeClients({
   practiceId,
   isOwner,
@@ -194,6 +195,7 @@ export function PracticeClients({
   practiceId: string;
   isOwner: boolean;
 }) {
+  const terms = useTerms();
   const members = useQuery(
     orpc.practice.members.queryOptions({ input: { practiceId } }),
   );
@@ -234,7 +236,7 @@ export function PracticeClients({
     <div className="flex flex-col gap-6">
       <PageHeading
         title="Клиенты"
-        description="Баланс оплаченных консультаций и команда практики"
+        description={`Баланс оплаченных ${terms.credit[2]} и команда практики`}
         actions={
           <Button size="sm" onClick={() => setAdding(true)}>
             <UserPlusIcon />

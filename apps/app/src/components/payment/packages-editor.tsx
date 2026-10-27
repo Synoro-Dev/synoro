@@ -23,7 +23,8 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
-import { consultationWord, formatRub, packageDeals } from "./format";
+import { useTerms } from "../booking/terms";
+import { formatRub, packageDeals } from "./format";
 
 interface Row {
   key: number;
@@ -74,6 +75,7 @@ function Editor({
   initial: Row[];
 }) {
   const queryClient = useQueryClient();
+  const terms = useTerms();
   const [rows, setRows] = useState(initial);
   const [error, setError] = useState<string>();
 
@@ -121,7 +123,7 @@ function Editor({
     <form onSubmit={submit} className="flex flex-col gap-3">
       {rows.length > 0 && (
         <div className="hidden grid-cols-[8.5rem_10rem_1fr_2.25rem] gap-3 text-xs text-muted-foreground sm:grid">
-          <span>Консультаций</span>
+          <span className="first-letter:uppercase">{terms.credit[2]}</span>
           <span>Цена пакета</span>
         </div>
       )}
@@ -137,7 +139,7 @@ function Editor({
               onValueChange={(credits) => update(r.key, { credits })}
               min={1}
               max={100}
-              aria-label="Консультаций в пакете"
+              aria-label={`Сколько ${terms.credit[2]} в пакете`}
             >
               <NumberFieldGroup>
                 <NumberFieldDecrement />
@@ -170,13 +172,13 @@ function Editor({
             <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {deal && r.credits && r.credits > 1 && (
                 <>
-                  {formatRub(deal.unitPrice)} за консультацию
+                  {formatRub(deal.unitPrice)} за {terms.creditAccusative}
                   {deal.discount > 0 && (
                     <Badge variant="success-light">−{deal.discount}%</Badge>
                   )}
                 </>
               )}
-              {deal && r.credits === 1 && `за 1 ${consultationWord(1)}`}
+              {deal && r.credits === 1 && `за 1 ${terms.creditAccusative}`}
             </span>
           </div>
         );

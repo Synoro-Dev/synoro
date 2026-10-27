@@ -14,7 +14,7 @@ import { protectedProcedure } from "../../orpc";
 const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * The caller's consultations in every practice: upcoming ones and those of
+ * The caller's paid bookings in every practice: upcoming ones and those of
  * the last 30 days, including cancelled. `canCancel` tells whether the
  * client may still cancel it themselves (24 h rule).
  *
@@ -32,6 +32,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       practiceName: Practice.name,
       practiceSlug: Practice.slug,
       timezone: Practice.timezone,
+      profession: Practice.profession,
     })
     .from(Booking)
     .innerJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))

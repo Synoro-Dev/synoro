@@ -17,7 +17,7 @@ async function newPractice(slug: string) {
   const session = await createSession(api.db);
   const practice = await call(
     practiceRouter.create,
-    { name: "Практика", slug },
+    { name: "Практика", slug, profession: "other" },
     { context: api.context(session) },
   );
   return { session, practiceId: practice.id };
@@ -75,8 +75,12 @@ describe("domain.get", () => {
 
 describe("domain.connect", () => {
   it("normalizes the host and lists the DNS records to add", async () => {
-    const settings = await connect(owner, practiceId, "https://Anna-Psy.ru/");
-    expect(settings.domain?.hostname).toBe("anna-psy.ru");
+    const settings = await connect(
+      owner,
+      practiceId,
+      "https://Anna-Ivanova.ru/",
+    );
+    expect(settings.domain?.hostname).toBe("anna-ivanova.ru");
     expect(settings.domain?.status).toBe("pending");
 
     const records = settings.domain?.records ?? [];
@@ -85,12 +89,12 @@ describe("domain.connect", () => {
       ["CNAME", false],
       ["A", true],
     ]);
-    expect(records[0]?.name).toBe("_booking-verification.anna-psy.ru");
+    expect(records[0]?.name).toBe("_booking-verification.anna-ivanova.ru");
   });
 
   it("keeps the token when the same host is submitted again", async () => {
-    const before = await connect(owner, practiceId, "anna-psy.ru");
-    const again = await connect(owner, practiceId, "ANNA-PSY.RU");
+    const before = await connect(owner, practiceId, "anna-ivanova.ru");
+    const again = await connect(owner, practiceId, "ANNA-IVANOVA.RU");
     expect(again.domain?.records[0]?.value).toBe(
       before.domain?.records[0]?.value as string,
     );
@@ -110,7 +114,7 @@ describe("domain.connect", () => {
     const error = await connect(
       other.session,
       other.practiceId,
-      "anna-psy.ru",
+      "anna-ivanova.ru",
     ).catch((e: unknown) => e);
     expect(isDefinedError(error) && error.code).toBe("CONFLICT");
   });
@@ -124,11 +128,11 @@ describe("practice.byHost", () => {
   });
 
   it("does not serve a domain until it is verified", async () => {
-    const error = await byHost("anna-psy.ru").catch((e: unknown) => e);
+    const error = await byHost("anna-ivanova.ru").catch((e: unknown) => e);
     expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
 
-    await activate("anna-psy.ru");
-    expect((await byHost("Anna-Psy.ru:443")).id).toBe(practiceId);
+    await activate("anna-ivanova.ru");
+    expect((await byHost("Anna-Ivanova.ru:443")).id).toBe(practiceId);
   });
 
   it("returns NOT_FOUND for reserved, nested and unknown hosts", async () => {
@@ -147,7 +151,7 @@ describe("domain.disconnect", () => {
       { context: api.context(owner) },
     );
     expect(settings.domain).toBeNull();
-    const error = await byHost("anna-psy.ru").catch((e: unknown) => e);
+    const error = await byHost("anna-ivanova.ru").catch((e: unknown) => e);
     expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
   });
 });

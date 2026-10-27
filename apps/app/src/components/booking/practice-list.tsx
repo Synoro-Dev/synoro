@@ -5,6 +5,7 @@ import { Button, Skeleton } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
+import { professionTerms } from "@synoro/validators";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRightIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
 import type { Route } from "next";
@@ -90,7 +91,7 @@ export function PracticeList() {
                     <span className="truncate text-xs text-muted-foreground">
                       {staff
                         ? `/p/${p.slug}`
-                        : `Оплачено консультаций: ${p.credits}`}
+                        : `Оплачено ${professionTerms(p.profession).credit[2]}: ${p.credits}`}
                     </span>
                   </div>
                   <ChevronRightIcon className="size-4 text-muted-foreground" />

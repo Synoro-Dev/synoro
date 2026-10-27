@@ -14,6 +14,12 @@ import {
 import { Badge } from "@synoro/ui/reui/badge";
 import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
+import {
+  capitalize,
+  formatCredits,
+  pluralize,
+  professionTerms,
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarCheckIcon,
@@ -26,12 +32,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
-import {
-  consultations,
-  consultationWord,
-  formatRub,
-  PAYMENT_STATUS,
-} from "../payment/format";
+import { formatRub, PAYMENT_STATUS } from "../payment/format";
 import { PaymentReturn } from "../payment/payment-return";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { ConfirmButton } from "./confirm-button";
@@ -54,7 +55,7 @@ function DateChip({ at }: { at: Date }) {
 
 /**
  * One practice the user is a client of: the balance front and centre,
- * the next consultation, and the two things to do — top up, book.
+ * the next booking, and the two things to do — top up, book.
  */
 function BalanceCard({
   practice,
@@ -72,6 +73,7 @@ function BalanceCard({
   );
   const canPay = offer.data?.enabled ?? false;
   const empty = practice.credits === 0;
+  const terms = professionTerms(practice.profession);
 
   return (
     <FramePanel className="flex flex-col gap-4">
@@ -85,7 +87,7 @@ function BalanceCard({
         {empty ? (
           <Badge variant="warning-light">Нужно пополнить</Badge>
         ) : practice.credits === 1 ? (
-          <Badge variant="info-light">Осталась одна</Badge>
+          <Badge variant="info-light">Скоро закончится</Badge>
         ) : null}
       </div>
 
@@ -94,7 +96,7 @@ function BalanceCard({
           {practice.credits}
         </span>
         <span className="text-xs text-muted-foreground">
-          {consultationWord(practice.credits)} оплачено
+          {pluralize(practice.credits, terms.credit)} оплачено
         </span>
       </div>
 
@@ -132,7 +134,7 @@ function BalanceCard({
       </div>
       {!canPay && empty && offer.isSuccess && (
         <p className="text-xs text-muted-foreground">
-          Оплатите консультации специалисту — администратор добавит их на
+          Оплатите {terms.credits} специалисту — администратор добавит их на
           баланс.
         </p>
       )}
@@ -156,7 +158,7 @@ function PaymentHistory() {
           <EmptyState
             icon={ReceiptIcon}
             title="Платежей нет"
-            description="Здесь будут ваши оплаты консультаций онлайн."
+            description="Здесь будут ваши онлайн-оплаты."
           />
         </FramePanel>
       </Frame>
@@ -172,7 +174,8 @@ function PaymentHistory() {
             <DateChip at={p.createdAt} />
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="text-sm font-medium">
-                {consultations(p.credits)} · {formatRub(p.amount)}
+                {formatCredits(p.credits, professionTerms(p.profession))} ·{" "}
+                {formatRub(p.amount)}
               </span>
               <span className="truncate text-xs text-muted-foreground">
                 {p.practiceName} · {p.providerName}
@@ -202,7 +205,7 @@ function PaymentHistory() {
 
 /**
  * The client's cabinet: balances per practice with top-up, the
- * consultations (upcoming, past) and the payment history.
+ * bookings (upcoming, past) and the payment history.
  */
 export function MyBookings() {
   const queryClient = useQueryClient();
@@ -214,9 +217,7 @@ export function MyBookings() {
     ...orpc.booking.cancel.mutationOptions(),
     onSuccess: async (result) => {
       toast.success(
-        result.refunded
-          ? "Отменено, консультация вернулась на баланс"
-          : "Запись отменена",
+        result.refunded ? "Отменено, баланс восстановлен" : "Запись отменена",
       );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
@@ -241,10 +242,7 @@ export function MyBookings() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeading
-        title="Кабинет"
-        description="Баланс консультаций, записи и оплаты"
-      />
+      <PageHeading title="Кабинет" description="Баланс, записи и оплаты" />
 
       <PaymentReturn onRetry={setTopUp} />
 
@@ -270,7 +268,11 @@ export function MyBookings() {
 
       {topUpPractice && (
         <TopUpDialog
-          practice={{ id: topUpPractice.practiceId, name: topUpPractice.name }}
+          practice={{
+            id: topUpPractice.practiceId,
+            name: topUpPractice.name,
+            profession: topUpPractice.profession,
+          }}
           balance={topUpPractice.credits}
           open
           onOpenChange={(open) => !open && setTopUp(null)}
@@ -348,7 +350,9 @@ export function MyBookings() {
                       {b.canCancel ? (
                         <ConfirmButton
                           title="Отменить запись?"
-                          description="Консультация вернётся на ваш баланс."
+                          description={`${capitalize(
+                            professionTerms(b.profession).credit[0],
+                          )} вернётся на ваш баланс.`}
                           confirmLabel="Отменить запись"
                           disabled={cancel.isPending}
                           onConfirm={() => cancel.mutate({ bookingId: b.id })}

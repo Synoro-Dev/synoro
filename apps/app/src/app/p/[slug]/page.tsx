@@ -8,11 +8,11 @@ import { getSession } from "~/auth/server";
 import { PublicBooking } from "~/components/booking";
 import { api } from "~/orpc/server";
 
-export const metadata: Metadata = { title: "Запись на консультацию" };
+export const metadata: Metadata = { title: "Онлайн-запись" };
 
 /**
  * Public booking page of a practice. Open without signing in (proxy.ts lets
- * `/p/*` through); booking itself needs an account and paid consultations.
+ * `/p/*` through); booking itself needs an account and a paid balance.
  */
 export default function PublicBookingPage({ params }: PageProps<"/p/[slug]">) {
   return (

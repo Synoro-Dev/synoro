@@ -237,6 +237,7 @@ export async function main(
       name: "Андрей Клюев — психолог",
       slug: "klyuev",
       timezone: TIME_ZONE,
+      profession: "psychologist",
       ownerId,
       createdAt: longAgo,
     })

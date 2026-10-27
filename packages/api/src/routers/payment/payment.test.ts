@@ -96,7 +96,7 @@ beforeAll(async () => {
   owner = await createSession(api.db, { name: "Анна" });
   const practice = await call(
     practiceRouter.create,
-    { name: "Анна, психолог", slug: "anna-pay" },
+    { name: "Анна Иванова", slug: "anna-pay", profession: "tutor" },
     { context: api.context(owner) },
   );
   practiceId = practice.id;
@@ -228,7 +228,11 @@ describe("ЮKassa checkout", () => {
       confirmation: {
         return_url: `http://localhost:3000/bookings?payment=${paymentId}`,
       },
-      receipt: { customer: { email: "client@test.local" } },
+      description: "Оплата: 5 занятий — Анна Иванова",
+      receipt: {
+        customer: { email: "client@test.local" },
+        items: [{ description: "Пакет: 5 занятий — Анна Иванова" }],
+      },
     });
     const headers = fetchMock.mock.calls[0]?.[1]?.headers as Record<
       string,

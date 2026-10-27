@@ -36,7 +36,7 @@ function Card({
 }
 
 const ledger = [
-  { delta: "+10", label: "Пакет из 10 консультаций", date: "1 нояб" },
+  { delta: "+10", label: "Пакет из 10 занятий", date: "1 нояб" },
   { delta: "−1", label: "Запись на 5 нояб, 10:00", date: "3 нояб" },
   { delta: "+1", label: "Отмена за 2 дня — возврат", date: "4 нояб" },
   { delta: "−1", label: "Запись на 12 нояб, 13:00", date: "10 нояб" },
@@ -124,7 +124,7 @@ function CancelVisual() {
       <div className="mt-4 flex flex-col gap-2 text-xs">
         <span className="flex items-center gap-2">
           <span className="size-2 rounded-full bg-emerald-400" />
-          Отменяет сам — консультация вернётся
+          Отменяет сам — занятие вернётся
         </span>
         <span className="flex items-center gap-2">
           <span className="size-2 rounded-full bg-zinc-300" />
@@ -179,7 +179,7 @@ function CabinetVisual() {
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Мои записи</p>
         <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
-          7 консультаций
+          7 занятий
         </span>
       </div>
       <div className="mt-3 flex flex-col gap-2">
@@ -214,8 +214,8 @@ export function Bento() {
       <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(2)]:border-r-0 md:[&>*:nth-child(5)]:border-r-0 md:[&>*:nth-child(n+3)]:border-b-0 [&>*:last-child]:border-b-0">
         <Card
           className="md:col-span-4"
-          title="Пакеты консультаций"
-          text="Клиент платит переводом или онлайн через ЮKassa — тогда консультации начислятся сами. Каждая запись списывает одну, своевременная отмена — возвращает. Вся история в журнале."
+          title="Пакеты с предоплатой"
+          text="Клиент платит переводом или онлайн через ЮKassa — тогда пакет начислится сам. Каждая запись списывается с баланса, своевременная отмена — возвращается. Вся история в журнале."
         >
           <CreditsVisual />
         </Card>
@@ -229,21 +229,21 @@ export function Bento() {
         <Card
           className="md:col-span-2"
           title="Отмена без звонков"
-          text="Клиент сам отменяет запись за 24 часа и раньше — консультация вернётся на баланс автоматически."
+          text="Клиент сам отменяет запись за 24 часа и раньше — оплата вернётся на баланс автоматически."
         >
           <CancelVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Администратор в команде"
-          text="Помощник ведёт расписание, начисляет пакеты и записывает на знакомство. Вы — консультируете."
+          text="Помощник ведёт расписание, начисляет пакеты и записывает новых клиентов на бесплатную встречу. Вы — работаете."
         >
           <TeamVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Кабинет клиента"
-          text="Клиент входит по коду из письма, видит свои записи и сколько консультаций осталось."
+          text="Клиент входит по коду из письма, видит свои записи и остаток на балансе."
         >
           <CabinetVisual />
         </Card>

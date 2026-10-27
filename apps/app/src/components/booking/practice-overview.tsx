@@ -32,9 +32,11 @@ import {
   bookingTitle,
   type CalendarBooking,
   KIND_META,
+  kindLabel,
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { EmptyState, ErrorState } from "./states";
+import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
 
 const WEEK = 7;
@@ -83,6 +85,7 @@ export function PracticeOverview({
 }: {
   practice: { id: string; slug: string; timezone: string };
 }) {
+  const terms = useTerms();
   const from = dateKey(new Date(), practice.timezone);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
@@ -173,7 +176,7 @@ export function PracticeOverview({
         <Kpi
           label="Клиенты"
           value={clients.length}
-          hint={`оплачено консультаций: ${prepaid}`}
+          hint={`оплачено ${terms.credit[2]}: ${prepaid}`}
           loading={members.isPending}
         />
       </Frame>
@@ -236,7 +239,7 @@ export function PracticeOverview({
                         </span>
                       </div>
                       <Badge variant={KIND_META[b.kind].badge}>
-                        {KIND_META[b.kind].label}
+                        {kindLabel(b.kind, terms)}
                       </Badge>
                     </button>
                   </li>
@@ -283,7 +286,7 @@ export function PracticeOverview({
               {
                 icon: CalendarPlusIcon,
                 label: "Новая запись",
-                hint: "Консультация гостя или личное время",
+                hint: `${terms.free} для гостя или закрытое время`,
                 onClick: () => {
                   const start = new Date();
                   start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0);
@@ -315,13 +318,13 @@ export function PracticeOverview({
             {[
               {
                 icon: WalletIcon,
-                label: "Начислить консультации",
+                label: `Начислить ${terms.credits}`,
                 hint: "Оплата от клиента",
                 href: paths.booking.clients(practice.id),
               },
               {
                 icon: Clock3Icon,
-                label: "Часы приёма",
+                label: "Рабочие часы",
                 hint: "Дни и время работы",
                 href: paths.booking.schedule(practice.id),
               },

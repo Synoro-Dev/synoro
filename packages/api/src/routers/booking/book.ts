@@ -23,7 +23,7 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
 export const book = practiceProcedure
   .errors({
     NO_CREDITS: {
-      message: "Нет оплаченных консультаций — обратитесь к администратору",
+      message: "Баланс пуст — пополните его или обратитесь к администратору",
     },
     SLOT_UNAVAILABLE: {
       message: "Это время недоступно для записи",

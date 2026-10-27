@@ -118,7 +118,7 @@ export const yookassa: PaymentGateway = {
                 description: payment.receipt.itemName.slice(0, 128),
                 quantity: 1,
                 amount,
-                // Psychological consultations are VAT-exempt by default.
+                // No VAT for now; a per-account rate is planned (docs/beyond-psychologists.md).
                 vat_code: 1,
                 payment_mode: "full_prepayment",
                 payment_subject: "service",

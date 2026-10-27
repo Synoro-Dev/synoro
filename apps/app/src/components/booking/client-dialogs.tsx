@@ -50,6 +50,7 @@ import { useState } from "react";
 import { orpc } from "~/orpc/react";
 import type { Member } from "./practice-clients";
 import { EmptyState, ErrorState } from "./states";
+import { useTerms } from "./terms";
 import { formatDateTime } from "./time";
 
 const REASON_LABELS = {
@@ -59,7 +60,7 @@ const REASON_LABELS = {
   adjustment: "Корректировка",
 } as const;
 
-/** Record paid consultations (or correct the balance) for one client. */
+/** Record paid credits (or correct the balance) for one client. */
 export function CreditDialog({
   practiceId,
   member,
@@ -94,6 +95,7 @@ function CreditForm({
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
+  const terms = useTerms();
   const [delta, setDelta] = useState<number | null>(1);
   const [note, setNote] = useState("");
   const next = member.credits + (delta ?? 0);
@@ -127,7 +129,7 @@ function CreditForm({
       <DialogHeader>
         <DialogTitle>Баланс: {member.name}</DialogTitle>
         <DialogDescription>
-          Плюс — оплаченные консультации, минус — списание.
+          Плюс — оплаченные {terms.credits}, минус — списание.
         </DialogDescription>
       </DialogHeader>
 
@@ -140,7 +142,7 @@ function CreditForm({
         >
           <NumberFieldGroup>
             <NumberFieldDecrement />
-            <NumberFieldInput aria-label="Количество консультаций" />
+            <NumberFieldInput aria-label={`Количество: ${terms.credit[2]}`} />
             <NumberFieldIncrement />
           </NumberFieldGroup>
         </NumberField>

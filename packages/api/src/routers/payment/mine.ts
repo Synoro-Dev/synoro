@@ -25,6 +25,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       paidAt: Payment.paidAt,
       practiceId: Practice.id,
       practiceName: Practice.name,
+      profession: Practice.profession,
     })
     .from(Payment)
     .innerJoin(Practice, eq(Practice.id, Payment.practiceId))

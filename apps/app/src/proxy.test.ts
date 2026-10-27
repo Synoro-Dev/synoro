@@ -30,7 +30,7 @@ const redirectTarget = (response: Response) => response.headers.get("location");
 describe("proxy on a practice host", () => {
   it("sends the auth API to the app host", async () => {
     const response = await proxy(
-      request("/api/auth/get-session?x=1", "zapis.anna-psy.ru"),
+      request("/api/auth/get-session?x=1", "zapis.anna-ivanova.ru"),
     );
     expect(redirectTarget(response)).toBe(
       new URL("/api/auth/get-session?x=1", appUrl).href,
@@ -38,9 +38,9 @@ describe("proxy on a practice host", () => {
   });
 
   it("rewrites / to the practice's booking page", async () => {
-    const response = await proxy(request("/", "zapis.anna-psy.ru"));
+    const response = await proxy(request("/", "zapis.anna-ivanova.ru"));
     expect(response.headers.get("x-middleware-rewrite")).toContain(
-      "/site/zapis.anna-psy.ru",
+      "/site/zapis.anna-ivanova.ru",
     );
   });
 });

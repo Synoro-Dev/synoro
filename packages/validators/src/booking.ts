@@ -1,6 +1,8 @@
 import { z } from "zod";
 
-/** Free consultations sit on a 30-minute grid, so schedules do too. */
+import { PROFESSIONS } from "./profession";
+
+/** Free slots sit on a 30-minute grid, so schedules do too. */
 const halfHourMinute = (max: number) =>
   z
     .number()
@@ -50,6 +52,7 @@ export const practiceFormSchema = z.object({
       "Только латинские буквы, цифры и дефис (не в начале и не в конце)",
     )
     .refine((slug) => !RESERVED_SLUGS.has(slug), "Этот адрес зарезервирован"),
+  profession: z.enum(PROFESSIONS, "Выберите, чем вы занимаетесь"),
 });
 
 export type PracticeFormValues = z.infer<typeof practiceFormSchema>;
@@ -101,7 +104,7 @@ export const creditGrantFormSchema = z.object({
 
 export type CreditGrantFormValues = z.infer<typeof creditGrantFormSchema>;
 
-export const freeConsultationFormSchema = z.object({
+export const freeBookingFormSchema = z.object({
   guestName: z
     .string()
     .trim()
@@ -115,9 +118,7 @@ export const freeConsultationFormSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
-export type FreeConsultationFormValues = z.infer<
-  typeof freeConsultationFormSchema
->;
+export type FreeBookingFormValues = z.infer<typeof freeBookingFormSchema>;
 
 export const memberInviteFormSchema = z.object({
   email: z.email("Некорректный адрес электронной почты"),
@@ -159,7 +160,8 @@ export const customDomainFormSchema = z.object({
       if (!hostname) {
         ctx.addIssue({
           code: "custom",
-          message: "Введите домен, например anna-psy.ru или zapis.anna-psy.ru",
+          message:
+            "Введите домен, например anna-ivanova.ru или zapis.anna-ivanova.ru",
         });
         return z.NEVER;
       }

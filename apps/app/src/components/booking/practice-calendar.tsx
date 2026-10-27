@@ -18,10 +18,12 @@ import {
   bookingTitle,
   type CalendarBooking,
   KIND_META,
+  kindLabel,
 } from "./booking-dialog";
 import { calendarI18n } from "./calendar-i18n";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { ErrorState } from "./states";
+import { useTerms } from "./terms";
 import { dateKey, viewerTimeZone } from "./time";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -68,6 +70,7 @@ export function PracticeCalendar({
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
     return { start, end: new Date(start.getTime() + 7 * DAY_MS) };
   });
+  const terms = useTerms();
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
@@ -133,7 +136,7 @@ export function PracticeCalendar({
                 className="size-2 shrink-0 rounded-full"
                 style={{ background: KIND_META[kind].color }}
               />
-              {KIND_META[kind].label}
+              {kindLabel(kind, terms)}
             </span>
           ))}
           <span className="hidden sm:inline">

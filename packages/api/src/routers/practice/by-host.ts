@@ -11,7 +11,7 @@ import { publicProcedure } from "../../orpc";
  * active connected domain. Same shape as `bySlug`. Also answers the
  * on-demand TLS check, so unknown and pending hosts get no certificate.
  *
- * @example client.practice.byHost({ host: "anna-psy.ru" })
+ * @example client.practice.byHost({ host: "anna-ivanova.ru" })
  */
 export const byHost = publicProcedure
   .errors({ NOT_FOUND: { message: "Страница записи не найдена" } })

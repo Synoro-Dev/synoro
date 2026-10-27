@@ -13,6 +13,7 @@ import {
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
+import { capitalize, type ProfessionTerms } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Clock3Icon,
@@ -24,27 +25,26 @@ import {
 import type { ReactNode } from "react";
 
 import { orpc } from "~/orpc/react";
+import { useTerms } from "./terms";
 import { formatDateTime, formatTime } from "./time";
 
 export type CalendarBooking = RouterOutputs["booking"]["calendar"][number];
 
 export const KIND_META = {
-  consultation: {
-    label: "Консультация",
-    badge: "info-light",
-    color: "var(--info)",
-  },
-  free: {
-    label: "Бесплатная",
-    badge: "success-light",
-    color: "var(--success)",
-  },
-  blocked: {
-    label: "Закрыто",
-    badge: "outline",
-    color: "var(--muted-foreground)",
-  },
+  consultation: { badge: "info-light", color: "var(--info)" },
+  free: { badge: "success-light", color: "var(--success)" },
+  blocked: { badge: "outline", color: "var(--muted-foreground)" },
 } as const;
+
+/** «Консультация» / «Знакомство» / «Закрыто» in the practice's words. */
+export function kindLabel(
+  kind: CalendarBooking["kind"],
+  terms: ProfessionTerms,
+) {
+  if (kind === "consultation") return capitalize(terms.credit[0]);
+  if (kind === "free") return terms.free;
+  return "Закрыто";
+}
 
 export function bookingTitle(b: CalendarBooking) {
   if (b.kind === "consultation") return b.clientName ?? "Клиент удалён";
@@ -63,7 +63,7 @@ function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   );
 }
 
-/** Details of a booking, free consultation or block, with staff actions. */
+/** Details of a booking, free booking or block, with staff actions. */
 export function BookingDialog({
   booking,
   onClose,
@@ -72,6 +72,7 @@ export function BookingDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const terms = useTerms();
   const cancel = useMutation({
     ...orpc.booking.cancel.mutationOptions(),
     onSuccess: async (result) => {
@@ -79,7 +80,7 @@ export function BookingDialog({
         result.kind === "blocked"
           ? "Время снова открыто для записи"
           : result.refunded
-            ? "Отменено, консультация возвращена клиенту"
+            ? `Отменено: ${terms.credit[0]} снова на балансе клиента`
             : "Запись отменена",
       );
       await Promise.all([
@@ -102,7 +103,7 @@ export function BookingDialog({
                   {bookingTitle(booking)}
                 </DialogTitle>
                 <Badge variant={KIND_META[booking.kind].badge}>
-                  {KIND_META[booking.kind].label}
+                  {kindLabel(booking.kind, terms)}
                 </Badge>
               </div>
               <DialogDescription>

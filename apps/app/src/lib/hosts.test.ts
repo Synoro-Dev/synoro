@@ -23,8 +23,8 @@ describe("practiceHost", () => {
 
   it("returns platform subdomains and connected domains, without port", () => {
     expect(practiceHost("anna.synoro.ru", config)).toBe("anna.synoro.ru");
-    expect(practiceHost("Zapis.Anna-Psy.ru:443", config)).toBe(
-      "zapis.anna-psy.ru",
+    expect(practiceHost("Zapis.Anna-Ivanova.ru:443", config)).toBe(
+      "zapis.anna-ivanova.ru",
     );
     expect(practiceHost("anna.localhost:3000", config)).toBe("anna.localhost");
   });

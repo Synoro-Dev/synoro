@@ -14,7 +14,7 @@ export const domainStatus = pgEnum("practice_domain_status", [
 
 /**
  * The specialist's own domain or subdomain for the booking page
- * (`anna-psy.ru`, `zapis.anna-psy.ru`). One per practice; a host belongs to
+ * (`anna-ivanova.ru`, `zapis.anna-ivanova.ru`). One per practice; a host belongs to
  * at most one practice. Platform subdomains (`<slug>.<root>`) need no row.
  */
 export const PracticeDomain = pgTable("practice_domains", (t) => ({

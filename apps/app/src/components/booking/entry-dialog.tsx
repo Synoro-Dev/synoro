@@ -16,12 +16,13 @@ import {
   Textarea,
   toast,
 } from "@synoro/ui";
-import { freeConsultationFormSchema } from "@synoro/validators";
+import { freeBookingFormSchema } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LockIcon, UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { useTerms } from "./terms";
 import { dateKey } from "./time";
 import { TimeSelect } from "./time-select";
 
@@ -41,7 +42,7 @@ function atMinute(date: string, minute: number) {
 }
 
 /**
- * Staff-only "new entry": a free 30-minute consultation for a guest, or a
+ * Staff-only "new entry": a free 30-minute booking for a guest, or a
  * block of the specialist's own time. Opened from a calendar selection or
  * the toolbar; date and times stay editable.
  */
@@ -75,6 +76,7 @@ function EntryForm({
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
+  const terms = useTerms();
   const [mode, setMode] = useState<EntryMode>(draft.mode);
   const [date, setDate] = useState(dateKey(draft.start));
   const [start, setStart] = useState(minutesOf(draft.start));
@@ -92,7 +94,7 @@ function EntryForm({
   };
   const bookFree = useMutation({
     ...orpc.booking.bookFree.mutationOptions(),
-    onSuccess: () => onSuccess("Консультация записана"),
+    onSuccess: () => onSuccess(`${terms.free}: гость записан`),
     onError: (error) => toast.error(error.message),
   });
   const block = useMutation({
@@ -105,7 +107,7 @@ function EntryForm({
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (mode === "free") {
-      const parsed = freeConsultationFormSchema.safeParse({
+      const parsed = freeBookingFormSchema.safeParse({
         guestName,
         guestContact: guestContact || undefined,
         note: note || undefined,
@@ -138,7 +140,7 @@ function EntryForm({
       <DialogHeader>
         <DialogTitle>Новая запись</DialogTitle>
         <DialogDescription>
-          Бесплатная консультация на 30 минут или личное время.
+          {terms.free} на 30 минут для гостя или закрытое время.
         </DialogDescription>
       </DialogHeader>
 
@@ -146,7 +148,7 @@ function EntryForm({
         <TabsList className="w-full">
           <TabsTrigger value="free">
             <UserRoundPlusIcon />
-            Консультация
+            {terms.free}
           </TabsTrigger>
           <TabsTrigger value="block">
             <LockIcon />

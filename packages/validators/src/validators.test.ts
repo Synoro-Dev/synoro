@@ -3,7 +3,7 @@ import { accountFormSchema } from "./account";
 import {
   availabilityFormSchema,
   creditGrantFormSchema,
-  freeConsultationFormSchema,
+  freeBookingFormSchema,
   normalizeHostname,
   practiceFormSchema,
 } from "./booking";
@@ -11,6 +11,13 @@ import { loginFormSchema } from "./login";
 import { otpFormSchema } from "./otp";
 import { changePasswordFormSchema } from "./password";
 import { paymentAccountFormSchema, paymentPackagesFormSchema } from "./payment";
+import {
+  formatCredits,
+  PROFESSION_TERMS,
+  PROFESSIONS,
+  pluralize,
+  professionTerms,
+} from "./profession";
 import { profileFormSchema } from "./profile";
 
 describe("profileFormSchema", () => {
@@ -155,10 +162,24 @@ describe("changePasswordFormSchema", () => {
 describe("practiceFormSchema", () => {
   test("lowercases and accepts a valid slug", () => {
     const result = practiceFormSchema.parse({
-      name: "Психолог Анна",
-      slug: "Anna-Psy",
+      name: "Анна Иванова",
+      slug: "Anna-Ivanova",
+      profession: "tutor",
     });
-    expect(result.slug).toBe("anna-psy");
+    expect(result.slug).toBe("anna-ivanova");
+  });
+
+  test("requires a known profession", () => {
+    expect(
+      practiceFormSchema.safeParse({ name: "Анна", slug: "anna" }).success,
+    ).toBe(false);
+    expect(
+      practiceFormSchema.safeParse({
+        name: "Анна",
+        slug: "anna",
+        profession: "astrologer",
+      }).success,
+    ).toBe(false);
   });
 
   test("rejects a slug with a leading dash or Cyrillic", () => {
@@ -234,8 +255,8 @@ describe("practiceFormSchema reserved slugs", () => {
 
 describe("normalizeHostname", () => {
   test("strips scheme, path, port and trailing dot", () => {
-    expect(normalizeHostname(" https://Anna-Psy.ru/zapis?x=1 ")).toBe(
-      "anna-psy.ru",
+    expect(normalizeHostname(" https://Anna-Ivanova.ru/zapis?x=1 ")).toBe(
+      "anna-ivanova.ru",
     );
     expect(normalizeHostname("zapis.anna.ru:443")).toBe("zapis.anna.ru");
     expect(normalizeHostname("anna.ru.")).toBe("anna.ru");
@@ -271,13 +292,13 @@ describe("creditGrantFormSchema", () => {
   });
 });
 
-describe("freeConsultationFormSchema", () => {
+describe("freeBookingFormSchema", () => {
   test("requires a guest name", () => {
+    expect(freeBookingFormSchema.safeParse({ guestName: "  " }).success).toBe(
+      false,
+    );
     expect(
-      freeConsultationFormSchema.safeParse({ guestName: "  " }).success,
-    ).toBe(false);
-    expect(
-      freeConsultationFormSchema.safeParse({
+      freeBookingFormSchema.safeParse({
         guestName: "Иван",
         guestContact: "+7 900 000-00-00",
       }).success,
@@ -334,5 +355,32 @@ describe("paymentPackagesFormSchema", () => {
       packages: [{ credits: 1, price: 50 }],
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("profession terms", () => {
+  test("pluralizes after a number", () => {
+    const tutor = professionTerms("tutor");
+    expect(formatCredits(1, tutor)).toBe("1 занятие");
+    expect(formatCredits(3, tutor)).toBe("3 занятия");
+    expect(formatCredits(5, tutor)).toBe("5 занятий");
+    expect(formatCredits(11, tutor)).toBe("11 занятий");
+    expect(formatCredits(12, tutor)).toBe("12 занятий");
+    expect(formatCredits(21, tutor)).toBe("21 занятие");
+    expect(formatCredits(22, tutor)).toBe("22 занятия");
+    expect(formatCredits(0, tutor)).toBe("0 занятий");
+    expect(pluralize(-1, tutor.credit)).toBe("занятие");
+  });
+
+  test("keeps the psychologist wording unchanged", () => {
+    expect(formatCredits(2, professionTerms("psychologist"))).toBe(
+      "2 консультации",
+    );
+  });
+
+  test("covers every profession", () => {
+    expect(Object.keys(PROFESSION_TERMS).sort()).toEqual(
+      [...PROFESSIONS].sort(),
+    );
   });
 });
