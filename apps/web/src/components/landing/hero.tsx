@@ -2,15 +2,7 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon, PlayIcon } from "lucide-react";
 
 import { BookingPageMockup } from "~/components/mockups/booking-page";
-import {
-  featuredPlan,
-  perDay,
-  perMonth,
-  planSignupUrl,
-  rubles,
-  signupGoal,
-  trialDays,
-} from "~/lib/pricing";
+import { paidPlan, rubles, signupGoal } from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Container } from "./primitives";
@@ -35,9 +27,9 @@ export function Hero({ links }: { links: SiteLinks }) {
             className="bg-background/70 hover:bg-background group mb-8 inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm shadow-xs backdrop-blur transition-colors"
           >
             <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-white">
-              {rubles(perMonth(featuredPlan.yearly))}/мес
+              0 ₽
             </span>
-            Год онлайн-записи за {rubles(featuredPlan.yearly)}
+            Бесплатно навсегда, без лимита записей
             <ArrowRightIcon className="text-muted-foreground size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
           </a>
 
@@ -51,19 +43,19 @@ export function Hero({ links }: { links: SiteLinks }) {
           <p className="text-muted-foreground mt-6 max-w-2xl text-lg text-pretty sm:text-xl">
             Онлайн-запись для частной практики: расписание, пакеты консультаций,
             кабинет клиента и своя страница — без таблиц и переписки в
-            мессенджерах. Около {perDay(featuredPlan.yearly)} ₽ в день.
+            мессенджерах. И всё это — бесплатно.
           </p>
 
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <a
-              href={planSignupUrl(links.signup, featuredPlan.id, "year")}
-              data-goal={signupGoal(featuredPlan.id, "year")}
+              href={links.signup}
+              data-goal={signupGoal("free")}
               className={cn(
                 buttonVariants({ size: "lg" }),
                 "h-11 rounded-full px-6 text-[15px]",
               )}
             >
-              Подключить на год за {rubles(featuredPlan.yearly)}
+              Начать бесплатно
               <ArrowRightIcon data-icon="inline-end" />
             </a>
             {links.demo ? (
@@ -90,13 +82,12 @@ export function Hero({ links }: { links: SiteLinks }) {
             )}
           </div>
           <p className="text-muted-foreground mt-5 text-sm">
-            {trialDays} дней бесплатно · Без привязки карты · Есть{" "}
+            Без карты · Онлайн-оплата через{" "}
             <a
-              href={links.signup}
-              data-goal={signupGoal("start", "year")}
+              href="#pricing"
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
-              бесплатный тариф
+              ЮKassa — {rubles(paidPlan.monthly)}/мес
             </a>
           </p>
         </div>
