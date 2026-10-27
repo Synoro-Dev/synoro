@@ -4,7 +4,9 @@
 # (k3s) as ghcr.io/synoro-dev/synoro-landing. Build from the repo root:
 #
 #   docker build -f apps/web/Dockerfile -t ghcr.io/synoro-dev/synoro-landing:<tag> \
-#     --build-arg NEXT_PUBLIC_SITE_URL=https://synoro.ru .
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://synoro.ru \
+#     --build-arg NEXT_PUBLIC_APP_URL=https://app.synoro.ru \
+#     --build-arg NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru .
 #
 # Next.js `standalone` server (`node apps/web/server.js`, PORT 8080), UID 1001
 # (infra/synoro pins it with `runAsUser`).
@@ -48,9 +50,12 @@ COPY .env.example .env.example
 # NEXT_PUBLIC_* are inlined into the client bundle here. The optional ones must
 # be unset, not empty, when not given: an empty string is not "absent".
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3003
+# Where the sign-up / login buttons lead (the product app).
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ARG NEXT_PUBLIC_DEMO_URL
 ARG NEXT_PUBLIC_YANDEX_METRIKA_ID
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_TELEMETRY_DISABLED=1 \
     CI=true
 # The build scripts read ../../.env (`bun --env-file`), as in CI. It stays in

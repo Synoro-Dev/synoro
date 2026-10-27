@@ -54,6 +54,17 @@ export function Header({ links }: { links: SiteLinks }) {
         </nav>
 
         <div className="ml-auto hidden items-center gap-2 md:flex">
+          {links.demo && (
+            <a
+              href={links.demo}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "rounded-full px-4",
+              )}
+            >
+              Демо
+            </a>
+          )}
           <a
             href={links.login}
             className={cn(
@@ -100,6 +111,17 @@ export function Header({ links }: { links: SiteLinks }) {
             ))}
           </nav>
           <div className="mt-6 grid grid-cols-2 gap-2">
+            {links.demo && (
+              <a
+                href={links.demo}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "col-span-2 rounded-full",
+                )}
+              >
+                Открыть демо
+              </a>
+            )}
             <a
               href={links.login}
               className={cn(
