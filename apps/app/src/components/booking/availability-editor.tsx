@@ -83,6 +83,12 @@ const WEEKDAYS = [0, 1, 2, 3, 4];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WORKDAY: [number, number] = [540, 1080];
 const HISTORY_LIMIT = 100;
+const SLOT_PLURAL_RULES = new Intl.PluralRules("ru-RU");
+const SLOT_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {
+  one: "слот",
+  few: "слота",
+  many: "слотов",
+};
 
 const PRESETS: { label: string; grid: () => SlotGrid }[] = [
   { label: "Будни 09:00–18:00", grid: () => presetGrid(WEEKDAYS, [WORKDAY]) },
@@ -140,7 +146,7 @@ function cellAt(x: number, y: number): Cell | null {
 }
 
 /** Undo/redo over whole grids: every edit is one step. */
-function useGridHistory(initial: SlotGrid) {
+function useGridHistory(initial: SlotGrid, disabled: boolean) {
   const [state, setState] = useState({
     past: [] as SlotGrid[],
     present: initial,
@@ -152,6 +158,7 @@ function useGridHistory(initial: SlotGrid) {
     canRedo: state.future.length > 0,
     commit: (edit: (grid: SlotGrid) => SlotGrid) =>
       setState((s) => {
+        if (disabled) return s;
         const next = edit(s.present);
         if (countChanged(s.present, next) === 0) return s;
         return {
@@ -162,6 +169,7 @@ function useGridHistory(initial: SlotGrid) {
       }),
     undo: () =>
       setState((s) => {
+        if (disabled) return s;
         const previous = s.past.at(-1);
         if (!previous) return s;
         return {
@@ -172,6 +180,7 @@ function useGridHistory(initial: SlotGrid) {
       }),
     redo: () =>
       setState((s) => {
+        if (disabled) return s;
         const [next, ...future] = s.future;
         if (!next) return s;
         return { past: [...s.past, s.present], present: next, future };
@@ -225,8 +234,22 @@ function SlotEditor({
   initial: AvailabilityRuleValues[];
 }) {
   const queryClient = useQueryClient();
+  const save = useMutation({
+    ...orpc.availability.replace.mutationOptions(),
+    onSuccess: async () => {
+      toast.success("Расписание сохранено");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.availability.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
+      ]);
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const [saved] = useState(() => gridFromRules(initial));
-  const { grid, canUndo, canRedo, commit, undo, redo } = useGridHistory(saved);
+  const { grid, canUndo, canRedo, commit, undo, redo } = useGridHistory(
+    saved,
+    save.isPending,
+  );
   const [view, setView] = useState<View>(() =>
     initial.every((r) => r.startMinute >= 420 && r.endMinute <= 1380)
       ? "work"
@@ -259,18 +282,6 @@ function SlotEditor({
   const stats = gridStats(shown);
   const delta = stats.minutes - gridStats(saved).minutes;
 
-  const save = useMutation({
-    ...orpc.availability.replace.mutationOptions(),
-    onSuccess: async () => {
-      toast.success("Расписание сохранено");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: orpc.availability.key() }),
-        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
-      ]);
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
   function onSave() {
     if (!dirty || save.isPending) return;
     const parsed = availabilityFormSchema.safeParse({
@@ -280,6 +291,7 @@ function SlotEditor({
       toast.error(parsed.error.issues[0]?.message ?? "Проверьте расписание");
       return;
     }
+    setDrag(null);
     save.mutate({ practiceId, rules: parsed.data.rules });
   }
 
@@ -325,7 +337,7 @@ function SlotEditor({
   }
 
   function onPointerDown(e: PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0) return;
+    if (save.isPending || e.button !== 0) return;
     const cell = cellAt(e.clientX, e.clientY);
     if (!cell) return;
     e.preventDefault();
@@ -348,6 +360,7 @@ function SlotEditor({
   }
 
   function onPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (save.isPending) return;
     const cell = cellAt(e.clientX, e.clientY);
     if (!cell) return;
     if (!hover || !sameCell(hover, cell)) setHover(cell);
@@ -357,7 +370,7 @@ function SlotEditor({
   }
 
   function onPointerUp() {
-    if (!drag) return;
+    if (save.isPending || !drag) return;
     commit((g) => fillRect(g, rectFrom(drag.anchor, drag.current), drag.value));
     setLastPaint(drag);
     setCursor(drag.current);
@@ -366,6 +379,7 @@ function SlotEditor({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (save.isPending) return;
     const step = {
       ArrowUp: [0, -1],
       ArrowDown: [0, 1],
@@ -443,7 +457,7 @@ function SlotEditor({
               size="icon-sm"
               aria-label="Отменить"
               title="Отменить (Ctrl+Z)"
-              disabled={!canUndo}
+              disabled={!canUndo || save.isPending}
               onClick={undo}
             >
               <Undo2Icon />
@@ -453,7 +467,7 @@ function SlotEditor({
               size="icon-sm"
               aria-label="Повторить"
               title="Повторить (Ctrl+Shift+Z)"
-              disabled={!canRedo}
+              disabled={!canRedo || save.isPending}
               onClick={redo}
             >
               <Redo2Icon />
@@ -511,7 +525,7 @@ function SlotEditor({
             {dirty && (
               <Badge variant="warning-light" size="lg">
                 Не сохранено · {changed}{" "}
-                {changed === 1 ? "слот" : changed < 5 ? "слота" : "слотов"}
+                {SLOT_FORMS[SLOT_PLURAL_RULES.select(changed)] ?? "слотов"}
               </Badge>
             )}
             <Button

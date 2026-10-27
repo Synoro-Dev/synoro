@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { availabilityFormSchema } from "@synoro/validators";
 
 import {
   countChanged,
@@ -15,6 +16,14 @@ import {
 } from "./slot-grid";
 
 describe("slot grid", () => {
+  test("the form accepts the maximum number of separate grid intervals", () => {
+    const grid = emptyGrid().map((_, slot) => slot % 2 === 0);
+    const rules = rulesFromGrid(grid);
+    expect(rules).toHaveLength(168);
+    expect(availabilityFormSchema.safeParse({ rules }).success).toBe(true);
+    expect(gridFromRules(rules)).toEqual(grid);
+  });
+
   test("round-trips rules, merging adjacent intervals", () => {
     const grid = gridFromRules([
       { weekday: 1, startMinute: 600, endMinute: 720 },
