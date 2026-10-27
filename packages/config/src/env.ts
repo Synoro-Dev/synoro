@@ -81,6 +81,11 @@ export const env = createEnv({
       .transform((origins) => origins.join(","))
       .optional(),
 
+    // Online payments: encrypts specialists' ЮKassa / Т-Банк keys at rest.
+    // Any long random string (openssl rand -base64 32). Unset: specialists
+    // can't connect a payment provider. Changing it orphans stored keys.
+    PAYMENTS_SECRET_KEY: z.string().min(32).optional(),
+
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
 
@@ -118,6 +123,7 @@ export const env = createEnv({
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
+    PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,

@@ -24,6 +24,7 @@ import {
   PlusIcon,
   SettingsIcon,
   UsersIcon,
+  WalletIcon,
 } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
@@ -116,6 +117,12 @@ export function AppSidebar({
           active: pathname === paths.booking.schedule(current.practiceId),
         },
         {
+          title: "Оплата",
+          href: paths.booking.payments(current.practiceId),
+          icon: WalletIcon,
+          active: pathname === paths.booking.payments(current.practiceId),
+        },
+        {
           title: "Домен",
           href: paths.booking.domain(current.practiceId),
           icon: GlobeIcon,
@@ -153,7 +160,7 @@ export function AppSidebar({
             label="Я клиент"
             items={[
               {
-                title: "Мои записи",
+                title: "Кабинет",
                 href: paths.booking.mine,
                 icon: CalendarCheckIcon,
                 active: pathname === paths.booking.mine,

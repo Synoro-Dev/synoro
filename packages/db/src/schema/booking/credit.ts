@@ -1,11 +1,12 @@
-import { index, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
+import { Payment } from "../payment/payment";
 import { Booking } from "./booking";
 import { PracticeMember } from "./practice";
 
 /**
- * purchase   — administrator recorded paid consultations (+N).
+ * purchase   — paid consultations: recorded by staff or paid online (+N).
  * booking    — a client booked an hour (−1).
  * refund     — a booking was cancelled in time (+1).
  * adjustment — manual correction by staff (±N).
@@ -32,9 +33,14 @@ export const CreditEntry = pgTable(
     delta: t.integer().notNull(),
     reason: creditReason().notNull(),
     bookingId: t.uuid().references(() => Booking.id, { onDelete: "set null" }),
+    /** The online payment behind a purchase. */
+    paymentId: t.uuid().references(() => Payment.id, { onDelete: "set null" }),
     note: t.varchar({ length: 500 }),
     createdById: t.text().references(() => user.id, { onDelete: "set null" }),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
-  (table) => [index("credit_entries_member_idx").on(table.memberId)],
+  (table) => [
+    index("credit_entries_member_idx").on(table.memberId),
+    uniqueIndex("credit_entries_payment_idx").on(table.paymentId),
+  ],
 );

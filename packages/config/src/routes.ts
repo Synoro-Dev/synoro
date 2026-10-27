@@ -36,6 +36,9 @@ export const paths = {
     /** Platform subdomain and the practice's own domain. */
     domain: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/domain` as const,
+    /** Online payments: provider, packages, incoming payments. */
+    payments: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/payments` as const,
     /** The client's own consultations. */
     mine: "/bookings",
     /** Public booking page of a practice. */
