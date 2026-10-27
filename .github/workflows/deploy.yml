@@ -157,16 +157,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # NEXT_PUBLIC_* are baked into the client bundle. The demo link and the
-      # Metrika counter are optional: set the repository variables
-      # NEXT_PUBLIC_DEMO_URL / NEXT_PUBLIC_YANDEX_METRIKA_ID to enable them.
+      # NEXT_PUBLIC_* are baked into the client bundle. APP_URL is where the
+      # sign-up / login buttons lead and DEMO_URL the demo stand; without them
+      # the buttons would point at localhost. The Metrika counter is optional:
+      # set the repository variable NEXT_PUBLIC_YANDEX_METRIKA_ID to enable it.
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/web/Dockerfile
           build-args: |
             NEXT_PUBLIC_SITE_URL=https://synoro.ru
-            NEXT_PUBLIC_DEMO_URL=${{ vars.NEXT_PUBLIC_DEMO_URL }}
+            NEXT_PUBLIC_APP_URL=https://app.synoro.ru
+            NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru
             NEXT_PUBLIC_YANDEX_METRIKA_ID=${{ vars.NEXT_PUBLIC_YANDEX_METRIKA_ID }}
           push: true
           tags: |
