@@ -5,4 +5,5 @@ export * from "./booking";
 export * from "./login";
 export * from "./otp";
 export * from "./password";
+export * from "./payment";
 export * from "./profile";
