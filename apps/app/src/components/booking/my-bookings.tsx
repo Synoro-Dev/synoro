@@ -43,6 +43,7 @@ import { TopUpDialog } from "../payment/top-up-dialog";
 import { ConfirmButton } from "./confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 import { formatDateTime, formatTime } from "./time";
+import { VideoLinkButton } from "./video-link";
 
 type ClientPractice = RouterOutputs["practice"]["mine"][number];
 type MyBooking = RouterOutputs["booking"]["mine"][number];
@@ -465,19 +466,25 @@ export function MyBookings() {
                       {b.awaitingPayment ? (
                         <Badge variant="warning-light">Ждёт оплаты</Badge>
                       ) : b.canCancel ? (
-                        <ConfirmButton
-                          title="Отменить запись?"
-                          description={`${capitalize(
-                            professionTerms(b.profession).credit[0],
-                          )} вернётся на ваш баланс.`}
-                          confirmLabel="Отменить запись"
-                          disabled={cancel.isPending}
-                          onConfirm={() => cancel.mutate({ bookingId: b.id })}
-                        >
-                          Отменить
-                        </ConfirmButton>
+                        <>
+                          {b.videoUrl && <VideoLinkButton url={b.videoUrl} />}
+                          <ConfirmButton
+                            title="Отменить запись?"
+                            description={`${capitalize(
+                              professionTerms(b.profession).credit[0],
+                            )} вернётся на ваш баланс.`}
+                            confirmLabel="Отменить запись"
+                            disabled={cancel.isPending}
+                            onConfirm={() => cancel.mutate({ bookingId: b.id })}
+                          >
+                            Отменить
+                          </ConfirmButton>
+                        </>
                       ) : (
-                        <Badge variant="warning-light">Меньше 24 ч</Badge>
+                        <>
+                          {b.videoUrl && <VideoLinkButton url={b.videoUrl} />}
+                          <Badge variant="warning-light">Меньше 24 ч</Badge>
+                        </>
                       )}
                     </FramePanel>
                   ))}

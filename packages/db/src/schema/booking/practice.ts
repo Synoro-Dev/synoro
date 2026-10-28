@@ -34,6 +34,12 @@ export const Practice = pgTable("practices", (t) => ({
    * URL. Served at `/p/<slug>/avatar.jpg`; see `practiceImageUrl` in `@synoro/api`.
    */
   image: t.text(),
+  /**
+   * The specialist's permanent video room (Толк, Телемост…): `https` only,
+   * see `normalizeVideoUrl` in `@synoro/validators`. Shown to clients of
+   * confirmed bookings that have no `meetingUrl` of their own.
+   */
+  videoUrl: t.text(),
   ownerId: t
     .text()
     .notNull()

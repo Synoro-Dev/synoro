@@ -13,6 +13,7 @@ import {
   CircleCheckIcon,
   Clock3Icon,
   LogInIcon,
+  VideoIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "./confirm-button";
 import { ErrorState } from "./states";
 import { formatDateTime, formatTime } from "./time";
+import { VideoLinkButton, VideoServiceName } from "./video-link";
 
 /** ~2 minutes of checks, then the webhook (and a page reload) take over. */
 const MAX_CHECKS = 48;
@@ -120,6 +122,23 @@ export function GuestBooking({ token }: { token: string }) {
                 <dd className="text-right font-medium">{data.name}</dd>
               </div>
             </dl>
+
+            {data.state === "confirmed" && data.videoUrl && (
+              <Alert variant="info">
+                <VideoIcon />
+                <AlertTitle>
+                  Встреча по видеосвязи ·{" "}
+                  <VideoServiceName url={data.videoUrl} />
+                </AlertTitle>
+                <AlertDescription className="flex flex-col items-start gap-2">
+                  <span>
+                    В назначенное время откройте ссылку. Мы пришлём напоминание
+                    на почту.
+                  </span>
+                  <VideoLinkButton url={data.videoUrl} />
+                </AlertDescription>
+              </Alert>
+            )}
 
             {data.state === "confirmed" && data.balance > 0 && (
               <Alert variant="info">
