@@ -23,8 +23,6 @@ export const auth = initAuth({
   trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
-  googleClientId: env.AUTH_GOOGLE_ID,
-  googleClientSecret: env.AUTH_GOOGLE_SECRET,
   extraPlugins: [nextCookies()],
   // Send emails after the response. `after` only works inside a request
   // (route handler, server action); elsewhere the promise, which Better Auth

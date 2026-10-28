@@ -264,7 +264,7 @@ export function Bento() {
         </span>
         <span className="flex items-center gap-2">
           <IconTile icon={UserRoundIcon} tone="violet" />
-          Вход по email-коду или Google
+          Вход по коду из письма
         </span>
       </div>
     </Section>
