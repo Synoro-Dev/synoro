@@ -1,5 +1,5 @@
 {
-  "id": "5458a792-f02c-4b54-807e-399a6b7964d4",
+  "id": "6625a6f7-72b2-4616-8e7a-4c56d37b8f1a",
   "prevId": "76c0fb89-a327-4d4b-a2ff-93535fe47313",
   "version": "7",
   "dialect": "postgresql",
@@ -558,12 +558,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "guest_phone": {
-          "name": "guest_phone",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "guest_contact": {
           "name": "guest_contact",
           "type": "varchar(120)",
@@ -573,18 +567,6 @@
         "note": {
           "name": "note",
           "type": "varchar(500)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "hold_until": {
-          "name": "hold_until",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "access_token_hash": {
-          "name": "access_token_hash",
-          "type": "varchar(64)",
           "primaryKey": false,
           "notNull": false
         },
@@ -713,15 +695,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "bookings_access_token_hash_unique": {
-          "name": "bookings_access_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "access_token_hash"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
         "bookings_valid_range": {
@@ -1507,12 +1481,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "booking_id": {
-          "name": "booking_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "provider": {
           "name": "provider",
           "type": "payment_provider",
@@ -1649,19 +1617,6 @@
           "tableTo": "practice_members",
           "columnsFrom": [
             "member_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "payments_booking_id_bookings_id_fk": {
-          "name": "payments_booking_id_bookings_id_fk",
-          "tableFrom": "payments",
-          "tableTo": "bookings",
-          "columnsFrom": [
-            "booking_id"
           ],
           "columnsTo": [
             "id"
