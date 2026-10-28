@@ -4,6 +4,8 @@ import { env } from "@synoro/config";
 import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
 import { RESERVED_SLUGS } from "@synoro/validators";
 
+import { publicBookingUrl } from "./urls";
+
 type DomainRow = typeof PracticeDomain.$inferSelect;
 
 /** TXT record (under the connected host) that proves ownership. */
@@ -168,6 +170,7 @@ export async function domainSettings(db: Database, practiceId: string) {
   const targets = dnsTargets();
 
   return {
+    bookingUrl: practice ? publicBookingUrl(practice.slug) : null,
     platformUrl: practice ? platformUrl(practice.slug) : null,
     targetsConfigured: !!(targets.cname || targets.ip),
     domain: row

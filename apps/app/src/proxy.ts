@@ -2,7 +2,12 @@ import { env, paths } from "@synoro/config";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { appUrl, hostConfig, practiceHost } from "~/lib/hosts";
+import {
+  appUrl,
+  bookingRedirect,
+  hostConfig,
+  practiceHost,
+} from "~/lib/hosts";
 
 const hosts = hostConfig();
 
@@ -50,6 +55,13 @@ export async function proxy(request: NextRequest) {
   ) {
     return NextResponse.redirect(new URL(paths.auth.demo, request.url));
   }
+
+  // One main address for a booking page: synoro.ru/p/anna, not app.synoro.ru.
+  const main = bookingRedirect(
+    { pathname, search, host: request.headers.get("host") },
+    env.BOOKING_URL,
+  );
+  if (main) return NextResponse.redirect(main, 308);
 
   if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();

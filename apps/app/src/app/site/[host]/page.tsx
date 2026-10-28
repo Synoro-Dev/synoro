@@ -1,5 +1,4 @@
 import { isDefinedError } from "@orpc/server";
-import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -8,7 +7,7 @@ import { Suspense } from "react";
 
 import { getSession } from "~/auth/server";
 import { PublicBooking } from "~/components/booking";
-import { appUrl } from "~/lib/hosts";
+import { bookingUrl } from "~/lib/hosts";
 import { api } from "~/orpc/server";
 
 export const metadata: Metadata = { title: "Онлайн-запись" };
@@ -48,10 +47,13 @@ async function PracticeSiteWithData({
   ]);
 
   return (
-    <PublicBooking
-      practice={practice}
-      signedIn={!!session?.user}
-      bookingUrl={new URL(paths.booking.public(practice.slug), appUrl).href}
-    />
+    <>
+      <link rel="canonical" href={bookingUrl(practice.slug)} />
+      <PublicBooking
+        practice={practice}
+        signedIn={!!session?.user}
+        bookingUrl={bookingUrl(practice.slug)}
+      />
+    </>
   );
 }

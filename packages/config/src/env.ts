@@ -43,6 +43,10 @@ export const env = createEnv({
 
     // App
     APP_URL: z.url().default("http://localhost:3000"),
+    // Main address of the public booking pages, e.g. "https://synoro.ru":
+    // links specialists share, the page visitors return to after paying and
+    // the one the app host redirects `/p/*` to. Unset: APP_URL.
+    BOOKING_URL: z.url().optional(),
 
     // Practice pages on their own hosts (see docs/custom-domains.md).
     // `<slug>.<root>` serves a practice's booking page; unset: no subdomains.
@@ -119,6 +123,7 @@ export const env = createEnv({
     VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
     APP_URL: process.env.APP_URL,
+    BOOKING_URL: process.env.BOOKING_URL,
     PRACTICE_ROOT_DOMAIN: process.env.PRACTICE_ROOT_DOMAIN,
     CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
     CUSTOM_DOMAIN_IP: process.env.CUSTOM_DOMAIN_IP,

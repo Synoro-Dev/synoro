@@ -83,7 +83,7 @@ function DateChip({ at }: { at: Date }) {
 export function PracticeOverview({
   practice,
 }: {
-  practice: { id: string; slug: string; timezone: string };
+  practice: { id: string; bookingUrl: string; timezone: string };
 }) {
   const terms = useTerms();
   const from = dateKey(new Date(), practice.timezone);
@@ -119,15 +119,14 @@ export function PracticeOverview({
   );
   const clients = (members.data ?? []).filter((m) => m.role === "client");
   const prepaid = clients.reduce((sum, m) => sum + m.credits, 0);
-  const publicPath = paths.booking.public(practice.slug);
+  const publicUrl = practice.bookingUrl;
 
   async function copyLink() {
-    const url = new URL(publicPath, window.location.origin).href;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(publicUrl);
       toast.success("Ссылка скопирована");
     } catch {
-      toast.info(url);
+      toast.info(publicUrl);
     }
   }
 
@@ -253,12 +252,14 @@ export function PracticeOverview({
           <FramePanel className="flex flex-col gap-4">
             <FrameHeader className="p-0">
               <FrameTitle>Страница записи</FrameTitle>
-              <FrameDescription>Отправьте ссылку клиентам</FrameDescription>
+              <FrameDescription>
+                Записаться можно без регистрации — отправьте ссылку клиентам
+              </FrameDescription>
             </FrameHeader>
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={publicPath}
+                value={publicUrl}
                 aria-label="Ссылка для записи"
               />
               <Button
@@ -274,7 +275,10 @@ export function PracticeOverview({
                 size="icon"
                 aria-label="Открыть страницу записи"
                 nativeButton={false}
-                render={<Link href={publicPath} target="_blank" />}
+                render={
+                  // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
+                  <a href={publicUrl} target="_blank" rel="noreferrer" />
+                }
               >
                 <ExternalLinkIcon />
               </Button>

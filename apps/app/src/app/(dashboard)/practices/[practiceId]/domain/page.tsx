@@ -33,7 +33,7 @@ async function Domain({
       <main className="flex min-w-0 flex-col p-4 lg:p-6">
         <PracticeDomain
           practiceId={practice.id}
-          slug={practice.slug}
+          bookingUrl={practice.bookingUrl}
           isOwner={practice.membership.role === "owner"}
         />
       </main>

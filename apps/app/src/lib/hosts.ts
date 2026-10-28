@@ -10,6 +10,29 @@ const vercelUrl =
 /** Where the app itself lives: auth, dashboard, the session cookie. */
 export const appUrl = vercelUrl ?? env.APP_URL;
 
+/**
+ * Main address of the public booking pages (`BOOKING_URL`, e.g.
+ * https://synoro.ru), else the app itself.
+ */
+export const bookingUrl = (slug: string) =>
+  new URL(`/p/${slug}`, env.BOOKING_URL ?? appUrl).href;
+
+/**
+ * Where `/p/<slug>` should live when it was opened on another app host
+ * (app.synoro.ru/p/anna → synoro.ru/p/anna), so one address is the real one.
+ * Only when `BOOKING_URL` is set and the request came in on a different host.
+ */
+export function bookingRedirect(
+  request: { pathname: string; search: string; host: string | null },
+  bookingOrigin: string | undefined,
+) {
+  if (!bookingOrigin || !request.pathname.startsWith("/p/")) return undefined;
+  const target = new URL(`${request.pathname}${request.search}`, bookingOrigin);
+  return request.host?.trim().toLowerCase() === target.host
+    ? undefined
+    : target;
+}
+
 const hostnameOf = (url: string | undefined) => {
   if (!url) return undefined;
   try {

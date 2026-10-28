@@ -1,4 +1,4 @@
-import { env, logger, paths } from "@synoro/config";
+import { logger } from "@synoro/config";
 import {
   and,
   Booking,
@@ -29,6 +29,7 @@ import {
 } from "../../lib/payments";
 import { findPractice } from "../../lib/practice-access";
 import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
+import { cabinetUrl, guestBookingUrl } from "../../lib/urls";
 import { publicProcedure } from "../../orpc";
 
 /** One visitor cannot hold more unpaid times than this at once. */
@@ -72,8 +73,8 @@ async function sendBookingLink(input: {
               minute: "2-digit",
             })
           : "",
-        bookingUrl: new URL(paths.booking.guest(input.token), env.APP_URL).href,
-        cabinetUrl: new URL(paths.booking.mine, env.APP_URL).href,
+        bookingUrl: guestBookingUrl(input.token),
+        cabinetUrl: cabinetUrl(),
       },
     });
   } catch (error) {

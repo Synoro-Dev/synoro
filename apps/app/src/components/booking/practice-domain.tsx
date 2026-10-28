@@ -96,11 +96,11 @@ function CheckMark({ ok }: { ok: boolean | undefined }) {
  */
 export function PracticeDomain({
   practiceId,
-  slug,
+  bookingUrl,
   isOwner,
 }: {
   practiceId: string;
-  slug: string;
+  bookingUrl: string;
   isOwner: boolean;
 }) {
   const queryClient = useQueryClient();
@@ -178,7 +178,7 @@ export function PracticeDomain({
         {settings.data?.platformUrl && (
           <LinkRow value={settings.data.platformUrl} label="Поддомен" />
         )}
-        <LinkRow value={paths.booking.public(slug)} label="Ссылка для записи" />
+        <LinkRow value={bookingUrl} label="Основной адрес" />
       </FramePanel>
     </Frame>
   );
@@ -190,7 +190,7 @@ export function PracticeDomain({
           <GlobeIcon />
           <AlertTitle>Домен подключает владелец практики</AlertTitle>
           <AlertDescription>
-            Ссылка на страницу записи — {paths.booking.public(slug)}
+            Ссылка на страницу записи — {bookingUrl}
           </AlertDescription>
         </Alert>
       </div>

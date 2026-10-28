@@ -6,13 +6,16 @@ import { Suspense } from "react";
 
 import { getSession } from "~/auth/server";
 import { PublicBooking } from "~/components/booking";
+import { bookingUrl } from "~/lib/hosts";
 import { api } from "~/orpc/server";
 
 export const metadata: Metadata = { title: "Онлайн-запись" };
 
 /**
- * Public booking page of a practice. Open without signing in (proxy.ts lets
- * `/p/*` through); booking itself needs an account and a paid balance.
+ * Public booking page of a practice, the main address `synoro.ru/p/<slug>`
+ * (proxy.ts sends the app host there). Open without signing in: a visitor
+ * books with name, phone and email and pays online; a signed-in client books
+ * from their balance.
  */
 export default function PublicBookingPage({ params }: PageProps<"/p/[slug]">) {
   return (
@@ -38,5 +41,10 @@ async function PublicBookingWithData({
     getSession(),
   ]);
 
-  return <PublicBooking practice={practice} signedIn={!!session?.user} />;
+  return (
+    <>
+      <link rel="canonical" href={bookingUrl(practice.slug)} />
+      <PublicBooking practice={practice} signedIn={!!session?.user} />
+    </>
+  );
 }

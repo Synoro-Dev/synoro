@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 
-import { appUrl } from "~/lib/hosts";
+import { appUrl, bookingRedirect } from "~/lib/hosts";
 import { config, proxy } from "./proxy";
 
 describe("proxy matcher", () => {
@@ -54,5 +54,33 @@ describe("proxy on the app host", () => {
   it("still sends signed-out visitors of app pages to login", async () => {
     const response = await proxy(request("/practices", "localhost"));
     expect(redirectTarget(response)).toContain("/auth/login");
+  });
+});
+
+describe("bookingRedirect", () => {
+  const page = { pathname: "/p/andrey-klyuev", search: "?x=1" };
+
+  it("sends a booking page opened on another host to the main address", () => {
+    expect(
+      bookingRedirect(
+        { ...page, host: "app.synoro.ru" },
+        "https://synoro.ru",
+      )?.href,
+    ).toBe("https://synoro.ru/p/andrey-klyuev?x=1");
+  });
+
+  it("leaves the main address, other paths and an unset address alone", () => {
+    expect(
+      bookingRedirect({ ...page, host: "synoro.ru" }, "https://synoro.ru"),
+    ).toBeUndefined();
+    expect(
+      bookingRedirect(
+        { pathname: "/bookings", search: "", host: "app.synoro.ru" },
+        "https://synoro.ru",
+      ),
+    ).toBeUndefined();
+    expect(
+      bookingRedirect({ ...page, host: "app.synoro.ru" }, undefined),
+    ).toBeUndefined();
   });
 });

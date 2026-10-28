@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { publicBookingUrl } from "../../lib/urls";
 import {
   findMembership,
   findPractice,
@@ -25,6 +26,8 @@ export const get = practiceProcedure
 
     return {
       ...practice,
+      /** The main address of the booking page, for sharing. */
+      bookingUrl: publicBookingUrl(practice.slug),
       membership: { id: member.id, role: member.role, credits: member.credits },
     };
   });
