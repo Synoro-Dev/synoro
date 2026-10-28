@@ -35,8 +35,11 @@ import { publicProcedure } from "../../orpc";
 /** One visitor cannot hold more unpaid times than this at once. */
 const MAX_OPEN_HOLDS = 2;
 
-const formatIn = (at: Date, timeZone: string, options: Intl.DateTimeFormatOptions) =>
-  new Intl.DateTimeFormat("ru-RU", { timeZone, ...options }).format(at);
+const formatIn = (
+  at: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+) => new Intl.DateTimeFormat("ru-RU", { timeZone, ...options }).format(at);
 
 /**
  * Mail the visitor the link that opens their booking without signing in. A

@@ -138,6 +138,12 @@ and run `tsc` by hand, build them first.
   HATCHET_CLIENT_TOKEN. Without a token, `@synoro/jobs` runs the work inline.
   Task inputs must be JSON — emails travel as `TemplateEmail`
   (`template` + `props`, see `packages/emails/templates.ts`).
+- **Booking without sign-in** (`docs/guest-booking.md`): `booking.reserve`
+  holds a time for 15 min (`bookings.hold_until`), opens the payment and mails
+  `/b/<token>`; `settlePayment` confirms the booking in the same statement as
+  the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
+  every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
+  `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
 - `@synoro/api` stays free of the concrete `Auth` type: callers resolve the
   session via `auth.api.getSession` and pass it into `createORPCContext`.
 - **Testing procedures**: `call(procedure, input, { context })` from

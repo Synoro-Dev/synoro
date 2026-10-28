@@ -2,23 +2,12 @@ import { env, paths } from "@synoro/config";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  appUrl,
-  bookingRedirect,
-  hostConfig,
-  practiceHost,
-} from "~/lib/hosts";
+import { appUrl, bookingRedirect, hostConfig, practiceHost } from "~/lib/hosts";
 
 const hosts = hostConfig();
 
 /** Open without a session on the app's own host. */
-const PUBLIC_PATHS = [
-  paths.auth.root,
-  "/p/",
-  "/b/",
-  "/site/",
-  "/api/auth",
-];
+const PUBLIC_PATHS = [paths.auth.root, "/p/", "/b/", "/site/", "/api/auth"];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

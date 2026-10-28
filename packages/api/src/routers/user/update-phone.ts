@@ -1,7 +1,6 @@
 import { eq, user } from "@synoro/db";
-import { z } from "zod";
-
 import { phoneSchema } from "@synoro/validators";
+import { z } from "zod";
 import { protectedProcedure } from "../../orpc";
 
 /**

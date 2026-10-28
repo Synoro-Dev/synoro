@@ -62,10 +62,8 @@ describe("bookingRedirect", () => {
 
   it("sends a booking page opened on another host to the main address", () => {
     expect(
-      bookingRedirect(
-        { ...page, host: "app.synoro.ru" },
-        "https://synoro.ru",
-      )?.href,
+      bookingRedirect({ ...page, host: "app.synoro.ru" }, "https://synoro.ru")
+        ?.href,
     ).toBe("https://synoro.ru/p/andrey-klyuev?x=1");
   });
 

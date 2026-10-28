@@ -6,12 +6,10 @@ name: Deploy
 # Needs the repository secret KUBECONFIG (a kubeconfig whose server is
 # reachable from GitHub runners) and nothing from the infra repo.
 #
-# Runs after CI passes on a push to main, or by hand (Actions -> Deploy -> Run
-# workflow) to rebuild and redeploy a commit of main.
+# Runs on every push to main, with no dependency on CI or any other check, or
+# by hand (Actions -> Deploy -> Run workflow) to rebuild and redeploy a commit.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -26,22 +24,13 @@ permissions:
 
 env:
   REGISTRY: ghcr.io/synoro-dev
-  # workflow_run carries the commit CI tested; a manual run builds the tip.
-  SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  SHA: ${{ github.sha }}
 
 jobs:
   # Migrations and the worker, for production and the demo alike. Pushed before
   # the app: the cluster restarts the app as soon as it sees the new app image,
   # and its `migrate` init container must already find the matching migrations.
   tools:
-    # This repo is public: CI also runs for pull requests from forks, and
-    # workflow_run would hand their code our secrets. Build pushes to main of
-    # this repo only.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -134,12 +123,6 @@ jobs:
   # The landing (apps/web) on synoro.ru: no database, so it neither waits for
   # `tools` nor needs migrations.
   web:
-    # Same guard as `tools`.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     permissions:
       contents: read

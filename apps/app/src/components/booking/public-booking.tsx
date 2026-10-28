@@ -14,7 +14,11 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
-import { capitalize, normalizePhone, professionTerms } from "@synoro/validators";
+import {
+  capitalize,
+  normalizePhone,
+  professionTerms,
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";

@@ -1,11 +1,10 @@
 import { z } from "zod";
-
-import { publicBookingUrl } from "../../lib/urls";
 import {
   findMembership,
   findPractice,
   practiceProcedure,
 } from "../../lib/practice-access";
+import { publicBookingUrl } from "../../lib/urls";
 
 /**
  * A practice the caller belongs to, with their membership.

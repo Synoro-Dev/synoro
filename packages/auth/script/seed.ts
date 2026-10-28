@@ -38,20 +38,46 @@ const UTC_OFFSET_HOURS = 3;
 const OWNER = {
   name: "Андрей Клюев",
   email: "klyuev@example.com",
+  phone: "+79161110001",
   bio: "Клинический психолог, КПТ и схема-терапия. Тревога, выгорание, отношения. Опыт 12 лет.",
 };
-const ADMIN = { name: "Мария Соколова", email: "admin.klyuev@example.com" };
+const ADMIN = {
+  name: "Мария Соколова",
+  email: "admin.klyuev@example.com",
+  phone: "+79161110002",
+};
 /** `left` — consultations still on the balance after the seeded bookings. */
 const CLIENTS = [
-  { name: "Ольга Петрова", email: "olga.petrova@example.com", left: 3 },
-  { name: "Дмитрий Иванов", email: "dmitry.ivanov@example.com", left: 1 },
+  {
+    name: "Ольга Петрова",
+    email: "olga.petrova@example.com",
+    phone: "+79162220001",
+    left: 3,
+  },
+  {
+    name: "Дмитрий Иванов",
+    email: "dmitry.ivanov@example.com",
+    phone: "+79162220002",
+    left: 1,
+  },
   {
     name: "Екатерина Смирнова",
     email: "ekaterina.smirnova@example.com",
+    phone: "+79162220003",
     left: 5,
   },
-  { name: "Алексей Кузнецов", email: "alexey.kuznetsov@example.com", left: 0 },
-  { name: "Наталья Волкова", email: "natalia.volkova@example.com", left: 2 },
+  {
+    name: "Алексей Кузнецов",
+    email: "alexey.kuznetsov@example.com",
+    phone: "+79162220004",
+    left: 0,
+  },
+  {
+    name: "Наталья Волкова",
+    email: "natalia.volkova@example.com",
+    phone: "+79162220005",
+    left: 2,
+  },
 ] as const;
 const INVITED_EMAIL = "new.client@example.com";
 
@@ -100,9 +126,13 @@ const SATURDAY_PLAN: Entry[] = [
   { kind: "free", hour: 13, guest: 2 },
 ];
 const GUESTS = [
-  { name: "Ирина Лебедева", contact: "+7 916 123-45-67" },
-  { name: "Павел Морозов", contact: "@pavel_morozov" },
-  { name: "Светлана Орлова", contact: "svetlana.orlova@example.com" },
+  { name: "Ирина Лебедева", phone: "+79161234567", contact: undefined },
+  { name: "Павел Морозов", phone: "+79163334455", contact: "@pavel_morozov" },
+  {
+    name: "Светлана Орлова",
+    phone: "+79165556677",
+    contact: "svetlana.orlova@example.com",
+  },
 ];
 const NOTES = [
   "Тревога перед публичными выступлениями",
@@ -140,7 +170,7 @@ const demoEmails = [OWNER.email, ADMIN.email, ...CLIENTS.map((c) => c.email)];
 
 async function createUser(
   db: Database,
-  data: { name: string; email: string; bio?: string },
+  data: { name: string; email: string; phone: string; bio?: string },
   createdAt: Date,
   passwords: Map<string, string>,
 ) {
@@ -152,6 +182,7 @@ async function createUser(
     name: data.name,
     email: data.email,
     emailVerified: true,
+    phone: data.phone,
     bio: data.bio,
     language: "ru",
     createdAt,
@@ -302,6 +333,7 @@ export async function seedDemoPractice(db: Database) {
           kind: "free",
           endsAt: new Date(startsAt.getTime() + HOUR_MS / 2),
           guestName: guest?.name,
+          guestPhone: guest?.phone,
           guestContact: guest?.contact,
           note: "Первичная бесплатная консультация",
           createdById: adminId,
