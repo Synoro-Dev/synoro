@@ -184,6 +184,7 @@
       "dependencies": {
         "@hatchet-dev/typescript-sdk": "1.43.0",
         "@synoro/config": "workspace:*",
+        "@synoro/db": "workspace:*",
         "@synoro/emails": "workspace:*",
       },
       "devDependencies": {

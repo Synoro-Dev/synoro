@@ -62,3 +62,19 @@ cabinet ask for it).
 - Booking requires online payment to be connected (a package and a provider);
   otherwise a visitor sees the sign-in prompt as before.
 - No rate limit on `booking.reserve` beyond 2 unpaid holds per visitor.
+
+## Google Calendar cleanup
+
+Cancellation refunds credits before attempting Google Calendar cleanup. A
+cancelled booking keeps its Google calendar/event ids until deletion succeeds;
+404 and 410 also count as success. The `google-calendar-cleanup` Hatchet workflow
+retries pending deletions every five minutes, processing up to 100 bookings per
+run. Failed attempts move behind older pending work. Configure Hatchet and run
+`bun jobs:dev` (the deployed worker uses the same workflow), with `POSTGRES_URL`,
+`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and the same `PAYMENTS_SECRET_KEY` as the
+app. Without a configured worker, pending deletions remain in the database.
+
+Migration `0002_booking_no_overlap` preserves all existing bookings and their
+credit/payment history. If active bookings overlap, it fails before adding the
+constraint. Review those bookings and use the normal cancellation/refund flow
+before rerunning it; the migration never chooses which client loses a slot.

@@ -37,12 +37,12 @@ async function hasTable(client: PGlite, name: string) {
 describe("baselineMigrations", () => {
   it("adopts a pushed database so migrate applies only newer migrations", async () => {
     const { client, db } = await pushedDb(1);
-    expect(await hasTable(client, "bookings")).toBe(false);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(false);
 
     expect(await baselineMigrations(db)).toBe("baselined");
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "bookings")).toBe(true);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
     expect(await baselineMigrations(db)).toBe("already-tracked");
     await client.close();
   });
@@ -53,7 +53,7 @@ describe("baselineMigrations", () => {
     await baselineMigrations(db);
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "bookings")).toBe(true);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
     await client.close();
   });
 
@@ -72,8 +72,8 @@ describe("explainMigrationError", () => {
     const error = await migrate(db, { migrationsFolder }).catch((e) => e);
     const { message, hint } = explainMigrationError(error);
 
-    expect(message).toContain('relation "accounts" already exists');
-    expect(message).toContain("(42P07)");
+    expect(message).toContain('type "booking_kind" already exists');
+    expect(message).toContain("(42710)");
     expect(hint).toContain("bun db:baseline");
     await client.close();
   });
@@ -124,5 +124,58 @@ describe("appliedMigrationCount", () => {
     await migrate(db, { migrationsFolder });
     expect(await appliedMigrationCount(db)).toBe(migrations.length);
     await client.close();
+  });
+});
+
+describe("bookings_no_overlap restoration", () => {
+  it("preserves conflicting rows and fails before applying the constraint", async () => {
+    const { client } = await pushedDb(2);
+    try {
+      await client.exec(`
+        INSERT INTO "users" (id, name, email) VALUES ('owner', 'Owner', 'owner@test.local');
+        INSERT INTO practices (id, owner_id, name, slug) VALUES ('00000000-0000-0000-0000-000000000001', 'owner', 'Practice', 'practice');
+        INSERT INTO bookings (practice_id, kind, starts_at, ends_at) VALUES
+          ('00000000-0000-0000-0000-000000000001', 'consultation', '2030-01-01T10:00Z', '2030-01-01T11:00Z'),
+          ('00000000-0000-0000-0000-000000000001', 'free', '2030-01-01T10:30Z', '2030-01-01T11:00Z');
+      `);
+      const migration = migrations[2];
+      if (!migration) throw new Error("Missing overlap migration");
+      await expect(
+        client.transaction(async (tx) => {
+          for (const statement of migration.sql) await tx.exec(statement);
+        }),
+      ).rejects.toMatchObject({
+        code: "23P01",
+        message:
+          "Active bookings overlap; bookings_no_overlap cannot be applied",
+      });
+      expect(
+        (await client.query("SELECT * FROM bookings WHERE status = 'active'"))
+          .rows,
+      ).toHaveLength(2);
+      expect(
+        (
+          await client.query(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
+          )
+        ).rows,
+      ).toHaveLength(0);
+      // Resolve the conflict explicitly; retry installs the constraint.
+      await client.exec(
+        "UPDATE bookings SET status = 'cancelled' WHERE kind = 'free'",
+      );
+      for (const statement of migration.sql) await client.exec(statement);
+      expect(
+        (
+          await client.query(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
+          )
+        ).rows,
+      ).toHaveLength(1);
+      // Applying it again is still idempotent.
+      for (const statement of migration.sql) await client.exec(statement);
+    } finally {
+      await client.close();
+    }
   });
 });

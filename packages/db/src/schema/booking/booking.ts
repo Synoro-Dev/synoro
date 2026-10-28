@@ -46,6 +46,9 @@ export const Booking = pgTable(
     /** Any other way to reach the guest: Telegram, email. */
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
+    /** The event mirroring this booking in the specialist's Google Calendar. */
+    googleCalendarId: t.text(),
+    googleEventId: t.text(),
     /**
      * Set while the guest's online payment is awaited: the booking is
      * `active` (so it holds the time) but unpaid, and stops holding it when

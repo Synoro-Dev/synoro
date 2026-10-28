@@ -3,6 +3,7 @@ import { freeBookingFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import { exportBooking } from "../../lib/google-calendar";
 import {
   findPractice,
   findStaffMembership,
@@ -13,6 +14,8 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
 /**
  * Book a free 30-minute consultation for a guest (name + phone) — staff
  * only. Uses the half-hour grid inside working hours; no credits involved.
+ * Google Calendar busy time is not checked: staff see it on the calendar
+ * and decide themselves.
  *
  * @example client.booking.bookFree({ practiceId, startsAt, guestName: "Иван", guestPhone: "+7 900 000-00-00" })
  */
@@ -65,6 +68,7 @@ export const bookFree = practiceProcedure
         })
         .returning();
       if (!booking) throw new Error("Failed to insert booking");
+      await exportBooking(context.db, booking.id);
       return booking;
     } catch (error) {
       if (isExclusionViolation(error, "bookings_no_overlap")) {

@@ -22,6 +22,7 @@ async function main() {
   // Loaded after the check: creating the Hatchet client throws without a token.
   const {
     hatchet,
+    googleCalendarCleanupWorkflow,
     helloWorldTask,
     processDocumentWorkflow,
     scheduledWorkflow,
@@ -31,6 +32,7 @@ async function main() {
   const worker = await hatchet.worker("acme-worker", {
     workflows: [
       sendEmailTask,
+      googleCalendarCleanupWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

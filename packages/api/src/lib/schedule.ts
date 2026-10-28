@@ -115,8 +115,45 @@ export function isoWeekday(date: string) {
   return new Date(Date.UTC(y, m - 1, d)).getUTCDay() || 7;
 }
 
-function overlaps(a: TimeRange, b: TimeRange) {
+export function overlaps(a: TimeRange, b: TimeRange) {
   return a.startsAt < b.endsAt && b.startsAt < a.endsAt;
+}
+
+/**
+ * Parts of `ranges` not covered by any of `cut`, sorted by start. Ranges
+ * that overlap each other are merged first.
+ */
+export function subtractRanges(ranges: TimeRange[], cut: TimeRange[]) {
+  const merged: TimeRange[] = [];
+  for (const r of [...ranges].sort(
+    (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
+  )) {
+    const last = merged.at(-1);
+    if (last && r.startsAt <= last.endsAt) {
+      if (r.endsAt > last.endsAt) last.endsAt = r.endsAt;
+    } else {
+      merged.push({ startsAt: r.startsAt, endsAt: r.endsAt });
+    }
+  }
+
+  const sortedCut = [...cut].sort(
+    (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
+  );
+  const result: TimeRange[] = [];
+  for (const range of merged) {
+    let cursor = range.startsAt;
+    for (const c of sortedCut) {
+      if (c.endsAt <= cursor || c.startsAt >= range.endsAt) continue;
+      if (c.startsAt > cursor) {
+        result.push({ startsAt: cursor, endsAt: c.startsAt });
+      }
+      if (c.endsAt > cursor) cursor = c.endsAt;
+    }
+    if (cursor < range.endsAt) {
+      result.push({ startsAt: cursor, endsAt: range.endsAt });
+    }
+  }
+  return result;
 }
 
 /** True when `at` sits on the 30-minute grid (whole minutes, :00 or :30). */

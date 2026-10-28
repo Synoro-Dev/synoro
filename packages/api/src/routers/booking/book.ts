@@ -7,6 +7,7 @@ import {
   recordCredit,
   releaseExpiredHolds,
 } from "../../lib/bookings";
+import { exportBooking, isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findMembership,
   findPractice,
@@ -19,7 +20,8 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
  *
  * PHONE_REQUIRED when the caller's profile has no phone yet; NO_CREDITS when
  * the balance is zero; SLOT_UNAVAILABLE when the time is off
- * the schedule or someone else holds it (the `bookings_no_overlap`
+ * the schedule, busy in the specialist's Google Calendar, or someone else
+ * holds it (the `bookings_no_overlap`
  * constraint decides races). The credit is taken first with a conditional
  * update and given back if the insert fails — there are no interactive
  * transactions on the Neon HTTP driver.
@@ -68,6 +70,13 @@ export const book = practiceProcedure
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
+    const endsAt = new Date(
+      input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
+    );
+    const range = { startsAt: input.startsAt, endsAt };
+    if (await isBusyInGoogle(context.db, practice.id, range)) {
+      throw errors.SLOT_UNAVAILABLE();
+    }
 
     await releaseExpiredHolds(context.db, practice.id);
     const credits = await adjustCredits(context.db, member.id, -1);
@@ -81,9 +90,7 @@ export const book = practiceProcedure
           practiceId: practice.id,
           kind: "consultation",
           startsAt: input.startsAt,
-          endsAt: new Date(
-            input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
-          ),
+          endsAt,
           memberId: member.id,
           note: input.note,
           createdById: userId,
@@ -105,6 +112,7 @@ export const book = practiceProcedure
       bookingId: booking.id,
       createdById: userId,
     });
+    await exportBooking(context.db, booking.id);
 
     return { ...booking, credits };
   });
