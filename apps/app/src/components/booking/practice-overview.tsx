@@ -19,6 +19,7 @@ import {
   CalendarDaysIcon,
   CalendarPlusIcon,
   Clock3Icon,
+  CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
   UsersIcon,
@@ -136,6 +137,17 @@ export function PracticeOverview({
       toast.success("Ссылка скопирована");
     } catch {
       toast.info(publicUrl);
+    }
+  }
+
+  /** The booking page in an iframe, to paste into the practice's own site. */
+  async function copyEmbed() {
+    const code = `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success("Код скопирован — вставьте его на свой сайт");
+    } catch {
+      toast.info(code);
     }
   }
 
@@ -285,6 +297,15 @@ export function PracticeOverview({
                 onClick={copyLink}
               >
                 <CopyIcon />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Скопировать код для вставки на сайт"
+                title="Код для вставки на сайт"
+                onClick={copyEmbed}
+              >
+                <CodeIcon />
               </Button>
               <Button
                 variant="outline"

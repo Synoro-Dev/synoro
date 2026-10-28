@@ -55,6 +55,29 @@ cabinet ask for it).
 - Renaming a practice address (`practices.slug`) is a data change: the page
   opens at `/p/<new slug>` as soon as it is saved.
 
+## Embedding in an iframe
+
+`/p/*` may be framed by any site (`frame-ancestors *`, no `X-Frame-Options`;
+`next.config.ts`). Everything else stays `frame-ancestors 'none'` + `DENY`. The
+dashboard has a "code for your site" button that copies:
+
+```html
+<iframe src="https://synoro.ru/p/<slug>" title="Онлайн-запись"
+  style="width:100%;height:720px;border:0" loading="lazy"></iframe>
+```
+
+In a cross-site frame the visitor is a guest (the session cookie is
+`SameSite=Lax`, so it isn't sent cross-site). A same-site frame can retain the
+signed-in session. The provider's payment page can't be framed, so both guest
+booking and balance top-up use `leaveFrame` (`~/lib/leave-frame`) to open it in
+the top window; sign-in and cabinet links use `target="_top"`. A guest booking
+returns to `/b/<token>` in that window. Browsers may block top navigation after
+the payment request because of sandbox restrictions or expired user activation.
+After a payment is created, both forms also show its checkout link in a new
+tab so the visitor can retry without creating another payment. The embedding
+site must allow top navigation or popups for checkout to open outside the frame.
+The practice's own host (`/site/*`) is not framable.
+
 ## Not done
 
 - The phone is not verified (no SMS provider); the email is verified only

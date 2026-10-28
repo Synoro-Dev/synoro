@@ -252,7 +252,7 @@ export function PublicBooking({
                   variant="outline"
                   size="sm"
                   nativeButton={false}
-                  render={<Link href={paths.booking.mine} />}
+                  render={<Link href={paths.booking.mine} target="_top" />}
                 >
                   <CalendarCheckIcon />
                   Мои записи
@@ -268,7 +268,8 @@ export function PublicBooking({
                       // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
                       <a href={bookingUrl} />
                     ) : (
-                      <Link href={paths.auth.login} />
+                      // `_top`: the sign-in page can't open inside an iframe.
+                      <Link href={paths.auth.login} target="_top" />
                     )
                   }
                 >
@@ -296,7 +297,7 @@ export function PublicBooking({
                   <Button
                     variant="outline"
                     nativeButton={false}
-                    render={<Link href={paths.booking.mine} />}
+                    render={<Link href={paths.booking.mine} target="_top" />}
                   >
                     Мои записи
                   </Button>
@@ -382,7 +383,7 @@ export function PublicBooking({
                               // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
                               <a href={bookingUrl} />
                             ) : (
-                              <Link href={paths.auth.login} />
+                              <Link href={paths.auth.login} target="_top" />
                             )
                           }
                         >
