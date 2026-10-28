@@ -67,7 +67,7 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
               <item.icon />
               <span>{item.title}</span>
               {item.external && (
-                <ExternalLinkIcon className="ml-auto opacity-50" />
+                <ExternalLinkIcon className="ml-auto size-3.5! opacity-50" />
               )}
             </SidebarMenuButton>
           </SidebarMenuItem>

@@ -46,7 +46,7 @@ export function DemoSwitcher({
                 render={
                   <a href={`/auth/demo?as=${account.key}`}>
                     <Icon />
-                    <div className="grid flex-1 text-left text-sm leading-tight">
+                    <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                       <span className="truncate font-medium">
                         {account.label}
                       </span>
