@@ -2,7 +2,7 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon, PlayIcon } from "lucide-react";
 
 import { BookingPageMockup } from "~/components/mockups/booking-page";
-import { paidPlan, rubles, signupGoal } from "~/lib/pricing";
+import { billingStart, signupGoal } from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Container } from "./primitives";
@@ -87,7 +87,7 @@ export function Hero({ links }: { links: SiteLinks }) {
               href="#pricing"
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
-              ЮKassa — от {rubles(paidPlan.promo.monthly)}/мес
+              ЮKassa — бесплатно до {billingStart.label}
             </a>
           </p>
         </div>

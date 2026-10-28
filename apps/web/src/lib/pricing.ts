@@ -3,23 +3,36 @@
  * Client-safe (no env access): the pricing table is a client component.
  *
  * Freemium: a solo practice runs on the free plan for good; people pay once
- * they take money online (ЮKassa) or grow into a team. See
+ * they take money online (ЮKassa). The paid plan is free until
+ * `billingStart` — billing is not built yet. Large teams talk to us:
+ * Enterprise is priced per agreement and includes custom development. See
  * docs/pricing-strategy.md.
  */
 
-export type PlanId = "free" | "pro" | "studio";
+export type PlanId = "free" | "pro" | "enterprise";
+
+/** Plans a visitor can sign up for on their own. */
+export type SignupPlanId = Exclude<PlanId, "enterprise">;
 
 export type Plan = {
   id: PlanId;
   name: string;
   description: string;
-  /** Rubles a month; `null` — free. */
+  /**
+   * Rubles a month once the plan is paid; `null` — free, or by agreement
+   * when `custom`.
+   */
   monthly: number | null;
-  /** Intro price: `monthly` rubles a month for the first `months` months. */
-  promo?: { monthly: number; months: number };
+  /** Priced by agreement, not self-serve: the CTA is "contact us". */
+  custom?: boolean;
+  /** Free until `billingStart`, then `monthly`. */
+  freeUntilBilling?: boolean;
   features: string[];
   featured?: boolean;
 };
+
+/** The day paid plans stop being free and billing starts. */
+export const billingStart = { iso: "2027-01-01", label: "1 января 2027" };
 
 export const plans: Plan[] = [
   {
@@ -41,7 +54,7 @@ export const plans: Plan[] = [
     name: "Про",
     description: "Когда клиенты готовы платить онлайн.",
     monthly: 290,
-    promo: { monthly: 149, months: 3 },
+    freeUntilBilling: true,
     features: [
       "Всё из бесплатного",
       "Оплата пакетов онлайн через ЮKassa",
@@ -51,21 +64,20 @@ export const plans: Plan[] = [
     ],
   },
   {
-    id: "studio",
-    name: "Студия",
-    description: "Для центров и нескольких специалистов.",
-    monthly: 790,
+    id: "enterprise",
+    name: "Enterprise",
+    description: "Для центров и команд: подстроим Synoro под ваши процессы.",
+    monthly: null,
+    custom: true,
     features: [
       "Всё из «Про»",
       "Несколько практик в одном аккаунте",
-      "До 5 администраторов",
-      "Помощь с переносом клиентов",
+      "Любое число администраторов",
+      "Доработки под ваши процессы и интеграции",
+      "Приоритетная поддержка и помощь с переносом",
     ],
   },
 ];
-
-/** Free trial of any paid plan, in days. */
-export const trialDays = 14;
 
 function getPlan(id: PlanId) {
   const plan = plans.find((item) => item.id === id);
@@ -74,10 +86,7 @@ function getPlan(id: PlanId) {
 }
 
 /** The plan for online payments: the upsell the landing mentions. */
-export const paidPlan = getPlan("pro") as Plan & {
-  monthly: number;
-  promo: { monthly: number; months: number };
-};
+export const paidPlan = getPlan("pro") as Plan & { monthly: number };
 
 export const rubles = (value: number) =>
   `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
@@ -86,7 +95,7 @@ export const rubles = (value: number) =>
  * Sign-up link that remembers the chosen plan, so the app can preselect it
  * once billing lands. The free plan needs no parameters.
  */
-export function planSignupUrl(signupUrl: string, id: PlanId) {
+export function planSignupUrl(signupUrl: string, id: SignupPlanId) {
   if (id === "free") return signupUrl;
   const url = new URL(signupUrl);
   url.searchParams.set("plan", id);
@@ -94,4 +103,13 @@ export function planSignupUrl(signupUrl: string, id: PlanId) {
 }
 
 /** Yandex Metrika goal names fired by sign-up CTAs (`data-goal`). */
-export const signupGoal = (id: PlanId) => `signup_${id}`;
+export const signupGoal = (id: SignupPlanId) => `signup_${id}`;
+
+/** Goal for the Enterprise "contact us" CTA. */
+export const enterpriseGoal = "contact_enterprise";
+
+/** `mailto:` link for an Enterprise enquiry. */
+export function enterpriseContactUrl(email: string) {
+  const subject = encodeURIComponent("Synoro Enterprise");
+  return `mailto:${email}?subject=${subject}`;
+}

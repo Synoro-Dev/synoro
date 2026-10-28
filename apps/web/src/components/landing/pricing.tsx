@@ -1,3 +1,4 @@
+import { legal } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
 import {
   BadgePercentIcon,
@@ -8,13 +9,15 @@ import {
 } from "lucide-react";
 
 import {
+  billingStart,
+  enterpriseContactUrl,
+  enterpriseGoal,
   type Plan,
   paidPlan,
   planSignupUrl,
   plans,
   rubles,
   signupGoal,
-  trialDays,
 } from "~/lib/pricing";
 
 import {
@@ -46,12 +49,23 @@ const perks: {
   {
     icon: GiftIcon,
     tone: "amber",
-    title: `${trialDays} дней «${paidPlan.name}» бесплатно`,
-    text: "Подключите онлайн-оплату без привязки карты, а потом решайте.",
+    title: `«${paidPlan.name}» бесплатно до ${billingStart.label}`,
+    text: "Подключите онлайн-оплату без привязки карты — платить начнёте только с нового года.",
   },
 ];
 
 function Price({ plan }: { plan: Plan }) {
+  if (plan.custom) {
+    return (
+      <div>
+        <p className="text-4xl font-medium tracking-tight">По договорённости</p>
+        <p className="text-muted-foreground mt-1.5 text-sm">
+          Стоимость зависит от задач и объёма доработок
+        </p>
+      </div>
+    );
+  }
+
   if (plan.monthly === null) {
     return (
       <div>
@@ -66,15 +80,15 @@ function Price({ plan }: { plan: Plan }) {
     );
   }
 
-  const { promo } = plan;
+  const free = plan.freeUntilBilling;
 
   return (
     <div>
       <p className="flex items-baseline gap-1.5">
         <span className="text-4xl font-medium tracking-tight tabular-nums">
-          {rubles(promo?.monthly ?? plan.monthly)}
+          {rubles(free ? 0 : plan.monthly)}
         </span>
-        {promo && (
+        {free && (
           <span className="text-muted-foreground text-lg tabular-nums line-through">
             {rubles(plan.monthly)}
           </span>
@@ -82,11 +96,43 @@ function Price({ plan }: { plan: Plan }) {
         <span className="text-muted-foreground text-sm">в месяц</span>
       </p>
       <p className="text-muted-foreground mt-1.5 text-sm">
-        {promo
-          ? `${trialDays} дней бесплатно, затем ${promo.months} месяца по этой цене, дальше ${rubles(plan.monthly)}`
-          : `Первые ${trialDays} дней — бесплатно`}
+        {free
+          ? `Бесплатно до ${billingStart.label}, затем ${rubles(plan.monthly)} в месяц`
+          : "Оплата помесячно"}
       </p>
     </div>
+  );
+}
+
+function PlanCta({ plan, signupUrl }: { plan: Plan; signupUrl: string }) {
+  const className = cn(
+    buttonVariants({
+      variant: plan.featured ? "default" : "outline",
+      size: "lg",
+    }),
+    "rounded-full",
+  );
+
+  if (plan.id === "enterprise") {
+    return (
+      <a
+        href={enterpriseContactUrl(legal.operator.email)}
+        data-goal={enterpriseGoal}
+        className={className}
+      >
+        Обсудить задачу
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={planSignupUrl(signupUrl, plan.id)}
+      data-goal={signupGoal(plan.id)}
+      className={className}
+    >
+      {plan.id === "free" ? "Начать бесплатно" : "Подключить бесплатно"}
+    </a>
   );
 }
 
@@ -98,18 +144,19 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
           Тарифы
         </Eyebrow>
         <SectionHeading>
-          Бесплатно для практики. Платите, когда берёте оплату онлайн
+          Бесплатно для практики. «{paidPlan.name}» — тоже, до{" "}
+          {billingStart.label}
         </SectionHeading>
         <Lead className="mx-auto">
           Запись, расписание, пакеты и кабинет клиента — бесплатно и без
-          ограничений. «{paidPlan.name}» от {rubles(paidPlan.promo.monthly)} в
-          месяц нужен, только чтобы клиенты оплачивали пакеты сами через ЮKassa.
+          ограничений. «{paidPlan.name}» нужен, чтобы клиенты оплачивали пакеты
+          сами через ЮKassa: до {billingStart.label} он бесплатный, затем{" "}
+          {rubles(paidPlan.monthly)} в месяц.
         </Lead>
       </div>
 
       <div className="grid border-t md:grid-cols-3 md:divide-x">
         {plans.map((plan) => {
-          const free = plan.monthly === null;
           return (
             <div
               key={plan.id}
@@ -138,19 +185,7 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
                 </p>
               </div>
               <Price plan={plan} />
-              <a
-                href={planSignupUrl(signupUrl, plan.id)}
-                data-goal={signupGoal(plan.id)}
-                className={cn(
-                  buttonVariants({
-                    variant: plan.featured ? "default" : "outline",
-                    size: "lg",
-                  }),
-                  "rounded-full",
-                )}
-              >
-                {free ? "Начать бесплатно" : "Попробовать бесплатно"}
-              </a>
+              <PlanCta plan={plan} signupUrl={signupUrl} />
               <ul className="flex flex-col gap-3 text-sm">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex gap-2.5">
