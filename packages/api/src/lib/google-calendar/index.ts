@@ -1,5 +1,6 @@
 import { env, logger, paths } from "@synoro/config";
 import {
+  and,
   Booking,
   type Database,
   eq,
@@ -7,42 +8,37 @@ import {
   PracticeMember,
   user,
 } from "@synoro/db";
-import { capitalize, professionTerms } from "@synoro/validators";
-
-import { findOwnerMembership, findPractice } from "../practice-access";
-import { overlaps, type TimeRange } from "../schedule";
-import { decryptSecret, encryptSecret, secretsAvailable } from "../secrets";
 import {
-  deleteEvent,
   exchangeCode,
+  findConnection,
   freeBusy,
   GoogleError,
+  googleCalendarAvailable,
   insertEvent,
-  refreshAccessToken,
+  removeBookingEvent,
   revokeToken,
-} from "./google";
+  withGoogle,
+} from "@synoro/jobs/google-calendar";
+import { capitalize, professionTerms } from "@synoro/validators";
+import { findOwnerMembership, findPractice } from "../practice-access";
+import { overlaps, type TimeRange } from "../schedule";
+import { decryptSecret, encryptSecret } from "../secrets";
 
 export {
   authorizationUrl,
+  findConnection,
   GoogleError,
+  googleCalendarAvailable,
   listCalendars,
-} from "./google";
+  removeBookingEvent,
+  withGoogle,
+} from "@synoro/jobs/google-calendar";
 
 type Connection = typeof GoogleCalendarConnection.$inferSelect;
 type BookingRow = typeof Booking.$inferSelect;
 
 /** How long the consent page may take before its `state` is refused. */
 const STATE_TTL_MS = 30 * 60 * 1000;
-/** Refresh the access token this long before Google says it expires. */
-const EXPIRY_MARGIN_MS = 60 * 1000;
-
-/** False when the OAuth client or PAYMENTS_SECRET_KEY is missing. */
-export function googleCalendarAvailable() {
-  return (
-    !!env.GOOGLE_CLIENT_ID && !!env.GOOGLE_CLIENT_SECRET && secretsAvailable()
-  );
-}
-
 /**
  * The OAuth `state`: practice and user, encrypted (AES-GCM, so it can't be
  * forged or altered). The callback only accepts it from the same signed-in
@@ -75,12 +71,6 @@ function readState(state: string) {
   }
 }
 
-export function findConnection(db: Database, practiceId: string) {
-  return db.query.GoogleCalendarConnection.findFirst({
-    where: eq(GoogleCalendarConnection.practiceId, practiceId),
-  });
-}
-
 /** What the specialist sees; tokens never leave the server. */
 export function connectionInfo(connection: Connection | undefined) {
   return connection
@@ -96,82 +86,6 @@ export function connectionInfo(connection: Connection | undefined) {
     : null;
 }
 
-function errorMessage(error: unknown) {
-  if (error instanceof GoogleError && error.kind === "revoked") {
-    return "Доступ к Google Календарю отозван — подключите его заново";
-  }
-  return "Google Календарь не ответил — проверьте подключение";
-}
-
-async function markError(db: Database, connection: Connection, error: unknown) {
-  logger.warn("google_calendar.failed", {
-    practiceId: connection.practiceId,
-    kind: error instanceof GoogleError ? error.kind : "internal",
-    error: error instanceof Error ? error.message : String(error),
-  });
-  await db
-    .update(GoogleCalendarConnection)
-    .set({ lastError: errorMessage(error), lastErrorAt: new Date() })
-    .where(eq(GoogleCalendarConnection.id, connection.id));
-}
-
-async function clearError(db: Database, connection: Connection) {
-  if (connection.lastError === null) return;
-  await db
-    .update(GoogleCalendarConnection)
-    .set({ lastError: null, lastErrorAt: null })
-    .where(eq(GoogleCalendarConnection.id, connection.id));
-}
-
-async function freshAccessToken(db: Database, connection: Connection) {
-  const { accessToken, expiresAt } = await refreshAccessToken(
-    decryptSecret(connection.refreshToken),
-  );
-  await db
-    .update(GoogleCalendarConnection)
-    .set({
-      accessToken: encryptSecret(accessToken),
-      accessTokenExpiresAt: expiresAt,
-    })
-    .where(eq(GoogleCalendarConnection.id, connection.id));
-  return accessToken;
-}
-
-/**
- * Run `call` with a working access token: the stored one while it is
- * valid, else a refreshed one; a 401 gets one more try with a new token.
- * Failures are recorded on the connection (shown to the specialist) and
- * rethrown; success clears the recorded one.
- */
-export async function withGoogle<T>(
-  db: Database,
-  connection: Connection,
-  call: (accessToken: string) => Promise<T>,
-) {
-  try {
-    const stored =
-      connection.accessToken &&
-      connection.accessTokenExpiresAt &&
-      connection.accessTokenExpiresAt.getTime() - EXPIRY_MARGIN_MS > Date.now()
-        ? decryptSecret(connection.accessToken)
-        : await freshAccessToken(db, connection);
-    let result: T;
-    try {
-      result = await call(stored);
-    } catch (error) {
-      if (!(error instanceof GoogleError && error.kind === "unauthorized")) {
-        throw error;
-      }
-      result = await call(await freshAccessToken(db, connection));
-    }
-    await clearError(db, connection);
-    return result;
-  } catch (error) {
-    await markError(db, connection, error);
-    throw error;
-  }
-}
-
 /**
  * Busy time from the specialist's Google calendars in [start, end). Google
  * being down must not stop bookings: on failure this logs, records the
@@ -184,11 +98,34 @@ export async function googleBusy(
   end: Date,
 ): Promise<TimeRange[]> {
   if (!googleCalendarAvailable()) return [];
-  const connection = await findConnection(db, practiceId);
-  if (!connection?.busyCalendarIds.length) return [];
-  try {
-    const { busy, failed } = await withGoogle(db, connection, (token) =>
-      freeBusy(token, connection.busyCalendarIds, start, end),
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new GoogleError(
+        "Google busy deadline exceeded",
+        "unavailable",
+      );
+      controller.abort(error);
+      logger.warn("google_calendar.busy_deadline", { practiceId });
+      reject(error);
+    }, 6000);
+  });
+  const operation = async () => {
+    const connection = await findConnection(db, practiceId);
+    if (!connection?.busyCalendarIds.length) return [];
+    const { busy, failed } = await withGoogle(
+      db,
+      connection,
+      (token) =>
+        freeBusy(
+          token,
+          connection.busyCalendarIds,
+          start,
+          end,
+          controller.signal,
+        ),
+      controller.signal,
     );
     if (failed.length) {
       logger.warn("google_calendar.calendar_unreadable", {
@@ -197,8 +134,13 @@ export async function googleBusy(
       });
     }
     return busy;
+  };
+  try {
+    return await Promise.race([operation(), deadline]);
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -264,22 +206,22 @@ async function describeBooking(db: Database, booking: BookingRow) {
  */
 export async function exportBooking(db: Database, bookingId: string) {
   if (!googleCalendarAvailable()) return;
-  const booking = await db.query.Booking.findFirst({
-    where: eq(Booking.id, bookingId),
-  });
-  if (
-    !booking ||
-    booking.kind === "blocked" ||
-    booking.status !== "active" ||
-    booking.holdUntil !== null ||
-    booking.googleEventId !== null
-  ) {
-    return;
-  }
-  const connection = await findConnection(db, booking.practiceId);
-  if (!connection?.exportBookings) return;
-
   try {
+    const booking = await db.query.Booking.findFirst({
+      where: eq(Booking.id, bookingId),
+    });
+    if (
+      !booking ||
+      booking.kind === "blocked" ||
+      booking.status !== "active" ||
+      booking.holdUntil !== null ||
+      booking.googleEventId !== null
+    ) {
+      return;
+    }
+    const connection = await findConnection(db, booking.practiceId);
+    if (!connection?.exportBookings) return;
+
     const details = await describeBooking(db, booking);
     if (!details) return;
     const eventId = eventIdFor(booking.id);
@@ -292,30 +234,34 @@ export async function exportBooking(db: Database, bookingId: string) {
         ...details,
       }),
     );
-    await db
+    const [saved] = await db
       .update(Booking)
       .set({
         googleCalendarId: connection.eventsCalendarId,
         googleEventId: eventId,
       })
-      .where(eq(Booking.id, booking.id));
+      .where(and(eq(Booking.id, booking.id), eq(Booking.status, "active")))
+      .returning({ id: Booking.id });
+    if (!saved) {
+      await removeBookingEvent(db, {
+        ...booking,
+        googleCalendarId: connection.eventsCalendarId,
+        googleEventId: eventId,
+      });
+    }
   } catch {
     // Recorded by withGoogle.
   }
 }
 
-/** Remove a cancelled booking's event, if it has one. Best effort. */
-export async function removeBookingEvent(db: Database, booking: BookingRow) {
-  const { googleCalendarId, googleEventId } = booking;
-  if (!googleCalendarId || !googleEventId || !googleCalendarAvailable()) return;
-  const connection = await findConnection(db, booking.practiceId);
-  if (!connection) return;
+/** Revoking saved credentials is optional, including decryption after a key change. */
+async function revokeSavedToken(connection: Connection) {
   try {
-    await withGoogle(db, connection, (token) =>
-      deleteEvent(token, googleCalendarId, googleEventId),
-    );
+    await revokeToken(decryptSecret(connection.refreshToken));
   } catch {
-    // Recorded by withGoogle.
+    logger.warn("google_calendar.revoke_failed", {
+      practiceId: connection.practiceId,
+    });
   }
 }
 
@@ -326,7 +272,7 @@ export async function disconnectGoogle(db: Database, practiceId: string) {
   await db
     .delete(GoogleCalendarConnection)
     .where(eq(GoogleCalendarConnection.id, connection.id));
-  await revokeToken(decryptSecret(connection.refreshToken));
+  await revokeSavedToken(connection);
 }
 
 /**
@@ -394,7 +340,7 @@ export async function finishGoogleConnect(
       set: values,
     });
   if (existing && !sameAccount) {
-    await revokeToken(decryptSecret(existing.refreshToken));
+    await revokeSavedToken(existing);
   }
   logger.info("google_calendar.connected", { practiceId: state.practiceId });
   return back("connected");

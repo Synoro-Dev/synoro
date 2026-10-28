@@ -12,7 +12,7 @@
 # `@synoro/db` and `@synoro/auth` are pruned alongside `@synoro/jobs`: the
 # migrate script lives in db, the nightly demo reset
 # (`packages/auth/script/demo-reset.ts`, a CronJob in infra/synoro/demo.yaml)
-# in auth, and jobs depends on neither.
+# in auth. Calendar cleanup in jobs also uses db.
 #
 # Versions: see apps/web/Dockerfile; keep the three Dockerfiles in sync.
 

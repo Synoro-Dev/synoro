@@ -126,3 +126,56 @@ describe("appliedMigrationCount", () => {
     await client.close();
   });
 });
+
+describe("bookings_no_overlap restoration", () => {
+  it("preserves conflicting rows and fails before applying the constraint", async () => {
+    const { client } = await pushedDb(2);
+    try {
+      await client.exec(`
+        INSERT INTO "users" (id, name, email) VALUES ('owner', 'Owner', 'owner@test.local');
+        INSERT INTO practices (id, owner_id, name, slug) VALUES ('00000000-0000-0000-0000-000000000001', 'owner', 'Practice', 'practice');
+        INSERT INTO bookings (practice_id, kind, starts_at, ends_at) VALUES
+          ('00000000-0000-0000-0000-000000000001', 'consultation', '2030-01-01T10:00Z', '2030-01-01T11:00Z'),
+          ('00000000-0000-0000-0000-000000000001', 'free', '2030-01-01T10:30Z', '2030-01-01T11:00Z');
+      `);
+      const migration = migrations[2];
+      if (!migration) throw new Error("Missing overlap migration");
+      await expect(
+        client.transaction(async (tx) => {
+          for (const statement of migration.sql) await tx.exec(statement);
+        }),
+      ).rejects.toMatchObject({
+        code: "23P01",
+        message:
+          "Active bookings overlap; bookings_no_overlap cannot be applied",
+      });
+      expect(
+        (await client.query("SELECT * FROM bookings WHERE status = 'active'"))
+          .rows,
+      ).toHaveLength(2);
+      expect(
+        (
+          await client.query(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
+          )
+        ).rows,
+      ).toHaveLength(0);
+      // Resolve the conflict explicitly; retry installs the constraint.
+      await client.exec(
+        "UPDATE bookings SET status = 'cancelled' WHERE kind = 'free'",
+      );
+      for (const statement of migration.sql) await client.exec(statement);
+      expect(
+        (
+          await client.query(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
+          )
+        ).rows,
+      ).toHaveLength(1);
+      // Applying it again is still idempotent.
+      for (const statement of migration.sql) await client.exec(statement);
+    } finally {
+      await client.close();
+    }
+  });
+});

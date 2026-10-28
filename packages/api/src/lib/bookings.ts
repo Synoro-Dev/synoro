@@ -100,7 +100,6 @@ export async function cancelActiveBooking(
     .where(and(eq(Booking.id, bookingId), eq(Booking.status, "active")))
     .returning();
   if (!cancelled) return undefined;
-  await removeBookingEvent(db, cancelled);
 
   const refunded =
     options.refund &&
@@ -117,6 +116,7 @@ export async function cancelActiveBooking(
       createdById: options.cancelledById,
     });
   }
+  await removeBookingEvent(db, cancelled);
   return { booking: cancelled, refunded };
 }
 

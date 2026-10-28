@@ -1,7 +1,7 @@
 /**
  * Thin client for the Google OAuth 2.0 and Calendar v3 REST endpoints, on
  * plain `fetch` (no googleapis dependency). Knows nothing of the database:
- * see `./index.ts` for connections and bookings.
+ * see `./google-calendar.ts` for connection handling.
  */
 import { env } from "@synoro/config";
 
@@ -69,7 +69,9 @@ async function send(url: string, init: RequestInit) {
   try {
     return await fetch(url, {
       ...init,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: init.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(TIMEOUT_MS)])
+        : AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (error) {
     throw new GoogleError(
@@ -111,8 +113,12 @@ interface TokenResponse {
   id_token?: string;
 }
 
-async function tokenRequest(params: Record<string, string>) {
+async function tokenRequest(
+  params: Record<string, string>,
+  signal?: AbortSignal,
+) {
   const response = await send(TOKEN_URL, {
+    signal,
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ ...credentials(), ...params }),
@@ -157,11 +163,17 @@ export async function exchangeCode(code: string) {
   };
 }
 
-export async function refreshAccessToken(refreshToken: string) {
-  const token = await tokenRequest({
-    refresh_token: refreshToken,
-    grant_type: "refresh_token",
-  });
+export async function refreshAccessToken(
+  refreshToken: string,
+  signal?: AbortSignal,
+) {
+  const token = await tokenRequest(
+    {
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    },
+    signal,
+  );
   return {
     accessToken: token.access_token,
     expiresAt: new Date(Date.now() + token.expires_in * 1000),
@@ -239,6 +251,7 @@ export async function freeBusy(
   calendarIds: string[],
   start: Date,
   end: Date,
+  signal?: AbortSignal,
 ) {
   const data = await api<{
     calendars?: Record<
@@ -247,6 +260,7 @@ export async function freeBusy(
     >;
   }>(accessToken, "/freeBusy", {
     what: "Google freeBusy",
+    signal,
     method: "POST",
     body: JSON.stringify({
       timeMin: start.toISOString(),
