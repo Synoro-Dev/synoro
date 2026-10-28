@@ -4,7 +4,7 @@ import { accountFormSchema } from "@synoro/validators";
 import { protectedProcedure } from "../../orpc";
 
 /**
- * Update account settings: display name, preferred language.
+ * Update account settings: display name.
  */
 export const updateAccount = protectedProcedure
   .input(accountFormSchema)
@@ -13,7 +13,6 @@ export const updateAccount = protectedProcedure
       .update(user)
       .set({
         name: input.name,
-        language: input.language,
         updatedAt: new Date(),
       })
       .where(eq(user.id, context.session.user.id));

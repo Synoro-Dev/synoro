@@ -152,6 +152,11 @@ and run `tsc` by hand, build them first.
   `track()` in `packages/api/src/lib/analytics.ts` (add the name to
   `ServerEvent`). The key is a build arg (Dockerfiles, deploy.yml) _and_ must
   be in the pod env for server events.
+- **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
+  practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
+  enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes
+  payments to `demo-…` shops settle instantly. Keep the seed consistent:
+  balance = sum of `credit_entries`, one purchase entry per paid payment.
 - `@synoro/api` stays free of the concrete `Auth` type: callers resolve the
   session via `auth.api.getSession` and pass it into `createORPCContext`.
 - **Testing procedures**: `call(procedure, input, { context })` from

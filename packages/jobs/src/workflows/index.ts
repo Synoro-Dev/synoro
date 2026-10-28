@@ -5,6 +5,7 @@
  * HATCHET_CLIENT_TOKEN. App code should go through `@synoro/jobs` instead.
  */
 export { hatchet } from "./client";
+export { googleCalendarCleanupWorkflow } from "./google-calendar-cleanup";
 export type { HelloWorldInput } from "./hello-world";
 export { helloWorldTask } from "./hello-world";
 export type { ProcessDocumentInput } from "./multi-step";

@@ -4,6 +4,7 @@ import type { RouterOutputs } from "@synoro/api";
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -81,6 +82,10 @@ function getColumns(actions: {
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-3">
           <Avatar className="size-8">
+            <AvatarImage
+              src={row.original.image ?? undefined}
+              alt={row.original.name}
+            />
             <AvatarFallback className="text-xs">
               {initials(row.original.name)}
             </AvatarFallback>

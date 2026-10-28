@@ -1,3 +1,4 @@
+import { DEMO_ACCOUNTS, isDemoAccountKey } from "@synoro/auth/demo";
 import { env, logger, paths } from "@synoro/config";
 import { APIError } from "better-auth/api";
 import { connection, type NextRequest, NextResponse } from "next/server";
@@ -6,10 +7,8 @@ import { auth } from "~/auth/server";
 import { appUrl } from "~/lib/hosts";
 
 /** Only same-site paths: `//host` and `/\host` would leave the demo. */
-function safeNext(next: string | null) {
-  if (!next?.startsWith("/") || /^\/[/\\]/.test(next)) {
-    return paths.dashboard.root;
-  }
+function safeNext(next: string | null, home: string = paths.dashboard.root) {
+  if (!next?.startsWith("/") || /^\/[/\\]/.test(next)) return home;
   return next;
 }
 
@@ -24,8 +23,16 @@ export async function GET(request: NextRequest) {
   await connection();
   if (!env.DEMO_LOGIN_EMAIL) return new NextResponse(null, { status: 404 });
 
+  // `?as=` picks the role to look from (`DEMO_ACCOUNTS`); no or an unknown
+  // key signs in as DEMO_LOGIN_EMAIL.
+  const key = request.nextUrl.searchParams.get("as");
+  const persona = isDemoAccountKey(key) ? DEMO_ACCOUNTS[key] : undefined;
+
   try {
-    await auth.api.signInDemo({ headers: request.headers });
+    await auth.api.signInDemo({
+      headers: request.headers,
+      ...(persona && { body: { email: persona.email } }),
+    });
   } catch (error) {
     if (error instanceof APIError && error.statusCode === 503) {
       // The nightly reset is re-seeding. No redirect: the login page would
@@ -44,6 +51,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.redirect(
     // `appUrl`, not `request.url`: behind the ingress the latter is 0.0.0.0:3000.
-    new URL(safeNext(request.nextUrl.searchParams.get("next")), appUrl),
+    new URL(
+      safeNext(request.nextUrl.searchParams.get("next"), persona?.home),
+      appUrl,
+    ),
   );
 }

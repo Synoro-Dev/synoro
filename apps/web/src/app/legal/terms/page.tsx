@@ -10,7 +10,7 @@ import {
   Part,
 } from "~/components/legal/document";
 import { Requisites } from "~/components/legal/requisites";
-import { plans, rubles, trialDays } from "~/lib/pricing";
+import { billingStart, plans, rubles } from "~/lib/pricing";
 
 const doc = legal.docs.terms;
 const { operator } = legal;
@@ -22,10 +22,11 @@ export const metadata: Metadata = {
 };
 
 function planPrice(plan: (typeof plans)[number]) {
+  if (plan.custom) return "по отдельному соглашению";
   if (plan.monthly === null) return "0 ₽";
   const base = `${rubles(plan.monthly)} в месяц`;
-  return plan.promo
-    ? `${base}; первые ${plan.promo.months} мес. — ${rubles(plan.promo.monthly)} в месяц`
+  return plan.freeUntilBilling
+    ? `бесплатно до ${billingStart.label}; затем ${base}`
     : base;
 }
 
@@ -247,13 +248,18 @@ export default function TermsPage() {
 
       <Part id="billing" n={6} title="Стоимость и порядок оплаты Сервиса">
         <Clause n="6.1.">
-          Бесплатный тариф предоставляется без платы. За платные тарифы
-          Специалист платит ежемесячно вперёд за расчётный период.
+          Бесплатный тариф предоставляется без платы. За тариф «Про» Специалист
+          платит ежемесячно вперёд за расчётный период. Тариф Enterprise
+          оформляется отдельным соглашением (пункт 6.2).
         </Clause>
         <Clause n="6.2.">
-          Если при регистрации предложен пробный период платных функций (сейчас
-          — {trialDays} дней), он бесплатен. Если действует промо-цена, она
-          применяется в течение указанного срока, затем — обычная цена тарифа.
+          Платные функции тарифа «Про» предоставляются бесплатно до{" "}
+          {billingStart.label}. О начале платного периода Исполнитель сообщает
+          Специалисту по электронной почте не менее чем за 14 дней; после этой
+          даты платные функции продолжают работать только при оплате тарифа.
+          Состав, стоимость, порядок оплаты и объём доработок Сервиса в тарифе
+          Enterprise определяются отдельным соглашением между Исполнителем и
+          Специалистом; до его заключения Enterprise не действует.
         </Clause>
         <Clause n="6.3.">
           Способ оплаты и порядок списания Специалист видит при оформлении

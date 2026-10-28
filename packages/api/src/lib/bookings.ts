@@ -15,6 +15,7 @@ import {
   sql,
 } from "@synoro/db";
 
+import { removeBookingEvent } from "./google-calendar";
 import { addDays, zonedTimeToUtc } from "./schedule";
 
 export function loadRules(db: Database, practiceId: string) {
@@ -80,7 +81,8 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
 /**
  * Cancel an active booking and, when asked, give the consultation back to
  * the client's balance. Conditional on `active`, so two concurrent cancels
- * refund once. An unpaid hold has spent nothing, so it never refunds.
+ * refund once. An unpaid hold has spent nothing, so it never refunds. The
+ * booking's Google Calendar event, if any, is deleted.
  * Returns undefined when the booking wasn't active any more.
  */
 export async function cancelActiveBooking(
@@ -114,6 +116,7 @@ export async function cancelActiveBooking(
       createdById: options.cancelledById,
     });
   }
+  await removeBookingEvent(db, cancelled);
   return { booking: cancelled, refunded };
 }
 

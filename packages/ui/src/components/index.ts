@@ -15,6 +15,7 @@ export * from "./card";
 export * from "./chart";
 export * from "./checkbox";
 export * from "./collapsible";
+export * from "./cookie-banner";
 export * from "./dialog";
 export * from "./drawer";
 export * from "./dropdown-menu";

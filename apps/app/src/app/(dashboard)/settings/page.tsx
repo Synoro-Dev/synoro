@@ -22,12 +22,5 @@ export default function SettingsAccountPage() {
 async function AccountFormWithData() {
   const user = await api.user.me();
 
-  return (
-    <AccountForm
-      initialData={{
-        name: user?.name || "",
-        language: user?.language || "ru",
-      }}
-    />
-  );
+  return <AccountForm initialData={{ name: user?.name || "" }} />;
 }

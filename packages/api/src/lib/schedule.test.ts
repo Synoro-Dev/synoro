@@ -5,6 +5,7 @@ import {
   computeSlots,
   isoWeekday,
   isScheduledSlot,
+  subtractRanges,
   toZonedDate,
   zonedTimeToUtc,
 } from "./schedule";
@@ -168,5 +169,37 @@ describe("isScheduledSlot", () => {
     expect(check("2026-11-02T07:30:00Z", "consultation")).toBe(false);
     expect(check("2026-11-02T10:00:00Z", "consultation")).toBe(false);
     expect(check("2026-11-03T07:00:00Z", "consultation")).toBe(false);
+  });
+});
+
+describe("subtractRanges", () => {
+  const t = (hhmm: string) => new Date(`${MONDAY}T${hhmm}:00Z`);
+  const r = (a: string, b: string) => ({ startsAt: t(a), endsAt: t(b) });
+
+  it("keeps ranges nothing covers", () => {
+    expect(subtractRanges([r("09:00", "10:00")], [])).toEqual([
+      r("09:00", "10:00"),
+    ]);
+  });
+
+  it("cuts covered parts out, splitting a range in two", () => {
+    expect(
+      subtractRanges([r("09:00", "12:00")], [r("10:00", "11:00")]),
+    ).toEqual([r("09:00", "10:00"), r("11:00", "12:00")]);
+  });
+
+  it("drops fully covered ranges and trims edges", () => {
+    expect(
+      subtractRanges(
+        [r("09:00", "10:00"), r("11:00", "13:00")],
+        [r("08:00", "10:00"), r("12:30", "14:00")],
+      ),
+    ).toEqual([r("11:00", "12:30")]);
+  });
+
+  it("merges overlapping ranges first", () => {
+    expect(
+      subtractRanges([r("10:00", "11:00"), r("09:00", "10:30")], []),
+    ).toEqual([r("09:00", "11:00")]);
   });
 });

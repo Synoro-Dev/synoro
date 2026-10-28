@@ -49,7 +49,7 @@ export function PracticeSwitcher({
             <IconTile variant="solid" size="sm" aria-hidden="true">
               {current ? initial(current.name) : <LayoutGridIcon />}
             </IconTile>
-            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
               <span className="truncate font-semibold">
                 {current?.name ?? "Synoro"}
               </span>
@@ -57,7 +57,7 @@ export function PracticeSwitcher({
                 {current ? ROLE_LABELS[current.role] : "Выберите практику"}
               </span>
             </div>
-            <ChevronsUpDownIcon className="ml-auto" />
+            <ChevronsUpDownIcon className="ml-auto size-3.5! opacity-60 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="min-w-60"

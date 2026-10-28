@@ -47,7 +47,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.11",
+    "@electric-sql/pglite": "^0.5.13",
     "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",

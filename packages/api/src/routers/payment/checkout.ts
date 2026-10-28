@@ -9,10 +9,10 @@ import {
 import { z } from "zod";
 
 import {
+  canTakePayments,
   ProviderError,
   providerFailureMessage,
   returnUrl,
-  secretsAvailable,
   startPayment,
 } from "../../lib/payments";
 import {
@@ -67,7 +67,7 @@ export const checkout = practiceProcedure
         ),
       }),
     ]);
-    if (!account || !secretsAvailable()) throw errors.PAYMENTS_DISABLED();
+    if (!account || !canTakePayments(account)) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
     try {

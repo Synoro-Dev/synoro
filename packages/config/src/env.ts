@@ -99,6 +99,13 @@ export const env = createEnv({
     // can't connect a payment provider. Changing it orphans stored keys.
     PAYMENTS_SECRET_KEY: z.string().min(32).optional(),
 
+    // Google Calendar sync: OAuth client (type "Web application") with the
+    // redirect URI <APP_URL>/api/google-calendar/callback and the Calendar
+    // API enabled. Tokens are encrypted with PAYMENTS_SECRET_KEY. Unset:
+    // specialists can't connect a calendar.
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
 
@@ -142,6 +149,8 @@ export const env = createEnv({
     DEMO_LOGIN_EMAIL: process.env.DEMO_LOGIN_EMAIL,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,

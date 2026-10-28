@@ -10,6 +10,10 @@
     "./workflows": {
       "types": "./dist/workflows/index.d.ts",
       "default": "./src/workflows/index.ts"
+    },
+    "./google-calendar": {
+      "types": "./dist/google-calendar.d.ts",
+      "default": "./src/google-calendar.ts"
     }
   },
   "license": "MIT",
@@ -24,8 +28,9 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "1.43.0",
+    "@hatchet-dev/typescript-sdk": "1.44.2",
     "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
     "@synoro/emails": "workspace:*"
   },
   "devDependencies": {

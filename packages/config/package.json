@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.mjs"
+    },
+    "./secrets": {
+      "types": "./dist/secrets.d.ts",
+      "default": "./dist/secrets.mjs"
     }
   },
   "main": "./dist/index.mjs",
@@ -33,7 +37,7 @@
     "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",
-    "tsdown": "0.23.2",
+    "tsdown": "0.23.3",
     "typescript": "7.0.2"
   }
 }

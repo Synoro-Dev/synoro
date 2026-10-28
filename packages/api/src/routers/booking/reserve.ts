@@ -16,16 +16,17 @@ import { z } from "zod";
 
 import { track } from "../../lib/analytics";
 import { HOLD_MS, loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findOrCreateGuestMember,
   hashGuestToken,
   newGuestToken,
 } from "../../lib/guests";
 import {
+  canTakePayments,
   guestReturnUrl,
   ProviderError,
   providerFailureMessage,
-  secretsAvailable,
   startPayment,
 } from "../../lib/payments";
 import { findPractice } from "../../lib/practice-access";
@@ -142,7 +143,7 @@ export const reserve = publicProcedure
         ),
       }),
     ]);
-    if (!account || !secretsAvailable()) throw errors.PAYMENTS_DISABLED();
+    if (!account || !canTakePayments(account)) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
     const rules = await loadRules(context.db, practice.id);
@@ -154,6 +155,13 @@ export const reserve = publicProcedure
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
+    const endsAt = new Date(
+      input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
+    );
+    const range = { startsAt: input.startsAt, endsAt };
+    if (await isBusyInGoogle(context.db, practice.id, range)) {
+      throw errors.SLOT_UNAVAILABLE();
+    }
 
     await releaseExpiredHolds(context.db, practice.id);
 
@@ -182,9 +190,7 @@ export const reserve = publicProcedure
           practiceId: practice.id,
           kind: "consultation",
           startsAt: input.startsAt,
-          endsAt: new Date(
-            input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
-          ),
+          endsAt,
           memberId: guest.memberId,
           guestPhone: input.phone,
           note: input.note || null,

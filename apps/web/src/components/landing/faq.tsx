@@ -6,7 +6,7 @@ import {
 } from "@synoro/ui";
 import { MessageCircleQuestionIcon } from "lucide-react";
 
-import { paidPlan, rubles, trialDays } from "~/lib/pricing";
+import { billingStart, paidPlan, rubles } from "~/lib/pricing";
 
 import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
 
@@ -21,7 +21,11 @@ const questions = [
   },
   {
     q: "За что тогда платить?",
-    a: `За приём оплаты онлайн. На «${paidPlan.name}» клиент сам оплачивает пакет на странице записи через ЮKassa, а оплаченное начисляется на баланс автоматически. Ещё в «${paidPlan.name}» — свой домен и администратор. Первые ${trialDays} дней — бесплатно и без привязки карты, затем ${paidPlan.promo.months} месяца по ${rubles(paidPlan.promo.monthly)}, дальше ${rubles(paidPlan.monthly)} в месяц.`,
+    a: `За приём оплаты онлайн. На «${paidPlan.name}» клиент сам оплачивает пакет на странице записи через ЮKassa, а оплаченное начисляется на баланс автоматически. Ещё в «${paidPlan.name}» — свой домен и администратор. До ${billingStart.label} он бесплатный и без привязки карты, затем ${rubles(paidPlan.monthly)} в месяц; о начале платного периода мы напишем вам на почту не менее чем за 14 дней.`,
+  },
+  {
+    q: "Что такое Enterprise?",
+    a: "Тариф для центров и команд, которым нужно больше, чем в «Про»: несколько практик, любое число администраторов и доработки Synoro под ваши процессы — интеграции, отчёты, особые правила записи. Стоимость и состав мы обсуждаем индивидуально и оформляем договором. Напишите нам — расскажите, что нужно.",
   },
   {
     q: "Вы берёте процент с оплат клиентов?",
