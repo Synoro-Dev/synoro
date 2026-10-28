@@ -13,7 +13,6 @@ export const user = pgTable("users", {
   phone: text("phone"),
   username: text("username"),
   bio: text("bio"),
-  language: text("language").default("en"),
   // Better Auth admin plugin
   role: text("role"),
   banned: boolean("banned").default(false),

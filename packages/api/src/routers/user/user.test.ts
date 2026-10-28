@@ -38,7 +38,7 @@ describe("user.updateAccount", () => {
 
     await call(
       userRouter.updateAccount,
-      { name: "After", language: "ru" },
+      { name: "After" },
       { context: api.context(caller) },
     );
 
@@ -49,7 +49,7 @@ describe("user.updateAccount", () => {
       context: api.context(other),
     });
 
-    expect(updated).toMatchObject({ name: "After", language: "ru" });
+    expect(updated).toMatchObject({ name: "After" });
     expect(untouched?.name).toBe("Untouched");
   });
 });
