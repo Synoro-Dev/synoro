@@ -16,3 +16,6 @@ process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
 process.env.EMAIL_SANDBOX_ENABLED = "false";
 process.env.RESEND_API_KEY = "";
 process.env.PAYMENTS_SECRET_KEY = "test-payments-secret-key-0123456789abcdef";
+// Google Calendar is "configured"; tests stub fetch for its endpoints.
+process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
+process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";

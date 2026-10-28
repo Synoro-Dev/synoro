@@ -4,11 +4,14 @@ import {
   createHash,
   randomBytes,
 } from "node:crypto";
-import { env } from "@synoro/config";
+import { env } from "./env";
 
 const VERSION = "v1";
 
-/** False when PAYMENTS_SECRET_KEY is unset: providers can't be connected. */
+/**
+ * False when PAYMENTS_SECRET_KEY is unset: payment providers and Google
+ * Calendar can't be connected (their credentials are stored encrypted).
+ */
 export function secretsAvailable() {
   return !!env.PAYMENTS_SECRET_KEY;
 }
@@ -37,7 +40,7 @@ export function encryptSecret(plain: string) {
 export function decryptSecret(stored: string) {
   const [version, iv, tag, data] = stored.split(":");
   if (version !== VERSION || !iv || !tag || !data) {
-    throw new Error("Unknown payment secret format");
+    throw new Error("Unknown secret format");
   }
   const decipher = createDecipheriv(
     "aes-256-gcm",
