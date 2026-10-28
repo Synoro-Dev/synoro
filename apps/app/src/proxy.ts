@@ -6,6 +6,9 @@ import { appUrl, bookingRedirect, hostConfig, practiceHost } from "~/lib/hosts";
 
 const hosts = hostConfig();
 
+// Redirects go to `appUrl`, not `request.url`: behind the ingress the
+// standalone server builds that from HOSTNAME:PORT (https://0.0.0.0:3000).
+
 /** Open without a session on the app's own host. */
 const PUBLIC_PATHS = [paths.auth.root, "/p/", "/b/", "/site/", "/api/auth"];
 
@@ -42,7 +45,7 @@ export async function proxy(request: NextRequest) {
     env.DEMO_LOGIN_EMAIL &&
     (pathname === paths.auth.login || pathname === paths.auth.signup)
   ) {
-    return NextResponse.redirect(new URL(paths.auth.demo, request.url));
+    return NextResponse.redirect(new URL(paths.auth.demo, appUrl));
   }
 
   // One main address for a booking page: synoro.ru/p/anna, not app.synoro.ru.
@@ -65,11 +68,11 @@ export async function proxy(request: NextRequest) {
   // We recommend handling auth checks in each page/route
   if (!sessionCookie) {
     if (env.DEMO_LOGIN_EMAIL) {
-      const demo = new URL(paths.auth.demo, request.url);
+      const demo = new URL(paths.auth.demo, appUrl);
       demo.searchParams.set("next", `${pathname}${search}`);
       return NextResponse.redirect(demo);
     }
-    return NextResponse.redirect(new URL(paths.auth.login, request.url));
+    return NextResponse.redirect(new URL(paths.auth.login, appUrl));
   }
 
   return NextResponse.next();

@@ -3,6 +3,7 @@ import { APIError } from "better-auth/api";
 import { connection, type NextRequest, NextResponse } from "next/server";
 
 import { auth } from "~/auth/server";
+import { appUrl } from "~/lib/hosts";
 
 /** Only same-site paths: `//host` and `/\host` would leave the demo. */
 function safeNext(next: string | null) {
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    new URL(safeNext(request.nextUrl.searchParams.get("next")), request.url),
+    // `appUrl`, not `request.url`: behind the ingress the latter is 0.0.0.0:3000.
+    new URL(safeNext(request.nextUrl.searchParams.get("next")), appUrl),
   );
 }
