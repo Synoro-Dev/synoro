@@ -1,5 +1,6 @@
-import { type Database, eq, PaymentAccount } from "@synoro/db";
+import { type Database, eq, PaymentAccount, Practice } from "@synoro/db";
 
+import { hasPro } from "../../lib/billing";
 import {
   canTakePayments,
   notificationUrl,
@@ -19,12 +20,20 @@ export const ownerProcedure = practiceProcedure.errors({
  * typing the key again.
  */
 export async function paymentSettings(db: Database, practiceId: string) {
-  const accounts = await db.query.PaymentAccount.findMany({
-    where: eq(PaymentAccount.practiceId, practiceId),
-  });
+  const [accounts, practice] = await Promise.all([
+    db.query.PaymentAccount.findMany({
+      where: eq(PaymentAccount.practiceId, practiceId),
+    }),
+    db.query.Practice.findFirst({
+      where: eq(Practice.id, practiceId),
+      columns: { ownerId: true },
+    }),
+  ]);
   const active = accounts.find((a) => a.active);
 
   return {
+    /** Online payments are «Про»: off for clients while the owner isn't. */
+    pro: practice ? await hasPro(db, practice.ownerId) : false,
     available: active ? canTakePayments(active) : secretsAvailable(),
     account: active
       ? {

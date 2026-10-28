@@ -2,11 +2,12 @@ import { isUniqueViolation, Practice, PracticeMember } from "@synoro/db";
 import { practiceFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
+import { ensureSubscription } from "../../lib/billing";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Create a practice (the SaaS tenant) — any signed-in user can; they become
- * its owner.
+ * its owner. The first one starts their 14-day «Про» trial.
  *
  * Throws CONFLICT (with `data.field`) when the public address is taken.
  *
@@ -45,6 +46,7 @@ export const create = protectedProcedure
     await context.db
       .insert(PracticeMember)
       .values({ practiceId: practice.id, userId: ownerId, role: "owner" });
+    await ensureSubscription(context.db, ownerId);
 
     return practice;
   });

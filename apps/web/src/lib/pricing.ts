@@ -3,10 +3,11 @@
  * Client-safe (no env access): the pricing table is a client component.
  *
  * Freemium: a solo practice runs on the free plan for good; people pay once
- * they take money online (ЮKassa). The paid plan is free until
- * `billingStart` — billing is not built yet. Large teams talk to us:
- * Enterprise is priced per agreement and includes custom development. See
- * docs/pricing-strategy.md.
+ * they take money online (ЮKassa). «Про» starts with a free trial, then
+ * 149 ₽ a month or 1490 ₽ a year, paid in the app through Точка Банк. Large
+ * teams talk to us: Enterprise is priced per agreement and includes custom
+ * development. See docs/pricing-strategy.md. The app charges
+ * `PRO_PRICES` (@synoro/validators): keep both in sync.
  */
 
 export type PlanId = "free" | "pro" | "enterprise";
@@ -23,16 +24,21 @@ export type Plan = {
    * when `custom`.
    */
   monthly: number | null;
+  /** Rubles for a year paid up front, when offered. */
+  yearly?: number;
+  /** Free days before the first payment. */
+  trialDays?: number;
   /** Priced by agreement, not self-serve: the CTA is "contact us". */
   custom?: boolean;
-  /** Free until `billingStart`, then `monthly`. */
-  freeUntilBilling?: boolean;
   features: string[];
   featured?: boolean;
 };
 
-/** The day paid plans stop being free and billing starts. */
-export const billingStart = { iso: "2027-01-01", label: "1 января 2027" };
+/**
+ * Specialists who signed up while «Про» was free keep it free until this
+ * day (their trial end, set by the billing migration); the Terms promise it.
+ */
+export const earlyAccessUntil = { iso: "2027-01-01", label: "1 января 2027" };
 
 export const plans: Plan[] = [
   {
@@ -53,8 +59,9 @@ export const plans: Plan[] = [
     id: "pro",
     name: "Про",
     description: "Когда клиенты готовы платить онлайн.",
-    monthly: 290,
-    freeUntilBilling: true,
+    monthly: 149,
+    yearly: 1490,
+    trialDays: 14,
     features: [
       "Всё из бесплатного",
       "Оплата пакетов онлайн через ЮKassa",
@@ -86,14 +93,17 @@ function getPlan(id: PlanId) {
 }
 
 /** The plan for online payments: the upsell the landing mentions. */
-export const paidPlan = getPlan("pro") as Plan & { monthly: number };
+export const paidPlan = getPlan("pro") as Plan & {
+  monthly: number;
+  yearly: number;
+  trialDays: number;
+};
 
 export const rubles = (value: number) =>
   `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
 
 /**
- * Sign-up link that remembers the chosen plan, so the app can preselect it
- * once billing lands. The free plan needs no parameters.
+ * Sign-up link that remembers the chosen plan (`?plan=pro`). The free plan needs no parameters.
  */
 export function planSignupUrl(signupUrl: string, id: SignupPlanId) {
   if (id === "free") return signupUrl;

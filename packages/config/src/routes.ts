@@ -22,6 +22,8 @@ export const paths = {
     root: ROOTS.SETTINGS,
     profile: `${ROOTS.SETTINGS}/profile`,
     security: `${ROOTS.SETTINGS}/security`,
+    /** The «Про» plan: trial, paid period, payment. */
+    billing: `${ROOTS.SETTINGS}/billing`,
   },
   booking: {
     /** Practices the user runs or is a client of; create a new one. */

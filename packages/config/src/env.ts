@@ -99,6 +99,23 @@ export const env = createEnv({
     // can't connect a payment provider. Changing it orphans stored keys.
     PAYMENTS_SECRET_KEY: z.string().min(32).optional(),
 
+    // «Про» subscription billing: Synoro's own Точка Банк internet
+    // acquiring (payment links), see docs/billing.md. JWT key from the
+    // internet bank («Интеграции и API», permissions MakeAcquiringOperation
+    // and ReadAcquiringData) and the business customerCode. Unset:
+    // specialists can't pay for «Про» (the trial still runs).
+    TOCHKA_API_TOKEN: z.string().optional(),
+    TOCHKA_CUSTOMER_CODE: z.string().optional(),
+    // Retailer id (15 digits); needed only with several retailers.
+    TOCHKA_MERCHANT_ID: z.string().optional(),
+    // Sandbox: https://enter.tochka.com/sandbox/v2
+    TOCHKA_API_URL: z.url().default("https://enter.tochka.com/uapi"),
+    // Taxation system for 54-ФЗ receipts (Точка's online cash register).
+    // Unset: payment links without a receipt.
+    TOCHKA_TAX_SYSTEM: z
+      .enum(["osn", "usn_income", "usn_income_outcome", "esn", "patent"])
+      .optional(),
+
     // Google Calendar sync: OAuth client (type "Web application") with the
     // redirect URI <APP_URL>/api/google-calendar/callback and the Calendar
     // API enabled. Tokens are encrypted with PAYMENTS_SECRET_KEY. Unset:
@@ -149,6 +166,11 @@ export const env = createEnv({
     DEMO_LOGIN_EMAIL: process.env.DEMO_LOGIN_EMAIL,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
+    TOCHKA_API_TOKEN: process.env.TOCHKA_API_TOKEN,
+    TOCHKA_CUSTOMER_CODE: process.env.TOCHKA_CUSTOMER_CODE,
+    TOCHKA_MERCHANT_ID: process.env.TOCHKA_MERCHANT_ID,
+    TOCHKA_API_URL: process.env.TOCHKA_API_URL,
+    TOCHKA_TAX_SYSTEM: process.env.TOCHKA_TAX_SYSTEM,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,

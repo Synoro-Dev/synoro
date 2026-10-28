@@ -16,6 +16,7 @@ import {
 import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
 import { formatCredits, professionTerms } from "@synoro/validators";
 import { track } from "../analytics";
+import { hasPro } from "../billing";
 import { exportBooking } from "../google-calendar";
 import { decryptSecret, secretsAvailable } from "../secrets";
 import { guestBookingUrl } from "../urls";
@@ -72,6 +73,27 @@ export function canTakePayments(
   account: Pick<AccountRow, "test" | "merchantId">,
 ) {
   return isDemoAccount(account) || secretsAvailable();
+}
+
+/**
+ * The practice's merchant account if clients can pay online right now: one
+ * is connected, the server can use it, and the owner is on «Про» (online
+ * payments are a «Про» feature; on the free plan clients pay as before).
+ */
+export async function payableAccount(
+  db: Database,
+  practice: Pick<typeof Practice.$inferSelect, "id" | "ownerId">,
+) {
+  const [account, pro] = await Promise.all([
+    db.query.PaymentAccount.findFirst({
+      where: and(
+        eq(PaymentAccount.practiceId, practice.id),
+        eq(PaymentAccount.active, true),
+      ),
+    }),
+    hasPro(db, practice.ownerId),
+  ]);
+  return account && pro && canTakePayments(account) ? account : undefined;
 }
 
 export function credentialsOf(account: AccountRow) {

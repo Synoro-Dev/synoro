@@ -6,7 +6,7 @@ import {
 } from "@synoro/ui";
 import { MessageCircleQuestionIcon } from "lucide-react";
 
-import { billingStart, paidPlan, rubles } from "~/lib/pricing";
+import { paidPlan, rubles } from "~/lib/pricing";
 
 import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
 
@@ -21,7 +21,7 @@ const questions = [
   },
   {
     q: "За что тогда платить?",
-    a: `За приём оплаты онлайн. На «${paidPlan.name}» клиент сам оплачивает пакет на странице записи через ЮKassa, а оплаченное начисляется на баланс автоматически. Ещё в «${paidPlan.name}» — свой домен и администратор. До ${billingStart.label} он бесплатный и без привязки карты, затем ${rubles(paidPlan.monthly)} в месяц; о начале платного периода мы напишем вам на почту не менее чем за 14 дней.`,
+    a: `За приём оплаты онлайн. На «${paidPlan.name}» клиент сам оплачивает пакет на странице записи через ЮKassa, а оплаченное начисляется на баланс автоматически. Ещё в «${paidPlan.name}» — свой домен и администратор. Первые ${paidPlan.trialDays} дней — бесплатно и без привязки карты, затем ${rubles(paidPlan.monthly)} в месяц или ${rubles(paidPlan.yearly)} за год. Оплата картой или по СБП прямо в настройках, без автосписаний.`,
   },
   {
     q: "Что такое Enterprise?",

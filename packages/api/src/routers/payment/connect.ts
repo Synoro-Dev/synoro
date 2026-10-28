@@ -1,7 +1,7 @@
 import { and, eq, ne, PaymentAccount } from "@synoro/db";
 import { paymentAccountFormSchema } from "@synoro/validators";
 import { z } from "zod";
-
+import { hasPro } from "../../lib/billing";
 import {
   credentialsOf,
   encryptSecret,
@@ -13,7 +13,7 @@ import { findOwnerMembership } from "../../lib/practice-access";
 import { ownerProcedure, paymentSettings } from "./owner";
 
 /**
- * Connect ЮKassa or Т-Банк (or update the connected one). The key pair is
+ * Connect ЮKassa or Т-Банк (or update the connected one) — «Про» only. The key pair is
  * checked with the provider before it is saved, encrypted. Connecting a
  * provider switches the practice to it; the other one's keys are kept,
  * inactive, so payments started with it still settle.
@@ -22,6 +22,9 @@ import { ownerProcedure, paymentSettings } from "./owner";
  */
 export const connect = ownerProcedure
   .errors({
+    PLAN_REQUIRED: {
+      message: "Доступно на тарифе «Про» — оплатите его в настройках",
+    },
     PAYMENTS_UNAVAILABLE: {
       message: "Онлайн-оплата не настроена на сервере (PAYMENTS_SECRET_KEY)",
     },
@@ -46,6 +49,9 @@ export const connect = ownerProcedure
       context.session.user.id,
     );
     if (!owner) throw errors.FORBIDDEN();
+    if (!(await hasPro(context.db, context.session.user.id))) {
+      throw errors.PLAN_REQUIRED();
+    }
     if (!secretsAvailable()) throw errors.PAYMENTS_UNAVAILABLE();
 
     const saved = await context.db.query.PaymentAccount.findFirst({

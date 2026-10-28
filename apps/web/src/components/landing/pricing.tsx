@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import {
-  billingStart,
   enterpriseContactUrl,
   enterpriseGoal,
   type Plan,
@@ -49,8 +48,8 @@ const perks: {
   {
     icon: GiftIcon,
     tone: "amber",
-    title: `«${paidPlan.name}» бесплатно до ${billingStart.label}`,
-    text: "Подключите онлайн-оплату без привязки карты — платить начнёте только с нового года.",
+    title: `${paidPlan.trialDays} дней «${paidPlan.name}» бесплатно`,
+    text: "Попробуйте онлайн-оплату без привязки карты. Без автосписаний — продлеваете сами, когда удобно.",
   },
 ];
 
@@ -80,25 +79,19 @@ function Price({ plan }: { plan: Plan }) {
     );
   }
 
-  const free = plan.freeUntilBilling;
-
   return (
     <div>
       <p className="flex items-baseline gap-1.5">
         <span className="text-4xl font-medium tracking-tight tabular-nums">
-          {rubles(free ? 0 : plan.monthly)}
+          {rubles(plan.monthly)}
         </span>
-        {free && (
-          <span className="text-muted-foreground text-lg tabular-nums line-through">
-            {rubles(plan.monthly)}
-          </span>
-        )}
         <span className="text-muted-foreground text-sm">в месяц</span>
       </p>
       <p className="text-muted-foreground mt-1.5 text-sm">
-        {free
-          ? `Бесплатно до ${billingStart.label}, затем ${rubles(plan.monthly)} в месяц`
+        {plan.yearly
+          ? `Или ${rubles(plan.yearly)} за год — два месяца в подарок`
           : "Оплата помесячно"}
+        {plan.trialDays && `. Первые ${plan.trialDays} дней бесплатно`}
       </p>
     </div>
   );
@@ -131,7 +124,9 @@ function PlanCta({ plan, signupUrl }: { plan: Plan; signupUrl: string }) {
       data-goal={signupGoal(plan.id)}
       className={className}
     >
-      {plan.id === "free" ? "Начать бесплатно" : "Подключить бесплатно"}
+      {plan.id === "free"
+        ? "Начать бесплатно"
+        : `Попробовать ${plan.trialDays ?? 14} дней`}
     </a>
   );
 }
@@ -144,14 +139,15 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
           Тарифы
         </Eyebrow>
         <SectionHeading>
-          Бесплатно для практики. «{paidPlan.name}» — тоже, до{" "}
-          {billingStart.label}
+          Бесплатно для практики. «{paidPlan.name}» — {rubles(paidPlan.monthly)}{" "}
+          в месяц
         </SectionHeading>
         <Lead className="mx-auto">
           Запись, расписание, пакеты и кабинет клиента — бесплатно и без
           ограничений. «{paidPlan.name}» нужен, чтобы клиенты оплачивали пакеты
-          сами через ЮKassa: до {billingStart.label} он бесплатный, затем{" "}
-          {rubles(paidPlan.monthly)} в месяц.
+          сами через ЮKassa: {rubles(paidPlan.monthly)} в месяц или{" "}
+          {rubles(paidPlan.yearly)} за год, первые {paidPlan.trialDays} дней
+          бесплатно.
         </Lead>
       </div>
 

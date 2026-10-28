@@ -16,6 +16,8 @@ import {
   Practice,
   PracticeInvitation,
   PracticeMember,
+  Subscription,
+  SubscriptionPayment,
   db as seedDb,
   user,
 } from "@synoro/db";
@@ -394,6 +396,29 @@ export async function seedDemoPractice(db: Database) {
     })
     .returning();
   if (!practice) throw new Error("Failed to insert practice");
+
+  // The specialist paid a year of «Про» when the trial ran out, so every
+  // paid feature is on. Kopecks: 1490 ₽ (PRO_PRICES.year).
+  const trialEnd = new Date(longAgo.getTime() + 14 * DAY_MS);
+  const paidUntil = new Date(trialEnd);
+  paidUntil.setFullYear(paidUntil.getFullYear() + 1);
+  await db.insert(Subscription).values({
+    userId: ownerId,
+    trialEndsAt: trialEnd,
+    paidUntil,
+    createdAt: longAgo,
+  });
+  await db.insert(SubscriptionPayment).values({
+    userId: ownerId,
+    period: "year",
+    amount: 1490_00,
+    status: "succeeded",
+    externalId: `demo-sub-${ownerId}`,
+    periodStart: trialEnd,
+    periodEnd: paidUntil,
+    paidAt: trialEnd,
+    createdAt: trialEnd,
+  });
 
   await db.insert(AvailabilityRule).values(
     RULES.map((r) => ({

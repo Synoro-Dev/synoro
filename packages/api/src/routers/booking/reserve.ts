@@ -7,7 +7,6 @@ import {
   gt,
   isExclusionViolation,
   isNotNull,
-  PaymentAccount,
   PaymentPackage,
 } from "@synoro/db";
 import { dispatchEmail } from "@synoro/jobs";
@@ -23,9 +22,9 @@ import {
   newGuestToken,
 } from "../../lib/guests";
 import {
-  canTakePayments,
   guestReturnUrl,
   ProviderError,
+  payableAccount,
   providerFailureMessage,
   startPayment,
 } from "../../lib/payments";
@@ -130,12 +129,7 @@ export const reserve = publicProcedure
     if (!practice) throw errors.NOT_FOUND();
 
     const [account, pkg] = await Promise.all([
-      context.db.query.PaymentAccount.findFirst({
-        where: and(
-          eq(PaymentAccount.practiceId, practice.id),
-          eq(PaymentAccount.active, true),
-        ),
-      }),
+      payableAccount(context.db, practice),
       context.db.query.PaymentPackage.findFirst({
         where: and(
           eq(PaymentPackage.id, input.packageId),
@@ -143,7 +137,7 @@ export const reserve = publicProcedure
         ),
       }),
     ]);
-    if (!account || !canTakePayments(account)) throw errors.PAYMENTS_DISABLED();
+    if (!account) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
     const rules = await loadRules(context.db, practice.id);

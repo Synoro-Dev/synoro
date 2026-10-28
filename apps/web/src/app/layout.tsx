@@ -5,13 +5,13 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { CookieNotice } from "~/components/cookie-notice";
 import { Metrika } from "~/components/metrika";
 import { env } from "~/env";
-import { billingStart } from "~/lib/pricing";
+import { paidPlan, rubles } from "~/lib/pricing";
 import { site } from "~/lib/site";
 
 import "~/app/styles.css";
 
 const title = `${site.name} — бесплатная онлайн-запись для частной практики`;
-const description = `${site.description} Бесплатно и без лимита записей, онлайн-оплата через ЮKassa — бесплатно до ${billingStart.label}.`;
+const description = `${site.description} Бесплатно и без лимита записей, онлайн-оплата через ЮKassa — от ${rubles(paidPlan.monthly)} в месяц, ${paidPlan.trialDays} дней бесплатно.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
