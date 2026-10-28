@@ -44,6 +44,14 @@ export const paths = {
     mine: "/bookings",
     /** Public booking page of a practice. */
     public: (slug: string) => `/p/${slug}` as const,
+    /**
+     * The specialist's photo on that page. Ends in `.jpg` so a practice's own
+     * host serves it as an asset (proxy.ts lets file-like paths through).
+     */
+    avatar: (slug: string) => `/p/${slug}/avatar.jpg` as const,
+    /** Upload (POST) and remove (DELETE) the photo; staff cabinet only. */
+    avatarUpload: (practiceId: string) =>
+      `/api/practices/${practiceId}/avatar` as const,
     /** A visitor's booking, opened by the secret in their link (no sign-in). */
     guest: (token: string) => `/b/${token}` as const,
     /** The same page on a practice's own host; proxy.ts rewrites `/` here. */

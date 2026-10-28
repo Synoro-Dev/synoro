@@ -27,6 +27,7 @@
         "@synoro/config": "workspace:*",
         "@synoro/db": "workspace:*",
         "@synoro/jobs": "workspace:*",
+        "@synoro/storage": "workspace:*",
         "@synoro/ui": "workspace:*",
         "@synoro/validators": "workspace:*",
         "@t3-oss/env-nextjs": "0.13.11",

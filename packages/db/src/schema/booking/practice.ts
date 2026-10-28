@@ -29,6 +29,11 @@ export const Practice = pgTable("practices", (t) => ({
   /** IANA zone the availability rules are written in. */
   timezone: t.text().notNull().default("Europe/Moscow"),
   profession: practiceProfession().notNull().default("other"),
+  /**
+   * Specialist's photo: the S3 key (`practices/<id>/avatar-<time>.jpg`), not a
+   * URL. Served at `/p/<slug>/avatar.jpg`; see `practiceImageUrl` in `@synoro/api`.
+   */
+  image: t.text(),
   ownerId: t
     .text()
     .notNull()

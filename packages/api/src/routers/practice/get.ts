@@ -4,7 +4,7 @@ import {
   findPractice,
   practiceProcedure,
 } from "../../lib/practice-access";
-import { publicBookingUrl } from "../../lib/urls";
+import { practiceImageUrl, publicBookingUrl } from "../../lib/urls";
 
 /**
  * A practice the caller belongs to, with their membership.
@@ -23,8 +23,10 @@ export const get = practiceProcedure
       member && (await findPractice(context.db, member.practiceId));
     if (!member || !practice) throw errors.FORBIDDEN();
 
+    const { image, ...info } = practice;
     return {
-      ...practice,
+      ...info,
+      imageUrl: practiceImageUrl(practice.slug, image),
       /** The main address of the booking page, for sharing. */
       bookingUrl: publicBookingUrl(practice.slug),
       membership: { id: member.id, role: member.role, credits: member.credits },
