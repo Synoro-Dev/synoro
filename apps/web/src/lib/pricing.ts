@@ -15,6 +15,8 @@ export type Plan = {
   description: string;
   /** Rubles a month; `null` — free. */
   monthly: number | null;
+  /** Intro price: `monthly` rubles a month for the first `months` months. */
+  promo?: { monthly: number; months: number };
   features: string[];
   featured?: boolean;
 };
@@ -39,6 +41,7 @@ export const plans: Plan[] = [
     name: "Про",
     description: "Когда клиенты готовы платить онлайн.",
     monthly: 290,
+    promo: { monthly: 149, months: 3 },
     features: [
       "Всё из бесплатного",
       "Оплата пакетов онлайн через ЮKassa",
@@ -71,7 +74,10 @@ function getPlan(id: PlanId) {
 }
 
 /** The plan for online payments: the upsell the landing mentions. */
-export const paidPlan = getPlan("pro") as Plan & { monthly: number };
+export const paidPlan = getPlan("pro") as Plan & {
+  monthly: number;
+  promo: { monthly: number; months: number };
+};
 
 export const rubles = (value: number) =>
   `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;

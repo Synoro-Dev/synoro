@@ -30,8 +30,8 @@ export function FinalCta({ links }: { links: SiteLinks }) {
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-zinc-400 sm:text-lg">
           Пять минут на настройку — и больше никаких «а есть окошко в четверг?».
-          А когда клиенты захотят платить онлайн, подключите ЮKassa за{" "}
-          {rubles(paidPlan.monthly)} в месяц.
+          А когда клиенты захотят платить онлайн, подключите ЮKassa от{" "}
+          {rubles(paidPlan.promo.monthly)} в месяц.
         </p>
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
           <a

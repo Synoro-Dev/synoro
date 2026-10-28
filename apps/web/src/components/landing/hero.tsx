@@ -87,7 +87,7 @@ export function Hero({ links }: { links: SiteLinks }) {
               href="#pricing"
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
-              ЮKassa — {rubles(paidPlan.monthly)}/мес
+              ЮKassa — от {rubles(paidPlan.promo.monthly)}/мес
             </a>
           </p>
         </div>
