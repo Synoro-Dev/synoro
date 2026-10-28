@@ -3,6 +3,9 @@
 import type { RouterOutputs } from "@synoro/api";
 import { paths } from "@synoro/config";
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Button,
   Calendar,
   Card,
@@ -183,15 +186,24 @@ export function PublicBooking({
   });
 
   return (
-    <main className="flex min-h-svh items-start justify-center bg-muted/40 px-4 py-8 md:items-center md:py-12 dark:bg-background">
-      <div className="flex w-full max-w-5xl flex-col gap-4">
-        <Card className="w-full gap-0 overflow-hidden p-0">
+    <main className="flex min-h-svh flex-col bg-muted/40 px-4 py-8 md:py-12 dark:bg-background">
+      <div className="flex flex-1 items-start justify-center md:items-center">
+        <Card className="w-full max-w-5xl gap-0 overflow-hidden p-0">
           <div className="grid md:grid-cols-[17rem_1fr] lg:grid-cols-[17rem_1fr_15rem]">
             {/* Practice */}
             <section className="flex flex-col gap-5 border-b p-6 md:border-r md:border-b-0">
-              <IconTile variant="soft" size="lg" aria-hidden="true">
-                {practice.name.charAt(0).toUpperCase()}
-              </IconTile>
+              {practice.imageUrl ? (
+                <Avatar className="size-16">
+                  <AvatarImage src={practice.imageUrl} alt={practice.name} />
+                  <AvatarFallback>
+                    {practice.name.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <IconTile variant="soft" size="lg" aria-hidden="true">
+                  {practice.name.charAt(0).toUpperCase()}
+                </IconTile>
+              )}
               <div className="flex flex-col gap-1">
                 <span className="text-sm text-muted-foreground">
                   {practice.name}
@@ -516,8 +528,8 @@ export function PublicBooking({
             )}
           </div>
         </Card>
-        <LegalFooter />
       </div>
+      <LegalFooter className="pt-8" />
       {canPay && (
         <TopUpDialog
           practice={{

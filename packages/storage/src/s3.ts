@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -78,6 +79,31 @@ export async function uploadBufferToS3(
       `Failed to upload to S3 bucket '${BUCKET_NAME}' key '${key}': ${e?.message ?? String(err)}`,
     );
   }
+}
+
+/** The object's bytes and type, or `null` when the key does not exist. */
+export async function getObjectFromS3(
+  key: string,
+): Promise<{ body: Uint8Array; contentType: string } | null> {
+  try {
+    const res = await s3Client.send(
+      new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key }),
+    );
+    if (!res.Body) return null;
+    return {
+      body: await res.Body.transformToByteArray(),
+      contentType: res.ContentType ?? "application/octet-stream",
+    };
+  } catch (err) {
+    if ((err as { name?: string }).name === "NoSuchKey") return null;
+    throw err;
+  }
+}
+
+export async function deleteObjectFromS3(key: string): Promise<void> {
+  await s3Client.send(
+    new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }),
+  );
 }
 
 export async function getDownloadUrl(key: string): Promise<string> {

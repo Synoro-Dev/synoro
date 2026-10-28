@@ -8,6 +8,7 @@ import {
 } from "@synoro/db";
 
 import { protectedProcedure } from "../orpc";
+import { practiceImageUrl } from "./urls";
 
 /**
  * Signed-in procedure for practice-scoped calls. Handlers check membership
@@ -73,6 +74,7 @@ export async function publicPractice(
       slug: true,
       timezone: true,
       profession: true,
+      image: true,
     },
   });
   if (!practice) return undefined;
@@ -82,8 +84,10 @@ export async function publicPractice(
     ? await findMembership(context.db, practice.id, userId)
     : undefined;
 
+  const { image, ...info } = practice;
   return {
-    ...practice,
+    ...info,
+    imageUrl: practiceImageUrl(practice.slug, image),
     membership: member
       ? { id: member.id, role: member.role, credits: member.credits }
       : null,

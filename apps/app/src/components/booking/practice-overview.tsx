@@ -1,6 +1,7 @@
 "use client";
 
 import { paths } from "@synoro/config";
+import type { MemberRole } from "@synoro/db";
 import { Button, Input, Skeleton, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
@@ -35,6 +36,7 @@ import {
   kindLabel,
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
+import { PracticeAvatar } from "./practice-avatar";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
@@ -83,7 +85,14 @@ function DateChip({ at }: { at: Date }) {
 export function PracticeOverview({
   practice,
 }: {
-  practice: { id: string; bookingUrl: string; timezone: string };
+  practice: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    bookingUrl: string;
+    timezone: string;
+    membership: { role: MemberRole };
+  };
 }) {
   const terms = useTerms();
   const from = dateKey(new Date(), practice.timezone);
@@ -256,6 +265,13 @@ export function PracticeOverview({
                 Записаться можно без регистрации — отправьте ссылку клиентам
               </FrameDescription>
             </FrameHeader>
+            {practice.membership.role === "owner" && (
+              <PracticeAvatar
+                practiceId={practice.id}
+                name={practice.name}
+                imageUrl={practice.imageUrl}
+              />
+            )}
             <div className="flex gap-2">
               <Input
                 readOnly
