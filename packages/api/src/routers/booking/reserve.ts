@@ -22,10 +22,10 @@ import {
   newGuestToken,
 } from "../../lib/guests";
 import {
+  canTakePayments,
   guestReturnUrl,
   ProviderError,
   providerFailureMessage,
-  secretsAvailable,
   startPayment,
 } from "../../lib/payments";
 import { findPractice } from "../../lib/practice-access";
@@ -142,7 +142,7 @@ export const reserve = publicProcedure
         ),
       }),
     ]);
-    if (!account || !secretsAvailable()) throw errors.PAYMENTS_DISABLED();
+    if (!account || !canTakePayments(account)) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
     const rules = await loadRules(context.db, practice.id);

@@ -76,7 +76,8 @@ it("wipes everything and seeds the demo practice again", async () => {
       expect(await main(db, target)).toBe(0);
 
       const users = await db.query.user.findMany();
-      expect(users).toHaveLength(7);
+      // Owner, administrator, ten clients and two visitors.
+      expect(users).toHaveLength(14);
       expect(users.every((u) => u.email.endsWith("@example.com"))).toBe(true);
       expect(await db.query.session.findMany()).toHaveLength(0);
       const practices = await db.query.Practice.findMany();
@@ -86,7 +87,8 @@ it("wipes everything and seeds the demo practice again", async () => {
           where: eq(Practice.slug, "klyuev"),
         }),
       ).toBeDefined();
-      expect((await db.query.Booking.findMany()).length).toBeGreaterThan(10);
+      expect((await db.query.Booking.findMany()).length).toBeGreaterThan(50);
+      expect((await db.query.Payment.findMany()).length).toBeGreaterThan(15);
     }
   } finally {
     output.mockRestore();

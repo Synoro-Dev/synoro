@@ -1,19 +1,20 @@
 import type { BetterAuthPlugin } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
+import { z } from "zod";
 
+import { DEMO_ACCOUNT_EMAILS, DEMO_DOMAIN } from "./demo-accounts";
 import { hasAdminRole, isAdminEmail } from "./roles";
-
-/** The seed creates every demo account on this domain. */
-const DEMO_DOMAIN = "@example.com";
 
 /**
  * Passwordless sign-in for the demo stand: `auth.api.signInDemo()` opens a
- * session for `email`, the seeded demo account.
+ * session for `options.email`, the seeded demo account, or — with `body.email`
+ * — for another of the seeded demo accounts (`DEMO_ACCOUNTS`), so a visitor
+ * can look at the cabinet from every role.
  *
  * Server-only (`SERVER_ONLY`): not routed over HTTP, only the app's own
- * `/auth/demo` handler can call it. Without `email` it is a 404, and it
- * refuses anything but a plain `@example.com` account, so a stray
+ * `/auth/demo` handler can call it. Without `options.email` it is a 404, and
+ * it refuses anything but plain `@example.com` accounts, so a stray
  * `DEMO_LOGIN_EMAIL` on a real deployment can't open a real or admin account.
  */
 export const demoLogin = (options: { email?: string }) =>
@@ -22,10 +23,20 @@ export const demoLogin = (options: { email?: string }) =>
     endpoints: {
       signInDemo: createAuthEndpoint(
         "/sign-in/demo",
-        { method: "POST", metadata: { SERVER_ONLY: true } },
+        {
+          method: "POST",
+          metadata: { SERVER_ONLY: true },
+          body: z.object({ email: z.string().optional() }).optional(),
+        },
         async (ctx) => {
-          const email = options.email?.trim().toLowerCase();
-          if (!email?.endsWith(DEMO_DOMAIN)) throw new APIError("NOT_FOUND");
+          const fallback = options.email?.trim().toLowerCase();
+          if (!fallback?.endsWith(DEMO_DOMAIN)) throw new APIError("NOT_FOUND");
+
+          const requested = ctx.body?.email?.trim().toLowerCase();
+          if (requested && !DEMO_ACCOUNT_EMAILS.has(requested)) {
+            throw new APIError("NOT_FOUND");
+          }
+          const email = requested ?? fallback;
 
           const found =
             await ctx.context.internalAdapter.findUserByEmail(email);

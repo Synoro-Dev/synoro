@@ -15,7 +15,7 @@ import {
 } from "@synoro/db";
 import { formatCredits, professionTerms } from "@synoro/validators";
 import { exportBooking } from "../google-calendar";
-import { decryptSecret } from "../secrets";
+import { decryptSecret, secretsAvailable } from "../secrets";
 import { guestBookingUrl } from "../urls";
 import { tbank, tbankStatus, verifyTbankToken } from "./tbank";
 import { type PaymentGateway, ProviderError } from "./types";
@@ -50,6 +50,26 @@ export function returnUrl(paymentId: string) {
   const url = new URL(paths.booking.mine, env.APP_URL);
   url.searchParams.set("payment", paymentId);
   return url.href;
+}
+
+/**
+ * A demo shop of the demo stand (DEMO_LOGIN_EMAIL, seeded with a `demo-`
+ * merchant id): it has no real keys and no provider behind it, so a payment
+ * is "paid" the moment it is started. Never true on a real deployment.
+ */
+function isDemoAccount(account: Pick<AccountRow, "test" | "merchantId">) {
+  return (
+    !!env.DEMO_LOGIN_EMAIL &&
+    account.test &&
+    account.merchantId.startsWith("demo-")
+  );
+}
+
+/** Payments work: the secrets can be decrypted, or it is a demo shop. */
+export function canTakePayments(
+  account: Pick<AccountRow, "test" | "merchantId">,
+) {
+  return isDemoAccount(account) || secretsAvailable();
 }
 
 export function credentialsOf(account: AccountRow) {
@@ -93,6 +113,19 @@ export async function startPayment(
     })
     .returning();
   if (!payment) throw new Error("Failed to insert payment");
+
+  if (isDemoAccount(account)) {
+    await db
+      .update(Payment)
+      .set({ externalId: `demo-${payment.id}` })
+      .where(eq(Payment.id, payment.id));
+    await settlePayment(db, payment.id, "succeeded");
+    // No provider page: straight back to where the client came from.
+    return {
+      paymentId: payment.id,
+      confirmationUrl: input.returnUrl(payment.id),
+    };
+  }
 
   const terms = professionTerms(practice.profession);
   const item = `${formatCredits(pkg.credits, terms)} — ${practice.name}`;

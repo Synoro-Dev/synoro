@@ -1,4 +1,5 @@
-import { paths } from "@synoro/config";
+import { DEMO_ACCOUNTS } from "@synoro/auth/demo";
+import { env, paths } from "@synoro/config";
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +45,14 @@ async function SessionSidebar() {
         avatar: session.user.image || "",
       }}
       practices={practices}
+      demoAccounts={
+        env.DEMO_LOGIN_EMAIL
+          ? Object.entries(DEMO_ACCOUNTS).map(([key, account]) => ({
+              key,
+              ...account,
+            }))
+          : undefined
+      }
     />
   );
 }
