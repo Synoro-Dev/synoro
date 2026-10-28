@@ -3,6 +3,7 @@
 import { paths } from "@synoro/config";
 import { Button, Spinner } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { formatCredits, professionTerms } from "@synoro/validators";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarPlusIcon,
@@ -15,7 +16,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 import { orpc } from "~/orpc/react";
-import { consultations } from "./format";
 
 /** ~2 minutes of checks, then the webhook takes it from there. */
 const MAX_CHECKS = 48;
@@ -96,16 +96,19 @@ export function PaymentReturn({
   }
 
   const { data } = payment;
+  const terms = professionTerms(data.profession);
   if (data.status === "succeeded") {
     return (
       <Alert variant="success" className="relative pr-12">
         <CircleCheckIcon />
-        <AlertTitle>Оплата прошла: +{consultations(data.credits)}</AlertTitle>
+        <AlertTitle>
+          Оплата прошла: +{formatCredits(data.credits, terms)}
+        </AlertTitle>
         <AlertDescription className="flex flex-col items-start gap-2">
           <span>
             {data.practiceName}
             {data.balance !== null &&
-              ` · на балансе ${consultations(data.balance)}`}
+              ` · на балансе ${formatCredits(data.balance, terms)}`}
           </span>
           <Button
             size="sm"

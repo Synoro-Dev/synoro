@@ -89,7 +89,7 @@ export async function Footer({ links }: { links: SiteLinks }) {
         <div className="flex flex-col gap-4">
           <Logo />
           <p className="text-muted-foreground max-w-xs text-sm">
-            Онлайн-запись, расписание и пакеты консультаций для частной
+            Онлайн-запись, расписание и пакеты с предоплатой для частной
             практики.
           </p>
         </div>

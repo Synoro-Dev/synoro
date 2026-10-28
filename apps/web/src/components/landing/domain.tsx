@@ -13,7 +13,7 @@ const stages = [
   { label: "Поддомен платформы", host: `anna.${brand.rootDomain}` },
   {
     label: "Ваш собственный домен",
-    host: "zapis.anna-psy.ru",
+    host: "zapis.anna-ivanova.ru",
     highlight: true,
   },
 ];
@@ -35,7 +35,9 @@ function DnsPanel() {
           <GlobeIcon className="size-4 text-zinc-300" />
         </span>
         <div className="flex-1">
-          <p className="text-sm font-medium text-white">zapis.anna-psy.ru</p>
+          <p className="text-sm font-medium text-white">
+            zapis.anna-ivanova.ru
+          </p>
           <p className="text-xs text-zinc-400">Добавлен 2 минуты назад</p>
         </div>
         <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20">

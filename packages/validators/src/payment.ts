@@ -56,7 +56,7 @@ export const paymentPackagesFormSchema = z.object({
     .refine(
       (packages) =>
         new Set(packages.map((p) => p.credits)).size === packages.length,
-      "Два пакета с одинаковым числом консультаций",
+      "Два пакета одного размера",
     ),
 });
 

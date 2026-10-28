@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { PracticeClients } from "~/components/booking/practice-clients";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
+import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
 
 export default function PracticeClientsPage({
@@ -21,7 +22,7 @@ async function Clients({
 }: Pick<PageProps<"/practices/[practiceId]/clients">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <>
+    <TermsProvider profession={practice.profession}>
       <SiteHeader
         title="Клиенты"
         parent={{
@@ -35,6 +36,6 @@ async function Clients({
           isOwner={practice.membership.role === "owner"}
         />
       </main>
-    </>
+    </TermsProvider>
   );
 }

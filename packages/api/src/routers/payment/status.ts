@@ -30,7 +30,7 @@ export const status = protectedProcedure
     const [practice, member] = await Promise.all([
       context.db.query.Practice.findFirst({
         where: eq(Practice.id, payment.practiceId),
-        columns: { name: true, slug: true },
+        columns: { name: true, slug: true, profession: true },
       }),
       payment.memberId
         ? context.db.query.PracticeMember.findFirst({
@@ -49,6 +49,7 @@ export const status = protectedProcedure
       practiceId: payment.practiceId,
       practiceName: practice?.name ?? "",
       practiceSlug: practice?.slug ?? "",
+      profession: practice?.profession ?? "other",
       balance: member?.credits ?? null,
     };
   });

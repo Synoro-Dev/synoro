@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { PracticeDomain } from "~/components/booking/practice-domain";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
+import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
 
 export default function PracticeDomainPage({
@@ -21,7 +22,7 @@ async function Domain({
 }: Pick<PageProps<"/practices/[practiceId]/domain">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <>
+    <TermsProvider profession={practice.profession}>
       <SiteHeader
         title="Домен"
         parent={{
@@ -36,6 +37,6 @@ async function Domain({
           isOwner={practice.membership.role === "owner"}
         />
       </main>
-    </>
+    </TermsProvider>
   );
 }

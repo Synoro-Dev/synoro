@@ -18,7 +18,7 @@ export const grant = practiceProcedure
   .errors({
     NOT_FOUND: { message: "Клиент не найден" },
     NEGATIVE_BALANCE: {
-      message: "Нельзя списать больше консультаций, чем есть на балансе",
+      message: "Нельзя списать больше, чем есть на балансе",
     },
   })
   .input(

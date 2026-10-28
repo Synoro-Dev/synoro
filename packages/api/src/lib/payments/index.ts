@@ -50,19 +50,6 @@ export function credentialsOf(account: AccountRow) {
   };
 }
 
-/** «1 консультация», «3 консультации», «5 консультаций». */
-export function consultations(count: number) {
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  const word =
-    mod10 === 1 && mod100 !== 11
-      ? "консультация"
-      : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
-        ? "консультации"
-        : "консультаций";
-  return `${count} ${word}`;
-}
-
 /**
  * Move a pending payment to its final status. Success marks it paid, adds
  * the credits and writes the history entry in ONE statement, so it happens

@@ -15,7 +15,7 @@ import { ownerProcedure } from "./owner";
  * `pending` with a fresh token and serves the page only after `verify`
  * finds the TXT record — so nobody can claim a domain they don't control.
  *
- * @example client.domain.connect({ practiceId, hostname: "anna-psy.ru" })
+ * @example client.domain.connect({ practiceId, hostname: "anna-ivanova.ru" })
  */
 export const connect = ownerProcedure
   .errors({

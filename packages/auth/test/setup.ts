@@ -5,4 +5,5 @@
  */
 process.env.POSTGRES_URL = "postgres://test:test@localhost:5432/test";
 process.env.ADMIN_EMAILS = "admin@test.local";
-process.env.LOG_LEVEL = "warn";
+// Expected failures (rejected origins, payments) would otherwise log.
+process.env.LOG_LEVEL = "silent";

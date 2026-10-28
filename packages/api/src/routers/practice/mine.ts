@@ -4,7 +4,7 @@ import { protectedProcedure } from "../../orpc";
 
 /**
  * Practices the caller belongs to — as owner, administrator or client —
- * with their role and consultation balance.
+ * with their role and credit balance.
  *
  * @example client.practice.mine()
  */
@@ -15,6 +15,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       name: Practice.name,
       slug: Practice.slug,
       timezone: Practice.timezone,
+      profession: Practice.profession,
       memberId: PracticeMember.id,
       role: PracticeMember.role,
       credits: PracticeMember.credits,

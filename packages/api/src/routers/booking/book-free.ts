@@ -1,5 +1,5 @@
 import { Booking, isExclusionViolation } from "@synoro/db";
-import { freeConsultationFormSchema } from "@synoro/validators";
+import { freeBookingFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { loadRules } from "../../lib/bookings";
@@ -23,7 +23,7 @@ export const bookFree = practiceProcedure
     },
   })
   .input(
-    freeConsultationFormSchema.extend({
+    freeBookingFormSchema.extend({
       practiceId: z.uuid(),
       startsAt: z.date(),
     }),

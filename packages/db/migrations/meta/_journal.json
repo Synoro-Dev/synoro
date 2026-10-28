@@ -36,6 +36,13 @@
       "when": 1793101613042,
       "tag": "0004_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793131734983,
+      "tag": "0005_practice_profession",
+      "breakpoints": true
     }
   ]
 }

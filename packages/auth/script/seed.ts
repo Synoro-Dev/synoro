@@ -217,6 +217,7 @@ export async function seedDemoPractice(db: Database) {
       name: "Андрей Клюев — психолог",
       slug: "klyuev",
       timezone: TIME_ZONE,
+      profession: "psychologist",
       ownerId,
       createdAt: longAgo,
     })
@@ -386,7 +387,7 @@ export async function main(
       target.VERCEL_ENV !== "production" &&
       ["postgres:", "postgresql:"].includes(url.protocol) &&
       ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
-      ["/acme", "/acme_test", "/test"].includes(url.pathname) &&
+      ["/synoro-demo", "/acme_test", "/test"].includes(url.pathname) &&
       !url.search &&
       !url.hash;
   } catch {

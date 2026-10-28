@@ -67,7 +67,13 @@ export async function publicPractice(
 ) {
   const practice = await context.db.query.Practice.findFirst({
     where: eq(Practice.id, practiceId),
-    columns: { id: true, name: true, slug: true, timezone: true },
+    columns: {
+      id: true,
+      name: true,
+      slug: true,
+      timezone: true,
+      profession: true,
+    },
   });
   if (!practice) return undefined;
 

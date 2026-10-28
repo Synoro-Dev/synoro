@@ -3,6 +3,7 @@ import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
 import { loadStaffPractice } from "~/components/booking/staff-practice";
+import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
 import { PracticePayments } from "~/components/payment/practice-payments";
 
@@ -21,7 +22,7 @@ async function Payments({
 }: Pick<PageProps<"/practices/[practiceId]/payments">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <>
+    <TermsProvider profession={practice.profession}>
       <SiteHeader
         title="Оплата"
         parent={{
@@ -35,6 +36,6 @@ async function Payments({
           isOwner={practice.membership.role === "owner"}
         />
       </main>
-    </>
+    </TermsProvider>
   );
 }

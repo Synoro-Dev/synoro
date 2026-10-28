@@ -7,10 +7,10 @@ import {
   PaymentPackage,
   PracticeMember,
 } from "@synoro/db";
+import { formatCredits, professionTerms } from "@synoro/validators";
 import { z } from "zod";
 
 import {
-  consultations,
   credentialsOf,
   gateways,
   notificationUrl,
@@ -25,7 +25,7 @@ import {
 } from "../../lib/practice-access";
 
 /**
- * Start paying for a package of consultations. The caller becomes a client
+ * Start paying for a package of credits. The caller becomes a client
  * of the practice if they weren't one yet. Returns the provider's payment
  * page to redirect to; afterwards the client lands on their cabinet, which
  * checks the payment (`payment.status`) — the webhook settles it too.
@@ -87,7 +87,8 @@ export const checkout = practiceProcedure
       .returning();
     if (!payment) throw new Error("Failed to insert payment");
 
-    const item = `${consultations(pkg.credits)} — ${practice.name}`;
+    const terms = professionTerms(practice.profession);
+    const item = `${formatCredits(pkg.credits, terms)} — ${practice.name}`;
     let remote: Awaited<ReturnType<(typeof gateways)["yookassa"]["create"]>>;
     try {
       remote = await gateways[account.provider].create(credentialsOf(account), {
@@ -99,7 +100,7 @@ export const checkout = practiceProcedure
         email: user.email,
         receipt: account.receipts
           ? {
-              itemName: `Психологическая консультация: ${item}`,
+              itemName: `Пакет: ${item}`,
               taxSystem: account.taxSystem,
             }
           : undefined,

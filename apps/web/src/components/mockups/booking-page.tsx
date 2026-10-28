@@ -45,7 +45,7 @@ function BrowserChrome({ children }: { children: React.ReactNode }) {
         </div>
         <div className="bg-background text-muted-foreground mx-auto flex h-6 w-full max-w-64 items-center justify-center gap-1.5 rounded-md border text-xs">
           <LockIcon className="size-3" />
-          zapis.anna-psy.ru
+          zapis.anna-ivanova.ru
         </div>
         <div className="w-10" />
       </div>
@@ -64,7 +64,7 @@ function Profile() {
       <div>
         <p className="text-muted-foreground text-xs">Анна Смирнова</p>
         <p className="mt-1 text-lg leading-tight font-medium">
-          Индивидуальная консультация
+          Индивидуальное занятие
         </p>
       </div>
       <ul className="text-muted-foreground flex flex-col gap-2.5 text-sm">
@@ -192,7 +192,7 @@ export function BookingPageMockup() {
           <div className="text-sm">
             <p className="font-medium">Запись подтверждена</p>
             <p className="text-muted-foreground mt-0.5 text-xs">
-              Чт, 12 нояб, 13:00 · списана 1 консультация из пакета
+              Чт, 12 нояб, 13:00 · списано 1 занятие из пакета
             </p>
           </div>
         </div>

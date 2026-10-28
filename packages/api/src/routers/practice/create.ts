@@ -10,7 +10,7 @@ import { protectedProcedure } from "../../orpc";
  *
  * Throws CONFLICT (with `data.field`) when the public address is taken.
  *
- * @example client.practice.create({ name: "Анна, психолог", slug: "anna" })
+ * @example client.practice.create({ name: "Анна Иванова", slug: "anna", profession: "tutor" })
  */
 export const create = protectedProcedure
   .errors({
@@ -27,7 +27,12 @@ export const create = protectedProcedure
     try {
       [practice] = await context.db
         .insert(Practice)
-        .values({ name: input.name, slug: input.slug, ownerId })
+        .values({
+          name: input.name,
+          slug: input.slug,
+          profession: input.profession,
+          ownerId,
+        })
         .returning();
     } catch (error) {
       if (isUniqueViolation(error, "practices_slug_unique")) {

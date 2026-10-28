@@ -65,7 +65,7 @@ beforeAll(async () => {
   owner = await createSession(api.db, { name: "Анна" });
   const practice = await call(
     practiceRouter.create,
-    { name: "Анна, психолог", slug: "anna" },
+    { name: "Анна Иванова", slug: "anna", profession: "psychologist" },
     { context: api.context(owner) },
   );
   practiceId = practice.id;
@@ -85,7 +85,7 @@ describe("practice", () => {
   it("rejects a taken slug with a typed CONFLICT", async () => {
     const error = await call(
       practiceRouter.create,
-      { name: "Другая", slug: "anna" },
+      { name: "Другая", slug: "anna", profession: "other" },
       { context: api.context(owner) },
     ).catch((e) => e);
 
@@ -724,7 +724,7 @@ describe("credit.grant", () => {
     const otherOwner = await createSession(api.db);
     const other = await call(
       practiceRouter.create,
-      { name: "Другая практика", slug: "other" },
+      { name: "Другая практика", slug: "other", profession: "other" },
       { context: api.context(otherOwner) },
     );
     await expect(
