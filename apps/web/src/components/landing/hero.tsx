@@ -2,7 +2,7 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon, PlayIcon } from "lucide-react";
 
 import { BookingPageMockup } from "~/components/mockups/booking-page";
-import { billingStart, signupGoal } from "~/lib/pricing";
+import { paidPlan, signupGoal } from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Container } from "./primitives";
@@ -87,7 +87,7 @@ export function Hero({ links }: { links: SiteLinks }) {
               href="#pricing"
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
-              ЮKassa — бесплатно до {billingStart.label}
+              ЮKassa — {paidPlan.trialDays} дней бесплатно
             </a>
           </p>
         </div>

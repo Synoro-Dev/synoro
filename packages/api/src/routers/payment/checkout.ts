@@ -1,16 +1,10 @@
 import { logger } from "@synoro/config";
-import {
-  and,
-  eq,
-  PaymentAccount,
-  PaymentPackage,
-  PracticeMember,
-} from "@synoro/db";
+import { and, eq, PaymentPackage, PracticeMember } from "@synoro/db";
 import { z } from "zod";
 
 import {
-  canTakePayments,
   ProviderError,
+  payableAccount,
   providerFailureMessage,
   returnUrl,
   startPayment,
@@ -54,12 +48,7 @@ export const checkout = practiceProcedure
     if (member?.role !== "client") throw errors.FORBIDDEN();
 
     const [account, pkg] = await Promise.all([
-      context.db.query.PaymentAccount.findFirst({
-        where: and(
-          eq(PaymentAccount.practiceId, practice.id),
-          eq(PaymentAccount.active, true),
-        ),
-      }),
+      payableAccount(context.db, practice),
       context.db.query.PaymentPackage.findFirst({
         where: and(
           eq(PaymentPackage.id, input.packageId),
@@ -67,7 +56,7 @@ export const checkout = practiceProcedure
         ),
       }),
     ]);
-    if (!account || !canTakePayments(account)) throw errors.PAYMENTS_DISABLED();
+    if (!account) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
     try {

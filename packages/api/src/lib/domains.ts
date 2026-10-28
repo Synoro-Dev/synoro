@@ -4,6 +4,7 @@ import { env } from "@synoro/config";
 import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
 import { RESERVED_SLUGS } from "@synoro/validators";
 
+import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
 
 type DomainRow = typeof PracticeDomain.$inferSelect;
@@ -161,7 +162,7 @@ export async function domainSettings(db: Database, practiceId: string) {
   const [practice, row] = await Promise.all([
     db.query.Practice.findFirst({
       where: eq(Practice.id, practiceId),
-      columns: { slug: true },
+      columns: { slug: true, ownerId: true },
     }),
     db.query.PracticeDomain.findFirst({
       where: eq(PracticeDomain.practiceId, practiceId),
@@ -170,6 +171,8 @@ export async function domainSettings(db: Database, practiceId: string) {
   const targets = dnsTargets();
 
   return {
+    /** Connecting an own domain is «Про». */
+    pro: practice ? await hasPro(db, practice.ownerId) : false,
     bookingUrl: practice ? publicBookingUrl(practice.slug) : null,
     platformUrl: practice ? platformUrl(practice.slug) : null,
     targetsConfigured: !!(targets.cname || targets.ip),

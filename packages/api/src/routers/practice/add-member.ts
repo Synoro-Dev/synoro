@@ -2,6 +2,7 @@ import { PracticeInvitation, sql } from "@synoro/db";
 import { memberInviteFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
+import { hasPro } from "../../lib/billing";
 import {
   findStaffMembership,
   practiceProcedure,
@@ -10,11 +11,16 @@ import {
 /**
  * Invite by email without looking up or disclosing the recipient's account.
  * Membership (including promotion to administrator) requires acceptance.
- * Only the owner may invite administrators.
+ * Only the owner may invite administrators, and only on «Про».
  *
  * @example client.practice.addMember({ practiceId, email, role: "client" })
  */
 export const addMember = practiceProcedure
+  .errors({
+    PLAN_REQUIRED: {
+      message: "Доступно на тарифе «Про» — оплатите его в настройках",
+    },
+  })
   .input(memberInviteFormSchema.extend({ practiceId: z.uuid() }))
   .handler(async ({ context, input, errors }) => {
     const staff = await findStaffMembership(
@@ -26,6 +32,11 @@ export const addMember = practiceProcedure
     if (input.role === "admin" && staff.role !== "owner") {
       throw errors.FORBIDDEN({
         message: "Назначать администраторов может только владелец",
+      });
+    }
+    if (input.role === "admin" && !(await hasPro(context.db, staff.userId))) {
+      throw errors.PLAN_REQUIRED({
+        message: "Администраторы доступны на тарифе «Про»",
       });
     }
 

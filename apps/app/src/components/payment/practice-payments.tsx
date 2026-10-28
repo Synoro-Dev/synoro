@@ -29,6 +29,7 @@ import { CopyIcon, CreditCardIcon, ReceiptIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ProRequired } from "../billing/pro-required";
 import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
 import { useTerms } from "../booking/terms";
@@ -214,6 +215,8 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
             шифруются ключи магазинов.
           </AlertDescription>
         </Alert>
+      ) : !settings.data.pro ? (
+        <ProRequired feature="Онлайн-оплата" />
       ) : settings.data.account && !editing ? (
         <ConnectedAccount
           practiceId={practiceId}

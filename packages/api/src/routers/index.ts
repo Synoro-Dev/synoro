@@ -21,6 +21,8 @@
  *   booking.*       – slots, book, free consults, blocks, cancel, calendar
  *   credit.*        – paid consultation balance + history      (staff grant)
  *   domain.*        – own domain for the booking page          (owner)
+ *   billing.*       – the specialist's «Про» plan: trial, paid period,
+ *                     payment via Точка Банк              (protected)
  *   payment.*       – ЮKassa / Т-Банк: setup (owner), packages, client
  *                     checkout + status, payment history (client / staff)
  *   googleCalendar.* – link the specialist's Google Calendar (owner), its
@@ -29,6 +31,7 @@
 
 import { adminRouter } from "./admin";
 import { availabilityRouter } from "./availability";
+import { billingRouter } from "./billing";
 import { bookingRouter } from "./booking";
 import { creditRouter } from "./credit";
 import { domainRouter } from "./domain";
@@ -48,6 +51,7 @@ export const appRouter = {
   credit: creditRouter,
   domain: domainRouter,
   payment: paymentRouter,
+  billing: billingRouter,
   googleCalendar: googleCalendarRouter,
 };
 

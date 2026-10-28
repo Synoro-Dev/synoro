@@ -41,6 +41,7 @@ import {
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ProRequired } from "../billing/pro-required";
 import { ConfirmButton } from "./confirm-button";
 import { ErrorState } from "./states";
 
@@ -207,7 +208,7 @@ export function PracticeDomain({
     );
   }
 
-  const { domain, targetsConfigured } = settings.data;
+  const { domain, targetsConfigured, pro } = settings.data;
   const routing = domain?.records.filter((r) => r.purpose === "routing") ?? [];
 
   return (
@@ -224,7 +225,9 @@ export function PracticeDomain({
             </FrameDescription>
           </FrameHeader>
 
-          {!domain ? (
+          {!domain && !pro ? (
+            <ProRequired feature="Свой домен" />
+          ) : !domain ? (
             <form onSubmit={submit} className="flex flex-col gap-3">
               <Field data-invalid={!!inputError}>
                 <FieldLabel htmlFor="domain-hostname">Домен</FieldLabel>

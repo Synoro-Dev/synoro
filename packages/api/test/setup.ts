@@ -21,3 +21,7 @@ process.env.DEMO_LOGIN_EMAIL = "klyuev@example.com";
 // Google Calendar is "configured"; tests stub fetch for its endpoints.
 process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
+// «Про» billing through Точка is "configured"; tests stub fetch for it.
+process.env.TOCHKA_API_TOKEN = "test-tochka-jwt";
+process.env.TOCHKA_CUSTOMER_CODE = "300000001";
+process.env.TOCHKA_API_URL = "https://tochka.test/uapi";

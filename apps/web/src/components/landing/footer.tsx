@@ -3,7 +3,7 @@ import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
-import { billingStart, signupGoal } from "~/lib/pricing";
+import { paidPlan, signupGoal } from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Logo } from "./logo";
@@ -31,8 +31,8 @@ export function FinalCta({ links }: { links: SiteLinks }) {
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-zinc-400 sm:text-lg">
           Пять минут на настройку — и больше никаких «а есть окошко в четверг?».
-          А когда клиенты захотят платить онлайн, подключите ЮKassa — «Про»
-          бесплатно до {billingStart.label}.
+          А когда клиенты захотят платить онлайн, подключите ЮKassa — первые{" "}
+          {paidPlan.trialDays} дней «Про» бесплатно.
         </p>
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
           <a

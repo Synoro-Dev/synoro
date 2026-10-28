@@ -1,7 +1,7 @@
 import { and, eq, isUniqueViolation, lte, PracticeDomain } from "@synoro/db";
 import { customDomainFormSchema } from "@synoro/validators";
 import { z } from "zod";
-
+import { hasPro } from "../../lib/billing";
 import {
   DOMAIN_RESERVATION_MS,
   domainSettings,
@@ -11,7 +11,7 @@ import { findOwnerMembership } from "../../lib/practice-access";
 import { ownerProcedure } from "./owner";
 
 /**
- * Connect the owner's domain (or replace the connected one). It starts
+ * Connect the owner's domain (or replace the connected one) — «Про» only. It starts
  * `pending` with a fresh token and serves the page only after `verify`
  * finds the TXT record — so nobody can claim a domain they don't control.
  *
@@ -19,6 +19,9 @@ import { ownerProcedure } from "./owner";
  */
 export const connect = ownerProcedure
   .errors({
+    PLAN_REQUIRED: {
+      message: "Доступно на тарифе «Про» — оплатите его в настройках",
+    },
     CONFLICT: { message: "Этот домен уже подключён к другой странице" },
     PLATFORM_DOMAIN: { message: "Это адрес платформы — укажите свой домен" },
   })
@@ -30,6 +33,9 @@ export const connect = ownerProcedure
       context.session.user.id,
     );
     if (!owner) throw errors.FORBIDDEN();
+    if (!(await hasPro(context.db, context.session.user.id))) {
+      throw errors.PLAN_REQUIRED();
+    }
     if (isPlatformHost(input.hostname)) throw errors.PLATFORM_DOMAIN();
 
     const now = new Date();

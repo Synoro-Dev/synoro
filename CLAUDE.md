@@ -144,6 +144,11 @@ and run `tsc` by hand, build them first.
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
+- **«Про» billing** (`docs/billing.md`): 149 ₽/month or 1490 ₽/year, a
+  14-day trial from the first practice (`subscriptions`). Specialists pay
+  Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
+  features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
+  `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes
