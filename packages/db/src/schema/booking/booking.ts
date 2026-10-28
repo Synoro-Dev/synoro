@@ -46,6 +46,14 @@ export const Booking = pgTable(
     /** Any other way to reach the guest: Telegram, email. */
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
+    /**
+     * Video room of this booking only; falls back to `practices.video_url`.
+     * Shown to the client once the booking is confirmed.
+     */
+    meetingUrl: t.text(),
+    /** When the 24-hour / 1-hour reminders with the link went out. */
+    reminderDaySentAt: t.timestamp({ withTimezone: true }),
+    reminderHourSentAt: t.timestamp({ withTimezone: true }),
     /** The event mirroring this booking in the specialist's Google Calendar. */
     googleCalendarId: t.text(),
     googleEventId: t.text(),

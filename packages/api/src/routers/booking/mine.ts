@@ -32,6 +32,8 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
       holdUntil: Booking.holdUntil,
+      meetingUrl: Booking.meetingUrl,
+      practiceVideoUrl: Practice.videoUrl,
       practiceId: Practice.id,
       practiceName: Practice.name,
       practiceSlug: Practice.slug,
@@ -52,8 +54,13 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     )
     .orderBy(asc(Booking.startsAt));
 
-  return rows.map(({ holdUntil, ...row }) => ({
+  return rows.map(({ holdUntil, meetingUrl, practiceVideoUrl, ...row }) => ({
     ...row,
+    /** The video room of a confirmed booking; null while unpaid or cancelled. */
+    videoUrl:
+      row.status === "active" && holdUntil === null
+        ? (meetingUrl ?? practiceVideoUrl)
+        : null,
     /** Reserved, the online payment not finished yet. */
     awaitingPayment: holdUntil !== null && row.status === "active",
     canCancel:

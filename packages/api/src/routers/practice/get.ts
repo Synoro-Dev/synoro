@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   findMembership,
   findPractice,
+  isStaff,
   practiceProcedure,
 } from "../../lib/practice-access";
 import { practiceImageUrl, publicBookingUrl } from "../../lib/urls";
@@ -23,9 +24,11 @@ export const get = practiceProcedure
       member && (await findPractice(context.db, member.practiceId));
     if (!member || !practice) throw errors.FORBIDDEN();
 
-    const { image, ...info } = practice;
+    const { image, videoUrl, ...info } = practice;
     return {
       ...info,
+      /** The permanent video room: staff only, clients get it per booking. */
+      videoUrl: isStaff(member.role) ? videoUrl : null,
       imageUrl: practiceImageUrl(practice.slug, image),
       /** The main address of the booking page, for sharing. */
       bookingUrl: publicBookingUrl(practice.slug),

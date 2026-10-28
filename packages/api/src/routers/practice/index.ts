@@ -8,6 +8,7 @@ import { invitations } from "./invitations";
 import { join } from "./join";
 import { members } from "./members";
 import { mine } from "./mine";
+import { setVideoUrl } from "./set-video-url";
 
 export const practiceRouter = {
   create,
@@ -20,4 +21,5 @@ export const practiceRouter = {
   addMember,
   invitations,
   acceptInvitation,
+  setVideoUrl,
 };

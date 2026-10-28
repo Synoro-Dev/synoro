@@ -144,6 +144,13 @@ and run `tsc` by hand, build them first.
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
+- **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
+  and `bookings.meeting_url` (staff) — the link in force is
+  `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see
+  it only on confirmed bookings (`booking.guest` / `booking.mine`) and get it by
+  mail (`booking-notice`) via `@synoro/jobs/booking-video`; reminders are the
+  `booking-reminders` Hatchet workflow. Never expose the link in public
+  procedures (`slots`, `bySlug`).
 - **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
   cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
   in `apps/app` and `apps/web`, events via the `/ingest` rewrite in

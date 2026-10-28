@@ -194,8 +194,15 @@ describe("booking as a visitor", () => {
       state: "awaiting_payment",
       payUrl: "https://yoomoney.ru/checkout/g-1",
       email: "i***@visitor.test",
+      // The video room is for confirmed bookings only.
+      videoUrl: null,
     });
     expect(await balanceOf(email)).toBe(0);
+    await call(
+      practiceRouter.setVideoUrl,
+      { practiceId, videoUrl: "https://acme.ktalk.ru/anna" },
+      { context: api.context(owner) },
+    );
 
     // Back from the payment form: the status check settles it.
     remoteStatus({ id: "g-1", status: "succeeded" });
@@ -203,6 +210,7 @@ describe("booking as a visitor", () => {
       state: "confirmed",
       balance: 4,
       canCancel: true,
+      videoUrl: "https://acme.ktalk.ru/anna",
     });
     expect(await balanceOf(email)).toBe(4);
 

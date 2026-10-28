@@ -37,6 +37,7 @@ import {
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { PracticeAvatar } from "./practice-avatar";
+import { PracticeVideoLink } from "./practice-video-link";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
@@ -91,6 +92,7 @@ export function PracticeOverview({
     imageUrl: string | null;
     bookingUrl: string;
     timezone: string;
+    videoUrl: string | null;
     membership: { role: MemberRole };
   };
 }) {
@@ -300,6 +302,12 @@ export function PracticeOverview({
               </Button>
             </div>
           </FramePanel>
+          {practice.membership.role === "owner" && (
+            <PracticeVideoLink
+              practiceId={practice.id}
+              videoUrl={practice.videoUrl}
+            />
+          )}
           <FramePanel className="flex flex-col gap-1">
             <FrameTitle className="mb-2">Быстрые действия</FrameTitle>
             {[

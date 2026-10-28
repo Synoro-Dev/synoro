@@ -13,6 +13,7 @@ import {
   type Practice,
   sql,
 } from "@synoro/db";
+import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
 import { formatCredits, professionTerms } from "@synoro/validators";
 import { track } from "../analytics";
 import { exportBooking } from "../google-calendar";
@@ -271,6 +272,8 @@ async function settlePayment(
   // A confirmed hold goes to the specialist's Google Calendar now.
   if (payment.status === "succeeded" && payment.bookingId) {
     await exportBooking(db, payment.bookingId);
+    // Only the call that settled the payment tells the client.
+    if (wasPending) await notifyBookingConfirmed(db, payment.bookingId);
   }
   return payment;
 }

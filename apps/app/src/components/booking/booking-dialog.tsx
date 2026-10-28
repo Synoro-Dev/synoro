@@ -32,6 +32,7 @@ import type { ReactNode } from "react";
 import { orpc } from "~/orpc/react";
 import { useTerms } from "./terms";
 import { formatDateTime, formatTime } from "./time";
+import { VideoLinkButton, VideoLinkForm, VideoServiceName } from "./video-link";
 
 export type CalendarBooking = RouterOutputs["booking"]["calendar"][number];
 
@@ -64,6 +65,72 @@ function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
         {icon}
       </IconTile>
       <span className="min-w-0 truncate">{children}</span>
+    </div>
+  );
+}
+
+/**
+ * The video link of one booking. Without its own link a booking uses the
+ * practice's room; saving here replaces it for this booking only, and the
+ * client of a paid consultation is mailed the link they now have.
+ */
+function MeetingLink({
+  booking,
+  onSaved,
+}: {
+  booking: CalendarBooking;
+  onSaved: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const save = useMutation({
+    ...orpc.booking.setMeetingUrl.mutationOptions(),
+    onSuccess: async (result) => {
+      toast.success(
+        result.meetingUrl && booking.kind === "consultation"
+          ? "Ссылка сохранена, клиенту отправлено письмо"
+          : "Ссылка сохранена",
+      );
+      await queryClient.invalidateQueries({ queryKey: orpc.booking.key() });
+      onSaved();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">
+          Видеовстреча
+          {booking.videoUrl && (
+            <span className="font-normal text-muted-foreground">
+              {" "}
+              · <VideoServiceName url={booking.videoUrl} />
+            </span>
+          )}
+        </span>
+        {booking.videoUrl && (
+          <VideoLinkButton url={booking.videoUrl} variant="outline" />
+        )}
+      </div>
+      <VideoLinkForm
+        key={booking.id}
+        label="Ссылка на эту встречу"
+        placeholder="https://company.ktalk.ru/room"
+        value={booking.meetingUrl}
+        pending={save.isPending}
+        onSave={(url) =>
+          save.mutate({ bookingId: booking.id, meetingUrl: url })
+        }
+      />
+      <p className="text-xs text-muted-foreground">
+        {booking.meetingUrl
+          ? "Своя ссылка этой встречи. Очистите поле, чтобы вернуть комнату практики."
+          : booking.videoUrl
+            ? "Используется комната практики. Укажите ссылку, чтобы заменить её для этой встречи."
+            : "Ссылка не задана — клиент её не увидит. Комнату для всех встреч можно задать на странице обзора."}
+        {booking.kind === "free" &&
+          " Гостю ссылку нужно отправить самостоятельно."}
+      </p>
     </div>
   );
 }
@@ -153,6 +220,10 @@ export function BookingDialog({
                 <Fact icon={<LockIcon />}>Клиенты не могут записаться</Fact>
               )}
             </div>
+
+            {booking.kind !== "blocked" && (
+              <MeetingLink booking={booking} onSaved={onClose} />
+            )}
 
             <DialogFooter>
               {booking.kind === "consultation" && (

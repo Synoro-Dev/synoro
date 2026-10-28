@@ -45,6 +45,42 @@ already exists, so their bookings and balance are there. Booking while signed
 in needs a phone on the profile (`PHONE_REQUIRED`; the booking page and the
 cabinet ask for it).
 
+## Video meetings
+
+The specialist gives clients a video link (Толк, Телемост, Google Meet, Zoom —
+any `https` link; `videoServiceName` in `@synoro/validators` labels the known
+ones). No provider API is involved: the link is pasted by hand.
+
+- `practices.video_url` — the permanent room, set by the owner on the practice
+  overview (`practice.setVideoUrl`).
+- `bookings.meeting_url` — the link of one booking, set by staff in the
+  booking card (`booking.setMeetingUrl`). The link in force is
+  `meeting_url ?? video_url`; clearing the field returns to the practice room.
+- Validation (`normalizeVideoUrl`): `https` only, no login in the URL, a host
+  with a dot; a missing scheme is added. Anything else is refused.
+
+The client learns about it in four places, only for a **confirmed** paid
+booking (never while `hold_until` is set or after cancellation):
+
+1. the `booking-notice` email (`notice: confirmed`) sent when the booking is
+   confirmed — by `settlePayment` (once, by the call that settled the
+   payment) or by `booking.book` for a credit;
+2. the block on `/b/<token>` (`booking.guest.videoUrl`) and the button in the
+   cabinet `/bookings` (`booking.mine.videoUrl`);
+3. the same email (`notice: link`) when the specialist sets or changes the
+   link of an upcoming booking, or the practice room (every upcoming booking
+   without its own link) — nothing is sent when the link was cleared;
+4. reminders 24 h and 1 h ahead (`booking-reminders` Hatchet workflow, every
+   5 min, `reminder_day_sent_at` / `reminder_hour_sent_at` claim each one
+   before sending). A booking with no link is not reminded. Without a Hatchet
+   worker there are no reminders; the other mails go out inline.
+
+Logic lives in `packages/jobs/src/booking-video.ts` (mails are best effort and
+never undo a booking). The link also goes into the description of the
+specialist's Google Calendar event when it is written; later changes of the
+link do **not** update an existing event. Free (staff-made) bookings can have a
+link too, but there is no email for the guest — staff pass it on.
+
 ## Hosts
 
 - `synoro.ru/p/*`, `/b/*`, `/bookings`, `/auth/*` are routed to the app
