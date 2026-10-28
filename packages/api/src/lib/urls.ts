@@ -1,7 +1,7 @@
 import { env, paths } from "@synoro/config";
 
 /** Where public booking pages live: `BOOKING_URL`, else the app itself. */
-export function bookingOrigin() {
+function bookingOrigin() {
   return new URL(env.BOOKING_URL ?? env.APP_URL).origin;
 }
 
