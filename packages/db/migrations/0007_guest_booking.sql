@@ -1,4 +1,3 @@
-ALTER TABLE "users" ADD COLUMN "phone" text;--> statement-breakpoint
 ALTER TABLE "bookings" ADD COLUMN "guest_phone" varchar(20);--> statement-breakpoint
 ALTER TABLE "bookings" ADD COLUMN "hold_until" timestamp with time zone;--> statement-breakpoint
 ALTER TABLE "bookings" ADD COLUMN "access_token_hash" varchar(64);--> statement-breakpoint

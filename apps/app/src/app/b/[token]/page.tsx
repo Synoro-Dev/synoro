@@ -1,4 +1,6 @@
+import { Skeleton } from "@synoro/ui";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { GuestBooking } from "~/components/booking";
 
@@ -14,9 +16,19 @@ export const metadata: Metadata = {
  * out): open without signing in — proxy.ts lets `/b/*` through. The token is
  * the only credential, and it is checked by the API.
  */
-export default async function GuestBookingPage({
+export default function GuestBookingPage({ params }: PageProps<"/b/[token]">) {
+  return (
+    <Suspense
+      fallback={<Skeleton className="mx-auto mt-10 h-96 max-w-lg rounded-xl" />}
+    >
+      <GuestBookingWithToken params={params} />
+    </Suspense>
+  );
+}
+
+async function GuestBookingWithToken({
   params,
-}: PageProps<"/b/[token]">) {
+}: Pick<PageProps<"/b/[token]">, "params">) {
   const { token } = await params;
   return <GuestBooking token={token} />;
 }
