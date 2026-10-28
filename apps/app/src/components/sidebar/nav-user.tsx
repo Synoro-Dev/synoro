@@ -17,7 +17,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@synoro/ui";
-import { CircleUserIcon, EllipsisVerticalIcon, LogOutIcon } from "lucide-react";
+import { ChevronsUpDownIcon, CircleUserIcon, LogOutIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -58,21 +58,27 @@ export function NavUser({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="h-auto border border-border bg-background p-1.5 shadow-sm shadow-black/5 hover:bg-accent/50 data-popup-open:bg-accent/50 group-data-[collapsible=icon]:justify-center"
               />
             }
           >
-            <Avatar className="size-8 rounded-lg">
-              <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+            <Avatar className="size-8 rounded-md after:rounded-md group-data-[collapsible=icon]:size-7">
+              <AvatarImage
+                src={user.avatar}
+                alt={user.name}
+                className="rounded-md"
+              />
+              <AvatarFallback className="rounded-md text-xs font-medium">
+                {initials}
+              </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{user.name}</span>
+            <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+              <span className="truncate font-semibold">{user.name}</span>
               <span className="text-muted-foreground truncate text-xs">
                 {user.email}
               </span>
             </div>
-            <EllipsisVerticalIcon className="ml-auto" />
+            <ChevronsUpDownIcon className="ml-auto size-3.5! opacity-60 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="min-w-56"
@@ -83,9 +89,13 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                  <Avatar className="h-8 w-8 rounded-lg">
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className="rounded-lg">
+                  <Avatar className="size-8 rounded-md after:rounded-md">
+                    <AvatarImage
+                      src={user.avatar}
+                      alt={user.name}
+                      className="rounded-md"
+                    />
+                    <AvatarFallback className="rounded-md text-xs font-medium">
                       {initials}
                     </AvatarFallback>
                   </Avatar>
