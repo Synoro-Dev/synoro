@@ -13,6 +13,8 @@ export const paths = {
     root: ROOTS.AUTH,
     login: `${ROOTS.AUTH}/login`,
     signup: `${ROOTS.AUTH}/signup`,
+    /** Demo stand only: signs the visitor in as the demo account. */
+    demo: `${ROOTS.AUTH}/demo`,
     forgotPassword: `${ROOTS.AUTH}/forgot-password`,
     resetPassword: `${ROOTS.AUTH}/reset-password`,
   },

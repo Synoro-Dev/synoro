@@ -9,8 +9,10 @@
 # (`packages/db/src/scripts/migrate.ts`); the worker (`packages/jobs/src/worker.ts`)
 # overrides the command in the manifests. UID 1001, as in the app images.
 #
-# `@synoro/db` is pruned alongside `@synoro/jobs`: the migrate script lives
-# there and jobs does not depend on it.
+# `@synoro/db` and `@synoro/auth` are pruned alongside `@synoro/jobs`: the
+# migrate script lives in db, the nightly demo reset
+# (`packages/auth/script/demo-reset.ts`, a CronJob in infra/synoro/demo.yaml)
+# in auth, and jobs depends on neither.
 #
 # Versions: see apps/web/Dockerfile; keep the three Dockerfiles in sync.
 
@@ -28,7 +30,7 @@ WORKDIR /app
 FROM base AS prune
 ARG TURBO_VERSION
 COPY . .
-RUN bun x turbo@${TURBO_VERSION} prune @synoro/jobs @synoro/db --docker
+RUN bun x turbo@${TURBO_VERSION} prune @synoro/jobs @synoro/db @synoro/auth --docker
 
 FROM base AS build
 # Dependencies first: manifests and lockfile only (bun's isolated linker puts

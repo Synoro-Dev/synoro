@@ -74,6 +74,10 @@ export const env = createEnv({
       .string()
       .regex(/^[a-z0-9-]+$/i, "Letters, digits and dashes only")
       .optional(),
+    // Demo stand only (demo.synoro.ru): every visitor is signed in as this
+    // seeded `@example.com` account, and the sign-in pages are skipped. Never
+    // set it on a deployment with real users.
+    DEMO_LOGIN_EMAIL: z.string().email().optional(),
     // Comma-separated extra origins allowed to call the auth API and to be
     // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
     AUTH_TRUSTED_ORIGINS: z
@@ -130,6 +134,7 @@ export const env = createEnv({
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
     AUTH_COOKIE_PREFIX: process.env.AUTH_COOKIE_PREFIX,
+    DEMO_LOGIN_EMAIL: process.env.DEMO_LOGIN_EMAIL,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
     PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,

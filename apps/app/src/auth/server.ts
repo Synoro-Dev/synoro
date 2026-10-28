@@ -23,6 +23,7 @@ export const auth = initAuth({
   trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  demoLoginEmail: env.DEMO_LOGIN_EMAIL,
   googleClientId: env.AUTH_GOOGLE_ID,
   googleClientSecret: env.AUTH_GOOGLE_SECRET,
   extraPlugins: [nextCookies()],
