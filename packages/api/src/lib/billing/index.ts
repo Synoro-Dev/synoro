@@ -99,7 +99,7 @@ function isDemoBilling() {
 
 /** «Про» can be paid for on this deployment. */
 export function billingAvailable() {
-  return tochkaAvailable() || isDemoBilling();
+  return (tochkaAvailable() && !!env.TOCHKA_TAX_SYSTEM) || isDemoBilling();
 }
 
 /**

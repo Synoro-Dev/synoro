@@ -96,9 +96,8 @@ function toPayment(operation: TochkaOperation): TochkaPayment {
 const rubles = (kopecks: number) => Math.round(kopecks) / 100;
 
 /**
- * Open a payment link. With TOCHKA_TAX_SYSTEM set it goes through
- * `payments_with_receipt`, and Точка's cash register mails the 54-ФЗ
- * receipt to `email`.
+ * Open a payment link through `payments_with_receipt`: Точка's cash
+ * register mails the 54-ФЗ receipt to `email`. Requires TOCHKA_TAX_SYSTEM.
  */
 export async function createTochkaPayment(request: {
   /** Our payment id, Точка's `paymentLinkId` (unique per link). */
@@ -110,6 +109,12 @@ export async function createTochkaPayment(request: {
   email: string;
   returnUrl: string;
 }): Promise<TochkaPayment> {
+  if (!env.TOCHKA_TAX_SYSTEM) {
+    throw new ProviderError(
+      "credentials",
+      "Не настроена фискализация оплаты тарифа",
+    );
+  }
   const amount = rubles(request.amount);
   const base = {
     customerCode: env.TOCHKA_CUSTOMER_CODE,
@@ -122,34 +127,28 @@ export async function createTochkaPayment(request: {
     ttl: LINK_TTL_MINUTES,
     paymentLinkId: request.orderId,
   };
-  const { Data } = env.TOCHKA_TAX_SYSTEM
-    ? await call<{ Data: TochkaOperation }>(
-        "POST",
-        "/acquiring/v1.0/payments_with_receipt",
-        {
-          Data: {
-            ...base,
-            taxSystemCode: env.TOCHKA_TAX_SYSTEM,
-            Client: { email: request.email },
-            Items: [
-              {
-                name: request.itemName.slice(0, 128),
-                amount,
-                quantity: 1,
-                vatType: "none",
-                paymentMethod: "full_prepayment",
-                paymentObject: "service",
-                measure: "шт.",
-              },
-            ],
+  const { Data } = await call<{ Data: TochkaOperation }>(
+    "POST",
+    "/acquiring/v1.0/payments_with_receipt",
+    {
+      Data: {
+        ...base,
+        taxSystemCode: env.TOCHKA_TAX_SYSTEM,
+        Client: { email: request.email },
+        Items: [
+          {
+            name: request.itemName.slice(0, 128),
+            amount,
+            quantity: 1,
+            vatType: "none",
+            paymentMethod: "full_prepayment",
+            paymentObject: "service",
+            measure: "шт.",
           },
-        },
-      )
-    : await call<{ Data: TochkaOperation }>(
-        "POST",
-        "/acquiring/v1.0/payments",
-        { Data: base },
-      );
+        ],
+      },
+    },
+  );
   return toPayment(Data);
 }
 
