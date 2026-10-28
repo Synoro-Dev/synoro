@@ -15,6 +15,13 @@
       "when": 1793185978035,
       "tag": "0001_google_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793189597104,
+      "tag": "0002_booking_no_overlap",
+      "breakpoints": true
     }
   ]
 }

@@ -37,12 +37,12 @@ async function hasTable(client: PGlite, name: string) {
 describe("baselineMigrations", () => {
   it("adopts a pushed database so migrate applies only newer migrations", async () => {
     const { client, db } = await pushedDb(1);
-    expect(await hasTable(client, "bookings")).toBe(false);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(false);
 
     expect(await baselineMigrations(db)).toBe("baselined");
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "bookings")).toBe(true);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
     expect(await baselineMigrations(db)).toBe("already-tracked");
     await client.close();
   });
@@ -53,7 +53,7 @@ describe("baselineMigrations", () => {
     await baselineMigrations(db);
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "bookings")).toBe(true);
+    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
     await client.close();
   });
 
@@ -72,8 +72,8 @@ describe("explainMigrationError", () => {
     const error = await migrate(db, { migrationsFolder }).catch((e) => e);
     const { message, hint } = explainMigrationError(error);
 
-    expect(message).toContain('relation "accounts" already exists');
-    expect(message).toContain("(42P07)");
+    expect(message).toContain('type "booking_kind" already exists');
+    expect(message).toContain("(42710)");
     expect(hint).toContain("bun db:baseline");
     await client.close();
   });
