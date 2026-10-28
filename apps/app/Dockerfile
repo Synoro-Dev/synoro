@@ -55,7 +55,12 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     CI=true
 # The build scripts read ../../.env (`bun --env-file`), as in CI. It stays in
 # this stage; runtime config comes from the cluster, not from the image.
-RUN cp .env.example .env && bun turbo build -F @synoro/app
+# `next build` runs in production mode, where Better Auth refuses an empty
+# secret while prerendering. Throwaway value: the real AUTH_SECRET comes from
+# the cluster at runtime.
+RUN cp .env.example .env \
+    && sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=build-only-not-a-secret|" .env \
+    && bun turbo build -F @synoro/app
 
 FROM node:${NODE_VERSION}-slim AS app
 ENV NODE_ENV=production \
