@@ -1,6 +1,6 @@
 import posthog from "posthog-js";
 
-// `posthog-js` is only initialised when NEXT_PUBLIC_POSTHOG_KEY is set
+// `posthog-js` is only initialised when NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN is set
 // (src/instrumentation-client.ts); before that its methods only warn.
 
 /** Tie the browser's events to a signed-in user. The id only: no email, no name. */

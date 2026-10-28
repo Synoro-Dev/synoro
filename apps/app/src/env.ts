@@ -30,7 +30,7 @@ export const env = createEnv({
      */
     NEXT_PUBLIC_API_URL: z.string().url().optional(),
     /** PostHog project key; unset — no analytics. */
-    NEXT_PUBLIC_POSTHOG_KEY: z.string().min(1).optional(),
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string().min(1).optional(),
     /** Ingestion host of the PostHog region (events go through `/ingest`). */
     NEXT_PUBLIC_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
   },
@@ -40,7 +40,8 @@ export const env = createEnv({
   experimental__runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-    NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN:
+      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
   },
   skipValidation:

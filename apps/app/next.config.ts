@@ -87,7 +87,7 @@ export default async function createNextConfig(): Promise<NextConfig> {
     skipTrailingSlashRedirect: true,
 
     async rewrites() {
-      if (!env.NEXT_PUBLIC_POSTHOG_KEY) return [];
+      if (!env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return [];
       return [
         {
           source: "/ingest/static/:path*",

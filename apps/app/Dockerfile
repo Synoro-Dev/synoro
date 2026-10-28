@@ -50,7 +50,7 @@ ARG NEXT_PUBLIC_APP_NAME="Acme Inc."
 ARG NEXT_PUBLIC_APP_SHORT_NAME=Acme
 # PostHog is optional: unset, not empty, when not given (an empty string is not
 # "absent"). The /ingest rewrite to PostHog is fixed at build time too.
-ARG NEXT_PUBLIC_POSTHOG_KEY
+ARG NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN
 ARG NEXT_PUBLIC_POSTHOG_HOST
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME \
@@ -64,7 +64,7 @@ ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
 # the cluster at runtime.
 RUN cp .env.example .env \
     && sed -i "s|^AUTH_SECRET=.*|AUTH_SECRET=build-only-not-a-secret|" .env \
-    && { [ -n "$NEXT_PUBLIC_POSTHOG_KEY" ] || unset NEXT_PUBLIC_POSTHOG_KEY; } \
+    && { [ -n "$NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN" ] || unset NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN; } \
     && { [ -n "$NEXT_PUBLIC_POSTHOG_HOST" ] || unset NEXT_PUBLIC_POSTHOG_HOST; } \
     && bun turbo build -F @synoro/app
 

@@ -144,7 +144,7 @@ and run `tsc` by hand, build them first.
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
-- **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_KEY` (+ `_HOST`, default EU
+- **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
   cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
   in `apps/app` and `apps/web`, events via the `/ingest` rewrite in
   `next.config.ts` (excluded from `proxy.ts`). Session replay is off. Identify
