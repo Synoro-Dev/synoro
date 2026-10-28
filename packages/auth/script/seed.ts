@@ -484,6 +484,10 @@ export async function seedDemoPractice(db: Database) {
     return day;
   };
   const guestBookingDays = { paid: workday(3, 1), expired: workday(-2, -1) };
+  const newClientIndex = CLIENTS.findIndex(
+    (client) => client.email === DEMO_ACCOUNTS["client-new"].email,
+  );
+  const newClientBookingDay = workday(1, 1);
   let freeIndex = 0;
   for (let offset = -PAST_DAYS; offset < FUTURE_DAYS; offset++) {
     const day = today + offset * DAY_MS;
@@ -554,6 +558,10 @@ export async function seedDemoPractice(db: Database) {
       );
     }
 
+    const hours = RULES.filter((r) => r.weekday === weekday).flatMap((r) =>
+      Array.from({ length: r.end - r.start }, (_, i) => r.start + i),
+    );
+
     // Visitors who booked from the public page (see "guest" below).
     for (const [key, memberIndex, hour] of [
       ["paid", 0, 12],
@@ -561,7 +569,7 @@ export async function seedDemoPractice(db: Database) {
     ] as const) {
       const isDay = offset === guestBookingDays[key];
       const member = guestMembers[memberIndex];
-      const slot = [hour, hour + 1, hour - 1, hour + 2].find((h) =>
+      const slot = [hour, hour + 1, hour - 1, hour + 2, ...hours].find((h) =>
         isFree(h, 1),
       );
       if (!isDay || !member || slot === undefined) continue;
@@ -587,6 +595,25 @@ export async function seedDemoPractice(db: Database) {
 
     // Clients fill the hours that are left: busy in the past, fewer ahead.
     const bookedToday = new Set<number>();
+    // The newcomer always has a first booking and its purchase, even if the
+    // random calendar never picks him. Keep his final balance at zero.
+    const newClient = members[newClientIndex];
+    if (offset === newClientBookingDay && newClient) {
+      const slot = hours.find((hour) => isFree(hour, 1));
+      if (slot !== undefined) {
+        add(
+          {
+            kind: "consultation",
+            memberId: newClient.id,
+            createdById: clientUserIds[newClientIndex],
+            createdAt: ago(1),
+          },
+          slot,
+          1,
+        );
+        bookedToday.add(newClientIndex);
+      }
+    }
     const chance = (offset < 0 ? 0.55 : 0.33) * (weekday === 6 ? 0.6 : 1);
     for (const rule of RULES.filter((r) => r.weekday === weekday)) {
       for (let hour = rule.start; hour < rule.end; hour++) {
@@ -666,7 +693,8 @@ export async function seedDemoPractice(db: Database) {
   ) => {
     const daysAgo = (now - at.getTime()) / DAY_MS;
     const manual =
-      daysAgo > ONLINE_SINCE_DAYS_AGO || (size === 1 && rng() < 0.25);
+      userId !== clientUserIds[newClientIndex] &&
+      (daysAgo > ONLINE_SINCE_DAYS_AGO || (size === 1 && rng() < 0.25));
     if (manual) {
       credits.push({
         memberId,
