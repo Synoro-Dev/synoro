@@ -328,8 +328,6 @@ POSTGRES_URL=postgresql://user:pass@host/db
 
 # Authentication
 AUTH_SECRET=your-secret-key
-AUTH_GOOGLE_ID=optional-google-oauth-id
-AUTH_GOOGLE_SECRET=optional-google-oauth-secret
 
 # Email (optional)
 RESEND_API_KEY=re_your_api_key
