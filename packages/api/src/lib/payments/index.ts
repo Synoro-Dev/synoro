@@ -14,6 +14,7 @@ import {
   sql,
 } from "@synoro/db";
 import { formatCredits, professionTerms } from "@synoro/validators";
+import { track } from "../analytics";
 import { exportBooking } from "../google-calendar";
 import { decryptSecret, secretsAvailable } from "../secrets";
 import { guestBookingUrl } from "../urls";
@@ -187,6 +188,9 @@ async function settlePayment(
   paymentId: string,
   status: PaymentStatus,
 ) {
+  // The webhook and the visitor's page can settle the same payment; only the
+  // call that finds it pending reports it.
+  let wasPending = false;
   if (status === "canceled") {
     const [canceled] = await db
       .update(Payment)
@@ -206,6 +210,11 @@ async function settlePayment(
         );
     }
   } else if (status === "succeeded") {
+    const before = await db.query.Payment.findFirst({
+      where: eq(Payment.id, paymentId),
+      columns: { status: true },
+    });
+    wasPending = before?.status === "pending";
     await db.execute(sql`
       with paid as (
         update payments
@@ -250,6 +259,15 @@ async function settlePayment(
     where: eq(Payment.id, paymentId),
   });
   if (!payment) throw new Error(`Payment ${paymentId} disappeared`);
+  if (wasPending) {
+    track("payment_succeeded", payment.createdById ?? payment.id, {
+      paymentId: payment.id,
+      practiceId: payment.practiceId,
+      provider: payment.provider,
+      amount: payment.amount,
+      bookingId: payment.bookingId,
+    });
+  }
   // A confirmed hold goes to the specialist's Google Calendar now.
   if (payment.status === "succeeded" && payment.bookingId) {
     await exportBooking(db, payment.bookingId);

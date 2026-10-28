@@ -19,6 +19,7 @@ describe("proxy matcher", () => {
     expect(matches("/api/orpc/booking/slots")).toBe(false);
     expect(matches("/api/domains/tls")).toBe(false);
     expect(matches("/_next/static/chunk.js")).toBe(false);
+    expect(matches("/ingest/e/")).toBe(false);
   });
 });
 

@@ -10,6 +10,7 @@ import {
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { getSession } from "~/auth/server";
+import { AnalyticsIdentify } from "~/components/analytics-identify";
 import { AppSidebar } from "~/components/sidebar";
 import { api } from "~/orpc/server";
 
@@ -38,22 +39,25 @@ async function SessionSidebar() {
   const practices = await api.practice.mine();
 
   return (
-    <AppSidebar
-      user={{
-        name: session.user.name,
-        email: session.user.email,
-        avatar: session.user.image || "",
-      }}
-      practices={practices}
-      demoAccounts={
-        env.DEMO_LOGIN_EMAIL
-          ? Object.entries(DEMO_ACCOUNTS).map(([key, account]) => ({
-              key,
-              ...account,
-            }))
-          : undefined
-      }
-    />
+    <>
+      <AnalyticsIdentify userId={session.user.id} />
+      <AppSidebar
+        user={{
+          name: session.user.name,
+          email: session.user.email,
+          avatar: session.user.image || "",
+        }}
+        practices={practices}
+        demoAccounts={
+          env.DEMO_LOGIN_EMAIL
+            ? Object.entries(DEMO_ACCOUNTS).map(([key, account]) => ({
+                key,
+                ...account,
+              }))
+            : undefined
+        }
+      />
+    </>
   );
 }
 

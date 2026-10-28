@@ -144,6 +144,14 @@ and run `tsc` by hand, build them first.
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
+- **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
+  cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
+  in `apps/app` and `apps/web`, events via the `/ingest` rewrite in
+  `next.config.ts` (excluded from `proxy.ts`). Session replay is off. Identify
+  by user id only (`~/lib/analytics`), never email/name/phone. Server events:
+  `track()` in `packages/api/src/lib/analytics.ts` (add the name to
+  `ServerEvent`). The key is a build arg (Dockerfiles, deploy.yml) _and_ must
+  be in the pod env for server events.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes

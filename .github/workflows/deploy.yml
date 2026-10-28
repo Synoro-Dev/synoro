@@ -85,6 +85,8 @@ jobs:
               NEXT_PUBLIC_APP_URL=https://app.synoro.ru
               NEXT_PUBLIC_APP_NAME=Synoro
               NEXT_PUBLIC_APP_SHORT_NAME=Synoro
+              NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${{ vars.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+              NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           - name: app-demo
             tag: demo-
             moving-tag: demo
@@ -144,6 +146,8 @@ jobs:
       # sign-up / login buttons lead and DEMO_URL the demo stand; without them
       # the buttons would point at localhost. The Metrika counter is optional:
       # set the repository variable NEXT_PUBLIC_YANDEX_METRIKA_ID to enable it.
+      # PostHog likewise: repository variables NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN and
+      # NEXT_PUBLIC_POSTHOG_HOST (the app image above gets the same pair).
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -153,6 +157,8 @@ jobs:
             NEXT_PUBLIC_APP_URL=https://app.synoro.ru
             NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru
             NEXT_PUBLIC_YANDEX_METRIKA_ID=${{ vars.NEXT_PUBLIC_YANDEX_METRIKA_ID }}
+            NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${{ vars.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+            NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           push: true
           tags: |
             ${{ env.REGISTRY }}/synoro-landing:${{ env.SHA }}
