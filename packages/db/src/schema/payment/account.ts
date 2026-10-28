@@ -41,7 +41,7 @@ export const PaymentAccount = pgTable(
       .references(() => Practice.id, { onDelete: "cascade" }),
     provider: paymentProvider().notNull(),
     merchantId: t.varchar({ length: 64 }).notNull(),
-    /** AES-256-GCM, see `@synoro/api` payments/secrets. Never sent to clients. */
+    /** AES-256-GCM, see `@synoro/api` lib/secrets. Never sent to clients. */
     secret: t.text().notNull(),
     /** A demo shop / test terminal: no real money moves. */
     test: t.boolean().notNull().default(false),

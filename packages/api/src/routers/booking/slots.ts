@@ -6,6 +6,7 @@ import {
   loadRules,
   localDaysRange,
 } from "../../lib/bookings";
+import { googleBusy } from "../../lib/google-calendar";
 import { findPractice } from "../../lib/practice-access";
 import { computeSlots } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
@@ -13,7 +14,8 @@ import { publicProcedure } from "../../orpc";
 /**
  * Free slots for `days` local days from `from` (YYYY-MM-DD, practice time
  * zone): hour-long for paid consultations, half-hour for free ones. Busy
- * time (bookings, blocks) and past slots are left out.
+ * time (bookings, blocks, the specialist's Google Calendar) and past slots
+ * are left out.
  *
  * @example client.booking.slots({ practiceId, from: "2026-11-02", days: 7 })
  */
@@ -36,19 +38,20 @@ export const slots = publicProcedure
       input.days,
       practice.timezone,
     );
-    const [rules, busy] = await Promise.all([
+    const [rules, booked, external] = await Promise.all([
       loadRules(context.db, practice.id),
       context.db
         .select({ startsAt: Booking.startsAt, endsAt: Booking.endsAt })
         .from(Booking)
         .where(activeBookingOverlaps(practice.id, start, end)),
+      googleBusy(context.db, practice.id, start, end),
     ]);
 
     return {
       timezone: practice.timezone,
       slots: computeSlots({
         rules,
-        busy,
+        busy: [...booked, ...external],
         from: input.from,
         days: input.days,
         timeZone: practice.timezone,

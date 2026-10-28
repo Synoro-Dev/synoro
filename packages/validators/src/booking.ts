@@ -197,3 +197,20 @@ export const customDomainFormSchema = z.object({
 });
 
 export type CustomDomainFormValues = z.input<typeof customDomainFormSchema>;
+
+const googleCalendarId = z.string().trim().min(1).max(1024);
+
+/**
+ * Google Calendar sync: calendars whose busy time closes slots, and the one
+ * bookings are written to (`primary` is the account's main calendar).
+ */
+export const googleCalendarFormSchema = z.object({
+  busyCalendarIds: z
+    .array(googleCalendarId)
+    .max(50, "Не больше 50 календарей")
+    .transform((ids) => [...new Set(ids)]),
+  eventsCalendarId: googleCalendarId,
+  exportBookings: z.boolean(),
+});
+
+export type GoogleCalendarFormValues = z.input<typeof googleCalendarFormSchema>;

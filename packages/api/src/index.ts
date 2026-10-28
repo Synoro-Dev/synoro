@@ -21,6 +21,7 @@ type RouterInputs = InferRouterInputs<AppRouter>;
 type RouterOutputs = InferRouterOutputs<AppRouter>;
 
 export { errorStatusMap } from "./errors";
+export { finishGoogleConnect } from "./lib/google-calendar";
 export { handlePaymentWebhook } from "./lib/payments";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";

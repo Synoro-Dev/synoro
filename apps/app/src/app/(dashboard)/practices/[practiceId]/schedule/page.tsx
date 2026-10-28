@@ -3,6 +3,7 @@ import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
 import { AvailabilityEditor } from "~/components/booking/availability-editor";
+import { GoogleCalendarSync } from "~/components/booking/google-calendar-sync";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
 import { TermsProvider } from "~/components/booking/terms";
 import { SiteHeader } from "~/components/layout";
@@ -30,11 +31,12 @@ async function Schedule({
           href: paths.booking.practice(practice.id),
         }}
       />
-      <main className="flex min-w-0 flex-col p-4 lg:p-6">
+      <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
         <AvailabilityEditor
           practiceId={practice.id}
           timezone={practice.timezone}
         />
+        <GoogleCalendarSync practiceId={practice.id} />
       </main>
     </TermsProvider>
   );

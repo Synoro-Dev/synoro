@@ -14,9 +14,9 @@ import {
   sql,
 } from "@synoro/db";
 import { formatCredits, professionTerms } from "@synoro/validators";
-
+import { exportBooking } from "../google-calendar";
+import { decryptSecret } from "../secrets";
 import { guestBookingUrl } from "../urls";
-import { decryptSecret } from "./secrets";
 import { tbank, tbankStatus, verifyTbankToken } from "./tbank";
 import { type PaymentGateway, ProviderError } from "./types";
 import { yookassa } from "./yookassa";
@@ -24,7 +24,7 @@ import { yookassa } from "./yookassa";
 /** Back from the payment page to the visitor booking page, which checks it. */
 export const guestReturnUrl = guestBookingUrl;
 
-export { encryptSecret, secretsAvailable } from "./secrets";
+export { encryptSecret, secretsAvailable } from "../secrets";
 export { ProviderError } from "./types";
 
 export const gateways: Record<PaymentProvider, PaymentGateway> = {
@@ -217,6 +217,10 @@ async function settlePayment(
     where: eq(Payment.id, paymentId),
   });
   if (!payment) throw new Error(`Payment ${paymentId} disappeared`);
+  // A confirmed hold goes to the specialist's Google Calendar now.
+  if (payment.status === "succeeded" && payment.bookingId) {
+    await exportBooking(db, payment.bookingId);
+  }
   return payment;
 }
 

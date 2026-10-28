@@ -27,6 +27,8 @@ import { useTerms } from "./terms";
 import { dateKey, viewerTimeZone } from "./time";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** Busy in Google is closed time too: drawn like a block. */
+const GOOGLE_COLOR = KIND_META.blocked.color;
 
 interface Rule {
   weekday: number;
@@ -56,8 +58,9 @@ function nextHalfHour() {
 
 /**
  * The specialist's calendar on the ReUI event calendar: every booking, free
- * consultation and block. Drag across empty time to add a free consultation
- * or close the time; click an entry for details and cancel actions.
+ * consultation and block, plus busy time from a linked Google Calendar. Drag
+ * across empty time to add a free consultation or close the time; click an
+ * entry for details and cancel actions.
  */
 export function PracticeCalendar({
   practiceId,
@@ -91,6 +94,12 @@ export function PracticeCalendar({
   const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
   );
+  const google = useQuery({
+    ...orpc.googleCalendar.busy.queryOptions({
+      input: { practiceId, from, days },
+    }),
+    placeholderData: (previous) => previous,
+  });
 
   // Working hours are stored in the practice zone; shade them only when the
   // viewer is in it too, otherwise the overlay would be shifted.
@@ -120,6 +129,16 @@ export function PracticeCalendar({
       data: b,
     }),
   );
+  for (const [i, busy] of (google.data ?? []).entries()) {
+    events.push({
+      id: `google-${i}-${busy.startsAt.getTime()}`,
+      title: "Занято в Google",
+      start: busy.startsAt,
+      end: busy.endsAt,
+      color: GOOGLE_COLOR,
+      readOnly: true,
+    });
+  }
 
   if (bookings.isError) {
     return <ErrorState onRetry={() => bookings.refetch()} />;
@@ -139,6 +158,16 @@ export function PracticeCalendar({
               {kindLabel(kind, terms)}
             </span>
           ))}
+          {!!google.data?.length && (
+            <span className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="size-2 shrink-0 rounded-full"
+                style={{ background: GOOGLE_COLOR }}
+              />
+              Google Календарь
+            </span>
+          )}
           <span className="hidden sm:inline">
             Выделите время мышью, чтобы добавить запись
           </span>
