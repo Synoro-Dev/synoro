@@ -1,3 +1,4 @@
+import { legal } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
 import { ArrowRightIcon } from "lucide-react";
 
@@ -67,10 +68,10 @@ export async function Footer({ links }: { links: SiteLinks }) {
     {
       title: "Продукт",
       items: [
-        { href: "#features", label: "Возможности" },
-        { href: "#domain", label: "Свой домен" },
-        { href: "#pricing", label: "Тарифы" },
-        { href: "#faq", label: "Вопросы" },
+        { href: "/#features", label: "Возможности" },
+        { href: "/#domain", label: "Свой домен" },
+        { href: "/#pricing", label: "Тарифы" },
+        { href: "/#faq", label: "Вопросы" },
       ],
     },
     {
@@ -81,11 +82,18 @@ export async function Footer({ links }: { links: SiteLinks }) {
         ...(links.demo ? [{ href: links.demo, label: "Демо-страница" }] : []),
       ],
     },
+    {
+      title: "Документы",
+      items: Object.values(legal.docs).map((doc) => ({
+        href: doc.path,
+        label: doc.short,
+      })),
+    },
   ];
 
   return (
     <footer className="border-t">
-      <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:border-x sm:px-10 md:grid-cols-[2fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:border-x sm:px-10 md:grid-cols-[2fr_1fr_1fr_1.4fr]">
         <div className="flex flex-col gap-4">
           <Logo />
           <p className="text-muted-foreground max-w-xs text-sm">
@@ -113,7 +121,10 @@ export async function Footer({ links }: { links: SiteLinks }) {
           <p>
             © {await CurrentYear()} {brand.name}. Все права защищены.
           </p>
-          <p>Сделано для тех, кто помогает людям</p>
+          <p>
+            {legal.operator.name}, ИНН {legal.operator.inn}
+            {legal.operator.ogrnip && `, ОГРНИП ${legal.operator.ogrnip}`}
+          </p>
         </div>
       </div>
     </footer>

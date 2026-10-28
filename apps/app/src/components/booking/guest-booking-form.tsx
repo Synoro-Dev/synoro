@@ -27,6 +27,7 @@ import { ArrowLeftIcon, LockIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { BookingLegalNotice } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
 import { formatDateTime } from "./time";
@@ -222,6 +223,7 @@ export function GuestBookingForm({
           {offer.test && " Тестовый режим: деньги не списываются."}
         </span>
       </p>
+      <BookingLegalNotice />
     </form>
   );
 }
