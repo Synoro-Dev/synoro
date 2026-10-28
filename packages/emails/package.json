@@ -24,7 +24,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@radix-ui/colors": "3.0.0",
     "@react-email/components": "1.0.12",
     "@synoro/config": "workspace:*",
     "nodemailer": "^10.2.1",
