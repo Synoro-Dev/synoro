@@ -142,12 +142,22 @@ it("seeds unique usable credentials, isolates invitations and respects availabil
 const sha256 = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
-it("seeds payments and balances that add up", async () => {
+it.each([
+  "2026-10-26T12:00:00Z",
+  "2026-10-27T12:00:00Z",
+  "2026-10-28T12:00:00Z",
+  "2026-10-29T12:00:00Z",
+  "2026-10-30T12:00:00Z",
+  "2026-10-31T12:00:00Z",
+  "2026-11-01T12:00:00Z",
+])("seeds payments and balances that add up on %s", async (date) => {
   const { db } = testDb;
+  const now = spyOn(Date, "now").mockReturnValue(Date.parse(date));
   const output = spyOn(console, "log").mockImplementation(() => {});
   try {
     expect(await main(db, target)).toBe(0);
   } finally {
+    now.mockRestore();
     output.mockRestore();
   }
 
@@ -210,15 +220,30 @@ it("seeds payments and balances that add up", async () => {
     payments.some((p) => p.memberId === alexey?.id && p.status === "pending"),
   ).toBe(true);
   const sergey = memberOf(DEMO_ACCOUNTS["client-new"].email);
+  expect(sergey?.credits).toBe(0);
+  expect(
+    bookings.some((b) => b.memberId === sergey?.id && b.status === "active"),
+  ).toBe(true);
   expect(
     payments.some((p) => p.memberId === sergey?.id && p.status === "succeeded"),
   ).toBe(true);
+  expect(
+    entries.some(
+      (e) =>
+        e.memberId === sergey?.id &&
+        e.reason === "purchase" &&
+        e.paymentId === null,
+    ),
+  ).toBe(false);
 
   // The visitor who paid online without an account: confirmed, 4 credits left.
   const paid = bookings.find(
     (b) => b.accessTokenHash === sha256(DEMO_GUEST_TOKENS.paid),
   );
   expect(paid).toMatchObject({ status: "active", holdUntil: null });
+  expect(
+    new Date((paid?.startsAt.getTime() ?? 0) + 3 * 3600000).getUTCHours(),
+  ).toBe(12);
   const guest = members.find((m) => m.id === paid?.memberId);
   expect(guest?.credits).toBe(4);
   expect(payments.find((p) => p.bookingId === paid?.id)?.status).toBe(
@@ -236,4 +261,26 @@ it("seeds payments and balances that add up", async () => {
   expect(payments.find((p) => p.bookingId === expired?.id)?.status).toBe(
     "canceled",
   );
+  const rules = await db.query.AvailabilityRule.findMany();
+  for (const booking of [paid, expired]) {
+    if (!booking) throw new Error("Missing guest booking");
+    const start = new Date(booking.startsAt.getTime() + 3 * 3600000);
+    const end = new Date(booking.endsAt.getTime() + 3 * 3600000);
+    expect(
+      rules.some(
+        (r) =>
+          r.weekday === start.getUTCDay() &&
+          r.startMinute <= start.getUTCHours() * 60 &&
+          r.endMinute >= end.getUTCHours() * 60,
+      ),
+    ).toBe(true);
+    expect(
+      bookings.some(
+        (other) =>
+          other.id !== booking.id &&
+          other.startsAt < booking.endsAt &&
+          other.endsAt > booking.startsAt,
+      ),
+    ).toBe(false);
+  }
 });
