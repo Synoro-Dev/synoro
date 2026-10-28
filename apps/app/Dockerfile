@@ -65,8 +65,7 @@ RUN cp .env.example .env \
 FROM node:${NODE_VERSION}-slim AS app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
-    PORT=3000 \
-    HOSTNAME=0.0.0.0
+    PORT=3000
 WORKDIR /app
 RUN groupadd --gid 1001 synoro \
     && useradd --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin synoro
