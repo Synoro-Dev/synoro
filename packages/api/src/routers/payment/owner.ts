@@ -1,6 +1,7 @@
 import { type Database, eq, PaymentAccount } from "@synoro/db";
 
 import {
+  canTakePayments,
   notificationUrl,
   PROVIDER_NAMES,
   secretsAvailable,
@@ -24,7 +25,7 @@ export async function paymentSettings(db: Database, practiceId: string) {
   const active = accounts.find((a) => a.active);
 
   return {
-    available: secretsAvailable(),
+    available: active ? canTakePayments(active) : secretsAvailable(),
     account: active
       ? {
           provider: active.provider,

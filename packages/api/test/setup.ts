@@ -16,3 +16,5 @@ process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
 process.env.EMAIL_SANDBOX_ENABLED = "false";
 process.env.RESEND_API_KEY = "";
 process.env.PAYMENTS_SECRET_KEY = "test-payments-secret-key-0123456789abcdef";
+// The seeded demo shops (merchant id "demo-...") settle payments at once.
+process.env.DEMO_LOGIN_EMAIL = "klyuev@example.com";

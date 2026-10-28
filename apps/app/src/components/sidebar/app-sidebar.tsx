@@ -1,5 +1,6 @@
 "use client";
 
+import type { DemoAccount } from "@synoro/auth/demo";
 import { paths } from "@synoro/config";
 import {
   Sidebar,
@@ -31,6 +32,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type * as React from "react";
 
+import { DemoSwitcher } from "./demo-switcher";
 import { NavUser } from "./nav-user";
 import { PracticeSwitcher } from "./practice-switcher";
 import type { SidebarPractice } from "./types";
@@ -78,10 +80,13 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 export function AppSidebar({
   user,
   practices,
+  demoAccounts,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   user: { name: string; email: string; avatar: string };
   practices: SidebarPractice[];
+  /** Demo stand only: the roles a visitor can switch between. */
+  demoAccounts?: (DemoAccount & { key: string })[];
 }) {
   const pathname = usePathname();
   const staffPractices = practices.filter((p) => p.role !== "client");
@@ -167,6 +172,9 @@ export function AppSidebar({
               },
             ]}
           />
+        )}
+        {demoAccounts && (
+          <DemoSwitcher accounts={demoAccounts} email={user.email} />
         )}
       </SidebarContent>
       <SidebarFooter>

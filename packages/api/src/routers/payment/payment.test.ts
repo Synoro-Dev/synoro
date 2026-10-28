@@ -10,7 +10,13 @@ import {
 } from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { CreditEntry, eq, Payment, PaymentAccount } from "@synoro/db";
+import {
+  CreditEntry,
+  eq,
+  Payment,
+  PaymentAccount,
+  PaymentPackage,
+} from "@synoro/db";
 import type { PaymentAccountFormValues } from "@synoro/validators";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -441,5 +447,60 @@ describe("Т-Банк checkout", () => {
     expect(
       result.payments.some((p) => p.clientEmail === "client@test.local"),
     ).toBe(true);
+  });
+});
+
+describe("demo shop", () => {
+  let demoPracticeId: string;
+
+  beforeAll(async () => {
+    const practice = await call(
+      practiceRouter.create,
+      { name: "Демо", slug: "demo-shop", profession: "psychologist" },
+      { context: api.context(owner) },
+    );
+    demoPracticeId = practice.id;
+    await api.db.insert(PaymentAccount).values({
+      practiceId: practice.id,
+      provider: "tbank",
+      merchantId: "demo-terminal-1",
+      secret: "demo",
+      test: true,
+    });
+    await api.db
+      .insert(PaymentPackage)
+      .values({ practiceId: practice.id, credits: 5, price: 1_600_000 });
+  });
+
+  it("settles a payment at once, without calling a provider", async () => {
+    const client = await createSession(api.db);
+    const offer = await call(
+      paymentRouter.packages,
+      { practiceId: demoPracticeId },
+      { context: api.context() },
+    );
+    expect(offer.enabled).toBe(true);
+
+    const { paymentId, confirmationUrl } = await call(
+      paymentRouter.checkout,
+      { practiceId: demoPracticeId, packageId: offer.packages[0]?.id ?? "" },
+      { context: api.context(client) },
+    );
+
+    expect(confirmationUrl).toBe(
+      `http://localhost:3000/bookings?payment=${paymentId}`,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    const row = await api.db.query.Payment.findFirst({
+      where: eq(Payment.id, paymentId),
+    });
+    expect(row).toMatchObject({ status: "succeeded", credits: 5 });
+    expect(row?.paidAt).not.toBeNull();
+    const practice = await call(
+      practiceRouter.get,
+      { practiceId: demoPracticeId },
+      { context: api.context(client) },
+    );
+    expect(practice.membership.credits).toBe(5);
   });
 });

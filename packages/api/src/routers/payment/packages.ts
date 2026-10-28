@@ -1,7 +1,7 @@
 import { and, asc, eq, PaymentAccount, PaymentPackage } from "@synoro/db";
 import { z } from "zod";
 
-import { PROVIDER_NAMES, secretsAvailable } from "../../lib/payments";
+import { canTakePayments, PROVIDER_NAMES } from "../../lib/payments";
 import { publicProcedure } from "../../orpc";
 
 /**
@@ -20,7 +20,7 @@ export const packages = publicProcedure
           eq(PaymentAccount.practiceId, input.practiceId),
           eq(PaymentAccount.active, true),
         ),
-        columns: { provider: true, test: true },
+        columns: { provider: true, test: true, merchantId: true },
       }),
       context.db
         .select({
@@ -33,7 +33,7 @@ export const packages = publicProcedure
         .orderBy(asc(PaymentPackage.credits)),
     ]);
 
-    const enabled = !!account && secretsAvailable() && rows.length > 0;
+    const enabled = !!account && canTakePayments(account) && rows.length > 0;
     return {
       enabled,
       provider: account ? PROVIDER_NAMES[account.provider] : null,

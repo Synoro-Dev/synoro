@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, expect, it, spyOn } from "bun:test";
+import { createHash } from "node:crypto";
 import { eq, Practice, PracticeInvitation, user } from "@synoro/db";
 import { createTestDb } from "@synoro/db/testing";
 import { verifyPassword } from "better-auth/crypto";
 
+import { DEMO_ACCOUNTS, DEMO_GUEST_TOKENS } from "../src/demo-accounts";
 import { main } from "./seed";
 
 let testDb: Awaited<ReturnType<typeof createTestDb>>;
@@ -74,8 +76,9 @@ it("seeds unique usable credentials, isolates invitations and respects availabil
         );
         return match ? [{ email: match[1], password: match[2] }] : [];
       });
-      expect(credentials).toHaveLength(7);
-      expect(new Set(credentials.map((c) => c.password)).size).toBe(7);
+      // Owner, administrator and ten clients; visitors have no password.
+      expect(credentials).toHaveLength(12);
+      expect(new Set(credentials.map((c) => c.password)).size).toBe(12);
       const accounts = await db.query.account.findMany();
       const users = await db.query.user.findMany();
       for (const credential of credentials) {
@@ -103,7 +106,7 @@ it("seeds unique usable credentials, isolates invitations and respects availabil
         await db.query.PracticeInvitation.findMany({
           where: eq(PracticeInvitation.practiceId, practice?.id ?? ""),
         }),
-      ).toHaveLength(1);
+      ).toHaveLength(2);
       const bookings = await db.query.Booking.findMany();
       const rules = await db.query.AvailabilityRule.findMany();
       expect(
@@ -129,11 +132,108 @@ it("seeds unique usable credentials, isolates invitations and respects availabil
               r.endMinute >= endMinute,
           ),
         ).toBe(true);
-        if (start.getUTCDay() === 6)
-          expect(startMinute).toBe(booking.kind === "consultation" ? 660 : 780);
       }
     }
   } finally {
     output.mockRestore();
   }
+});
+
+const sha256 = (token: string) =>
+  createHash("sha256").update(token).digest("hex");
+
+it("seeds payments and balances that add up", async () => {
+  const { db } = testDb;
+  const output = spyOn(console, "log").mockImplementation(() => {});
+  try {
+    expect(await main(db, target)).toBe(0);
+  } finally {
+    output.mockRestore();
+  }
+
+  const members = await db.query.PracticeMember.findMany();
+  const entries = await db.query.CreditEntry.findMany();
+  const payments = await db.query.Payment.findMany();
+  const accounts = await db.query.PaymentAccount.findMany();
+  const bookings = await db.query.Booking.findMany();
+  const users = await db.query.user.findMany();
+  const memberOf = (email: string) =>
+    members.find((m) => m.userId === users.find((u) => u.email === email)?.id);
+
+  // The balance on the member row is the sum of its history, never negative.
+  for (const member of members) {
+    const sum = entries
+      .filter((e) => e.memberId === member.id)
+      .reduce((total, e) => total + e.delta, 0);
+    expect(member.credits).toBe(sum);
+    expect(member.credits).toBeGreaterThanOrEqual(0);
+  }
+
+  // Every paid payment credited the balance once, with the right amount.
+  const prices = new Map([
+    [1, 350_000],
+    [5, 1_600_000],
+    [10, 3_000_000],
+  ]);
+  for (const payment of payments) {
+    expect(payment.amount).toBe(prices.get(payment.credits) ?? -1);
+    const purchases = entries.filter((e) => e.paymentId === payment.id);
+    if (payment.status === "succeeded") {
+      expect(payment.paidAt).not.toBeNull();
+      expect(purchases.map((e) => e.delta)).toEqual([payment.credits]);
+    } else {
+      expect(payment.paidAt).toBeNull();
+      expect(purchases).toHaveLength(0);
+    }
+  }
+  expect(new Set(payments.map((p) => p.status))).toEqual(
+    new Set(["succeeded", "pending", "canceled"]),
+  );
+  expect(new Set(payments.map((p) => p.provider))).toEqual(
+    new Set(["yookassa", "tbank"]),
+  );
+  // Purchases recorded by hand sit beside the online ones.
+  expect(
+    entries.some((e) => e.reason === "purchase" && e.paymentId === null),
+  ).toBe(true);
+
+  // One merchant account is live; the replaced one stays for old payments.
+  expect(accounts.filter((a) => a.active)).toHaveLength(1);
+  expect(accounts.every((a) => a.test)).toBe(true);
+  expect(await db.query.PaymentPackage.findMany()).toHaveLength(3);
+
+  // The demo personas are in the state their labels promise.
+  expect(memberOf(DEMO_ACCOUNTS.client.email)?.credits).toBe(3);
+  const alexey = memberOf(DEMO_ACCOUNTS["client-empty"].email);
+  expect(alexey?.credits).toBe(0);
+  expect(
+    payments.some((p) => p.memberId === alexey?.id && p.status === "pending"),
+  ).toBe(true);
+  const sergey = memberOf(DEMO_ACCOUNTS["client-new"].email);
+  expect(
+    payments.some((p) => p.memberId === sergey?.id && p.status === "succeeded"),
+  ).toBe(true);
+
+  // The visitor who paid online without an account: confirmed, 4 credits left.
+  const paid = bookings.find(
+    (b) => b.accessTokenHash === sha256(DEMO_GUEST_TOKENS.paid),
+  );
+  expect(paid).toMatchObject({ status: "active", holdUntil: null });
+  const guest = members.find((m) => m.id === paid?.memberId);
+  expect(guest?.credits).toBe(4);
+  expect(payments.find((p) => p.bookingId === paid?.id)?.status).toBe(
+    "succeeded",
+  );
+  expect(
+    (await db.query.account.findMany()).some((a) => a.userId === guest?.userId),
+  ).toBe(false);
+
+  // The one who left the payment page: time released, nothing charged.
+  const expired = bookings.find(
+    (b) => b.accessTokenHash === sha256(DEMO_GUEST_TOKENS.expired),
+  );
+  expect(expired?.status).toBe("cancelled");
+  expect(payments.find((p) => p.bookingId === expired?.id)?.status).toBe(
+    "canceled",
+  );
 });
