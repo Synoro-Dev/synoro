@@ -14,6 +14,13 @@ export const metadata: Metadata = {
   title: "Synoro",
   description:
     "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "Synoro",
     description:
