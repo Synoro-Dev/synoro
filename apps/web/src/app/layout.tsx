@@ -10,7 +10,7 @@ import { site } from "~/lib/site";
 import "~/app/styles.css";
 
 const title = `${site.name} — бесплатная онлайн-запись для частной практики`;
-const description = `${site.description} Бесплатно и без лимита записей, онлайн-оплата через ЮKassa — ${rubles(paidPlan.monthly)}/мес.`;
+const description = `${site.description} Бесплатно и без лимита записей, онлайн-оплата через ЮKassa — от ${rubles(paidPlan.promo.monthly)}/мес.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),

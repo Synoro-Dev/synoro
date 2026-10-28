@@ -66,16 +66,25 @@ function Price({ plan }: { plan: Plan }) {
     );
   }
 
+  const { promo } = plan;
+
   return (
     <div>
       <p className="flex items-baseline gap-1.5">
         <span className="text-4xl font-medium tracking-tight tabular-nums">
-          {rubles(plan.monthly)}
+          {rubles(promo?.monthly ?? plan.monthly)}
         </span>
+        {promo && (
+          <span className="text-muted-foreground text-lg tabular-nums line-through">
+            {rubles(plan.monthly)}
+          </span>
+        )}
         <span className="text-muted-foreground text-sm">в месяц</span>
       </p>
       <p className="text-muted-foreground mt-1.5 text-sm">
-        Первые {trialDays} дней — бесплатно
+        {promo
+          ? `${trialDays} дней бесплатно, затем ${promo.months} месяца по этой цене, дальше ${rubles(plan.monthly)}`
+          : `Первые ${trialDays} дней — бесплатно`}
       </p>
     </div>
   );
@@ -93,8 +102,8 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
         </SectionHeading>
         <Lead className="mx-auto">
           Запись, расписание, пакеты и кабинет клиента — бесплатно и без
-          ограничений. «{paidPlan.name}» за {rubles(paidPlan.monthly)} в месяц
-          нужен, только чтобы клиенты оплачивали пакеты сами через ЮKassa.
+          ограничений. «{paidPlan.name}» от {rubles(paidPlan.promo.monthly)} в
+          месяц нужен, только чтобы клиенты оплачивали пакеты сами через ЮKassa.
         </Lead>
       </div>
 
