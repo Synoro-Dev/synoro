@@ -26,6 +26,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { LockIcon } from "lucide-react";
 import { useState } from "react";
 
+import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
 import { formatRub, packageDeals } from "./format";
@@ -72,7 +73,7 @@ function TopUpForm({
   const checkout = useMutation({
     ...orpc.payment.checkout.mutationOptions(),
     // Keep the button busy until the browser leaves for the payment page.
-    onSuccess: ({ confirmationUrl }) => window.location.assign(confirmationUrl),
+    onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
     onError: (error) =>
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",
@@ -161,6 +162,16 @@ function TopUpForm({
               {leaving && <Spinner />}
               Оплатить {formatRub(selected.price)}
             </Button>
+            {checkout.data && (
+              <a
+                href={checkout.data.confirmationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-primary underline underline-offset-4"
+              >
+                Если оплата не открылась, откройте её в новой вкладке
+              </a>
+            )}
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <LockIcon className="mt-0.5 size-3 shrink-0" />
               <span>

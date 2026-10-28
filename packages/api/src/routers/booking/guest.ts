@@ -31,6 +31,8 @@ function findByToken(db: Database, token: string) {
       id: Booking.id,
       status: Booking.status,
       holdUntil: Booking.holdUntil,
+      meetingUrl: Booking.meetingUrl,
+      practiceVideoUrl: Practice.videoUrl,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
       practiceName: Practice.name,
@@ -114,6 +116,11 @@ export const guest = publicProcedure
       canCancel:
         state === "confirmed" &&
         found.startsAt.getTime() - now >= CLIENT_CANCEL_WINDOW_MS,
+      /** The video room, only once the booking is confirmed. */
+      videoUrl:
+        state === "confirmed"
+          ? (found.meetingUrl ?? found.practiceVideoUrl)
+          : null,
       balance: found.credits,
       name: found.clientName,
       email: maskEmail(found.clientEmail),

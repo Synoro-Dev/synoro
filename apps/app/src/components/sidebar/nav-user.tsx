@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { authClient } from "~/auth/client";
+import { resetAnalytics } from "~/lib/analytics";
 
 function getInitials(name: string): string {
   return name
@@ -47,6 +48,7 @@ export function NavUser({
 
   const handleLogout = async () => {
     await authClient.signOut();
+    resetAnalytics();
     router.push(paths.auth.login);
   };
 

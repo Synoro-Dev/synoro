@@ -24,6 +24,7 @@ export { errorStatusMap } from "./errors";
 export { handleBillingWebhook } from "./lib/billing";
 export { finishGoogleConnect } from "./lib/google-calendar";
 export { handlePaymentWebhook } from "./lib/payments";
+export { findOwnerMembership } from "./lib/practice-access";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
 export type { RouterInputs, RouterOutputs };

@@ -4,6 +4,7 @@
  * Importing this module creates the Hatchet client, which throws without
  * HATCHET_CLIENT_TOKEN. App code should go through `@synoro/jobs` instead.
  */
+export { bookingRemindersWorkflow } from "./booking-reminders";
 export { hatchet } from "./client";
 export { googleCalendarCleanupWorkflow } from "./google-calendar-cleanup";
 export type { HelloWorldInput } from "./hello-world";

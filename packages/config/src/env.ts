@@ -138,6 +138,10 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_NAME: z.string().default("Acme Inc."),
     NEXT_PUBLIC_APP_SHORT_NAME: z.string().default("Acme"),
     NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
+    // PostHog project key (public by design) and the ingestion host of its
+    // region. Unset key: no analytics, in the browser and on the server.
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string().min(1).optional(),
+    NEXT_PUBLIC_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
   },
   clientPrefix: "NEXT_PUBLIC_",
   runtimeEnv: {
@@ -179,6 +183,9 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
     NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN:
+      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
+    NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

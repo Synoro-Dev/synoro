@@ -16,11 +16,23 @@ export const env = createEnv({
       .int()
       .positive()
       .optional(),
+    /** PostHog project key; unset — no analytics. */
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string().min(1).optional(),
+    /**
+     * Ingestion host of the PostHog region (events go through `/ingest`).
+     * The default sits in `runtimeEnv`: with `skipValidation` (CI, Docker
+     * builds) Zod defaults are not applied.
+     */
+    NEXT_PUBLIC_POSTHOG_HOST: z.url(),
   },
   experimental__runtimeEnv: {
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_DEMO_URL: process.env.NEXT_PUBLIC_DEMO_URL,
     NEXT_PUBLIC_YANDEX_METRIKA_ID: process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID,
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN:
+      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
+    NEXT_PUBLIC_POSTHOG_HOST:
+      process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://eu.i.posthog.com",
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

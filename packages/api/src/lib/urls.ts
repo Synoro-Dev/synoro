@@ -10,6 +10,16 @@ export function publicBookingUrl(slug: string) {
   return new URL(paths.booking.public(slug), bookingOrigin()).href;
 }
 
+/**
+ * Path of a practice's photo, or `null` without one. The `v` query is the
+ * stored key's own timestamp, so a new upload busts the long-lived cache.
+ */
+export function practiceImageUrl(slug: string, key: string | null) {
+  if (!key) return null;
+  const version = /-(\d+)\.jpg$/.exec(key)?.[1] ?? "0";
+  return `${paths.booking.avatar(slug)}?v=${version}`;
+}
+
 /** A visitor booking page, the link that goes into their email. */
 export function guestBookingUrl(token: string) {
   return new URL(paths.booking.guest(token), bookingOrigin()).href;

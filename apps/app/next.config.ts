@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
-import "./src/env";
+import { env } from "./src/env";
+
+/**
+ * Browser analytics goes through `/ingest` on our own origin (ad blockers
+ * block the PostHog hosts). Static assets live on a separate `-assets` host in
+ * PostHog Cloud; a self-hosted instance serves both from one.
+ * @see https://posthog.com/docs/advanced/proxy/nextjs
+ */
+const posthogHost = env.NEXT_PUBLIC_POSTHOG_HOST;
+const posthogAssetsHost = posthogHost.replace(
+  /^(https:\/\/\w+)\.i\.posthog\.com$/,
+  "$1-assets.i.posthog.com",
+);
 
 /**
  * Security headers applied to every response.
@@ -12,34 +24,53 @@ import "./src/env";
  */
 const isDev = process.env.NODE_ENV === "development";
 
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com https://mc.yandex.ru https://yastatic.net`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https: wss://mc.yandex.ru",
-  "child-src blob: https://mc.yandex.ru",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-]
-  .join("; ")
-  .concat(";");
+const contentSecurityPolicy = (frameAncestors: string) =>
+  [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com https://mc.yandex.ru https://yastatic.net`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https: wss://mc.yandex.ru",
+    "child-src blob: https://mc.yandex.ru",
+    `frame-ancestors ${frameAncestors}`,
+    "base-uri 'self'",
+    "form-action 'self'",
+  ]
+    .join("; ")
+    .concat(";");
 
-const securityHeaders = [
-  { key: "Content-Security-Policy", value: contentSecurityPolicy },
+const sharedHeaders = [
   {
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
   { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=()",
   },
+];
+
+/** Nothing may frame the app: sign-in, the cabinet and the dashboard. */
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: contentSecurityPolicy("'none'") },
+  { key: "X-Frame-Options", value: "DENY" },
+  ...sharedHeaders,
+];
+
+/**
+ * A practice's booking page (`/p/<slug>`) may sit in an iframe on the
+ * specialist's own site, which we don't know: any origin. There is no
+ * `X-Frame-Options` value for that, so the header is left out. The page is
+ * safe to frame: the session cookie is `SameSite=Lax`, so a cross-site frame
+ * is always a guest, and payment happens on the provider's page in the top
+ * window (`leaveFrame`).
+ */
+const embeddableHeaders = [
+  { key: "Content-Security-Policy", value: contentSecurityPolicy("*") },
+  ...sharedHeaders,
 ];
 
 export default async function createNextConfig(): Promise<NextConfig> {
@@ -71,8 +102,29 @@ export default async function createNextConfig(): Promise<NextConfig> {
     cacheComponents: true,
     partialPrefetching: true,
 
+    /** Required by the PostHog proxy: `/ingest/e/` must not be redirected. */
+    skipTrailingSlashRedirect: true,
+
+    async rewrites() {
+      if (!env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return [];
+      return [
+        {
+          source: "/ingest/static/:path*",
+          destination: `${posthogAssetsHost}/static/:path*`,
+        },
+        {
+          source: "/ingest/array/:path*",
+          destination: `${posthogAssetsHost}/array/:path*`,
+        },
+        { source: "/ingest/:path*", destination: `${posthogHost}/:path*` },
+      ];
+    },
+
     async headers() {
-      return [{ source: "/:path*", headers: securityHeaders }];
+      return [
+        { source: "/((?!p/).*)", headers: securityHeaders },
+        { source: "/p/:path*", headers: embeddableHeaders },
+      ];
     },
   };
 

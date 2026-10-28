@@ -47,6 +47,8 @@ export const calendar = practiceProcedure
         startsAt: Booking.startsAt,
         endsAt: Booking.endsAt,
         note: Booking.note,
+        /** This booking's own video link; see `videoUrl` for the one in force. */
+        meetingUrl: Booking.meetingUrl,
         guestName: Booking.guestName,
         guestPhone: Booking.guestPhone,
         guestContact: Booking.guestContact,
@@ -61,5 +63,15 @@ export const calendar = practiceProcedure
       .leftJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))
       .leftJoin(user, eq(user.id, PracticeMember.userId))
       .where(activeBookingOverlaps(practice.id, start, end))
-      .orderBy(asc(Booking.startsAt));
+      .orderBy(asc(Booking.startsAt))
+      .then((rows) =>
+        rows.map((row) => ({
+          ...row,
+          /** The link a client gets: the booking's own, else the practice room. */
+          videoUrl:
+            row.kind === "blocked"
+              ? null
+              : (row.meetingUrl ?? practice.videoUrl),
+        })),
+      );
   });

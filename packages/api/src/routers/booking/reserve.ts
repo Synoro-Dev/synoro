@@ -13,6 +13,7 @@ import { dispatchEmail } from "@synoro/jobs";
 import { guestBookingFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
+import { track } from "../../lib/analytics";
 import { HOLD_MS, loadRules, releaseExpiredHolds } from "../../lib/bookings";
 import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
@@ -218,6 +219,11 @@ export const reserve = publicProcedure
         startsAt: input.startsAt,
         holdUntil: booking.holdUntil,
         token,
+      });
+      track("booking_reserved", guest.user.id, {
+        bookingId: booking.id,
+        practiceId: practice.id,
+        packageId: pkg.id,
       });
       return { token, confirmationUrl, holdUntil: booking.holdUntil };
     } catch (error) {

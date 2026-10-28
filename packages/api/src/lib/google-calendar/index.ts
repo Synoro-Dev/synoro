@@ -182,7 +182,9 @@ async function describeBooking(db: Database, booking: BookingRow) {
     paths.booking.calendar(booking.practiceId),
     env.APP_URL,
   );
+  const videoUrl = booking.meetingUrl ?? practice.videoUrl;
   const description = [
+    videoUrl && `Видеовстреча: ${videoUrl}`,
     phone && `Телефон: ${phone}`,
     booking.guestContact && `Контакт: ${booking.guestContact}`,
     booking.note && `Комментарий: ${booking.note}`,

@@ -28,6 +28,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { BookingLegalNotice } from "~/components/legal-links";
+import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
 import { formatDateTime } from "./time";
@@ -78,7 +79,8 @@ export function GuestBookingForm({
   const reserve = useMutation({
     ...orpc.booking.reserve.mutationOptions(),
     // Keep the button busy until the browser leaves for the payment page.
-    onSuccess: ({ confirmationUrl }) => window.location.assign(confirmationUrl),
+    // The booking page may sit in an iframe; the payment page can't.
+    onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
     onError: (error) =>
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",
@@ -214,6 +216,16 @@ export function GuestBookingForm({
         {leaving && <Spinner />}
         {selected ? `Оплатить ${formatRub(selected.price)}` : "Оплатить"}
       </Button>
+      {reserve.data && (
+        <a
+          href={reserve.data.confirmationUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-primary underline underline-offset-4"
+        >
+          Если оплата не открылась, откройте её в новой вкладке
+        </a>
+      )}
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <LockIcon className="mt-0.5 size-3 shrink-0" />
         <span>

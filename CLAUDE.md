@@ -149,6 +149,21 @@ and run `tsc` by hand, build them first.
   Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
   features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
   `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
+- **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
+  and `bookings.meeting_url` (staff) — the link in force is
+  `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see
+  it only on confirmed bookings (`booking.guest` / `booking.mine`) and get it by
+  mail (`booking-notice`) via `@synoro/jobs/booking-video`; reminders are the
+  `booking-reminders` Hatchet workflow. Never expose the link in public
+  procedures (`slots`, `bySlug`).
+- **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
+  cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
+  in `apps/app` and `apps/web`, events via the `/ingest` rewrite in
+  `next.config.ts` (excluded from `proxy.ts`). Session replay is off. Identify
+  by user id only (`~/lib/analytics`), never email/name/phone. Server events:
+  `track()` in `packages/api/src/lib/analytics.ts` (add the name to
+  `ServerEvent`). The key is a build arg (Dockerfiles, deploy.yml) _and_ must
+  be in the pod env for server events.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes

@@ -11,6 +11,10 @@
       "types": "./dist/workflows/index.d.ts",
       "default": "./src/workflows/index.ts"
     },
+    "./booking-video": {
+      "types": "./dist/booking-video.d.ts",
+      "default": "./src/booking-video.ts"
+    },
     "./google-calendar": {
       "types": "./dist/google-calendar.d.ts",
       "default": "./src/google-calendar.ts"

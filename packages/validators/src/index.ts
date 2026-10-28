@@ -10,3 +10,4 @@ export * from "./payment";
 export * from "./phone";
 export * from "./profession";
 export * from "./profile";
+export * from "./video";

@@ -1,6 +1,7 @@
 "use client";
 
 import { paths } from "@synoro/config";
+import type { MemberRole } from "@synoro/db";
 import { Button, Input, Skeleton, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
@@ -18,6 +19,7 @@ import {
   CalendarDaysIcon,
   CalendarPlusIcon,
   Clock3Icon,
+  CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
   UsersIcon,
@@ -35,6 +37,8 @@ import {
   kindLabel,
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
+import { PracticeAvatar } from "./practice-avatar";
+import { PracticeVideoLink } from "./practice-video-link";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
@@ -83,7 +87,15 @@ function DateChip({ at }: { at: Date }) {
 export function PracticeOverview({
   practice,
 }: {
-  practice: { id: string; bookingUrl: string; timezone: string };
+  practice: {
+    id: string;
+    name: string;
+    imageUrl: string | null;
+    bookingUrl: string;
+    timezone: string;
+    videoUrl: string | null;
+    membership: { role: MemberRole };
+  };
 }) {
   const terms = useTerms();
   const from = dateKey(new Date(), practice.timezone);
@@ -127,6 +139,17 @@ export function PracticeOverview({
       toast.success("Ссылка скопирована");
     } catch {
       toast.info(publicUrl);
+    }
+  }
+
+  /** The booking page in an iframe, to paste into the practice's own site. */
+  async function copyEmbed() {
+    const code = `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`;
+    try {
+      await navigator.clipboard.writeText(code);
+      toast.success("Код скопирован — вставьте его на свой сайт");
+    } catch {
+      toast.info(code);
     }
   }
 
@@ -256,6 +279,13 @@ export function PracticeOverview({
                 Записаться можно без регистрации — отправьте ссылку клиентам
               </FrameDescription>
             </FrameHeader>
+            {practice.membership.role === "owner" && (
+              <PracticeAvatar
+                practiceId={practice.id}
+                name={practice.name}
+                imageUrl={practice.imageUrl}
+              />
+            )}
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -273,6 +303,15 @@ export function PracticeOverview({
               <Button
                 variant="outline"
                 size="icon"
+                aria-label="Скопировать код для вставки на сайт"
+                title="Код для вставки на сайт"
+                onClick={copyEmbed}
+              >
+                <CodeIcon />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
                 aria-label="Открыть страницу записи"
                 nativeButton={false}
                 render={
@@ -284,6 +323,12 @@ export function PracticeOverview({
               </Button>
             </div>
           </FramePanel>
+          {practice.membership.role === "owner" && (
+            <PracticeVideoLink
+              practiceId={practice.id}
+              videoUrl={practice.videoUrl}
+            />
+          )}
           <FramePanel className="flex flex-col gap-1">
             <FrameTitle className="mb-2">Быстрые действия</FrameTitle>
             {[

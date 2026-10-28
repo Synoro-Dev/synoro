@@ -21,6 +21,69 @@ import {
   professionTerms,
 } from "./profession";
 import { profileFormSchema } from "./profile";
+import { normalizeVideoUrl, videoServiceName, videoUrlSchema } from "./video";
+
+describe("normalizeVideoUrl", () => {
+  test("keeps an https link", () => {
+    expect(normalizeVideoUrl("https://acme.ktalk.ru/room")).toBe(
+      "https://acme.ktalk.ru/room",
+    );
+  });
+
+  test("adds the missing scheme", () => {
+    expect(normalizeVideoUrl(" acme.ktalk.ru/room ")).toBe(
+      "https://acme.ktalk.ru/room",
+    );
+  });
+
+  test("refuses anything but https", () => {
+    expect(normalizeVideoUrl("http://acme.ktalk.ru/room")).toBeNull();
+    expect(normalizeVideoUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizeVideoUrl("tel:+79001234567")).toBeNull();
+  });
+
+  test("refuses logins, spaces and hosts without a dot", () => {
+    expect(normalizeVideoUrl("https://user:pass@acme.ktalk.ru/")).toBeNull();
+    expect(normalizeVideoUrl("https://acme.ktalk.ru/a b")).toBeNull();
+    expect(normalizeVideoUrl("https://localhost/room")).toBeNull();
+    expect(normalizeVideoUrl("")).toBeNull();
+  });
+});
+
+describe("videoServiceName", () => {
+  test("names the known services", () => {
+    expect(videoServiceName("https://acme.ktalk.ru/room")).toBe("Толк");
+    expect(videoServiceName("https://telemost.yandex.ru/j/1")).toBe("Телемост");
+    expect(videoServiceName("https://meet.google.com/abc-defg")).toBe(
+      "Google Meet",
+    );
+    expect(videoServiceName("https://us02web.zoom.us/j/1")).toBe("Zoom");
+  });
+
+  test("does not trust a lookalike host", () => {
+    expect(videoServiceName("https://ktalk.ru.evil.com/room")).toBe(
+      "Видеовстреча",
+    );
+    expect(videoServiceName("https://evilktalk.ru/room")).toBe("Видеовстреча");
+  });
+});
+
+describe("videoUrlSchema", () => {
+  test("empty input means no link", () => {
+    expect(videoUrlSchema.parse("  ")).toBeNull();
+  });
+
+  test("returns the clean URL", () => {
+    expect(videoUrlSchema.parse("acme.ktalk.ru/room")).toBe(
+      "https://acme.ktalk.ru/room",
+    );
+  });
+
+  test("rejects a bad link with a message", () => {
+    const result = videoUrlSchema.safeParse("not a link");
+    expect(result.success).toBe(false);
+  });
+});
 
 describe("profileFormSchema", () => {
   test("accepts a valid profile", () => {

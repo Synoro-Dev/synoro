@@ -21,6 +21,7 @@ async function main() {
 
   // Loaded after the check: creating the Hatchet client throws without a token.
   const {
+    bookingRemindersWorkflow,
     hatchet,
     googleCalendarCleanupWorkflow,
     helloWorldTask,
@@ -33,6 +34,7 @@ async function main() {
     workflows: [
       sendEmailTask,
       googleCalendarCleanupWorkflow,
+      bookingRemindersWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

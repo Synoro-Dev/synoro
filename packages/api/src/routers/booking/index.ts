@@ -6,6 +6,7 @@ import { cancel } from "./cancel";
 import { cancelGuest, guest } from "./guest";
 import { mine } from "./mine";
 import { reserve } from "./reserve";
+import { setMeetingUrl } from "./set-meeting-url";
 import { slots } from "./slots";
 
 export const bookingRouter = {
@@ -19,4 +20,5 @@ export const bookingRouter = {
   cancel,
   calendar,
   mine,
+  setMeetingUrl,
 };

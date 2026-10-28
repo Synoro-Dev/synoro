@@ -1,4 +1,5 @@
 import { Booking, eq, isExclusionViolation, user } from "@synoro/db";
+import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
 import { z } from "zod";
 
 import {
@@ -113,6 +114,7 @@ export const book = practiceProcedure
       createdById: userId,
     });
     await exportBooking(context.db, booking.id);
+    await notifyBookingConfirmed(context.db, booking.id);
 
     return { ...booking, credits };
   });
