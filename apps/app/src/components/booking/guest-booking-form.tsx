@@ -28,6 +28,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { BookingLegalNotice } from "~/components/legal-links";
+import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
 import { formatDateTime } from "./time";
@@ -78,7 +79,8 @@ export function GuestBookingForm({
   const reserve = useMutation({
     ...orpc.booking.reserve.mutationOptions(),
     // Keep the button busy until the browser leaves for the payment page.
-    onSuccess: ({ confirmationUrl }) => window.location.assign(confirmationUrl),
+    // The booking page may sit in an iframe; the payment page can't.
+    onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
     onError: (error) =>
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",

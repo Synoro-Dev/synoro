@@ -256,7 +256,8 @@ export function PublicBooking({
                       // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
                       <a href={bookingUrl} />
                     ) : (
-                      <Link href={paths.auth.login} />
+                      // `_top`: the sign-in page can't open inside an iframe.
+                      <Link href={paths.auth.login} target="_top" />
                     )
                   }
                 >
@@ -370,7 +371,7 @@ export function PublicBooking({
                               // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
                               <a href={bookingUrl} />
                             ) : (
-                              <Link href={paths.auth.login} />
+                              <Link href={paths.auth.login} target="_top" />
                             )
                           }
                         >
