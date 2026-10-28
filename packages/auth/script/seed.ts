@@ -170,31 +170,11 @@ async function createUser(
   return id;
 }
 
-export async function main(
-  db: Database = seedDb,
-  target: Pick<typeof env, "POSTGRES_URL" | "NODE_ENV" | "VERCEL_ENV"> = env,
-) {
-  let allowed = false;
-  try {
-    const url = new URL(target.POSTGRES_URL ?? "");
-    allowed =
-      target.NODE_ENV !== "production" &&
-      target.VERCEL_ENV !== "production" &&
-      ["postgres:", "postgresql:"].includes(url.protocol) &&
-      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
-      ["/synoro-demo", "/acme_test", "/test"].includes(url.pathname) &&
-      !url.search &&
-      !url.hash;
-  } catch {
-    // Missing or malformed connection settings are never a seed target.
-  }
-  if (!allowed) {
-    console.error(
-      "✗ Seed requires a non-production loopback Postgres database named acme, acme_test or test, without URL query overrides.",
-    );
-    return 1;
-  }
-
+/**
+ * Creates the demo practice with its users, bookings and balances, around
+ * today's date. Callers decide where it is allowed to run.
+ */
+export async function seedDemoPractice(db: Database) {
   const today = moscowToday();
   const longAgo = new Date(today - (PAST_DAYS + 14) * DAY_MS);
 
@@ -391,6 +371,36 @@ export async function main(
     role: "client",
     invitedById: adminId,
   });
+
+  return { practice, inserted, passwords };
+}
+
+export async function main(
+  db: Database = seedDb,
+  target: Pick<typeof env, "POSTGRES_URL" | "NODE_ENV" | "VERCEL_ENV"> = env,
+) {
+  let allowed = false;
+  try {
+    const url = new URL(target.POSTGRES_URL ?? "");
+    allowed =
+      target.NODE_ENV !== "production" &&
+      target.VERCEL_ENV !== "production" &&
+      ["postgres:", "postgresql:"].includes(url.protocol) &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
+      ["/synoro-demo", "/acme_test", "/test"].includes(url.pathname) &&
+      !url.search &&
+      !url.hash;
+  } catch {
+    // Missing or malformed connection settings are never a seed target.
+  }
+  if (!allowed) {
+    console.error(
+      "✗ Seed requires a non-production loopback Postgres database named acme, acme_test or test, without URL query overrides.",
+    );
+    return 1;
+  }
+
+  const { practice, inserted, passwords } = await seedDemoPractice(db);
 
   const count = (kind: string) =>
     inserted.filter((b) => b.kind === kind && b.status === "active").length;

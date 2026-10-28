@@ -94,6 +94,7 @@
     "ADMIN_EMAILS",
     "AUTH_COOKIE_DOMAIN",
     "AUTH_COOKIE_PREFIX",
+    "DEMO_LOGIN_EMAIL",
     "AUTH_TRUSTED_ORIGINS"
   ],
   "globalPassThroughEnv": [

@@ -15,7 +15,7 @@
       "ignoreDependencies": ["@tailwindcss/postcss"]
     },
     "packages/auth": {
-      "entry": ["script/auth-cli.ts"]
+      "entry": ["script/auth-cli.ts", "script/demo-reset.ts"]
     },
     "packages/db": {
       "drizzle": false,

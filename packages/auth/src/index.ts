@@ -5,6 +5,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, emailOTP, oAuthProxy } from "better-auth/plugins";
 
+import { demoLogin } from "./demo-login";
 import { ADMIN_ROLE, hasAdminRole, isAdminEmail } from "./roles";
 
 export function initAuth<
@@ -40,6 +41,11 @@ export function initAuth<
    * `callbackURL` (Better Auth rejects any other cross-origin request).
    */
   trustedOrigins?: string[];
+  /**
+   * Demo stand only: the seeded account `auth.api.signInDemo()` signs in.
+   * Unset, the endpoint refuses everything.
+   */
+  demoLoginEmail?: string;
   extraPlugins?: TExtraPlugins;
   /** Defaults to the app database; tests pass an in-memory PGlite one. */
   database?: Database;
@@ -136,6 +142,7 @@ export function initAuth<
        * @see https://www.better-auth.com/docs/plugins/admin
        */
       admin({ adminRoles: [ADMIN_ROLE] }),
+      demoLogin({ email: options.demoLoginEmail }),
       ...(options.extraPlugins ?? []),
     ],
     // ADMIN_EMAILS bootstrap: listed emails sign up as admins, and existing

@@ -35,6 +35,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(`${pathname}${search}`, appUrl));
   }
 
+  // Demo stand: no sign-in screens, everyone is the seeded demo user. A stale
+  // cookie (the demo is reset nightly) ends up here via the page's own
+  // redirect to the login page.
+  if (
+    env.DEMO_LOGIN_EMAIL &&
+    (pathname === paths.auth.login || pathname === paths.auth.signup)
+  ) {
+    return NextResponse.redirect(new URL(paths.auth.demo, request.url));
+  }
+
   if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
     return NextResponse.next();
   }
@@ -47,7 +57,12 @@ export async function proxy(request: NextRequest) {
   // This is the recommended approach to optimistically redirect users
   // We recommend handling auth checks in each page/route
   if (!sessionCookie) {
-    return NextResponse.redirect(new URL("/auth/login", request.url));
+    if (env.DEMO_LOGIN_EMAIL) {
+      const demo = new URL(paths.auth.demo, request.url);
+      demo.searchParams.set("next", `${pathname}${search}`);
+      return NextResponse.redirect(demo);
+    }
+    return NextResponse.redirect(new URL(paths.auth.login, request.url));
   }
 
   return NextResponse.next();
