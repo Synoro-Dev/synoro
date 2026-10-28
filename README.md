@@ -24,7 +24,7 @@ Modern, high-performance monorepo starter built with **Bun** and **Turborepo**. 
 - ⚡ **10x faster** package installation with Bun
 - 🔒 **100% type-safe** from database to UI
 - 🎯 **Production-ready** with authentication, emails, tests, and observability
-- 🚀 **Zero-config deployment** to Vercel
+- 🚀 **Self-hosted deployment** — Docker images on your own servers in Russia
 - 🏗️ **Scalable architecture** with monorepo best practices
 
 ## 📦 What's Inside?
@@ -56,7 +56,7 @@ packages
   ├─ config
   │   └─ Type-safe env (@t3-oss/env-core) + structured logger
   ├─ db
-  │   └─ Drizzle ORM with an env-aware driver (node-postgres / Neon HTTP)
+  │   └─ Drizzle ORM over node-postgres
   ├─ emails
   │   └─ Email templates with React Email + Resend / nodemailer
   ├─ storage
@@ -86,7 +86,7 @@ tooling
 
 - **Bun Runtime** — Lightning-fast package management & bundling
 - **Turborepo** — Smart caching & parallel execution
-- **Edge-ready** — Optimized for Vercel Edge Runtime
+- **Standalone output** — `output: "standalone"` Docker images
 
 ### Type Safety
 
@@ -112,7 +112,7 @@ tooling
 ### 💾 Database
 
 - **Drizzle ORM** — Type-safe SQL queries
-- **Env-aware driver** — `node-postgres` locally, Neon HTTP auto-detected in the cloud
+- **node-postgres** — Plain TCP to any Postgres (Docker locally, a managed or self-hosted one in production)
 - **Migrations** — Version-controlled schema changes (`db:generate` / `db:migrate`)
 
 ### 📧 Communication & Observability
@@ -163,7 +163,7 @@ bun install
 ### Setup
 
 > [!NOTE]
-> The database driver is selected automatically: a `*.neon.tech` URL uses the Neon HTTP driver, anything else (local Docker Postgres, Supabase, self-hosted) uses `node-postgres`. Override with `DB_DRIVER=node|neon-http`. A local Postgres, MinIO (S3) and inbucket (email) are provided via `docker-compose.yml`. Before recreating an existing Postgres 18 container with the corrected volume mount, follow [the cluster backup and restore procedure](docs/postgres-volume.md).
+> The app talks to Postgres through `node-postgres`. A local Postgres, MinIO (S3) and inbucket (email) are provided via `docker-compose.yml`. Before recreating an existing Postgres 18 container with the corrected volume mount, follow [the cluster backup and restore procedure](docs/postgres-volume.md).
 
 **Step 1: Install dependencies & configure environment**
 
@@ -175,7 +175,7 @@ bun install
 cp .env.example .env
 
 # Edit .env with your credentials
-# - POSTGRES_URL (local docker-compose Postgres, or get one from neon.tech)
+# - POSTGRES_URL (local docker-compose Postgres)
 # - AUTH_SECRET (generate with: openssl rand -base64 32)
 # - RESEND_API_KEY (optional, get from resend.com)
 ```
@@ -273,7 +273,7 @@ bun turbo gen init
 
 - [oRPC](https://orpc.unnoq.com) — Type-safe APIs (RPC + OpenAPI)
 - [Drizzle ORM](https://orm.drizzle.team) — Database ORM
-- [Neon](https://neon.tech) / Postgres — Serverless or self-hosted
+- [PostgreSQL](https://www.postgresql.org) — Self-hosted or managed
 - [Better Auth](https://better-auth.com) — Authentication
 - [Hono](https://hono.dev) — Optional standalone API server
 
@@ -304,46 +304,28 @@ bun turbo gen init
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+Production runs on our own servers in Russia; nothing goes through Vercel,
+Cloudflare or other foreign hosting.
 
-This project is optimized for **zero-config deployment** on Vercel.
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/bunworks/bun-turbo-starter)
-
-**Manual Deployment:**
-
-1. Push your code to GitHub
-2. Import project on [Vercel](https://vercel.com/new)
-3. Select `apps/app` as root directory
-4. Add environment variables (see below)
-5. Deploy! 🎉
+- `.github/workflows/deploy.yml` builds the Docker images (`apps/app`,
+  `apps/web`, `packages/jobs`) and restarts the Deployments in k3s.
+- Practice domains get TLS from Caddy on demand — see
+  [docs/custom-domains.md](docs/custom-domains.md).
+- Postgres, S3 (Yandex Object Storage or MinIO) and the Hatchet worker are
+  configured through env; see `.env.example`.
 
 **Required Environment Variables:**
 
 ```bash
 # Database
 POSTGRES_URL=postgresql://user:pass@host/db
-# Optional: force a driver ("node" or "neon-http"); auto-detected otherwise
-# DB_DRIVER=
 
 # Authentication
 AUTH_SECRET=your-secret-key
 
 # Email (optional)
 RESEND_API_KEY=re_your_api_key
-
-# API origin (optional) — point the web client at a standalone app-server
-# NEXT_PUBLIC_API_URL=https://api.your-domain.com
 ```
-
-### Other Platforms
-
-This starter can be deployed to any platform that supports Next.js:
-
-- **Netlify** — Add `apps/app` as base directory
-- **Railway** — Auto-detects Next.js configuration
-- **Fly.io** — Use provided Dockerfile
-- **Self-hosted** — Run `bun build` and serve the output
 
 ## 📚 Documentation
 

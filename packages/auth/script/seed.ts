@@ -934,14 +934,13 @@ export async function seedDemoPractice(db: Database) {
 
 export async function main(
   db: Database = seedDb,
-  target: Pick<typeof env, "POSTGRES_URL" | "NODE_ENV" | "VERCEL_ENV"> = env,
+  target: Pick<typeof env, "POSTGRES_URL" | "NODE_ENV"> = env,
 ) {
   let allowed = false;
   try {
     const url = new URL(target.POSTGRES_URL ?? "");
     allowed =
       target.NODE_ENV !== "production" &&
-      target.VERCEL_ENV !== "production" &&
       ["postgres:", "postgresql:"].includes(url.protocol) &&
       ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) &&
       ["/synoro-demo", "/acme_test", "/test"].includes(url.pathname) &&

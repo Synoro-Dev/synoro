@@ -9,9 +9,6 @@
     "./client": {
       "default": "./src/client.ts"
     },
-    "./client.ws": {
-      "default": "./src/client.ws.ts"
-    },
     "./schema": {
       "default": "./src/schema/index.ts"
     },
@@ -38,12 +35,10 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.2.0",
     "@synoro/config": "workspace:*",
     "drizzle-orm": "0.45.4",
     "drizzle-zod": "0.8.3",
     "pg": "^8.23.1",
-    "ws": "^8.22.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -52,7 +47,6 @@
     "@types/bun": "1.4.4",
     "@types/node": "26.6.5",
     "@types/pg": "^8.23.1",
-    "@types/ws": "^8.18.2",
     "drizzle-kit": "^0.31.11",
     "typescript": "7.0.2"
   }

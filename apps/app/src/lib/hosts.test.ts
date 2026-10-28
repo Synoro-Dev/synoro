@@ -15,7 +15,6 @@ describe("practiceHost", () => {
       "localhost:3000",
       "synoro.ru",
       "www.synoro.ru",
-      "my-branch-acme.vercel.app",
     ]) {
       expect(practiceHost(host, config)).toBeUndefined();
     }

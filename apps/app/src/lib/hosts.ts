@@ -1,14 +1,7 @@
 import { env } from "@synoro/config";
 
-const vercelUrl =
-  env.VERCEL_ENV === "production" && env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : env.VERCEL_ENV === "preview" && env.VERCEL_URL
-      ? `https://${env.VERCEL_URL}`
-      : undefined;
-
 /** Where the app itself lives: auth, dashboard, the session cookie. */
-export const appUrl = vercelUrl ?? env.APP_URL;
+export const appUrl = env.APP_URL;
 
 /**
  * Main address of the public booking pages (`BOOKING_URL`, e.g.
@@ -61,14 +54,9 @@ export interface HostConfig {
 export function hostConfig(): HostConfig {
   const rootDomain =
     env.PRACTICE_ROOT_DOMAIN?.trim().toLowerCase() || undefined;
-  const hosts = [
-    appUrl,
-    env.APP_URL,
-    env.NEXT_PUBLIC_APP_URL,
-    env.VERCEL_URL,
-    env.VERCEL_PROJECT_PRODUCTION_URL,
-    ...trustedAppOrigins(),
-  ].map(hostnameOf);
+  const hosts = [appUrl, env.NEXT_PUBLIC_APP_URL, ...trustedAppOrigins()].map(
+    hostnameOf,
+  );
   return {
     appHosts: new Set(
       [...hosts, "localhost", "127.0.0.1", "[::1]"].filter(
@@ -93,9 +81,7 @@ export function practiceHost(
     .toLowerCase()
     .replace(/:\d+$/, "")
     .replace(/\.$/, "");
-  if (!host || appHosts.has(host) || host.endsWith(".vercel.app")) {
-    return undefined;
-  }
+  if (!host || appHosts.has(host)) return undefined;
   if (rootDomain && (host === rootDomain || host === `www.${rootDomain}`)) {
     return undefined;
   }

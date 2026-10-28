@@ -18,7 +18,7 @@ const posthogAssetsHost = posthogHost.replace(
  * Security headers applied to every response.
  *
  * The Content-Security-Policy is a pragmatic baseline that works with the
- * Next.js App Router and Vercel Analytics out of the box. For the strictest
+ * Next.js App Router and Yandex Metrika out of the box. For the strictest
  * setup, switch to a nonce-based CSP in `proxy.ts` and drop `'unsafe-inline'`.
  * @see https://nextjs.org/docs/app/guides/content-security-policy
  */
@@ -27,7 +27,7 @@ const isDev = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = (frameAncestors: string) =>
   [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com https://mc.yandex.ru https://yastatic.net`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://mc.yandex.ru https://yastatic.net`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",

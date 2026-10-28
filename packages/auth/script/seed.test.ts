@@ -31,7 +31,6 @@ it("rejects unsafe targets before reading or changing the database", async () =>
       { POSTGRES_URL: "postgres://localhost/test?host=remote.example" },
       { POSTGRES_URL: "postgres://localhost/test?database=production" },
       { ...target, NODE_ENV: "production" as const },
-      { ...target, VERCEL_ENV: "production" as const },
     ]) {
       expect(await main(testDb.db, config)).toBe(1);
     }

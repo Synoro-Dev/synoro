@@ -10,13 +10,9 @@ import { cache } from "react";
 
 import { appUrl } from "~/lib/hosts";
 
-const productionUrl = env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : env.APP_URL;
-
 export const auth = initAuth({
   baseUrl: appUrl,
-  productionUrl,
+  productionUrl: env.APP_URL,
   secret: env.AUTH_SECRET,
   cookieDomain: env.AUTH_COOKIE_DOMAIN,
   cookiePrefix: env.AUTH_COOKIE_PREFIX,

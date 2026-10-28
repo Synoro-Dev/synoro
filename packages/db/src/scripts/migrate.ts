@@ -1,13 +1,8 @@
-import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
-import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
-import { migrate as migrateNeon } from "drizzle-orm/neon-serverless/migrator";
-import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
-import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
-import ws from "ws";
 
 import type { Database } from "../client";
-import { selectDbDriver } from "../driver";
 import {
   appliedMigrationCount,
   explainMigrationError,
@@ -19,11 +14,8 @@ import * as schema from "../schema";
  * `bun db:migrate`: applies pending SQL from `packages/db/migrations`.
  *
  * Replaces `drizzle-kit migrate`, which hides the database error behind a
- * spinner and exit code 1. Follows the app's driver choice (`selectDbDriver`):
- * - Neon: WebSocket pool over 443 — works where outbound 5432 is blocked
- *   (the app's neon-http driver would, but it can't run a transaction);
- * - everything else: node-postgres over TCP, on the direct port.
- * Both migrators apply pending migrations in a single transaction.
+ * spinner and exit code 1. Connects with node-postgres over TCP, on the
+ * direct port, and applies pending migrations in a single transaction.
  *
  * Plain console output and `process.env` on purpose: this is a CLI for
  * humans, and `@synoro/config` is consumed from `dist/`, which would force a
@@ -35,7 +27,7 @@ import * as schema from "../schema";
  * unhandled `error` event (on the pool or a checked-out client) and dumps a
  * stack trace over the readable message.
  */
-function silenceConnectionErrors(pool: Pool | NeonPool) {
+function silenceConnectionErrors(pool: Pool) {
   const ignore = () => {};
   pool.on("error", ignore);
   pool.on("connect", (client: { on(event: "error", fn: () => void): void }) =>
@@ -44,34 +36,16 @@ function silenceConnectionErrors(pool: Pool | NeonPool) {
 }
 
 function connect(url: string) {
-  // pg / Neon wait forever by default; fail fast with a readable error.
-  const connectionTimeoutMillis = 15_000;
-  const options = { schema, casing: "snake_case" } as const;
-
-  if (selectDbDriver(url) === "neon-http") {
-    neonConfig.webSocketConstructor = ws;
-    const pool = new NeonPool({
-      connectionString: url,
-      connectionTimeoutMillis,
-    });
-    silenceConnectionErrors(pool);
-    const db = drizzleNeon({ client: pool, ...options });
-    return {
-      db: db as Database,
-      migrate: () => migrateNeon(db, { migrationsFolder }),
-      close: () => pool.end(),
-    };
-  }
-
   const pool = new Pool({
     connectionString: url.replace(":6543", ":5432"),
-    connectionTimeoutMillis,
+    // pg waits forever by default; fail fast with a readable error.
+    connectionTimeoutMillis: 15_000,
   });
   silenceConnectionErrors(pool);
-  const db = drizzlePg({ client: pool, ...options });
+  const db = drizzle({ client: pool, schema, casing: "snake_case" });
   return {
     db: db as Database,
-    migrate: () => migratePg(db, { migrationsFolder }),
+    migrate: () => migrate(db, { migrationsFolder }),
     close: () => pool.end(),
   };
 }

@@ -21,8 +21,8 @@ export function initAuth<
     type: "sign-in" | "email-verification" | "forget-password" | "change-email";
   }) => Promise<void>;
   /**
-   * Runs a promise after the response is sent (e.g. Next.js `after`, Vercel
-   * `waitUntil`). Without it, emails are awaited inside the request.
+   * Runs a promise after the response is sent (e.g. Next.js `after`).
+   * Without it, emails are awaited inside the request.
    */
   runInBackground?: (promise: Promise<unknown>) => void;
   /**
@@ -91,8 +91,7 @@ export function initAuth<
      * reset) from brute-force and abuse. Tune per environment as needed.
      *
      * Counters live in Postgres (`rate_limits` table) so limits hold across
-     * serverless invocations and multiple instances; the default in-memory
-     * store is per-process and effectively disabled on Vercel.
+     * pods and restarts; the default in-memory store is per-process.
      * @see https://www.better-auth.com/docs/concepts/rate-limit
      */
     rateLimit: {
