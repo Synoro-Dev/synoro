@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
+import { Booking } from "../booking/booking";
 import { Practice, PracticeMember } from "../booking/practice";
 import { PaymentAccount, paymentProvider } from "./account";
 
@@ -36,6 +37,11 @@ export const Payment = pgTable(
     memberId: t
       .uuid()
       .references(() => PracticeMember.id, { onDelete: "set null" }),
+    /**
+     * The booking this payment was made for (a guest paying from the booking
+     * page): on success it is confirmed and one of the credits is spent on it.
+     */
+    bookingId: t.uuid().references(() => Booking.id, { onDelete: "set null" }),
     provider: paymentProvider().notNull(),
     /** The provider's payment id; set once it accepted the payment. */
     externalId: t.varchar({ length: 64 }),

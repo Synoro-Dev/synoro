@@ -90,6 +90,7 @@
         "@synoro/auth": "workspace:*",
         "@synoro/config": "workspace:*",
         "@synoro/db": "workspace:*",
+        "@synoro/jobs": "workspace:*",
         "@synoro/validators": "workspace:*",
         "zod": "4.6.7",
       },

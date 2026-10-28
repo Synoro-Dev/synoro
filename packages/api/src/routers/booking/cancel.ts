@@ -1,7 +1,7 @@
 import { and, Booking, eq } from "@synoro/db";
 import { z } from "zod";
 
-import { adjustCredits, recordCredit } from "../../lib/bookings";
+import { cancelActiveBooking } from "../../lib/bookings";
 import { findMembership, isStaff } from "../../lib/practice-access";
 import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
@@ -55,32 +55,12 @@ export const cancel = protectedProcedure
       throw errors.TOO_LATE();
     }
 
-    // Conditional on `active`, so two concurrent cancels refund only once.
-    const [cancelled] = await context.db
-      .update(Booking)
-      .set({
-        status: "cancelled",
-        cancelledAt: new Date(),
-        cancelledById: userId,
-      })
-      .where(and(eq(Booking.id, booking.id), eq(Booking.status, "active")))
-      .returning();
-    if (!cancelled) throw errors.NOT_FOUND();
-
-    const refund =
-      cancelled.kind === "consultation" &&
-      cancelled.memberId !== null &&
-      (input.refund || !staff);
-    if (refund && cancelled.memberId) {
-      await adjustCredits(context.db, cancelled.memberId, 1);
-      await recordCredit(context.db, {
-        memberId: cancelled.memberId,
-        delta: 1,
-        reason: "refund",
-        bookingId: cancelled.id,
-        createdById: userId,
-      });
-    }
+    const result = await cancelActiveBooking(context.db, booking.id, {
+      cancelledById: userId,
+      refund: input.refund || !staff,
+    });
+    if (!result) throw errors.NOT_FOUND();
+    const { booking: cancelled, refunded: refund } = result;
 
     return { id: cancelled.id, kind: cancelled.kind, refunded: refund };
   });

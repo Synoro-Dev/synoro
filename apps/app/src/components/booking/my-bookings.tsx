@@ -4,6 +4,7 @@ import type { RouterOutputs } from "@synoro/api";
 import { paths } from "@synoro/config";
 import {
   Button,
+  Input,
   Skeleton,
   Tabs,
   TabsContent,
@@ -11,12 +12,15 @@ import {
   TabsTrigger,
   toast,
 } from "@synoro/ui";
+import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
 import {
   capitalize,
   formatCredits,
+  formatPhone,
+  normalizePhone,
   pluralize,
   professionTerms,
 } from "@synoro/validators";
@@ -25,6 +29,7 @@ import {
   CalendarCheckIcon,
   CalendarPlusIcon,
   CalendarXIcon,
+  PhoneIcon,
   ReceiptIcon,
   WalletIcon,
 } from "lucide-react";
@@ -142,6 +147,114 @@ function BalanceCard({
   );
 }
 
+/**
+ * The visitor's contact details. A phone is required: the specialist calls
+ * it, and accounts opened by an emailed code start without one, so a missing
+ * phone is the first thing the cabinet asks for.
+ */
+function ContactCard() {
+  const queryClient = useQueryClient();
+  const me = useQuery(orpc.user.me.queryOptions());
+  const [editing, setEditing] = useState(false);
+  const [phone, setPhone] = useState("");
+
+  const save = useMutation({
+    ...orpc.user.updatePhone.mutationOptions(),
+    onSuccess: async () => {
+      toast.success("Телефон сохранён");
+      setEditing(false);
+      await queryClient.invalidateQueries({ queryKey: orpc.user.key() });
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  if (!me.data) return me.isError ? null : <Skeleton className="h-16 w-full" />;
+
+  const current = me.data.phone;
+  const showForm = !current || editing;
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const normalized = normalizePhone(phone);
+    if (!normalized) {
+      toast.error("Укажите номер телефона, например +7 900 123-45-67");
+      return;
+    }
+    save.mutate({ phone: normalized });
+  }
+
+  return (
+    <Frame spacing="default">
+      <FramePanel className="flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <IconTile variant="soft" aria-hidden="true">
+            {me.data.name.charAt(0).toUpperCase()}
+          </IconTile>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-medium">{me.data.name}</span>
+            <span className="truncate text-xs text-muted-foreground">
+              {me.data.email}
+            </span>
+          </div>
+          {current && !editing && (
+            <div className="flex items-center gap-2 text-sm">
+              <PhoneIcon className="size-4 text-muted-foreground" />
+              <span className="tabular-nums">{formatPhone(current)}</span>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => {
+                  setPhone(current);
+                  setEditing(true);
+                }}
+              >
+                Изменить
+              </Button>
+            </div>
+          )}
+        </div>
+        {showForm && (
+          <form onSubmit={submit} className="flex flex-col gap-2">
+            {!current && (
+              <Alert variant="warning">
+                <AlertTitle>Укажите телефон</AlertTitle>
+                <AlertDescription>
+                  Специалисту нужно связаться с вами по записи. Без телефона
+                  записаться нельзя.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                aria-label="Телефон"
+                placeholder="+7 900 123-45-67"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full max-w-xs"
+              />
+              <Button type="submit" disabled={save.isPending}>
+                Сохранить
+              </Button>
+              {editing && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditing(false)}
+                >
+                  Отмена
+                </Button>
+              )}
+            </div>
+          </form>
+        )}
+      </FramePanel>
+    </Frame>
+  );
+}
+
 function PaymentHistory() {
   const payments = useQuery(orpc.payment.mine.queryOptions());
 
@@ -243,6 +356,8 @@ export function MyBookings() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeading title="Кабинет" description="Баланс, записи и оплаты" />
+
+      <ContactCard />
 
       <PaymentReturn onRetry={setTopUp} />
 
@@ -347,7 +462,9 @@ export function MyBookings() {
                           {b.practiceName}
                         </span>
                       </div>
-                      {b.canCancel ? (
+                      {b.awaitingPayment ? (
+                        <Badge variant="warning-light">Ждёт оплаты</Badge>
+                      ) : b.canCancel ? (
                         <ConfirmButton
                           title="Отменить запись?"
                           description={`${capitalize(

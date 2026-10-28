@@ -84,6 +84,7 @@ function EntryForm({
     Math.max(minutesOf(draft.end) || 1440, minutesOf(draft.start) + 30),
   );
   const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
 
@@ -109,6 +110,7 @@ function EntryForm({
     if (mode === "free") {
       const parsed = freeBookingFormSchema.safeParse({
         guestName,
+        guestPhone,
         guestContact: guestContact || undefined,
         note: note || undefined,
       });
@@ -187,16 +189,30 @@ function EntryForm({
             <Input
               id="entry-guest"
               autoFocus
+              required
               placeholder="Иван Петров"
               value={guestName}
               onChange={(e) => setGuestName(e.target.value)}
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="entry-contact">Телефон или почта</Label>
+            <Label htmlFor="entry-phone">Телефон</Label>
+            <Input
+              id="entry-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
+              placeholder="+7 900 000-00-00"
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="entry-contact">Почта или Telegram</Label>
             <Input
               id="entry-contact"
-              placeholder="+7 900 000-00-00"
+              placeholder="По желанию"
               value={guestContact}
               onChange={(e) => setGuestContact(e.target.value)}
             />

@@ -7,7 +7,13 @@ import { appUrl, hostConfig, practiceHost } from "~/lib/hosts";
 const hosts = hostConfig();
 
 /** Open without a session on the app's own host. */
-const PUBLIC_PATHS = [paths.auth.root, "/p/", "/site/", "/api/auth"];
+const PUBLIC_PATHS = [
+  paths.auth.root,
+  "/p/",
+  "/b/",
+  "/site/",
+  "/api/auth",
+];
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

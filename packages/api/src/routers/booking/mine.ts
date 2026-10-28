@@ -3,7 +3,10 @@ import {
   asc,
   Booking,
   eq,
+  gt,
   gte,
+  isNull,
+  or,
   Practice,
   PracticeMember,
 } from "@synoro/db";
@@ -15,7 +18,7 @@ const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * The caller's paid bookings in every practice: upcoming ones and those of
- * the last 30 days, including cancelled. `canCancel` tells whether the
+ * the last 30 days, including cancelled and those awaiting payment. `canCancel` tells whether the
  * client may still cancel it themselves (24 h rule).
  *
  * @example client.booking.mine()
@@ -28,6 +31,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       status: Booking.status,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
+      holdUntil: Booking.holdUntil,
       practiceId: Practice.id,
       practiceName: Practice.name,
       practiceSlug: Practice.slug,
@@ -42,14 +46,19 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
         eq(PracticeMember.userId, context.session.user.id),
         eq(Booking.kind, "consultation"),
         gte(Booking.startsAt, new Date(now - RECENT_MS)),
+        // Unpaid holds that ran out never were bookings.
+        or(isNull(Booking.holdUntil), gt(Booking.holdUntil, new Date(now))),
       ),
     )
     .orderBy(asc(Booking.startsAt));
 
-  return rows.map((row) => ({
+  return rows.map(({ holdUntil, ...row }) => ({
     ...row,
+    /** Reserved, the online payment not finished yet. */
+    awaitingPayment: holdUntil !== null && row.status === "active",
     canCancel:
       row.status === "active" &&
+      holdUntil === null &&
       row.startsAt.getTime() - now >= CLIENT_CANCEL_WINDOW_MS,
   }));
 });

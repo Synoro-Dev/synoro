@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { phoneSchema } from "./phone";
 import { PROFESSIONS } from "./profession";
 
 /** Free slots sit on a 30-minute grid, so schedules do too. */
@@ -110,6 +111,8 @@ export const freeBookingFormSchema = z.object({
     .trim()
     .min(1, "Укажите имя")
     .max(120, "Имя не должно быть длиннее 120 символов"),
+  guestPhone: phoneSchema,
+  /** Telegram, email — anything besides the phone. */
   guestContact: z
     .string()
     .trim()
@@ -118,7 +121,31 @@ export const freeBookingFormSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+export type FreeBookingFormInput = z.input<typeof freeBookingFormSchema>;
 export type FreeBookingFormValues = z.infer<typeof freeBookingFormSchema>;
+
+/**
+ * Who a visitor is when booking without an account: the phone is how the
+ * specialist reaches them, the email is where their cabinet link and sign-in
+ * codes go.
+ */
+export const guestBookingFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Укажите имя")
+    .max(120, "Имя не должно быть длиннее 120 символов"),
+  phone: phoneSchema,
+  email: z
+    .string()
+    .trim()
+    .min(1, "Укажите адрес электронной почты")
+    .email("Некорректный адрес электронной почты"),
+  note: z.string().trim().max(500).optional(),
+});
+
+export type GuestBookingFormInput = z.input<typeof guestBookingFormSchema>;
+export type GuestBookingFormValues = z.infer<typeof guestBookingFormSchema>;
 
 export const memberInviteFormSchema = z.object({
   email: z.email("Некорректный адрес электронной почты"),

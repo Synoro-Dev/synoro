@@ -253,7 +253,11 @@ describe("practice", () => {
       .where(eq(user.id, recipient.user.id));
     await call(
       userRouter.updateProfile,
-      { username: "recipient", email: recipient.user.email },
+      {
+        username: "recipient",
+        email: recipient.user.email,
+        phone: "+79001234567",
+      },
       { context: api.context(recipient) },
     );
     expect(
@@ -271,7 +275,7 @@ describe("practice", () => {
     );
     await call(
       userRouter.updateProfile,
-      { username: "recipient", email },
+      { username: "recipient", email, phone: "+79001234567" },
       { context: api.context(recipient) },
     );
     expect(
@@ -592,10 +596,26 @@ describe("staff bookings", () => {
   it("books free half-hour consultations for guests", async () => {
     const free = await call(
       bookingRouter.bookFree,
-      { practiceId, startsAt: at("07:30"), guestName: "Иван" },
+      {
+        practiceId,
+        startsAt: at("07:30"),
+        guestName: "Иван",
+        guestPhone: "8 900 000-00-00",
+      },
       { context: api.context(owner) },
     );
     expect(free.endsAt.toISOString()).toBe(`${MONDAY}T08:00:00.000Z`);
+    expect(free.guestPhone).toBe("+79000000000");
+
+    // A phone is mandatory.
+    await expect(
+      call(
+        bookingRouter.bookFree,
+        // @ts-expect-error guestPhone is required
+        { practiceId, startsAt: at("08:00"), guestName: "Без телефона" },
+        { context: api.context(owner) },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
 
     // The paid 10:00 hour now overlaps the free 10:30 half hour.
     const { slots } = await call(
@@ -616,7 +636,12 @@ describe("staff bookings", () => {
     await expect(
       call(
         bookingRouter.bookFree,
-        { practiceId, startsAt: at("07:30"), guestName: "Пётр" },
+        {
+          practiceId,
+          startsAt: at("07:30"),
+          guestName: "Пётр",
+          guestPhone: "+79000000001",
+        },
         { context: api.context(owner) },
       ),
     ).rejects.toMatchObject({ code: "SLOT_UNAVAILABLE" });
@@ -624,7 +649,12 @@ describe("staff bookings", () => {
     await expect(
       call(
         bookingRouter.bookFree,
-        { practiceId, startsAt: at("07:00"), guestName: "Пётр" },
+        {
+          practiceId,
+          startsAt: at("07:00"),
+          guestName: "Пётр",
+          guestPhone: "+79000000001",
+        },
         { context: api.context(session) },
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

@@ -1,14 +1,19 @@
 import { env, logger, paths } from "@synoro/config";
 import {
   and,
+  Booking,
   type Database,
   eq,
+  isNotNull,
   Payment,
   PaymentAccount,
+  type PaymentPackage,
   type PaymentProvider,
   type PaymentStatus,
+  type Practice,
   sql,
 } from "@synoro/db";
+import { formatCredits, professionTerms } from "@synoro/validators";
 
 import { decryptSecret } from "./secrets";
 import { tbank, tbankStatus, verifyTbankToken } from "./tbank";
@@ -43,6 +48,11 @@ export function returnUrl(paymentId: string) {
   return url.href;
 }
 
+/** Back from the payment page to a visitor's booking page, which checks it. */
+export function guestReturnUrl(token: string) {
+  return new URL(paths.booking.guest(token), env.APP_URL).href;
+}
+
 export function credentialsOf(account: AccountRow) {
   return {
     merchantId: account.merchantId,
@@ -51,10 +61,94 @@ export function credentialsOf(account: AccountRow) {
 }
 
 /**
- * Move a pending payment to its final status. Success marks it paid, adds
- * the credits and writes the history entry in ONE statement, so it happens
- * exactly once however many webhooks and status checks race (the Neon HTTP
- * driver has no interactive transactions). Settled payments never change.
+ * Create a pending payment for `pkg` and open it with the practice's
+ * provider. Returns the payment and the provider's page to send the client
+ * to. Throws `ProviderError` when the provider refuses; in every failure the
+ * row is dropped, since nothing was charged.
+ */
+export async function startPayment(
+  db: Database,
+  input: {
+    practice: typeof Practice.$inferSelect;
+    account: AccountRow;
+    pkg: typeof PaymentPackage.$inferSelect;
+    memberId: string;
+    user: { id: string; email: string };
+    /** The booking being paid for (a visitor's), confirmed on success. */
+    bookingId?: string;
+    returnUrl: (paymentId: string) => string;
+  },
+) {
+  const { practice, account, pkg } = input;
+  const [payment] = await db
+    .insert(Payment)
+    .values({
+      practiceId: practice.id,
+      accountId: account.id,
+      memberId: input.memberId,
+      bookingId: input.bookingId,
+      provider: account.provider,
+      credits: pkg.credits,
+      amount: pkg.price,
+      createdById: input.user.id,
+    })
+    .returning();
+  if (!payment) throw new Error("Failed to insert payment");
+
+  const terms = professionTerms(practice.profession);
+  const item = `${formatCredits(pkg.credits, terms)} — ${practice.name}`;
+  try {
+    const remote = await gateways[account.provider].create(
+      credentialsOf(account),
+      {
+        orderId: payment.id,
+        amount: pkg.price,
+        description: `Оплата: ${item}`,
+        returnUrl: input.returnUrl(payment.id),
+        notificationUrl: notificationUrl(account.provider),
+        email: input.user.email,
+        receipt: account.receipts
+          ? { itemName: `Пакет: ${item}`, taxSystem: account.taxSystem }
+          : undefined,
+      },
+    );
+    if (!remote.confirmationUrl) {
+      throw new ProviderError("unavailable", "No payment page returned");
+    }
+    await db
+      .update(Payment)
+      .set({
+        externalId: remote.externalId,
+        confirmationUrl: remote.confirmationUrl,
+      })
+      .where(eq(Payment.id, payment.id));
+    return { paymentId: payment.id, confirmationUrl: remote.confirmationUrl };
+  } catch (error) {
+    await db.delete(Payment).where(eq(Payment.id, payment.id));
+    throw error;
+  }
+}
+
+/** What to tell the client when the provider refused a payment. */
+export function providerFailureMessage(error: ProviderError) {
+  return error.kind === "credentials"
+    ? "Оплата у специалиста временно не работает — сообщите ему, пожалуйста"
+    : error.kind === "rejected"
+      ? error.message
+      : undefined;
+}
+
+/**
+ * Move a pending payment to its final status.
+ *
+ * Success marks it paid, adds the credits and writes the history entry in ONE
+ * statement, so it happens exactly once however many webhooks and status
+ * checks race (the Neon HTTP driver has no interactive transactions). A payment
+ * made for a booking also confirms that booking and spends one of its credits
+ * on it — unless the hold ran out and the booking was released meanwhile: then
+ * the credits just land on the balance and the client picks another time.
+ * Cancellation of such a payment releases the held time. Settled payments
+ * never change.
  */
 async function settlePayment(
   db: Database,
@@ -62,10 +156,23 @@ async function settlePayment(
   status: PaymentStatus,
 ) {
   if (status === "canceled") {
-    await db
+    const [canceled] = await db
       .update(Payment)
       .set({ status: "canceled", confirmationUrl: null })
-      .where(and(eq(Payment.id, paymentId), eq(Payment.status, "pending")));
+      .where(and(eq(Payment.id, paymentId), eq(Payment.status, "pending")))
+      .returning({ bookingId: Payment.bookingId });
+    if (canceled?.bookingId) {
+      await db
+        .update(Booking)
+        .set({ status: "cancelled", cancelledAt: new Date() })
+        .where(
+          and(
+            eq(Booking.id, canceled.bookingId),
+            eq(Booking.status, "active"),
+            isNotNull(Booking.holdUntil),
+          ),
+        );
+    }
   } else if (status === "succeeded") {
     await db.execute(sql`
       with paid as (
@@ -73,20 +180,37 @@ async function settlePayment(
         set status = 'succeeded', paid_at = now(), confirmation_url = null,
             updated_at = now()
         where id = ${paymentId} and status = 'pending'
-        returning id, member_id, credits, created_by_id
+        returning id, member_id, booking_id, credits, created_by_id
+      ), confirmed as (
+        update bookings
+        set hold_until = null, updated_at = now()
+        from paid
+        where bookings.id = paid.booking_id
+          and bookings.status = 'active'
+          and bookings.hold_until is not null
+        returning bookings.id, bookings.member_id
       ), topped_up as (
         update practice_members
-        set credits = practice_members.credits + paid.credits,
+        set credits = practice_members.credits + paid.credits
+              - (select count(*) from confirmed)::int,
             updated_at = now()
         from paid
         where practice_members.id = paid.member_id
         returning practice_members.id
+      ), purchase as (
+        insert into credit_entries
+          (member_id, delta, reason, payment_id, note, created_by_id)
+        select member_id, credits, 'purchase', id, 'Оплата онлайн', created_by_id
+        from paid
+        where member_id is not null
+        returning id
       )
       insert into credit_entries
-        (member_id, delta, reason, payment_id, note, created_by_id)
-      select member_id, credits, 'purchase', id, 'Оплата онлайн', created_by_id
-      from paid
-      where member_id is not null
+        (member_id, delta, reason, booking_id, note, created_by_id)
+      select confirmed.member_id, -1, 'booking', confirmed.id, 'Оплата онлайн',
+        paid.created_by_id
+      from confirmed, paid
+      where confirmed.member_id is not null
     `);
   }
 

@@ -7,7 +7,10 @@ import {
   eq,
   gt,
   gte,
+  isNotNull,
+  isNull,
   lt,
+  or,
   PracticeMember,
   sql,
 } from "@synoro/db";
@@ -33,7 +36,13 @@ export function localDaysRange(from: string, days: number, timeZone: string) {
   };
 }
 
-/** Condition: an active booking of the practice overlapping [start, end). */
+/** An unpaid online booking holds its time for this long. */
+export const HOLD_MS = 15 * 60 * 1000;
+
+/**
+ * Condition: a booking of the practice overlapping [start, end) that still
+ * holds its time — active, and not an unpaid hold that ran out.
+ */
 export function activeBookingOverlaps(
   practiceId: string,
   start: Date,
@@ -42,9 +51,70 @@ export function activeBookingOverlaps(
   return and(
     eq(Booking.practiceId, practiceId),
     eq(Booking.status, "active"),
+    or(isNull(Booking.holdUntil), gt(Booking.holdUntil, new Date())),
     lt(Booking.startsAt, end),
     gt(Booking.endsAt, start),
   );
+}
+
+/**
+ * Cancel the practice's unpaid holds that ran out. The `bookings_no_overlap`
+ * constraint still counts them while they are `active`, so everything that
+ * inserts a booking calls this first. A payment that arrives afterwards only
+ * tops up the balance (see `settlePayment`).
+ */
+export async function releaseExpiredHolds(db: Database, practiceId: string) {
+  await db
+    .update(Booking)
+    .set({ status: "cancelled", cancelledAt: new Date() })
+    .where(
+      and(
+        eq(Booking.practiceId, practiceId),
+        eq(Booking.status, "active"),
+        isNotNull(Booking.holdUntil),
+        lt(Booking.holdUntil, new Date()),
+      ),
+    );
+}
+
+/**
+ * Cancel an active booking and, when asked, give the consultation back to
+ * the client's balance. Conditional on `active`, so two concurrent cancels
+ * refund once. An unpaid hold has spent nothing, so it never refunds.
+ * Returns undefined when the booking wasn't active any more.
+ */
+export async function cancelActiveBooking(
+  db: Database,
+  bookingId: string,
+  options: { cancelledById: string | null; refund: boolean },
+) {
+  const [cancelled] = await db
+    .update(Booking)
+    .set({
+      status: "cancelled",
+      cancelledAt: new Date(),
+      cancelledById: options.cancelledById,
+    })
+    .where(and(eq(Booking.id, bookingId), eq(Booking.status, "active")))
+    .returning();
+  if (!cancelled) return undefined;
+
+  const refunded =
+    options.refund &&
+    cancelled.kind === "consultation" &&
+    cancelled.memberId !== null &&
+    cancelled.holdUntil === null;
+  if (refunded && cancelled.memberId) {
+    await adjustCredits(db, cancelled.memberId, 1);
+    await recordCredit(db, {
+      memberId: cancelled.memberId,
+      delta: 1,
+      reason: "refund",
+      bookingId: cancelled.id,
+      createdById: options.cancelledById,
+    });
+  }
+  return { booking: cancelled, refunded };
 }
 
 /**

@@ -30,6 +30,7 @@ export const members = practiceProcedure
         credits: PracticeMember.credits,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         joinedAt: PracticeMember.createdAt,
       })
       .from(PracticeMember)

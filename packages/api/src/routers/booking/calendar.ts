@@ -48,10 +48,14 @@ export const calendar = practiceProcedure
         endsAt: Booking.endsAt,
         note: Booking.note,
         guestName: Booking.guestName,
+        guestPhone: Booking.guestPhone,
         guestContact: Booking.guestContact,
         memberId: Booking.memberId,
         clientName: user.name,
         clientEmail: user.email,
+        clientPhone: user.phone,
+        /** Set while an online payment is awaited. */
+        holdUntil: Booking.holdUntil,
       })
       .from(Booking)
       .leftJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))

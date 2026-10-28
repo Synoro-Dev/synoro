@@ -1,7 +1,12 @@
-import { Booking, isExclusionViolation } from "@synoro/db";
+import { Booking, eq, isExclusionViolation, user } from "@synoro/db";
 import { z } from "zod";
 
-import { adjustCredits, loadRules, recordCredit } from "../../lib/bookings";
+import {
+  adjustCredits,
+  loadRules,
+  recordCredit,
+  releaseExpiredHolds,
+} from "../../lib/bookings";
 import {
   findMembership,
   findPractice,
@@ -12,7 +17,8 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
 /**
  * Book a one-hour paid consultation for the caller, spending one credit.
  *
- * NO_CREDITS when the balance is zero; SLOT_UNAVAILABLE when the time is off
+ * PHONE_REQUIRED when the caller's profile has no phone yet; NO_CREDITS when
+ * the balance is zero; SLOT_UNAVAILABLE when the time is off
  * the schedule or someone else holds it (the `bookings_no_overlap`
  * constraint decides races). The credit is taken first with a conditional
  * update and given back if the insert fails — there are no interactive
@@ -22,6 +28,10 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
  */
 export const book = practiceProcedure
   .errors({
+    PHONE_REQUIRED: {
+      message:
+        "Укажите номер телефона в профиле — специалисту нужно связаться с вами",
+    },
     NO_CREDITS: {
       message: "Баланс пуст — пополните его или обратитесь к администратору",
     },
@@ -38,11 +48,16 @@ export const book = practiceProcedure
   )
   .handler(async ({ context, input, errors }) => {
     const userId = context.session.user.id;
-    const [member, practice] = await Promise.all([
+    const [member, practice, account] = await Promise.all([
       findMembership(context.db, input.practiceId, userId),
       findPractice(context.db, input.practiceId),
+      context.db.query.user.findFirst({
+        where: eq(user.id, userId),
+        columns: { phone: true },
+      }),
     ]);
     if (!member || !practice) throw errors.FORBIDDEN();
+    if (!account?.phone) throw errors.PHONE_REQUIRED();
 
     const rules = await loadRules(context.db, practice.id);
     const scheduled = isScheduledSlot({
@@ -54,6 +69,7 @@ export const book = practiceProcedure
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
 
+    await releaseExpiredHolds(context.db, practice.id);
     const credits = await adjustCredits(context.db, member.id, -1);
     if (credits === undefined) throw errors.NO_CREDITS();
 
