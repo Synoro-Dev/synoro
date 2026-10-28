@@ -8,12 +8,17 @@ const TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
 const SPAN_ID = "b7ad6b7169203331";
 
 function captureLine(fn: () => void) {
+  // Test preloads silence the logger; this test needs its output.
+  const level = process.env.LOG_LEVEL;
+  process.env.LOG_LEVEL = "debug";
   const spy = spyOn(console, "warn").mockImplementation(() => {});
   try {
     fn();
     return JSON.parse(String(spy.mock.calls[0]?.[0]));
   } finally {
     spy.mockRestore();
+    if (level === undefined) delete process.env.LOG_LEVEL;
+    else process.env.LOG_LEVEL = level;
   }
 }
 

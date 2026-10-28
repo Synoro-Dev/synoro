@@ -182,6 +182,15 @@ export function initAuth<
             },
           }
         : {},
+    // Better Auth's own lines go through our JSON logger and its LOG_LEVEL
+    // instead of colored console text.
+    logger: {
+      log(level, message, ...args) {
+        const meta = args.length > 0 ? { args } : undefined;
+        if (level === "error") logger.error(message, undefined, meta);
+        else logger[level](message, meta);
+      },
+    },
     onAPIError: {
       onError(error) {
         logger.error("auth.api_error", error);

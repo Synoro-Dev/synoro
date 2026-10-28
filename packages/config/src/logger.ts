@@ -16,6 +16,9 @@ import { isSpanContextValid, trace } from "@opentelemetry/api";
 
 type LogLevel = "debug" | "info" | "warn" | "error";
 
+/** `LOG_LEVEL` also accepts `silent`, which drops every line (tests). */
+type MinLevel = LogLevel | "silent";
+
 type LogMeta = Record<string, unknown>;
 
 const LEVEL_PRIORITY: Record<LogLevel, number> = {
@@ -25,15 +28,19 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 40,
 };
 
-function resolveMinLevel(): LogLevel {
+const MIN_PRIORITY: Record<MinLevel, number> = {
+  ...LEVEL_PRIORITY,
+  silent: Number.POSITIVE_INFINITY,
+};
+
+// Read on every write, so a test can change LOG_LEVEL after import.
+function resolveMinLevel(): MinLevel {
   const fromEnv = process.env.LOG_LEVEL?.toLowerCase();
-  if (fromEnv && fromEnv in LEVEL_PRIORITY) {
-    return fromEnv as LogLevel;
+  if (fromEnv && fromEnv in MIN_PRIORITY) {
+    return fromEnv as MinLevel;
   }
   return process.env.NODE_ENV === "production" ? "info" : "debug";
 }
-
-const minLevel = resolveMinLevel();
 
 function serializeError(error: unknown): LogMeta {
   if (error instanceof Error) {
@@ -49,7 +56,7 @@ function traceFields(): LogMeta {
 }
 
 function write(level: LogLevel, message: string, meta?: LogMeta): void {
-  if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[minLevel]) {
+  if (LEVEL_PRIORITY[level] < MIN_PRIORITY[resolveMinLevel()]) {
     return;
   }
 
