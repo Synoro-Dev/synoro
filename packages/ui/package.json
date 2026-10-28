@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/components/index.ts",
     "./hooks": "./src/hooks/index.ts",
+    "./cookie-consent": "./src/cookie-consent.ts",
     "./reui/*": "./src/components/reui/*.tsx"
   },
   "license": "MIT",

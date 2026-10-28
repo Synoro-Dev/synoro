@@ -2,6 +2,7 @@ import { cn } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { CookieNotice } from "~/components/cookie-notice";
 import { Metrika } from "~/components/metrika";
 import { env } from "~/env";
 import { paidPlan, rubles } from "~/lib/pricing";
@@ -61,7 +62,10 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       >
         {props.children}
         {env.NEXT_PUBLIC_YANDEX_METRIKA_ID && (
-          <Metrika id={env.NEXT_PUBLIC_YANDEX_METRIKA_ID} />
+          <>
+            <Metrika id={env.NEXT_PUBLIC_YANDEX_METRIKA_ID} />
+            <CookieNotice counterId={env.NEXT_PUBLIC_YANDEX_METRIKA_ID} />
+          </>
         )}
       </body>
     </html>
