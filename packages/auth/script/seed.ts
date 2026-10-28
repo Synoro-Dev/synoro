@@ -310,7 +310,6 @@ async function createUser(
     phone: data.phone,
     bio: data.bio,
     image: data.image,
-    language: "ru",
     createdAt,
     updatedAt: createdAt,
   });

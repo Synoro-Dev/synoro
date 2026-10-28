@@ -25,7 +25,6 @@ export const list = adminProcedure
         email: true,
         username: true,
         emailVerified: true,
-        language: true,
         createdAt: true,
         updatedAt: true,
       },

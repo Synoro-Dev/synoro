@@ -76,14 +76,6 @@ describe("profileFormSchema phone", () => {
 
 describe("accountFormSchema", () => {
   test("accepts a valid account", () => {
-    const result = accountFormSchema.safeParse({
-      name: "Jane",
-      language: "en",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  test("language is optional", () => {
     const result = accountFormSchema.safeParse({ name: "Jane" });
     expect(result.success).toBe(true);
   });
