@@ -216,6 +216,16 @@ export function GuestBookingForm({
         {leaving && <Spinner />}
         {selected ? `Оплатить ${formatRub(selected.price)}` : "Оплатить"}
       </Button>
+      {reserve.data && (
+        <a
+          href={reserve.data.confirmationUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-primary underline underline-offset-4"
+        >
+          Если оплата не открылась, откройте её в новой вкладке
+        </a>
+      )}
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <LockIcon className="mt-0.5 size-3 shrink-0" />
         <span>

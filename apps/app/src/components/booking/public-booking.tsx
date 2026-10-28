@@ -240,7 +240,7 @@ export function PublicBooking({
                   variant="outline"
                   size="sm"
                   nativeButton={false}
-                  render={<Link href={paths.booking.mine} />}
+                  render={<Link href={paths.booking.mine} target="_top" />}
                 >
                   <CalendarCheckIcon />
                   Мои записи
@@ -285,7 +285,7 @@ export function PublicBooking({
                   <Button
                     variant="outline"
                     nativeButton={false}
-                    render={<Link href={paths.booking.mine} />}
+                    render={<Link href={paths.booking.mine} target="_top" />}
                   >
                     Мои записи
                   </Button>
