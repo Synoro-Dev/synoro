@@ -1,18 +1,12 @@
-import {
-  Body,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Link,
-  Preview,
-  Tailwind,
-  Text,
-} from "@react-email/components";
-import { APP_CONFIG, env } from "@synoro/config";
+import { APP_CONFIG } from "@synoro/config";
 
-import { emailTailwindConfig } from "../tailwind";
+import { EmailLayout } from "../components/email-layout";
+import {
+  EmailAlert,
+  EmailBadge,
+  EmailCode,
+  EmailHeader,
+} from "../components/email-ui";
 
 export default function OtpSignInEmail({
   otp = "123456",
@@ -21,46 +15,28 @@ export default function OtpSignInEmail({
   otp: string;
   isSignUp?: boolean;
 }) {
-  const action = isSignUp ? "Регистрация" : "Вход";
-  const actionGenitive = isSignUp ? "регистрации" : "входа";
+  const actionGenitive = isSignUp ? "подтверждения почты" : "входа";
 
   return (
-    <Html lang="ru">
-      <Head />
-      <Preview>{`Ваш код для ${actionGenitive} - ${APP_CONFIG.shortName}`}</Preview>
-      <Tailwind config={emailTailwindConfig}>
-        <Body className="mx-auto my-auto bg-white font-sans">
-          <Container className="mx-auto my-[40px] w-[465px] rounded border border-solid border-[#eaeaea] p-[20px]">
-            <Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
-              {action} в{" "}
-              <Link href={env.APP_URL} className="text-black">
-                <strong>{APP_CONFIG.shortName}</strong>
-              </Link>
-            </Heading>
-            <Text className="text-[14px] leading-[24px] text-black">
-              Здравствуйте!
-            </Text>
-            <Text className="text-[14px] leading-[24px] text-black">
-              Ваш 6-значный код для {actionGenitive}:
-            </Text>
-            <Text className="mx-auto my-[24px] w-fit rounded-[8px] bg-[#f4f4f5] px-[24px] py-[12px] text-center font-mono text-[32px] font-bold tracking-[8px] text-black">
-              {otp}
-            </Text>
-            <Text className="text-[14px] leading-[24px] text-black">
-              Введите этот код, чтобы завершить процесс {actionGenitive}. Код
-              действителен в течение 10 минут.
-            </Text>
-            <Text className="text-[14px] leading-[24px] text-black">
-              Если вы не запрашивали этот код, просто проигнорируйте это письмо.
-            </Text>
-            <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
-            <Text className="text-[12px] leading-[24px] text-[#666666]">
-              Это автоматическое сообщение от {APP_CONFIG.shortName}.
-              Пожалуйста, не отвечайте на него.
-            </Text>
-          </Container>
-        </Body>
-      </Tailwind>
-    </Html>
+    <EmailLayout
+      preview={`${otp} — ваш код для ${actionGenitive} в ${APP_CONFIG.shortName}`}
+      footnote={`Вы получили это письмо, потому что ваш адрес указали в ${APP_CONFIG.shortName}. Отвечать на него не нужно.`}
+    >
+      <EmailHeader
+        badge={
+          <EmailBadge>{isSignUp ? "Подтверждение почты" : "Вход"}</EmailBadge>
+        }
+        title={
+          isSignUp ? "Подтвердите почту" : `Вход в ${APP_CONFIG.shortName}`
+        }
+        description={`Введите этот код в ${APP_CONFIG.shortName}, чтобы ${
+          isSignUp ? "подтвердить адрес почты" : "войти в аккаунт"
+        }.`}
+      />
+      <EmailCode code={otp} caption="Код действует 10 минут" />
+      <EmailAlert tone="warning" title="Никому не сообщайте этот код">
+        Если вы не запрашивали код, просто проигнорируйте это письмо.
+      </EmailAlert>
+    </EmailLayout>
   );
 }
