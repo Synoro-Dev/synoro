@@ -7,8 +7,9 @@
 
 ## Как работает
 
-- **Пробный период.** `practice.create` вызывает `ensureSubscription`: строка
-  `subscriptions` с `trial_ends_at = now() + 14 days`, один раз на
+- **Пробный период.** `practice.create` или первая оплата (что наступит раньше)
+  вызывает `ensureSubscription`: строка `subscriptions` с
+  `trial_ends_at = now() + 14 days`, один раз на
   пользователя. У тех, кто создал практику до запуска биллинга, пробный
   период — до 1 января 2027 (миграция `0006_billing`, обещано в Условиях).
 - **«Про» включён**, пока `now()` раньше `trial_ends_at` или `paid_until`
@@ -16,7 +17,7 @@
   тариф, данные остаются.
 - **Оплата.** «Настройки → Тариф» (`/settings/billing`) → `billing.checkout
   { period }` создаёт `subscription_payments` (pending) и платёжную ссылку
-  Точки (`POST /acquiring/v1.0/payments` или `payments_with_receipt`, карта +
+  Точки (`POST /acquiring/v1.0/payments_with_receipt`, карта +
   СБП, ссылка живёт сутки). Специалист возвращается на `/settings/billing?payment=<id>`,
   страница опрашивает `billing.status`.
 - **Зачисление.** Банк — источник правды: `billing.status` и вебхук
@@ -52,7 +53,7 @@
    TOCHKA_API_TOKEN=<JWT>
    TOCHKA_CUSTOMER_CODE=<customerCode>
    TOCHKA_MERCHANT_ID=<merchantId>     # если торговых точек несколько
-   TOCHKA_TAX_SYSTEM=usn_income        # с чеком; без переменной — без чека
+   TOCHKA_TAX_SYSTEM=usn_income        # обязательно для оплаты с чеком
    # TOCHKA_API_URL=https://enter.tochka.com/sandbox/v2  # песочница
    ```
 
@@ -72,8 +73,8 @@
    подтвердил оплату, маршрут отвечает 503, и Точка повторяет (до 30 раз).
    Без вебхука оплата зачислится, когда специалист вернётся на страницу.
 
-Без `TOCHKA_API_TOKEN` / `TOCHKA_CUSTOMER_CODE` пробный период работает, а
-кнопки оплаты выключены. На демо-стенде (`DEMO_LOGIN_EMAIL` без Точки)
+Без `TOCHKA_API_TOKEN` / `TOCHKA_CUSTOMER_CODE` / `TOCHKA_TAX_SYSTEM` пробный
+период работает, а кнопки оплаты выключены. На демо-стенде (`DEMO_LOGIN_EMAIL` без Точки)
 оплата «Про» проходит мгновенно, как платежи `demo-` магазинов.
 
 ## Что ещё не сделано

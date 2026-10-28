@@ -111,7 +111,7 @@ export const env = createEnv({
     // Sandbox: https://enter.tochka.com/sandbox/v2
     TOCHKA_API_URL: z.url().default("https://enter.tochka.com/uapi"),
     // Taxation system for 54-ФЗ receipts (Точка's online cash register).
-    // Unset: payment links without a receipt.
+    // Required for real billing: unset disables payment links.
     TOCHKA_TAX_SYSTEM: z
       .enum(["osn", "usn_income", "usn_income_outcome", "esn", "patent"])
       .optional(),

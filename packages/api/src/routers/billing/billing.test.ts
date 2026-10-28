@@ -168,6 +168,54 @@ describe("trial", () => {
 });
 
 describe("paying for «Про» through Точка", () => {
+  it("disables checkout and link creation without fiscalization", async () => {
+    // A fresh process keeps the env snapshot isolated from the other tests.
+    const childEnv = { ...process.env };
+    delete childEnv.TOCHKA_TAX_SYSTEM;
+    const child = Bun.spawn({
+      cmd: [
+        process.execPath,
+        "--no-env-file",
+        "--eval",
+        `import { expect, spyOn } from "bun:test";
+         import { call } from "@orpc/server";
+         import { createSession, setupTestApi } from ${JSON.stringify(`${import.meta.dir}/../../../test/helpers.ts`)};
+         import { billingRouter } from ${JSON.stringify(`${import.meta.dir}/index.ts`)};
+         import { createTochkaPayment } from ${JSON.stringify(`${import.meta.dir}/../../lib/billing/tochka.ts`)};
+         const api = await setupTestApi();
+         const fetchMock = spyOn(globalThis, "fetch").mockRejectedValue(new Error("Unexpected bank request"));
+         try {
+           const session = await createSession(api.db);
+           const context = api.context(session);
+           const billing = await call(billingRouter.get, undefined, { context });
+           expect(billing.available).toBe(false);
+           await expect(call(billingRouter.checkout, { period: "month" }, { context }))
+             .rejects.toMatchObject({ code: "BILLING_UNAVAILABLE" });
+           expect(await api.db.query.SubscriptionPayment.findMany()).toHaveLength(0);
+           await expect(createTochkaPayment({
+             orderId: "no-receipt", amount: 14900, purpose: "Про",
+             itemName: "Про", email: session.user.email,
+             returnUrl: "http://localhost:3000/settings/billing",
+           })).rejects.toMatchObject({ kind: "credentials" });
+           expect(fetchMock).not.toHaveBeenCalled();
+         } finally {
+           fetchMock.mockRestore();
+           await api.close();
+         }`,
+      ],
+      cwd: `${import.meta.dir}/../../..`,
+      env: childEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ]);
+    expect(stderr).toBe("");
+    expect(exitCode).toBe(0);
+  }, 30_000);
+
   it("opens a payment link for 149 ₽ and extends after the trial", async () => {
     tochka();
     const { session } = await specialist("pay-month");
@@ -178,7 +226,7 @@ describe("paying for «Про» through Точка", () => {
     expect(started.confirmationUrl).toStartWith("https://merch.tochka.com/");
     const [create] = requests;
     expect(create?.url).toBe(
-      "https://tochka.test/uapi/acquiring/v1.0/payments",
+      "https://tochka.test/uapi/acquiring/v1.0/payments_with_receipt",
     );
     expect(create?.body).toMatchObject({
       Data: {
@@ -187,6 +235,19 @@ describe("paying for «Про» through Точка", () => {
         paymentMode: ["card", "sbp"],
         paymentLinkId: started.paymentId,
         redirectUrl: `http://localhost:3000/settings/billing?payment=${started.paymentId}`,
+        taxSystemCode: "usn_income",
+        Client: { email: session.user.email },
+        Items: [
+          {
+            name: "Тариф «Про» Synoro, 1 месяц",
+            amount: 149,
+            quantity: 1,
+            vatType: "none",
+            paymentMethod: "full_prepayment",
+            paymentObject: "service",
+            measure: "шт.",
+          },
+        ],
       },
     });
 
@@ -314,6 +375,48 @@ describe("paying for «Про» through Точка", () => {
       { context: api.context(stranger) },
     ).catch((e) => e);
     expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
+  });
+
+  it("returns the latest 20 paid payments despite newer unpaid links", async () => {
+    const { session } = await specialist("pay-history");
+    const stranger = await createSession(api.db);
+    const now = Date.now();
+    const paid = await api.db
+      .insert(SubscriptionPayment)
+      .values(
+        Array.from({ length: 21 }, (_, i) => ({
+          userId: session.user.id,
+          period: "month" as const,
+          amount: 149_00,
+          status: "succeeded" as const,
+          createdAt: new Date(now - (i + 1) * DAY_MS),
+        })),
+      )
+      .returning();
+    await api.db.insert(SubscriptionPayment).values([
+      ...Array.from({ length: 21 }, (_, i) => ({
+        userId: session.user.id,
+        period: "month" as const,
+        amount: 149_00,
+        status: i % 2 ? ("pending" as const) : ("canceled" as const),
+        createdAt: new Date(now + i),
+      })),
+      {
+        userId: stranger.user.id,
+        period: "year",
+        amount: 1490_00,
+        status: "succeeded",
+        createdAt: new Date(now),
+      },
+    ]);
+
+    const billing = await call(billingRouter.get, undefined, {
+      context: api.context(session),
+    });
+    expect(billing.payments.map((p) => p.id)).toEqual(
+      paid.slice(0, 20).map((p) => p.id),
+    );
+    expect(billing.payments.every((p) => p.status === "succeeded")).toBe(true);
   });
 });
 

@@ -26,4 +26,5 @@ process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
 // «Про» billing through Точка is "configured"; tests stub fetch for it.
 process.env.TOCHKA_API_TOKEN = "test-tochka-jwt";
 process.env.TOCHKA_CUSTOMER_CODE = "300000001";
+process.env.TOCHKA_TAX_SYSTEM = "usn_income";
 process.env.TOCHKA_API_URL = "https://tochka.test/uapi";

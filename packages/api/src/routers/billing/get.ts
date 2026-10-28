@@ -1,4 +1,4 @@
-import { desc, eq, SubscriptionPayment } from "@synoro/db";
+import { and, desc, eq, SubscriptionPayment } from "@synoro/db";
 import { PRO_PRICES } from "@synoro/validators";
 
 import { billingAvailable, findSubscription, planOf } from "../../lib/billing";
@@ -25,7 +25,12 @@ export const get = protectedProcedure.handler(async ({ context }) => {
         createdAt: SubscriptionPayment.createdAt,
       })
       .from(SubscriptionPayment)
-      .where(eq(SubscriptionPayment.userId, userId))
+      .where(
+        and(
+          eq(SubscriptionPayment.userId, userId),
+          eq(SubscriptionPayment.status, "succeeded"),
+        ),
+      )
       .orderBy(desc(SubscriptionPayment.createdAt))
       .limit(20),
   ]);
@@ -34,7 +39,6 @@ export const get = protectedProcedure.handler(async ({ context }) => {
     plan: planOf(subscription),
     prices: PRO_PRICES,
     available: billingAvailable(),
-    // Abandoned links stay pending until they expire: show paid ones only.
-    payments: payments.filter((p) => p.status === "succeeded"),
+    payments,
   };
 });
