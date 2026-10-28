@@ -2,6 +2,7 @@ import { APP_CONFIG, paths } from "@synoro/config";
 import { GalleryVerticalEnd } from "lucide-react";
 import type { Metadata } from "next";
 import { UnifiedAuthForm } from "~/components/auth";
+import { SignupLegalNotice } from "~/components/legal-links";
 
 export const metadata: Metadata = {
   title: "Регистрация",
@@ -22,6 +23,7 @@ export default function SignUpPage() {
           {APP_CONFIG.name}
         </a>
         <UnifiedAuthForm mode="signup" />
+        <SignupLegalNotice />
       </div>
     </div>
   );
