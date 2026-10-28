@@ -25,7 +25,7 @@ import { dispatchEmail } from "./index";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-/** One link change mails at most this many clients. */
+/** Maximum number of bookings fetched per batch. */
 const MAX_NOTICES = 200;
 
 type Notice = BookingNotice;
@@ -163,30 +163,41 @@ export async function notifyVideoLinkChanged(
       isNull(Booking.holdUntil),
       gt(Booking.startsAt, new Date()),
     );
-    const rows = await confirmedBookings(db)
-      .where(
-        "bookingId" in scope
-          ? and(upcoming, eq(Booking.id, scope.bookingId))
-          : and(
-              upcoming,
-              eq(Booking.practiceId, scope.practiceId),
-              isNull(Booking.meetingUrl),
-            ),
-      )
-      .limit(MAX_NOTICES);
+    let afterId: string | undefined;
+    while (true) {
+      const rows = await confirmedBookings(db)
+        .where(
+          and(
+            "bookingId" in scope
+              ? and(upcoming, eq(Booking.id, scope.bookingId))
+              : and(
+                  upcoming,
+                  eq(Booking.practiceId, scope.practiceId),
+                  isNull(Booking.meetingUrl),
+                ),
+            afterId ? gt(Booking.id, afterId) : undefined,
+          ),
+        )
+        .orderBy(Booking.id)
+        .limit(MAX_NOTICES);
 
-    await Promise.all(
-      rows
-        .filter((row) => row.meetingUrl ?? row.videoUrl)
-        .map(async (row) => {
-          try {
-            await send(deliver, row, "link");
-            await markDueReminders(db, row);
-          } catch (error) {
-            settled(row.id, "link", error);
-          }
-        }),
-    );
+      await Promise.all(
+        rows
+          .filter((row) => row.meetingUrl ?? row.videoUrl)
+          .map(async (row) => {
+            try {
+              await send(deliver, row, "link");
+              await markDueReminders(db, row);
+            } catch (error) {
+              settled(row.id, "link", error);
+            }
+          }),
+      );
+
+      const last = rows.at(-1);
+      if (!last || rows.length < MAX_NOTICES) break;
+      afterId = last.id;
+    }
   } catch (error) {
     logger.warn("booking.video_notice_failed", {
       notice: "link",

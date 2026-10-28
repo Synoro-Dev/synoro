@@ -39,7 +39,7 @@ const COPY: Record<
   "reminder-day": {
     badge: "Напоминание",
     tone: "info",
-    title: "Встреча уже завтра",
+    title: "Встреча в ближайшие 24 часа",
   },
   "reminder-hour": {
     badge: "Напоминание",

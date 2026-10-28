@@ -68,7 +68,7 @@ export function VideoLinkForm({
   return (
     <form onSubmit={submit} className="flex gap-2">
       <Input
-        type="url"
+        type="text"
         inputMode="url"
         aria-label={label}
         placeholder={placeholder}

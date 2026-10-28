@@ -250,6 +250,37 @@ describe("mails", () => {
     expect(mail.sent).toEqual([]);
     await setRoom(ROOM);
   });
+
+  it("notifies every booking across batches even if one delivery fails", async () => {
+    await clearBookings();
+    const count = 401;
+    const bookings = Array.from({ length: count }, (_, index) => {
+      const startsAt = new Date(Date.now() + (60 + index) * DAY);
+      return {
+        id: `00000000-0000-4000-8000-${String(count - index).padStart(12, "0")}`,
+        practiceId,
+        kind: "consultation" as const,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 30 * MINUTE),
+        memberId,
+      };
+    });
+    await api.db.insert(Booking).values(bookings);
+    const mail = recorder();
+    let attempts = 0;
+
+    await notifyVideoLinkChanged(api.db, { practiceId }, async (message) => {
+      attempts++;
+      if (attempts === 1) throw new Error("mail down");
+      await mail.deliver(message);
+    });
+
+    expect(attempts).toBe(count);
+    expect(mail.notices()).toEqual(Array(count - 1).fill("link"));
+    expect(
+      new Set(mail.sent.map((message) => JSON.stringify(message.props))).size,
+    ).toBe(count - 1);
+  });
 });
 
 describe("reminders", () => {
