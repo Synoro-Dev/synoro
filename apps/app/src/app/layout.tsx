@@ -3,15 +3,12 @@ import { cn, ThemeProvider, ThemeToggle, Toaster } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { YandexMetrika } from "~/components/yandex-metrika";
-import { env } from "~/env";
 import { ORPCReactProvider } from "~/orpc/react";
 
 import "~/app/styles.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    env.VERCEL_ENV === "production" ? APP_CONFIG.url : "http://localhost:3000",
-  ),
+  metadataBase: new URL(APP_CONFIG.url),
   title: "Synoro",
   description:
     "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
@@ -39,11 +36,11 @@ export const viewport: Viewport = {
 };
 
 const geistSans = Geist({
-  subsets: ["latin"],
+  subsets: ["latin", "cyrillic"],
   variable: "--font-geist-sans",
 });
 const geistMono = Geist_Mono({
-  subsets: ["latin"],
+  subsets: ["latin", "cyrillic"],
   variable: "--font-geist-mono",
 });
 

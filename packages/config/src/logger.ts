@@ -2,7 +2,7 @@
  * Minimal structured logger.
  *
  * Emits one JSON line per entry so logs are machine-parseable in any
- * environment (Vercel, Docker, etc.) and play nicely with log drains and
+ * environment (Docker, Kubernetes, etc.) and play nicely with log drains and
  * OpenTelemetry collectors. This is the single sanctioned place in the
  * codebase that is allowed to call `console.*`.
  *

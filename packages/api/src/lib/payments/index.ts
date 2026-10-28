@@ -199,10 +199,10 @@ export function providerFailureMessage(error: ProviderError) {
  *
  * Success marks it paid, adds the credits and writes the history entry in ONE
  * statement, so it happens exactly once however many webhooks and status
- * checks race (the Neon HTTP driver has no interactive transactions). A payment
- * made for a booking also confirms that booking and spends one of its credits
- * on it — unless the hold ran out and the booking was released meanwhile: then
- * the credits just land on the balance and the client picks another time.
+ * checks race. A payment made for a booking also confirms that booking and
+ * spends one of its credits on it — unless the hold ran out and the booking
+ * was released meanwhile: then the credits just land on the balance and the
+ * client picks another time.
  * Cancellation of such a payment releases the held time. Settled payments
  * never change.
  */

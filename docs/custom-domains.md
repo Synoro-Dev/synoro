@@ -11,7 +11,7 @@ A practice's booking page opens at three kinds of address:
 ## How it works
 
 - `apps/app/src/proxy.ts` looks at `Host`. Anything that isn't the app's own
-  host (`APP_URL`, `NEXT_PUBLIC_APP_URL`, Vercel URLs, the bare root and
+  host (`APP_URL`, `NEXT_PUBLIC_APP_URL`, the bare root and
   `www.` of `PRACTICE_ROOT_DOMAIN`) is a practice host: `/` is rewritten to
   `/site/<host>`, `/_next/*` and files are served as is, every other path
   redirects to the same path on `APP_URL`.
@@ -77,13 +77,9 @@ https:// {
 DNS on the platform side: `A example.com`, `A *.example.com` and
 `A domains.example.com` → the server's IP (= `CUSTOM_DOMAIN_IP`).
 
-### Vercel
-
-Vercel issues certificates only for domains added to the project. Wildcard
-subdomains need the root domain on Vercel nameservers. Specialists' domains
-would have to be added and removed through the Vercel Domains API
-(`POST /v10/projects/{id}/domains`) in `domain.connect` / `disconnect` — not
-implemented yet.
+Records must point straight at our server: a domain proxied through a CDN
+can't pass the TLS challenge and its traffic never reaches Caddy, so the
+owner is told to turn proxying off (Практика → Домен).
 
 ## Not done yet
 

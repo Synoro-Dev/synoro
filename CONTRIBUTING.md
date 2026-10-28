@@ -75,7 +75,7 @@ cp .env.example .env
 ```
 
 Edit `.env` and add required values:
-- `POSTGRES_URL` — Neon database URL
+- `POSTGRES_URL` — Postgres connection string (local docker-compose by default)
 - `BETTER_AUTH_SECRET` — authentication secret
 - `RESEND_API_KEY` — API key for email sending
 

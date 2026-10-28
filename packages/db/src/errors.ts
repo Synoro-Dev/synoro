@@ -9,7 +9,7 @@ export interface PgErrorLike {
 
 /**
  * Drizzle wraps driver errors (`DrizzleQueryError`); the Postgres SQLSTATE
- * and constraint live on a `cause`. Works for node-postgres, Neon and PGlite.
+ * and constraint live on a `cause`. Works for node-postgres and PGlite.
  */
 export function findPgError(error: unknown): PgErrorLike {
   let current: unknown = error;

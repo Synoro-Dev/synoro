@@ -24,8 +24,7 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
  * the schedule, busy in the specialist's Google Calendar, or someone else
  * holds it (the `bookings_no_overlap`
  * constraint decides races). The credit is taken first with a conditional
- * update and given back if the insert fails — there are no interactive
- * transactions on the Neon HTTP driver.
+ * update and given back if the insert fails.
  *
  * @example client.booking.book({ practiceId, startsAt: new Date("2026-11-02T07:00:00Z") })
  */

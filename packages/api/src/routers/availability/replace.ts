@@ -12,8 +12,7 @@ import {
  * Existing bookings are kept even if they now fall outside the hours.
  *
  * New rules go in first and the old ones are deleted after, so a failure
- * midway never leaves the practice without a schedule (the Neon HTTP driver
- * has no interactive transactions).
+ * midway never leaves the practice without a schedule.
  *
  * @example client.availability.replace({ practiceId, rules: [{ weekday: 1, startMinute: 600, endMinute: 1080 }] })
  */

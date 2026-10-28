@@ -28,7 +28,6 @@ const getApiOrigin = () => {
   // current origin and are handled by apps/app/src/app/api/orpc.
   if (env.NEXT_PUBLIC_API_URL) return new URL(env.NEXT_PUBLIC_API_URL).origin;
   if (typeof window !== "undefined") return window.location.origin;
-  if (env.VERCEL_URL) return `https://${env.VERCEL_URL}`;
   return `http://localhost:${env.PORT}`;
 };
 

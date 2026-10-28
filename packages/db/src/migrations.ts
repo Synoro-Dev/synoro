@@ -16,7 +16,7 @@ const MIGRATIONS_TABLE = sql.identifier("__drizzle_migrations");
 
 async function rows<T>(db: Database, query: ReturnType<typeof sql>) {
   const result: unknown = await db.execute(query);
-  // node-postgres, neon-http and PGlite all expose `rows`.
+  // node-postgres and PGlite both expose `rows`.
   return (result as { rows: T[] }).rows;
 }
 

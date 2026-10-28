@@ -57,7 +57,7 @@ apps/app            Next.js 16 App Router (RSC). Serves the API itself.
 packages/api        oRPC procedures + router (`appRouter`)
 packages/auth       Better Auth `initAuth()` — single source of auth config
 packages/config     @t3-oss/env-core `env`, structured `logger`, `paths`
-packages/db         Drizzle schema, env-aware client (node-postgres / Neon HTTP)
+packages/db         Drizzle schema, node-postgres client
 packages/emails     React Email templates + send (Resend / nodemailer)
 packages/storage    S3 helpers (MinIO locally)
 packages/jobs       Hatchet tasks + worker (background jobs, emails)
@@ -102,7 +102,7 @@ and run `tsc` by hand, build them first.
   Tracing is wired in `apps/app/src/instrumentation.ts` (`@vercel/otel` +
   `ORPCInstrumentation` from `@orpc/opentelemetry`, the v2 beta of
   `@orpc/otel`): every oRPC call gets spans under Next's request span. Set
-  `OTEL_EXPORTER_OTLP_ENDPOINT` to ship them; Vercel collects them itself.
+  `OTEL_EXPORTER_OTLP_ENDPOINT` to ship them.
 - Conventional Commits: `feat(api): …`, `fix(db): …`.
 
 ## Key patterns

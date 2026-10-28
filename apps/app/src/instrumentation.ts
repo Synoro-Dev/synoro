@@ -1,9 +1,9 @@
 /**
  * Next.js instrumentation hook.
  *
- * Registers OpenTelemetry so traces/metrics are emitted automatically. On
- * Vercel this is picked up by the platform; self-hosted setups can point
- * `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP-compatible collector.
+ * Registers OpenTelemetry so traces/metrics are emitted automatically. Point
+ * `OTEL_EXPORTER_OTLP_ENDPOINT` at any OTLP-compatible collector (Jaeger,
+ * Grafana Alloy); unset, spans stay in-process.
  *
  * `ORPCInstrumentation` adds a span per oRPC call (handler, middlewares,
  * input/output validation) under Next's request span, and propagates trace

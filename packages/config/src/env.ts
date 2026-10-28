@@ -33,11 +33,6 @@ export const env = createEnv({
     // Node environment
     NODE_ENV: z.enum(["development", "production", "test"]).optional(),
 
-    // Vercel
-    VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
-    VERCEL_URL: z.string().optional(),
-    VERCEL_PROJECT_PRODUCTION_URL: z.string().optional(),
-
     // Database
     POSTGRES_URL: z.url().optional(),
 
@@ -146,9 +141,6 @@ export const env = createEnv({
   clientPrefix: "NEXT_PUBLIC_",
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
-    VERCEL_ENV: process.env.VERCEL_ENV,
-    VERCEL_URL: process.env.VERCEL_URL,
-    VERCEL_PROJECT_PRODUCTION_URL: process.env.VERCEL_PROJECT_PRODUCTION_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
     APP_URL: process.env.APP_URL,
     BOOKING_URL: process.env.BOOKING_URL,

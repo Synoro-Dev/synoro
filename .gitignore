@@ -42,8 +42,6 @@ bun.lockb
 .env
 .env*.local
 
-# vercel
-.vercel
 
 # typescript
 dist/
