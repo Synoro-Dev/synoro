@@ -5,57 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793002943488,
-      "tag": "0000_cute_kid_colt",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793005705472,
-      "tag": "0001_booking",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793028511428,
-      "tag": "0002_practice_invitations",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793046026591,
-      "tag": "0003_practice_domains",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1793101613042,
-      "tag": "0004_payments",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1793131734983,
-      "tag": "0005_practice_profession",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1793170245199,
-      "tag": "0006_user_phone",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1793171061087,
-      "tag": "0007_guest_booking",
+      "when": 1793173305476,
+      "tag": "0000_colossal_inhumans",
       "breakpoints": true
     }
   ]
