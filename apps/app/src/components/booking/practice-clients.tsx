@@ -25,6 +25,7 @@ import { DataGridPagination } from "@synoro/ui/reui/data-grid/data-grid-paginati
 import { DataGridScrollArea } from "@synoro/ui/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@synoro/ui/reui/data-grid/data-grid-table";
 import { Frame, FrameFooter, FramePanel } from "@synoro/ui/reui/frame";
+import { formatPhone } from "@synoro/validators";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ColumnDef,
@@ -88,6 +89,7 @@ function getColumns(actions: {
             <span className="truncate font-medium">{row.original.name}</span>
             <span className="truncate text-xs text-muted-foreground">
               {row.original.email}
+              {row.original.phone && ` · ${formatPhone(row.original.phone)}`}
             </span>
           </div>
         </div>
@@ -210,11 +212,13 @@ export function PracticeClients({
   const [adding, setAdding] = useState(false);
 
   const query = search.trim().toLowerCase();
+  const digits = query.replace(/\D/g, "");
   const data = (members.data ?? []).filter(
     (m) =>
       !query ||
       m.name.toLowerCase().includes(query) ||
-      m.email.toLowerCase().includes(query),
+      m.email.toLowerCase().includes(query) ||
+      (digits !== "" && (m.phone ?? "").includes(digits)),
   );
   const columns = getColumns({ onCredit: setCrediting, onHistory: setHistory });
 

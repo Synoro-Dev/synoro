@@ -4,6 +4,7 @@ import {
   availabilityFormSchema,
   creditGrantFormSchema,
   freeBookingFormSchema,
+  guestBookingFormSchema,
   normalizeHostname,
   practiceFormSchema,
 } from "./booking";
@@ -11,6 +12,7 @@ import { loginFormSchema } from "./login";
 import { otpFormSchema } from "./otp";
 import { changePasswordFormSchema } from "./password";
 import { paymentAccountFormSchema, paymentPackagesFormSchema } from "./payment";
+import { formatPhone, normalizePhone } from "./phone";
 import {
   formatCredits,
   PROFESSION_TERMS,
@@ -25,15 +27,18 @@ describe("profileFormSchema", () => {
     const result = profileFormSchema.safeParse({
       username: "jane",
       email: "jane@example.com",
+      phone: "8 (900) 123-45-67",
       bio: "hello",
     });
     expect(result.success).toBe(true);
+    expect(result.data?.phone).toBe("+79001234567");
   });
 
   test("rejects a too-short username", () => {
     const result = profileFormSchema.safeParse({
       username: "j",
       email: "jane@example.com",
+      phone: "+79001234567",
     });
     expect(result.success).toBe(false);
   });
@@ -42,6 +47,7 @@ describe("profileFormSchema", () => {
     const result = profileFormSchema.safeParse({
       username: "jane",
       email: "not-an-email",
+      phone: "+79001234567",
     });
     expect(result.success).toBe(false);
   });
@@ -50,9 +56,21 @@ describe("profileFormSchema", () => {
     const result = profileFormSchema.safeParse({
       username: "jane",
       email: "jane@example.com",
+      phone: "+79001234567",
       bio: "x".repeat(161),
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("profileFormSchema phone", () => {
+  test("is required", () => {
+    const result = profileFormSchema.safeParse({
+      username: "jane",
+      email: "jane@example.com",
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["phone"]);
   });
 });
 
@@ -293,16 +311,74 @@ describe("creditGrantFormSchema", () => {
 });
 
 describe("freeBookingFormSchema", () => {
-  test("requires a guest name", () => {
-    expect(freeBookingFormSchema.safeParse({ guestName: "  " }).success).toBe(
-      false,
-    );
+  test("requires a guest name and a phone", () => {
     expect(
       freeBookingFormSchema.safeParse({
-        guestName: "Иван",
-        guestContact: "+7 900 000-00-00",
+        guestName: "  ",
+        guestPhone: "+7 900 000-00-00",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
+    expect(freeBookingFormSchema.safeParse({ guestName: "Иван" }).success).toBe(
+      false,
+    );
+    const result = freeBookingFormSchema.safeParse({
+      guestName: "Иван",
+      guestPhone: "8 900 000 00 00",
+      guestContact: "@ivan",
+    });
+    expect(result.success).toBe(true);
+    expect(result.data?.guestPhone).toBe("+79000000000");
+  });
+});
+
+describe("guestBookingFormSchema", () => {
+  const base = {
+    name: "Иван Петров",
+    phone: "+7 (900) 123-45-67",
+    email: "ivan@example.com",
+  };
+
+  test("accepts a visitor and normalises the phone", () => {
+    const result = guestBookingFormSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    expect(result.data?.phone).toBe("+79001234567");
+  });
+
+  test("requires phone and email", () => {
+    expect(
+      guestBookingFormSchema.safeParse({ ...base, phone: "" }).success,
+    ).toBe(false);
+    expect(
+      guestBookingFormSchema.safeParse({ ...base, email: "ivan" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("normalizePhone", () => {
+  test("turns Russian formats into E.164", () => {
+    for (const input of [
+      "+7 900 123-45-67",
+      "8 (900) 123 45 67",
+      "7-900-123-45-67",
+      "9001234567",
+    ]) {
+      expect(normalizePhone(input)).toBe("+79001234567");
+    }
+  });
+
+  test("keeps international numbers", () => {
+    expect(normalizePhone("+44 20 7946 0958")).toBe("+442079460958");
+  });
+
+  test("rejects things that are not phones", () => {
+    for (const input of ["", "abc", "12345", "+7 900 123", "8 900 12", "+1"]) {
+      expect(normalizePhone(input)).toBeNull();
+    }
+  });
+
+  test("formatPhone groups +7 numbers", () => {
+    expect(formatPhone("+79001234567")).toBe("+7 900 123-45-67");
+    expect(formatPhone("+442079460958")).toBe("+442079460958");
   });
 });
 

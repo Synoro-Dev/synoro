@@ -2,21 +2,18 @@ import { logger } from "@synoro/config";
 import {
   and,
   eq,
-  Payment,
   PaymentAccount,
   PaymentPackage,
   PracticeMember,
 } from "@synoro/db";
-import { formatCredits, professionTerms } from "@synoro/validators";
 import { z } from "zod";
 
 import {
-  credentialsOf,
-  gateways,
-  notificationUrl,
   ProviderError,
+  providerFailureMessage,
   returnUrl,
   secretsAvailable,
+  startPayment,
 } from "../../lib/payments";
 import {
   findMembership,
@@ -73,41 +70,16 @@ export const checkout = practiceProcedure
     if (!account || !secretsAvailable()) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
 
-    const [payment] = await context.db
-      .insert(Payment)
-      .values({
-        practiceId: practice.id,
-        accountId: account.id,
-        memberId: member.id,
-        provider: account.provider,
-        credits: pkg.credits,
-        amount: pkg.price,
-        createdById: user.id,
-      })
-      .returning();
-    if (!payment) throw new Error("Failed to insert payment");
-
-    const terms = professionTerms(practice.profession);
-    const item = `${formatCredits(pkg.credits, terms)} — ${practice.name}`;
-    let remote: Awaited<ReturnType<(typeof gateways)["yookassa"]["create"]>>;
     try {
-      remote = await gateways[account.provider].create(credentialsOf(account), {
-        orderId: payment.id,
-        amount: pkg.price,
-        description: `Оплата: ${item}`,
-        returnUrl: returnUrl(payment.id),
-        notificationUrl: notificationUrl(account.provider),
-        email: user.email,
-        receipt: account.receipts
-          ? {
-              itemName: `Пакет: ${item}`,
-              taxSystem: account.taxSystem,
-            }
-          : undefined,
+      return await startPayment(context.db, {
+        practice,
+        account,
+        pkg,
+        memberId: member.id,
+        user,
+        returnUrl,
       });
     } catch (error) {
-      // Nothing was charged: drop the attempt instead of keeping a dead row.
-      await context.db.delete(Payment).where(eq(Payment.id, payment.id));
       if (!(error instanceof ProviderError)) throw error;
       logger.warn("payment.create_failed", {
         practiceId: practice.id,
@@ -116,28 +88,8 @@ export const checkout = practiceProcedure
         error: error.message,
       });
       throw errors.PROVIDER_ERROR({
-        message:
-          error.kind === "credentials"
-            ? "Оплата у специалиста временно не работает — сообщите ему, пожалуйста"
-            : error.kind === "rejected"
-              ? error.message
-              : undefined,
+        message: providerFailureMessage(error),
         cause: error,
       });
     }
-
-    if (!remote.confirmationUrl) {
-      await context.db.delete(Payment).where(eq(Payment.id, payment.id));
-      throw errors.PROVIDER_ERROR();
-    }
-
-    await context.db
-      .update(Payment)
-      .set({
-        externalId: remote.externalId,
-        confirmationUrl: remote.confirmationUrl,
-      })
-      .where(eq(Payment.id, payment.id));
-
-    return { paymentId: payment.id, confirmationUrl: remote.confirmationUrl };
   });

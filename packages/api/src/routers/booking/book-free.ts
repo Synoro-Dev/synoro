@@ -2,7 +2,7 @@ import { Booking, isExclusionViolation } from "@synoro/db";
 import { freeBookingFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
-import { loadRules } from "../../lib/bookings";
+import { loadRules, releaseExpiredHolds } from "../../lib/bookings";
 import {
   findPractice,
   findStaffMembership,
@@ -11,10 +11,10 @@ import {
 import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
 
 /**
- * Book a free 30-minute consultation for a guest (name + contact) — staff
+ * Book a free 30-minute consultation for a guest (name + phone) — staff
  * only. Uses the half-hour grid inside working hours; no credits involved.
  *
- * @example client.booking.bookFree({ practiceId, startsAt, guestName: "Иван", guestContact: "+7 900 000-00-00" })
+ * @example client.booking.bookFree({ practiceId, startsAt, guestName: "Иван", guestPhone: "+7 900 000-00-00" })
  */
 export const bookFree = practiceProcedure
   .errors({
@@ -46,6 +46,7 @@ export const bookFree = practiceProcedure
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
 
+    await releaseExpiredHolds(context.db, practice.id);
     try {
       const [booking] = await context.db
         .insert(Booking)
@@ -57,6 +58,7 @@ export const bookFree = practiceProcedure
             input.startsAt.getTime() + SLOT_MINUTES.free * 60_000,
           ),
           guestName: input.guestName,
+          guestPhone: input.guestPhone,
           guestContact: input.guestContact || null,
           note: input.note || null,
           createdById: userId,

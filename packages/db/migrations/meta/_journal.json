@@ -43,6 +43,13 @@
       "when": 1793131734983,
       "tag": "0005_practice_profession",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793170068804,
+      "tag": "0006_guest_booking",
+      "breakpoints": true
     }
   ]
 }

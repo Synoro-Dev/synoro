@@ -42,6 +42,8 @@ export const paths = {
     mine: "/bookings",
     /** Public booking page of a practice. */
     public: (slug: string) => `/p/${slug}` as const,
+    /** A visitor's booking, opened by the secret in their link (no sign-in). */
+    guest: (token: string) => `/b/${token}` as const,
     /** The same page on a practice's own host; proxy.ts rewrites `/` here. */
     site: (host: string) => `/site/${host}` as const,
   },

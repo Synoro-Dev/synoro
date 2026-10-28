@@ -6,5 +6,6 @@ export * from "./login";
 export * from "./otp";
 export * from "./password";
 export * from "./payment";
+export * from "./phone";
 export * from "./profession";
 export * from "./profile";

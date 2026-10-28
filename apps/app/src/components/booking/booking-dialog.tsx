@@ -13,12 +13,17 @@ import {
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
-import { capitalize, type ProfessionTerms } from "@synoro/validators";
+import {
+  capitalize,
+  formatPhone,
+  type ProfessionTerms,
+} from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Clock3Icon,
   LockIcon,
   MailIcon,
+  PhoneIcon,
   StickyNoteIcon,
   UserRoundIcon,
 } from "lucide-react";
@@ -105,6 +110,9 @@ export function BookingDialog({
                 <Badge variant={KIND_META[booking.kind].badge}>
                   {kindLabel(booking.kind, terms)}
                 </Badge>
+                {booking.holdUntil && (
+                  <Badge variant="warning-light">Ждёт оплаты</Badge>
+                )}
               </div>
               <DialogDescription>
                 {formatDateTime(booking.startsAt)}–{formatTime(booking.endsAt)}
@@ -119,6 +127,19 @@ export function BookingDialog({
                 )}{" "}
                 мин
               </Fact>
+              {booking.kind !== "blocked" &&
+                (booking.guestPhone ?? booking.clientPhone) && (
+                  <Fact icon={<PhoneIcon />}>
+                    <a
+                      href={`tel:${booking.guestPhone ?? booking.clientPhone}`}
+                      className="hover:underline"
+                    >
+                      {formatPhone(
+                        booking.guestPhone ?? booking.clientPhone ?? "",
+                      )}
+                    </a>
+                  </Fact>
+                )}
               {booking.kind === "consultation" && booking.clientEmail && (
                 <Fact icon={<MailIcon />}>{booking.clientEmail}</Fact>
               )}

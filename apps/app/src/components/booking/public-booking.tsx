@@ -2,11 +2,19 @@
 
 import type { RouterOutputs } from "@synoro/api";
 import { paths } from "@synoro/config";
-import { Button, Calendar, Card, Separator, Skeleton, toast } from "@synoro/ui";
+import {
+  Button,
+  Calendar,
+  Card,
+  Input,
+  Separator,
+  Skeleton,
+  toast,
+} from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
-import { capitalize, professionTerms } from "@synoro/validators";
+import { capitalize, normalizePhone, professionTerms } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -15,6 +23,7 @@ import {
   CircleCheckIcon,
   Clock3Icon,
   GlobeIcon,
+  LogInIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -22,6 +31,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
+import { GuestBookingForm } from "./guest-booking-form";
 import { ErrorState } from "./states";
 import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
 
@@ -48,9 +58,12 @@ function monthWindow(month: Date, today: string) {
 const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 
 /**
- * The client's booking page, cal.com style: practice details, a month with
- * the bookable days, and the free hours of the chosen day. Booking spends
- * one paid credit.
+ * The booking page, cal.com style: practice details, a month with the
+ * bookable days, and the free hours of the chosen day.
+ *
+ * A visitor needs no account: with online payment connected they pick a time,
+ * leave name, phone and email and pay (`GuestBookingForm`). A signed-in client
+ * books from their balance, one paid credit per hour.
  */
 export function PublicBooking({
   practice,
@@ -73,6 +86,7 @@ export function PublicBooking({
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
   const [topUp, setTopUp] = useState(false);
+  const [phone, setPhone] = useState("");
 
   const { data: info } = useQuery({
     ...orpc.practice.bySlug.queryOptions({ input: { slug: practice.slug } }),
@@ -87,9 +101,16 @@ export function PublicBooking({
     ...orpc.payment.packages.queryOptions({
       input: { practiceId: practice.id },
     }),
-    enabled: signedIn && !isStaff,
+    enabled: !isStaff,
   });
   const canPay = offer.data?.enabled ?? false;
+  // Visitors without an account book and pay in one go.
+  const guestFlow = !signedIn && canPay;
+  const me = useQuery({
+    ...orpc.user.me.queryOptions(),
+    enabled: signedIn && !isStaff,
+  });
+  const needsPhone = !!me.data && !me.data.phone;
 
   const range = monthWindow(month, today);
   const slots = useQuery({
@@ -131,6 +152,13 @@ export function PublicBooking({
       );
       await refresh();
     },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const savePhone = useMutation({
+    ...orpc.user.updatePhone.mutationOptions(),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: orpc.user.key() }),
     onError: (error) => toast.error(error.message),
   });
 
@@ -210,6 +238,24 @@ export function PublicBooking({
               >
                 <CalendarCheckIcon />
                 Мои записи
+              </Button>
+            )}
+            {!signedIn && (
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={
+                  bookingUrl ? (
+                    // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
+                    <a href={bookingUrl} />
+                  ) : (
+                    <Link href={paths.auth.login} />
+                  )
+                }
+              >
+                <LogInIcon />
+                Мой кабинет
               </Button>
             )}
           </section>
@@ -301,7 +347,7 @@ export function PublicBooking({
                       Так страницу видят ваши клиенты.
                     </AlertDescription>
                   </Alert>
-                ) : !signedIn ? (
+                ) : guestFlow ? null : !signedIn ? (
                   <Alert variant="info">
                     <AlertTitle>Войдите, чтобы записаться</AlertTitle>
                     <AlertDescription className="flex flex-col items-start gap-2">
@@ -370,7 +416,14 @@ export function PublicBooking({
                   </Alert>
                 ) : null}
 
-                {slots.isPending && !slots.data ? (
+                {guestFlow && picked && offer.data ? (
+                  <GuestBookingForm
+                    practice={practice}
+                    startsAt={picked.startsAt}
+                    offer={offer.data}
+                    onBack={() => setPicked(null)}
+                  />
+                ) : slots.isPending && !slots.data ? (
                   <div className="flex flex-col gap-2">
                     {["a", "b", "c", "d"].map((k) => (
                       <Skeleton key={k} className="h-9 w-full" />
@@ -398,22 +451,46 @@ export function PublicBooking({
                             {formatTime(slot.startsAt)}
                           </Button>
                           <Button
-                            disabled={book.isPending}
-                            onClick={() =>
+                            disabled={book.isPending || savePhone.isPending}
+                            onClick={async () => {
+                              if (needsPhone) {
+                                const normalized = normalizePhone(phone);
+                                if (!normalized) {
+                                  toast.error(
+                                    "Укажите номер телефона, например +7 900 123-45-67",
+                                  );
+                                  return;
+                                }
+                                await savePhone.mutateAsync({
+                                  phone: normalized,
+                                });
+                              }
                               book.mutate({
                                 practiceId: practice.id,
                                 startsAt: slot.startsAt,
-                              })
-                            }
+                              });
+                            }}
                           >
                             Записаться
                           </Button>
+                          {needsPhone && (
+                            <Input
+                              type="tel"
+                              inputMode="tel"
+                              autoComplete="tel"
+                              aria-label="Ваш телефон"
+                              placeholder="Телефон: +7 900 123-45-67"
+                              value={phone}
+                              onChange={(e) => setPhone(e.target.value)}
+                              className="col-span-2"
+                            />
+                          )}
                         </div>
                       ) : (
                         <Button
                           key={slot.startsAt.toISOString()}
                           variant="outline"
-                          disabled={!canBook}
+                          disabled={!canBook && !guestFlow}
                           onClick={() => setPicked(slot)}
                           className="tabular-nums"
                         >

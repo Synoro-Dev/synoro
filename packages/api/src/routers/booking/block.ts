@@ -1,6 +1,7 @@
 import { Booking, isExclusionViolation } from "@synoro/db";
 import { z } from "zod";
 
+import { releaseExpiredHolds } from "../../lib/bookings";
 import {
   findStaffMembership,
   practiceProcedure,
@@ -59,6 +60,7 @@ export const block = practiceProcedure
     );
     if (!staff) throw errors.FORBIDDEN();
 
+    await releaseExpiredHolds(context.db, input.practiceId);
     try {
       const [booking] = await context.db
         .insert(Booking)

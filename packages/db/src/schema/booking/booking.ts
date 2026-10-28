@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 import { Practice, PracticeMember } from "./practice";
@@ -41,8 +41,22 @@ export const Booking = pgTable(
       .references(() => PracticeMember.id, { onDelete: "set null" }),
     /** Who a free consultation is for (not necessarily a registered user). */
     guestName: t.varchar({ length: 120 }),
+    /** E.164, required for new free bookings (older rows have none). */
+    guestPhone: t.varchar({ length: 20 }),
+    /** Any other way to reach the guest: Telegram, email. */
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
+    /**
+     * Set while the guest's online payment is awaited: the booking is
+     * `active` (so it holds the time) but unpaid, and stops holding it when
+     * this passes. Null once paid, and always for bookings not made online.
+     */
+    holdUntil: t.timestamp({ withTimezone: true }),
+    /**
+     * SHA-256 of the secret in the guest's `/b/<token>` link; the token itself
+     * is never stored.
+     */
+    accessTokenHash: t.varchar({ length: 64 }),
     createdById: t.text().references(() => user.id, { onDelete: "set null" }),
     cancelledAt: t.timestamp({ withTimezone: true }),
     cancelledById: t.text().references(() => user.id, { onDelete: "set null" }),
@@ -54,6 +68,7 @@ export const Booking = pgTable(
   (table) => [
     index("bookings_practice_starts_idx").on(table.practiceId, table.startsAt),
     index("bookings_member_idx").on(table.memberId),
+    unique("bookings_access_token_hash_unique").on(table.accessTokenHash),
     check("bookings_valid_range", sql`${table.startsAt} < ${table.endsAt}`),
   ],
 );

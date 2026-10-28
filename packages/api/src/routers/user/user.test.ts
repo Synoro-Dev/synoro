@@ -61,7 +61,11 @@ describe("user.updateProfile", () => {
 
     const error = await call(
       userRouter.updateProfile,
-      { username: "caller", email: other.user.email },
+      {
+        username: "caller",
+        email: other.user.email,
+        phone: "+79001234567",
+      },
       { context: api.context(caller) },
     ).catch((e) => e);
 
@@ -75,7 +79,11 @@ describe("user.updateProfile", () => {
 
     await call(
       userRouter.updateProfile,
-      { username: "renamed", email: `${crypto.randomUUID()}@test.local` },
+      {
+        username: "renamed",
+        email: `${crypto.randomUUID()}@test.local`,
+        phone: "+79001234567",
+      },
       { context: api.context(caller) },
     );
 

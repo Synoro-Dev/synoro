@@ -3,7 +3,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isDefinedError } from "@orpc/client";
 import { Button, Input, Label, Textarea, toast } from "@synoro/ui";
-import { type ProfileFormValues, profileFormSchema } from "@synoro/validators";
+import {
+  type ProfileFormInput,
+  type ProfileFormValues,
+  profileFormSchema,
+} from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { User } from "lucide-react";
 import Image from "next/image";
@@ -15,16 +19,17 @@ import { orpc } from "~/orpc/react";
 export function ProfileForm({
   initialData,
 }: {
-  initialData?: ProfileFormValues;
+  initialData?: ProfileFormInput;
 }) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  const form = useForm<ProfileFormValues>({
+  const form = useForm<ProfileFormInput, unknown, ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: initialData || {
       username: "",
       email: "",
+      phone: "",
       bio: "",
     },
     mode: "onChange",
@@ -136,6 +141,30 @@ export function ProfileForm({
         <p className="text-sm text-muted-foreground">
           Подтверждённые адреса электронной почты можно изменить в настройках
           почты.
+        </p>
+      </div>
+
+      {/* Phone */}
+      <div className="space-y-2">
+        <Label htmlFor="phone">Телефон</Label>
+        <Input
+          id="phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="+7 900 123-45-67"
+          aria-invalid={!!errors.phone}
+          aria-describedby={errors.phone ? "phone-error" : "phone-hint"}
+          {...form.register("phone")}
+        />
+        {errors.phone && (
+          <p id="phone-error" role="alert" className="text-sm text-destructive">
+            {errors.phone.message}
+          </p>
+        )}
+        <p id="phone-hint" className="text-sm text-muted-foreground">
+          Обязательное поле: по этому номеру специалист свяжется с вами по
+          записи.
         </p>
       </div>
 
