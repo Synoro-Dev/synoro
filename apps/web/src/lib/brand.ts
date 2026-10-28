@@ -4,5 +4,5 @@
  */
 export const brand = {
   name: "Synoro",
-  rootDomain: "synoro.app",
+  rootDomain: "synoro.ru",
 } as const;

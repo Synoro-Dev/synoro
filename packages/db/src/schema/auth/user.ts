@@ -6,6 +6,11 @@ export const user = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
+  /**
+   * E.164 (`+79001234567`). Required wherever a person books or signs up, but
+   * nullable here: accounts created by an emailed code have none until asked.
+   */
+  phone: text("phone"),
   username: text("username"),
   bio: text("bio"),
   language: text("language").default("en"),
