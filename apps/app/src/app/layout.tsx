@@ -2,6 +2,7 @@ import { APP_CONFIG } from "@synoro/config";
 import { cn, ThemeProvider, ThemeToggle, Toaster } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { YandexMetrika } from "~/components/yandex-metrika";
 import { env } from "~/env";
 import { ORPCReactProvider } from "~/orpc/react";
 
@@ -63,6 +64,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
           </div>
           <Toaster />
         </ThemeProvider>
+        <YandexMetrika />
       </body>
     </html>
   );
