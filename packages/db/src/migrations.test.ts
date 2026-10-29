@@ -127,6 +127,35 @@ describe("appliedMigrationCount", () => {
   });
 });
 
+describe("notice claim leases migration", () => {
+  it("preserves existing sent timestamps while allowing pending claims", async () => {
+    const { client } = await pushedDb(9);
+    try {
+      await client.exec(`
+        INSERT INTO users (id, name, email) VALUES ('owner', 'Owner', 'owner@notices.test');
+        INSERT INTO sent_notices (key, user_id, sent_at)
+          VALUES ('legacy', 'owner', '2026-10-01T12:00Z');
+      `);
+      const migration = migrations[9];
+      if (!migration) throw new Error("Missing notice claim leases migration");
+      for (const statement of migration.sql) await client.exec(statement);
+      const { rows } = await client.query<{ sent_at: Date }>(
+        "SELECT sent_at FROM sent_notices WHERE key = 'legacy'",
+      );
+      expect(rows[0]?.sent_at.toISOString()).toBe("2026-10-01T12:00:00.000Z");
+      await client.exec(
+        "INSERT INTO sent_notices (key, user_id) VALUES ('pending', 'owner')",
+      );
+      const pending = await client.query(
+        "SELECT sent_at FROM sent_notices WHERE key = 'pending'",
+      );
+      expect(pending.rows).toEqual([{ sent_at: null }]);
+    } finally {
+      await client.close();
+    }
+  });
+});
+
 describe("bookings_no_overlap restoration", () => {
   it("preserves conflicting rows and fails before applying the constraint", async () => {
     const { client } = await pushedDb(2);
