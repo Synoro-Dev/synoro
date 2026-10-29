@@ -18,6 +18,10 @@
     "./google-calendar": {
       "types": "./dist/google-calendar.d.ts",
       "default": "./src/google-calendar.ts"
+    },
+    "./pro-notices": {
+      "types": "./dist/pro-notices.d.ts",
+      "default": "./src/pro-notices.ts"
     }
   },
   "license": "MIT",
@@ -35,7 +39,8 @@
     "@hatchet-dev/typescript-sdk": "1.44.2",
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",
-    "@synoro/emails": "workspace:*"
+    "@synoro/emails": "workspace:*",
+    "@synoro/validators": "workspace:*"
   },
   "devDependencies": {
     "@synoro/tsconfig": "workspace:*",

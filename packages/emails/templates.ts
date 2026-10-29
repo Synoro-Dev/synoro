@@ -1,6 +1,7 @@
 import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
 import OtpSignInEmail from "./emails/otp-sign-in";
+import ProNoticeEmail from "./emails/pro-notice";
 import ResetPasswordEmail from "./emails/reset-password";
 import WelcomeEmail from "./emails/welcome";
 import { sendEmail } from "./send";
@@ -9,6 +10,7 @@ const templates = {
   "booking-link": BookingLinkEmail,
   "booking-notice": BookingNoticeEmail,
   "otp-sign-in": OtpSignInEmail,
+  "pro-notice": ProNoticeEmail,
   "reset-password": ResetPasswordEmail,
   welcome: WelcomeEmail,
 };
