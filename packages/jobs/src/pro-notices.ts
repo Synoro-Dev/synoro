@@ -18,6 +18,7 @@ import type { ProNotice, TemplateEmail } from "@synoro/emails";
 import { PRO_PRICES } from "@synoro/validators";
 
 import type { Deliver } from "./booking-video";
+import { dispatchEmail } from "./index";
 
 /**
  * Telling a specialist that their «Про» runs out: two weeks ahead when a paid
@@ -140,14 +141,16 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
 }
 
 /**
- * Claim each due notice for five minutes, then mark it sent after delivery.
- * Failed sends release the claim; a crashed worker's claim expires. A crash
- * after delivery but before saving success can cause a duplicate on retry.
- * Outside Moscow daytime nothing is sent: the next run catches up.
+ * Mail every due «Про» notice once. Each notice is claimed in `sent_notices`
+ * for five minutes and marked sent once the mail is handed over: a second
+ * worker skips a live claim, a failed send gives the claim back, and a
+ * crashed worker's claim expires for the next run (a crash right after
+ * sending can repeat the mail). Outside Moscow daytime nothing is sent: the
+ * windows are days long, the next run catches up.
  */
 export async function sendProNotices(
   db: Database,
-  deliver?: Deliver,
+  deliver: Deliver = dispatchEmail,
   now = new Date(),
 ) {
   const hour = moscowHour(now);
@@ -207,12 +210,7 @@ export async function sendProNotices(
             billingUrl: billingUrl(),
           },
         };
-        if (deliver) {
-          await deliver(message);
-        } else {
-          const { sendTemplateEmail } = await import("@synoro/emails");
-          await sendTemplateEmail(message, { requireDelivery: true });
-        }
+        await deliver(message);
       } catch (error) {
         await db.delete(SentNotice).where(ownsClaim);
         logger.warn("billing.pro_notice_failed", {

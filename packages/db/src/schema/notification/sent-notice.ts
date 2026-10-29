@@ -4,10 +4,12 @@ import { user } from "../auth/user";
 
 /**
  * Mails that must go out once per occasion, keyed by what they are about:
- * `pro:ending:<userId>:<ends at>`. A pending notice has an expiring claim;
- * `sentAt` is set only after delivery. Claim tokens fence off stale workers.
- * Failed sends release the claim; crashed workers' claims can be reclaimed.
- * Notices about one booking keep their marks on the booking itself (`bookings.reminder_*_sent_at`).
+ * `pro:ending:<userId>:<ends at>`. Sending claims the key until
+ * `claimExpiresAt`; `sentAt` is set once the mail is handed over. A failed
+ * send deletes the claim, a crashed worker's claim expires and can be taken
+ * again, and `claimToken` keeps a late worker from touching a newer claim.
+ * Notices about one booking keep their marks on the booking itself
+ * (`bookings.reminder_*_sent_at`).
  */
 export const SentNotice = pgTable(
   "sent_notices",

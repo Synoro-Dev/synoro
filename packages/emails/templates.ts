@@ -31,15 +31,12 @@ export type TemplateEmail = {
   };
 }[EmailTemplate];
 
-/** With `requireDelivery`, missing configuration or provider errors reject. */
-export function sendTemplateEmail(
-  message: TemplateEmail,
-  options?: { requireDelivery?: boolean },
-) {
+/** Renders `message.template` with its props and sends it. */
+export function sendTemplateEmail(message: TemplateEmail) {
   const { template, to, subject, props } = message;
   // The union guarantees `props` matches `template`; TS can't correlate the
   // two through the lookup, hence the widened component type.
   const Template = templates[template] as (props: unknown) => React.ReactNode;
 
-  return sendEmail({ to, subject, react: Template(props) }, options);
+  return sendEmail({ to, subject, react: Template(props) });
 }
