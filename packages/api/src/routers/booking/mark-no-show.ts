@@ -12,8 +12,8 @@ import {
  * already started with the `no_show` reason; the consultation is not given
  * back. Kept apart from a late cancellation so no-shows can be counted.
  *
- * NOT_STARTED before the booking's start; NOT_FOUND for blocks, unpaid
- * holds, cancelled bookings and bookings of other practices.
+ * NOT_STARTED before the booking's start; NOT_FOUND for free bookings,
+ * blocks, unpaid holds, cancelled bookings and bookings of other practices.
  *
  * @example client.booking.markNoShow({ bookingId })
  */
@@ -30,7 +30,7 @@ export const markNoShow = practiceProcedure
     const booking = await context.db.query.Booking.findFirst({
       where: and(eq(Booking.id, input.bookingId), eq(Booking.status, "active")),
     });
-    if (!booking || booking.kind === "blocked" || booking.holdUntil !== null) {
+    if (booking?.kind !== "consultation" || booking.holdUntil !== null) {
       throw errors.NOT_FOUND();
     }
     const staff = await findStaffMembership(

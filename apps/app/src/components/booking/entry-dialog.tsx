@@ -32,6 +32,7 @@ import { CalendarCheckIcon, LockIcon, UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey } from "./time";
 import { TimeSelect } from "./time-select";
@@ -239,26 +240,33 @@ function EntryForm({
       {mode === "consultation" && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="entry-client">Клиент</Label>
-          <Select
-            items={clientLabels}
-            value={memberId}
-            onValueChange={(value) => setMemberId(value as string | null)}
-          >
-            <SelectTrigger id="entry-client" className="w-full">
-              <SelectValue
-                placeholder={
-                  members.isPending ? "Загрузка…" : "Выберите клиента"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {clientLabels[c.id]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {members.isError ? (
+            <ErrorState
+              message="Не удалось загрузить список клиентов."
+              onRetry={() => members.refetch()}
+            />
+          ) : (
+            <Select
+              items={clientLabels}
+              value={memberId}
+              onValueChange={(value) => setMemberId(value as string | null)}
+            >
+              <SelectTrigger id="entry-client" className="w-full">
+                <SelectValue
+                  placeholder={
+                    members.isPending ? "Загрузка…" : "Выберите клиента"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {clientLabels[c.id]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <p className="text-sm text-muted-foreground">
             {members.isSuccess && clients.length === 0
               ? "В практике пока нет клиентов — пригласите их на странице клиентов."

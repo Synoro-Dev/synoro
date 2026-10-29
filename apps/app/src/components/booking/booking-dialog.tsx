@@ -180,7 +180,7 @@ export function BookingDialog({
   // A no-show is marked once the booking has started; unpaid holds never.
   const started =
     booking !== null &&
-    booking.kind !== "blocked" &&
+    booking.kind === "consultation" &&
     booking.holdUntil === null &&
     booking.startsAt.getTime() <= Date.now();
 

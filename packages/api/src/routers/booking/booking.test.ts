@@ -595,6 +595,65 @@ describe("booking.cancel", () => {
 });
 
 describe("booking.book for a client", () => {
+  it.each(["owner", "admin"] as const)(
+    "refuses to book another %s without spending credits",
+    async (role) => {
+      const { session, memberId } = await newClient(1);
+      await api.db
+        .update(PracticeMember)
+        .set({ role })
+        .where(eq(PracticeMember.id, memberId));
+
+      await expect(
+        call(
+          bookingRouter.book,
+          { practiceId, startsAt: at("07:00"), memberId },
+          { context: api.context(owner) },
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(await balance(session)).toBe(1);
+      expect(
+        await api.db.query.Booking.findMany({
+          where: eq(Booking.memberId, memberId),
+        }),
+      ).toHaveLength(0);
+      expect(
+        await api.db.query.CreditEntry.findMany({
+          where: and(
+            eq(CreditEntry.memberId, memberId),
+            eq(CreditEntry.reason, "booking"),
+          ),
+        }),
+      ).toHaveLength(0);
+    },
+  );
+
+  it.each(["owner", "admin"] as const)(
+    "preserves self-booking for an %s with and without memberId",
+    async (role) => {
+      const { session, memberId } = await newClient(2);
+      await api.db
+        .update(PracticeMember)
+        .set({ role })
+        .where(eq(PracticeMember.id, memberId));
+
+      for (const target of [undefined, memberId]) {
+        const booking = await call(
+          bookingRouter.book,
+          { practiceId, startsAt: at("07:00"), memberId: target },
+          { context: api.context(session) },
+        );
+        expect(booking).toMatchObject({ memberId, credits: 1 });
+        await call(
+          bookingRouter.cancel,
+          { bookingId: booking.id },
+          { context: api.context(session) },
+        );
+        expect(await balance(session)).toBe(2);
+      }
+    },
+  );
+
   it("lets staff book a client from the client's balance", async () => {
     // Staff reach the client themselves: no phone needed on the profile.
     const session = await createSession(api.db, { phone: null });
@@ -773,31 +832,44 @@ describe("booking.markNoShow", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  it("refuses blocked time", async () => {
-    const startsAt = new Date(Date.now() - 10 * 60 * 1000);
-    const [block] = await api.db
-      .insert(Booking)
-      .values({
-        practiceId,
-        kind: "blocked",
-        startsAt,
-        endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
-      })
-      .returning();
-    const bookingId = block?.id ?? "";
-    await expect(
-      call(
-        bookingRouter.markNoShow,
+  it.each([
+    { kind: "blocked", holdUntil: null },
+    { kind: "free", holdUntil: null },
+    { kind: "consultation", holdUntil: new Date(Date.now() + 60_000) },
+  ] as const)(
+    "refuses $kind with holdUntil=$holdUntil",
+    async ({ kind, holdUntil }) => {
+      const startsAt = new Date(Date.now() - 10 * 60 * 1000);
+      const [block] = await api.db
+        .insert(Booking)
+        .values({
+          practiceId,
+          kind,
+          holdUntil,
+          startsAt,
+          endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
+        })
+        .returning();
+      const bookingId = block?.id ?? "";
+      await expect(
+        call(
+          bookingRouter.markNoShow,
+          { bookingId },
+          { context: api.context(owner) },
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(await bookingRow(bookingId)).toMatchObject({
+        status: "active",
+        cancelReason: null,
+        holdUntil,
+      });
+      await call(
+        bookingRouter.cancel,
         { bookingId },
         { context: api.context(owner) },
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await call(
-      bookingRouter.cancel,
-      { bookingId },
-      { context: api.context(owner) },
-    );
-  });
+      );
+    },
+  );
 
   it("tells a client's cancellation from staff's", async () => {
     const { session } = await newClient(2);

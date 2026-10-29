@@ -82,6 +82,7 @@ export const book = practiceProcedure
           where: and(
             eq(PracticeMember.id, memberId),
             eq(PracticeMember.practiceId, practice.id),
+            eq(PracticeMember.role, "client"),
           ),
         })
       : caller;
