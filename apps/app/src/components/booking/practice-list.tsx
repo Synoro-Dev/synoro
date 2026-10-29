@@ -29,7 +29,9 @@ export function PracticeList() {
   const practices = useQuery(orpc.practice.mine.queryOptions());
   const setCreating = (open: boolean) =>
     router.replace(
-      (open ? `${paths.booking.practices}?new=1` : pathname) as Route,
+      (open
+        ? `${paths.booking.practices}?new=1${pro ? "&plan=pro" : ""}`
+        : `${pathname}${pro ? "?plan=pro" : ""}`) as Route,
     );
 
   return (
