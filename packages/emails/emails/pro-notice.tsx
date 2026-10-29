@@ -11,8 +11,7 @@ import {
 
 /**
  * What the email is about:
- * - ending-soon — a long period (the early users' trial, a paid year) ends
- *   in about two weeks;
+ * - ending-soon — a paid year ends in two weeks;
  * - ending      — «Про» ends within three days;
  * - ended       — «Про» is over, the practice is on the free plan.
  */
@@ -26,7 +25,7 @@ export default function ProNoticeEmail({
   notice = "ending",
   name = "Анна",
   paid = false,
-  endsOn = "1 января 2027",
+  endsOn = "15 ноября 2026",
   left = "через 3 дня",
   prices = "149 ₽ в месяц или 1490 ₽ в год",
   billingUrl = "https://app.synoro.ru/settings/billing",

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { eq, SentNotice, Subscription } from "@synoro/db";
+import { eq, SentNotice, Subscription, SubscriptionPayment } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
 import {
   dueProNotice,
@@ -11,10 +11,8 @@ import { createSession, setupTestApi } from "../../../test/helpers";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
-/** The early users' trial end (migration `0006_billing`). */
-const NEW_YEAR = new Date("2027-01-01T00:00:00+03:00");
-/** 16 December, 9:00 Moscow time: the first daytime run 16 days ahead. */
-const DEC_16 = new Date("2026-12-16T09:00:00+03:00");
+/** End of a paid year, midnight Moscow time. */
+const YEAR_END = new Date("2027-11-20T00:00:00+03:00");
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
 
@@ -30,18 +28,28 @@ function recorder() {
   return { sent, deliver, to, notices };
 }
 
-/** A specialist with a subscription row as given. */
+/** A specialist with a subscription row as given; `year` — paid for a year. */
 async function specialist(
   email: string,
-  plan: { trialEndsAt: Date; createdAt: Date; paidUntil?: Date },
+  plan: { trialEndsAt: Date; paidUntil?: Date; year?: boolean },
 ) {
   const session = await createSession(api.db, { email, name: "Анна" });
   await api.db.insert(Subscription).values({
     userId: session.user.id,
     trialEndsAt: plan.trialEndsAt,
     paidUntil: plan.paidUntil,
-    createdAt: plan.createdAt,
   });
+  if (plan.year && plan.paidUntil) {
+    await api.db.insert(SubscriptionPayment).values({
+      userId: session.user.id,
+      period: "year",
+      amount: 1490_00,
+      status: "succeeded",
+      periodStart: new Date(plan.paidUntil.getTime() - 365 * DAY),
+      periodEnd: plan.paidUntil,
+      paidAt: new Date(plan.paidUntil.getTime() - 365 * DAY),
+    });
+  }
   return session;
 }
 
@@ -53,96 +61,80 @@ afterAll(async () => {
 });
 
 describe("dueProNotice", () => {
-  const trial = (createdAt: Date): ProPlan => ({
-    createdAt,
-    trialEndsAt: new Date(createdAt.getTime() + 14 * DAY),
-    paidUntil: null,
-    lastPeriod: null,
-  });
-  const at = (plan: ProPlan, offset: number) =>
-    dueProNotice(plan, new Date(plan.trialEndsAt.getTime() + offset))?.notice;
+  const trialEndsAt = new Date("2026-11-15T12:00:00Z");
+  const trial: ProPlan = { trialEndsAt, paidUntil: null, lastPeriod: null };
+  const at = (plan: ProPlan, endsAt: Date, offset: number) =>
+    dueProNotice(plan, new Date(endsAt.getTime() + offset))?.notice;
 
-  it("gives a 14-day trial the 3-day and the ended notice only", () => {
-    const plan = trial(new Date("2026-11-01T12:00:00Z"));
-    expect(at(plan, -14 * DAY)).toBeUndefined();
-    expect(at(plan, -10 * DAY)).toBeUndefined();
-    expect(at(plan, -3 * DAY + HOUR)).toBe("ending");
-    expect(at(plan, HOUR)).toBe("ended");
-    expect(at(plan, 3 * DAY)).toBeUndefined();
+  it("gives the 14-day trial the 3-day and the ended notice only", () => {
+    expect(at(trial, trialEndsAt, -14 * DAY)).toBeUndefined();
+    expect(at(trial, trialEndsAt, -10 * DAY)).toBeUndefined();
+    expect(at(trial, trialEndsAt, -3 * DAY + HOUR)).toBe("ending");
+    expect(at(trial, trialEndsAt, HOUR)).toBe("ended");
+    expect(at(trial, trialEndsAt, 3 * DAY)).toBeUndefined();
   });
 
-  it("warns 16 days ahead about long periods", () => {
-    const early: ProPlan = {
-      createdAt: new Date("2026-10-01T12:00:00Z"),
-      trialEndsAt: NEW_YEAR,
-      paidUntil: null,
-      lastPeriod: null,
-    };
-    expect(dueProNotice(early, DEC_16)?.notice).toBe("ending-soon");
+  it("warns two weeks ahead only when a paid year ends", () => {
+    const paidUntil = new Date(trialEndsAt.getTime() + 365 * DAY);
+    const year: ProPlan = { trialEndsAt, paidUntil, lastPeriod: "year" };
+    expect(at(year, paidUntil, -15 * DAY)).toBeUndefined();
     expect(
-      dueProNotice(early, new Date(NEW_YEAR.getTime() - 17 * DAY)),
-    ).toBeUndefined();
+      dueProNotice(year, new Date(paidUntil.getTime() - 10 * DAY)),
+    ).toMatchObject({ notice: "ending-soon", endsAt: paidUntil, paid: true });
+    expect(at(year, paidUntil, -2 * DAY)).toBe("ending");
 
-    const paidUntil = new Date(NEW_YEAR.getTime() + 30 * DAY);
-    const tenDaysBefore = new Date(paidUntil.getTime() - 10 * DAY);
-    const month = { ...early, paidUntil, lastPeriod: "month" as const };
-    expect(dueProNotice(month, tenDaysBefore)).toBeUndefined();
-    const year = { ...early, paidUntil, lastPeriod: "year" as const };
-    expect(dueProNotice(year, tenDaysBefore)).toMatchObject({
-      notice: "ending-soon",
-      endsAt: paidUntil,
-      paid: true,
-    });
+    const month: ProPlan = { ...year, lastPeriod: "month" };
+    expect(at(month, paidUntil, -10 * DAY)).toBeUndefined();
+    expect(at(month, paidUntil, -2 * DAY)).toBe("ending");
   });
 });
 
 describe("sendProNotices", () => {
-  it("writes to the early users by 16 December, once", async () => {
-    const email = "early@notices.test";
+  it("walks a paid year to its end, one mail per notice", async () => {
+    const email = "year@notices.test";
     await specialist(email, {
-      trialEndsAt: NEW_YEAR,
-      createdAt: new Date("2026-10-01T12:00:00Z"),
+      trialEndsAt: new Date(YEAR_END.getTime() - 365 * DAY),
+      paidUntil: YEAR_END,
+      year: true,
     });
 
     const mail = recorder();
-    await sendProNotices(api.db, mail.deliver, DEC_16);
+    const twoWeeks = new Date("2027-11-06T10:00:00+03:00");
+    await sendProNotices(api.db, mail.deliver, twoWeeks);
     expect(mail.notices(email)).toEqual(["ending-soon"]);
     const [message] = mail.to(email);
     expect(message?.subject).toBe(
-      "Бесплатный период «Про» заканчивается 1 января 2027",
+      "Оплаченный период «Про» заканчивается 20 ноября 2027",
     );
     expect(message?.props).toMatchObject({
-      endsOn: "1 января 2027",
-      left: "через 15 дней",
+      paid: true,
+      endsOn: "20 ноября 2027",
+      left: "через 13 дней",
       billingUrl: "http://localhost:3000/settings/billing",
     });
 
     await sendProNotices(
       api.db,
       mail.deliver,
-      new Date(DEC_16.getTime() + HOUR),
+      new Date(twoWeeks.getTime() + HOUR),
     );
     expect(mail.to(email)).toHaveLength(1);
 
-    const dec29 = new Date("2026-12-29T10:00:00+03:00");
-    await sendProNotices(api.db, mail.deliver, dec29);
-    const jan1 = new Date("2027-01-01T09:30:00+03:00");
-    await sendProNotices(api.db, mail.deliver, jan1);
+    const nov17 = new Date("2027-11-17T10:00:00+03:00");
+    await sendProNotices(api.db, mail.deliver, nov17);
+    const nov20 = new Date("2027-11-20T09:30:00+03:00");
+    await sendProNotices(api.db, mail.deliver, nov20);
     expect(mail.notices(email)).toEqual(["ending-soon", "ending", "ended"]);
   });
 
   it("sends nothing at night", async () => {
     const email = "night@notices.test";
+    const night = new Date("2026-11-20T03:00:00+03:00");
     await specialist(email, {
-      trialEndsAt: NEW_YEAR,
-      createdAt: new Date("2026-10-01T12:00:00Z"),
+      trialEndsAt: new Date(night.getTime() + 2 * DAY),
     });
     const mail = recorder();
-    await sendProNotices(
-      api.db,
-      mail.deliver,
-      new Date("2026-12-16T03:00:00+03:00"),
-    );
+    await sendProNotices(api.db, mail.deliver, night);
     expect(mail.to(email)).toEqual([]);
   });
 
@@ -150,7 +142,6 @@ describe("sendProNotices", () => {
     const email = "flaky@notices.test";
     const now = new Date("2026-11-20T12:00:00+03:00");
     const session = await specialist(email, {
-      createdAt: new Date(now.getTime() - 12 * DAY),
       trialEndsAt: new Date(now.getTime() + 2 * DAY),
     });
 
@@ -177,7 +168,6 @@ describe("sendProNotices", () => {
     const now = new Date("2026-11-20T12:00:00+03:00");
     const trialEndsAt = new Date(now.getTime() + 2 * DAY);
     const session = await specialist(email, {
-      createdAt: new Date(now.getTime() - 12 * DAY),
       trialEndsAt,
     });
     const mail = recorder();
@@ -205,7 +195,6 @@ describe("sendProNotices", () => {
     const email = "lapsed@notices.test";
     const now = new Date("2026-11-20T12:00:00+03:00");
     await specialist(email, {
-      createdAt: new Date(now.getTime() - 20 * DAY),
       trialEndsAt: new Date(now.getTime() - 6 * DAY),
     });
     const mail = recorder();

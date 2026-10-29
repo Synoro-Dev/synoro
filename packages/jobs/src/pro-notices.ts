@@ -19,20 +19,16 @@ import type { Deliver } from "./booking-video";
 import { dispatchEmail } from "./index";
 
 /**
- * Telling a specialist that their «Про» runs out: about two weeks ahead for
- * long periods, three days ahead and once it ended. The early users' trial
- * ends on 1 January 2027 and the Terms promise them a letter at least 14 days
- * before, so the long-period notice goes 16 days ahead (16 December).
+ * Telling a specialist that their «Про» runs out: two weeks ahead when a paid
+ * year ends, three days ahead and once it ended (the 14-day trial too).
  */
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
-const SOON_MS = 16 * DAY_MS;
+const SOON_MS = 14 * DAY_MS;
 const ENDING_MS = 3 * DAY_MS;
 /** «Про» that ended earlier than this is not announced any more. */
 const ENDED_MS = 2 * DAY_MS;
-/** A period this long gets the two-weeks-ahead notice too. */
-const LONG_PERIOD_MS = 31 * DAY_MS;
 const MAX_NOTICES = 200;
 /** Specialists' time zone is unknown; the plan's dates are Moscow time. */
 const TIME_ZONE = "Europe/Moscow";
@@ -42,8 +38,6 @@ const DAY_HOURS = { from: 9, until: 21 };
 export interface ProPlan {
   trialEndsAt: Date;
   paidUntil: Date | null;
-  /** When the trial started. */
-  createdAt: Date;
   /** Period of the last successful payment, null if none. */
   lastPeriod: BillingPeriod | null;
 }
@@ -56,15 +50,13 @@ export function dueProNotice(plan: ProPlan, now: Date) {
   const paid = plan.paidUntil !== null && plan.paidUntil > plan.trialEndsAt;
   const endsAt = paid && plan.paidUntil ? plan.paidUntil : plan.trialEndsAt;
   const left = endsAt.getTime() - now.getTime();
-  const long = paid
-    ? plan.lastPeriod === "year"
-    : endsAt.getTime() - plan.createdAt.getTime() > LONG_PERIOD_MS;
+  const year = paid && plan.lastPeriod === "year";
 
   let notice: ProNotice | undefined;
   if (left <= -ENDED_MS) notice = undefined;
   else if (left <= 0) notice = "ended";
   else if (left <= ENDING_MS) notice = "ending";
-  else if (left <= SOON_MS && long) notice = "ending-soon";
+  else if (left <= SOON_MS && year) notice = "ending-soon";
   return notice ? { notice, endsAt, paid } : undefined;
 }
 
@@ -78,7 +70,7 @@ function moscowHour(at: Date) {
   );
 }
 
-/** «1 января 2027», with the time unless it is midnight. */
+/** «20 ноября 2027», with the time unless it is midnight. */
 function formatEnd(at: Date) {
   const part = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("ru-RU", {
@@ -121,7 +113,6 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
       userId: Subscription.userId,
       trialEndsAt: Subscription.trialEndsAt,
       paidUntil: Subscription.paidUntil,
-      createdAt: Subscription.createdAt,
       lastPeriod: sql<BillingPeriod | null>`(
         select ${SubscriptionPayment.period} from ${SubscriptionPayment}
         where ${SubscriptionPayment.userId} = ${Subscription.userId}
