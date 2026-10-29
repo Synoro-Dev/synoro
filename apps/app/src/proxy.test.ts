@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { env } from "@synoro/config";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NextRequest } from "next/server";
 
@@ -28,6 +29,24 @@ const request = (path: string, host: string) =>
 
 const redirectTarget = (response: Response) => response.headers.get("location");
 
+/**
+ * Runs `fn` with DEMO_LOGIN_EMAIL set or unset. The root `bun test` also
+ * preloads the API's test env, which turns the demo stand on.
+ */
+async function withDemoLogin(
+  email: string | undefined,
+  fn: () => Promise<void>,
+) {
+  const mutable = env as { DEMO_LOGIN_EMAIL?: string };
+  const saved = mutable.DEMO_LOGIN_EMAIL;
+  mutable.DEMO_LOGIN_EMAIL = email;
+  try {
+    await fn();
+  } finally {
+    mutable.DEMO_LOGIN_EMAIL = saved;
+  }
+}
+
 describe("proxy on a practice host", () => {
   it("sends the auth API to the app host", async () => {
     const response = await proxy(
@@ -52,10 +71,19 @@ describe("proxy on the app host", () => {
     expect(redirectTarget(response)).toBeNull();
   });
 
-  it("still sends signed-out visitors of app pages to login", async () => {
-    const response = await proxy(request("/practices", "localhost"));
-    expect(redirectTarget(response)).toContain("/auth/login");
-  });
+  it("still sends signed-out visitors of app pages to login", () =>
+    withDemoLogin(undefined, async () => {
+      const response = await proxy(request("/practices", "localhost"));
+      expect(redirectTarget(response)).toContain("/auth/login");
+    }));
+
+  it("signs them in as the demo user on the demo stand", () =>
+    withDemoLogin("demo@example.com", async () => {
+      const response = await proxy(request("/practices", "localhost"));
+      expect(redirectTarget(response)).toBe(
+        new URL("/auth/demo?next=%2Fpractices", appUrl).href,
+      );
+    }));
 });
 
 describe("bookingRedirect", () => {
