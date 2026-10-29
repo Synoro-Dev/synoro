@@ -8,6 +8,7 @@ import {
 } from "@synoro/db";
 
 import { protectedProcedure } from "../orpc";
+import { hasPro } from "./billing";
 import { practiceImageUrl } from "./urls";
 
 /**
@@ -60,7 +61,8 @@ export async function findOwnerMembership(
 
 /**
  * What a public booking page shows: practice info plus the caller's
- * membership (role, balance) when signed in.
+ * membership (role, balance) when signed in. `showBadge` — the «Онлайн-запись
+ * — Synoro» line at the bottom, shown while the owner has no «Про».
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -75,19 +77,22 @@ export async function publicPractice(
       timezone: true,
       profession: true,
       image: true,
+      ownerId: true,
     },
   });
   if (!practice) return undefined;
 
   const userId = context.session?.user.id;
-  const member = userId
-    ? await findMembership(context.db, practice.id, userId)
-    : undefined;
+  const [member, pro] = await Promise.all([
+    userId ? findMembership(context.db, practice.id, userId) : undefined,
+    hasPro(context.db, practice.ownerId),
+  ]);
 
-  const { image, ...info } = practice;
+  const { image, ownerId: _ownerId, ...info } = practice;
   return {
     ...info,
     imageUrl: practiceImageUrl(practice.slug, image),
+    showBadge: !pro,
     membership: member
       ? { id: member.id, role: member.role, credits: member.credits }
       : null,

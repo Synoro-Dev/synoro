@@ -41,6 +41,7 @@ import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { GuestBookingForm } from "./guest-booking-form";
 import { ErrorState } from "./states";
+import { SynoroBadge } from "./synoro-badge";
 import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
@@ -531,6 +532,7 @@ export function PublicBooking({
         </Card>
       </div>
       <LegalFooter className="pt-8" />
+      {info.showBadge && <SynoroBadge className="pt-2" />}
       {canPay && (
         <TopUpDialog
           practice={{

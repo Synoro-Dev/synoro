@@ -22,7 +22,10 @@ import { EmptyState, ErrorState, PageHeading } from "./states";
 export function PracticeList() {
   const router = useRouter();
   const pathname = usePathname();
-  const creating = useSearchParams().get("new") === "1";
+  const searchParams = useSearchParams();
+  const creating = searchParams.get("new") === "1";
+  // Came from the landing's «Про» buttons: billing right after creating.
+  const pro = searchParams.get("plan") === "pro";
   const practices = useQuery(orpc.practice.mine.queryOptions());
   const setCreating = (open: boolean) =>
     router.replace(
@@ -102,7 +105,11 @@ export function PracticeList() {
         </Frame>
       )}
 
-      <CreatePracticeDialog open={creating} onOpenChange={setCreating} />
+      <CreatePracticeDialog
+        open={creating}
+        onOpenChange={setCreating}
+        next={pro ? "billing" : "schedule"}
+      />
     </div>
   );
 }

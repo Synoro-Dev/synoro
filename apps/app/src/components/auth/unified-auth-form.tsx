@@ -27,6 +27,7 @@ import {
   type OTPFormData,
   otpFormSchema,
 } from "@synoro/validators";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -65,6 +66,18 @@ function authErrorMessage(
     return "Слишком много запросов. Подождите минуту и попробуйте снова.";
   }
   return (error.code && AUTH_ERRORS[error.code]) || fallback;
+}
+
+/**
+ * Where to go once signed in: home, which sends on by role. The landing's
+ * «Про» buttons link here with `?plan=pro`; home then opens practice
+ * creation (or billing, if there is a practice already).
+ */
+function homeAfterAuth(): Route {
+  const plan = new URLSearchParams(window.location.search).get("plan");
+  return plan === "pro"
+    ? `${paths.dashboard.root}?plan=pro`
+    : paths.dashboard.root;
 }
 
 /**
@@ -149,7 +162,7 @@ export function UnifiedAuthForm({
         toast.error(authErrorMessage(error, "Не удалось войти по коду."));
         return;
       }
-      router.push(paths.dashboard.root);
+      router.push(homeAfterAuth());
     } catch (_error) {
       toast.error("Не удалось войти по коду. Попробуйте ещё раз.");
     } finally {
@@ -181,7 +194,7 @@ export function UnifiedAuthForm({
         );
         return;
       }
-      router.push(paths.dashboard.root);
+      router.push(homeAfterAuth());
     } catch (_error) {
       toast.error(
         signup
