@@ -1,6 +1,7 @@
 import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
 import OtpSignInEmail from "./emails/otp-sign-in";
+import ProNoticeEmail from "./emails/pro-notice";
 import ResetPasswordEmail from "./emails/reset-password";
 import WelcomeEmail from "./emails/welcome";
 import { sendEmail } from "./send";
@@ -9,6 +10,7 @@ const templates = {
   "booking-link": BookingLinkEmail,
   "booking-notice": BookingNoticeEmail,
   "otp-sign-in": OtpSignInEmail,
+  "pro-notice": ProNoticeEmail,
   "reset-password": ResetPasswordEmail,
   welcome: WelcomeEmail,
 };
@@ -29,12 +31,15 @@ export type TemplateEmail = {
   };
 }[EmailTemplate];
 
-/** Renders `message.template` with its props and sends it. */
-export function sendTemplateEmail(message: TemplateEmail) {
+/** With `requireDelivery`, missing configuration or provider errors reject. */
+export function sendTemplateEmail(
+  message: TemplateEmail,
+  options?: { requireDelivery?: boolean },
+) {
   const { template, to, subject, props } = message;
   // The union guarantees `props` matches `template`; TS can't correlate the
   // two through the lookup, hence the widened component type.
   const Template = templates[template] as (props: unknown) => React.ReactNode;
 
-  return sendEmail({ to, subject, react: Template(props) });
+  return sendEmail({ to, subject, react: Template(props) }, options);
 }

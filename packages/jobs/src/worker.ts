@@ -26,6 +26,7 @@ async function main() {
     googleCalendarCleanupWorkflow,
     helloWorldTask,
     processDocumentWorkflow,
+    proNoticesWorkflow,
     scheduledWorkflow,
     sendEmailTask,
   } = await import("./workflows");
@@ -35,6 +36,7 @@ async function main() {
       sendEmailTask,
       googleCalendarCleanupWorkflow,
       bookingRemindersWorkflow,
+      proNoticesWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

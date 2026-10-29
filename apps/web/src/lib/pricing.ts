@@ -34,12 +34,6 @@ export type Plan = {
   featured?: boolean;
 };
 
-/**
- * Specialists who signed up while «Про» was free keep it free until this
- * day (their trial end, set by the billing migration); the Terms promise it.
- */
-export const earlyAccessUntil = { iso: "2027-01-01", label: "1 января 2027" };
-
 export const plans: Plan[] = [
   {
     id: "free",

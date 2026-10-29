@@ -187,6 +187,7 @@
         "@synoro/config": "workspace:*",
         "@synoro/db": "workspace:*",
         "@synoro/emails": "workspace:*",
+        "@synoro/validators": "workspace:*",
       },
       "devDependencies": {
         "@synoro/tsconfig": "workspace:*",
