@@ -340,7 +340,7 @@ describe("reminders", () => {
     const booking = await insertBooking(7 * HOUR);
     await api.db
       .update(Booking)
-      .set({ status: "cancelled" })
+      .set({ status: "cancelled", cancelReason: "staff" })
       .where(eq(Booking.id, booking.id));
     const mail = recorder();
     await sendVideoReminders(api.db, mail.deliver);

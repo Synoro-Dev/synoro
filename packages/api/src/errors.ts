@@ -12,6 +12,7 @@ export const errorStatusMap: Record<string, number> = {
   TOO_MANY_HOLDS: 429,
   PHONE_REQUIRED: 422,
   TOO_LATE: 409,
+  NOT_STARTED: 409,
   NEGATIVE_BALANCE: 409,
   PLATFORM_DOMAIN: 422,
   RESERVATION_EXPIRED: 409,

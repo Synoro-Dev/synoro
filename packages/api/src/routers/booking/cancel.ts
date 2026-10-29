@@ -12,7 +12,8 @@ import { protectedProcedure } from "../../orpc";
  * - A client cancels their own consultation no later than 24 h before it
  *   starts and gets the credit back; later → TOO_LATE.
  * - Staff cancel anything at any time; a consultation's credit is returned
- *   unless `refund: false` (e.g. a no-show).
+ *   unless `refund: false` (a late cancellation). A client who didn't come
+ *   is marked with `markNoShow` instead.
  *
  * Bookings the caller may not touch are reported as NOT_FOUND.
  *
@@ -58,6 +59,7 @@ export const cancel = protectedProcedure
     const result = await cancelActiveBooking(context.db, booking.id, {
       cancelledById: userId,
       refund: input.refund || !staff,
+      reason: staff ? "staff" : "client",
     });
     if (!result) throw errors.NOT_FOUND();
     const { booking: cancelled, refunded: refund } = result;

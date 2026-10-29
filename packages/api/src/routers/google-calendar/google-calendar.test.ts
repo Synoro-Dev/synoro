@@ -282,6 +282,24 @@ describe("busy time", () => {
     ).rejects.toMatchObject({ code: "SLOT_UNAVAILABLE" });
   });
 
+  it("lets staff book a client over time that is busy in Google", async () => {
+    google.busy = [busyAt("07:30", "08:00")];
+    const member = await api.db.query.PracticeMember.findFirst({
+      where: eq(PracticeMember.userId, client.user.id),
+    });
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("07:00"), memberId: member?.id },
+      { context: api.context(owner) },
+    );
+    expect(booking.memberId).toBe(member?.id ?? "");
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    );
+  });
+
   it("keeps taking bookings when Google is down, and says so", async () => {
     google.down = true;
     expect(await slotStarts()).toContain(at("07:00").toISOString());
@@ -476,6 +494,7 @@ describe("failure boundaries and reconciliation", () => {
       await cancelActiveBooking(api.db, booking.id, {
         cancelledById: client.user.id,
         refund: true,
+        reason: "client",
       }),
     ).toMatchObject({ refunded: true });
     expect(refundedBeforeDelete).toBe(true);
@@ -495,6 +514,7 @@ describe("failure boundaries and reconciliation", () => {
       await cancelActiveBooking(api.db, booking.id, {
         cancelledById: client.user.id,
         refund: true,
+        reason: "client",
       }),
     ).toBeUndefined();
     expect(
@@ -516,6 +536,7 @@ describe("failure boundaries and reconciliation", () => {
         await cancelActiveBooking(api.db, booking.id, {
           cancelledById: client.user.id,
           refund: true,
+          reason: "client",
         }),
       ).toMatchObject({ refunded: true });
     } finally {
@@ -537,6 +558,7 @@ describe("failure boundaries and reconciliation", () => {
       await cancelActiveBooking(api.db, booking.id, {
         cancelledById: client.user.id,
         refund: true,
+        reason: "client",
       });
       expect(await savedBooking(booking.id)).toMatchObject({
         status: "cancelled",
@@ -557,6 +579,7 @@ describe("failure boundaries and reconciliation", () => {
       await cancelActiveBooking(api.db, booking.id, {
         cancelledById: client.user.id,
         refund: true,
+        reason: "client",
       });
       google.down = true;
     };

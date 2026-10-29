@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import {
+  and,
   Booking,
+  CreditEntry,
   eq,
   PracticeInvitation,
   PracticeMember,
@@ -589,6 +591,230 @@ describe("booking.cancel", () => {
       { bookingId: booking.id },
       { context: api.context(owner) },
     );
+  });
+});
+
+describe("booking.book for a client", () => {
+  it("lets staff book a client from the client's balance", async () => {
+    // Staff reach the client themselves: no phone needed on the profile.
+    const session = await createSession(api.db, { phone: null });
+    const { id: memberId } = await call(
+      practiceRouter.join,
+      { practiceId },
+      { context: api.context(session) },
+    );
+    await call(
+      creditRouter.grant,
+      { practiceId, memberId, delta: 1 },
+      { context: api.context(owner) },
+    );
+
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("07:00"), memberId },
+      { context: api.context(owner) },
+    );
+    expect(booking).toMatchObject({
+      memberId,
+      kind: "consultation",
+      createdById: owner.user.id,
+      credits: 0,
+    });
+    expect(await balance(session)).toBe(0);
+    const spent = await api.db.query.CreditEntry.findFirst({
+      where: and(
+        eq(CreditEntry.bookingId, booking.id),
+        eq(CreditEntry.reason, "booking"),
+      ),
+    });
+    expect(spent).toMatchObject({ memberId, delta: -1 });
+
+    await expect(
+      call(
+        bookingRouter.book,
+        { practiceId, startsAt: at("08:00"), memberId },
+        { context: api.context(owner) },
+      ),
+    ).rejects.toMatchObject({ code: "NO_CREDITS" });
+
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    );
+    expect(await balance(session)).toBe(1);
+  });
+
+  it("still checks working hours for staff", async () => {
+    const { session, memberId } = await newClient(1);
+    for (const time of ["07:30", "06:00"]) {
+      await expect(
+        call(
+          bookingRouter.book,
+          { practiceId, startsAt: at(time), memberId },
+          { context: api.context(owner) },
+        ),
+      ).rejects.toMatchObject({ code: "SLOT_UNAVAILABLE" });
+    }
+    expect(await balance(session)).toBe(1);
+  });
+
+  it("keeps clients to their own balance", async () => {
+    const a = await newClient(1);
+    const b = await newClient(1);
+
+    const error = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("07:00"), memberId: b.memberId },
+      { context: api.context(a.session) },
+    ).catch((e) => e);
+    expect(error).toMatchObject({ code: "FORBIDDEN" });
+    expect(isDefinedError(error)).toBe(true);
+    expect(await balance(b.session)).toBe(1);
+
+    // Their own id is the same as none.
+    const own = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("07:00"), memberId: a.memberId },
+      { context: api.context(a.session) },
+    );
+    expect(own.memberId).toBe(a.memberId);
+    await call(
+      bookingRouter.cancel,
+      { bookingId: own.id },
+      { context: api.context(a.session) },
+    );
+  });
+
+  it("refuses members of other practices", async () => {
+    const boris = await createSession(api.db);
+    const other = await call(
+      practiceRouter.create,
+      { name: "Борис", slug: "boris", profession: "other" },
+      { context: api.context(boris) },
+    );
+    const stranger = await createSession(api.db);
+    const { id: memberId } = await call(
+      practiceRouter.join,
+      { practiceId: other.id },
+      { context: api.context(stranger) },
+    );
+
+    for (const id of [memberId, crypto.randomUUID()]) {
+      await expect(
+        call(
+          bookingRouter.book,
+          { practiceId, startsAt: at("07:00"), memberId: id },
+          { context: api.context(owner) },
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    }
+  });
+});
+
+describe("booking.markNoShow", () => {
+  async function bookingRow(id: string) {
+    return api.db.query.Booking.findFirst({ where: eq(Booking.id, id) });
+  }
+
+  it("cancels a started booking as a no-show and keeps the consultation", async () => {
+    const { session } = await newClient(1);
+    const booking = await bookAt(session, at("07:00"));
+
+    const early = await call(
+      bookingRouter.markNoShow,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    ).catch((e) => e);
+    expect(early).toMatchObject({ code: "NOT_STARTED" });
+    expect(isDefinedError(early)).toBe(true);
+
+    // The session began ten minutes ago.
+    const startsAt = new Date(Date.now() - 10 * 60 * 1000);
+    await api.db
+      .update(Booking)
+      .set({ startsAt, endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000) })
+      .where(eq(Booking.id, booking.id));
+
+    await expect(
+      call(
+        bookingRouter.markNoShow,
+        { bookingId: booking.id },
+        { context: api.context(session) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const result = await call(
+      bookingRouter.markNoShow,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    );
+    expect(result).toEqual({ id: booking.id, kind: "consultation" });
+    expect(await bookingRow(booking.id)).toMatchObject({
+      status: "cancelled",
+      cancelReason: "no_show",
+      cancelledById: owner.user.id,
+    });
+    expect(await balance(session)).toBe(0);
+    const refunds = await api.db.query.CreditEntry.findMany({
+      where: and(
+        eq(CreditEntry.bookingId, booking.id),
+        eq(CreditEntry.reason, "refund"),
+      ),
+    });
+    expect(refunds).toHaveLength(0);
+
+    await expect(
+      call(
+        bookingRouter.markNoShow,
+        { bookingId: booking.id },
+        { context: api.context(owner) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("refuses blocked time", async () => {
+    const startsAt = new Date(Date.now() - 10 * 60 * 1000);
+    const [block] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "blocked",
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 30 * 60 * 1000),
+      })
+      .returning();
+    const bookingId = block?.id ?? "";
+    await expect(
+      call(
+        bookingRouter.markNoShow,
+        { bookingId },
+        { context: api.context(owner) },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await call(
+      bookingRouter.cancel,
+      { bookingId },
+      { context: api.context(owner) },
+    );
+  });
+
+  it("tells a client's cancellation from staff's", async () => {
+    const { session } = await newClient(2);
+    const mine = await bookAt(session, at("07:00"));
+    const theirs = await bookAt(session, at("08:00"));
+    await call(
+      bookingRouter.cancel,
+      { bookingId: mine.id },
+      { context: api.context(session) },
+    );
+    await call(
+      bookingRouter.cancel,
+      { bookingId: theirs.id, refund: false },
+      { context: api.context(owner) },
+    );
+    expect((await bookingRow(mine.id))?.cancelReason).toBe("client");
+    expect((await bookingRow(theirs.id))?.cancelReason).toBe("staff");
   });
 });
 
