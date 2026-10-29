@@ -4,8 +4,8 @@ import { hatchet } from "./client";
 
 /**
  * Tells specialists that their «Про» runs out (16 and 3 days ahead) and that
- * it ended. Hourly: the notice windows are days long, and the claims in
- * `sent_notices` keep each notice to one mail.
+ * it ended. Hourly: `sent_notices` records successful delivery and lets
+ * crashed workers' claims expire for a later attempt.
  */
 export const proNoticesWorkflow = hatchet.workflow({
   name: "pro-notices",

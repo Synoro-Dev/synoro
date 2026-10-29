@@ -4,10 +4,10 @@ import { user } from "../auth/user";
 
 /**
  * Mails that must go out once per occasion, keyed by what they are about:
- * `pro:ending:<userId>:<ends at>`. A notice is claimed by inserting its key
- * before it is sent (a second worker or a retry finds the key taken) and
- * given back by deleting it when sending fails. Notices about one booking
- * keep their marks on the booking itself (`bookings.reminder_*_sent_at`).
+ * `pro:ending:<userId>:<ends at>`. A pending notice has an expiring claim;
+ * `sentAt` is set only after delivery. Claim tokens fence off stale workers.
+ * Failed sends release the claim; crashed workers' claims can be reclaimed.
+ * Notices about one booking keep their marks on the booking itself (`bookings.reminder_*_sent_at`).
  */
 export const SentNotice = pgTable(
   "sent_notices",
@@ -17,7 +17,9 @@ export const SentNotice = pgTable(
       .text()
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    sentAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+    sentAt: t.timestamp({ withTimezone: true }),
+    claimToken: t.uuid(),
+    claimExpiresAt: t.timestamp({ withTimezone: true }),
   }),
   (table) => [index("sent_notices_user_idx").on(table.userId)],
 );

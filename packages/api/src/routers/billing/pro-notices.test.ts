@@ -163,6 +163,210 @@ describe("sendProNotices", () => {
     expect(mail.notices(email)).toEqual(["ending"]);
   });
 
+  it("reclaims an expired pending notice and marks it sent only after delivery", async () => {
+    const email = "crashed@notices.test";
+    const now = new Date("2028-11-20T12:00:00+03:00");
+    const trialEndsAt = new Date(now.getTime() + 2 * DAY);
+    const session = await specialist(email, { trialEndsAt });
+    const key = `pro:ending:${session.user.id}:${trialEndsAt.toISOString()}`;
+    const oldToken = crypto.randomUUID();
+    await api.db.insert(SentNotice).values({
+      key,
+      userId: session.user.id,
+      claimToken: oldToken,
+      claimExpiresAt: new Date(Date.now() - 1),
+    });
+    const mail = recorder();
+    await sendProNotices(
+      api.db,
+      async (message) => {
+        const [pending] = await api.db
+          .select()
+          .from(SentNotice)
+          .where(eq(SentNotice.key, key));
+        expect(pending?.sentAt).toBeNull();
+        expect(pending?.claimToken).not.toBe(oldToken);
+        expect(pending?.claimExpiresAt?.getTime()).toBeGreaterThan(Date.now());
+        await mail.deliver(message);
+      },
+      now,
+    );
+    expect(mail.notices(email)).toEqual(["ending"]);
+    const [sent] = await api.db
+      .select()
+      .from(SentNotice)
+      .where(eq(SentNotice.key, key));
+    expect(sent?.sentAt).toBeInstanceOf(Date);
+    expect(sent?.claimToken).toBeNull();
+    expect(sent?.claimExpiresAt).toBeNull();
+    await sendProNotices(api.db, mail.deliver, now);
+    expect(mail.to(email)).toHaveLength(1);
+  });
+
+  it("keeps a second worker from sending while delivery is pending", async () => {
+    const email = "concurrent@notices.test";
+    const now = new Date("2029-11-20T12:00:00+03:00");
+    await specialist(email, { trialEndsAt: new Date(now.getTime() + 2 * DAY) });
+    const first = recorder();
+    const second = recorder();
+    await sendProNotices(
+      api.db,
+      async (message) => {
+        await sendProNotices(api.db, second.deliver, now);
+        await first.deliver(message);
+      },
+      now,
+    );
+    expect(first.notices(email)).toEqual(["ending"]);
+    expect(second.to(email)).toEqual([]);
+  });
+
+  for (const fails of [false, true]) {
+    it(`does not ${fails ? "delete" : "finish"} a newer worker's claim`, async () => {
+      const email = `stale-${fails}@notices.test`;
+      const now = new Date("2030-11-20T12:00:00+03:00");
+      const trialEndsAt = new Date(now.getTime() + 2 * DAY);
+      const session = await specialist(email, { trialEndsAt });
+      const key = `pro:ending:${session.user.id}:${trialEndsAt.toISOString()}`;
+      const newToken = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + HOUR);
+      await sendProNotices(
+        api.db,
+        async (message) => {
+          if (!message.to.includes(email)) return;
+          // Simulate expiry and another worker taking ownership during delivery.
+          await api.db
+            .update(SentNotice)
+            .set({ claimToken: newToken, claimExpiresAt: expiresAt })
+            .where(eq(SentNotice.key, key));
+          if (fails) throw new Error("stale worker failed");
+        },
+        now,
+      );
+      const [pending] = await api.db
+        .select()
+        .from(SentNotice)
+        .where(eq(SentNotice.key, key));
+      expect(pending).toMatchObject({
+        sentAt: null,
+        claimToken: newToken,
+        claimExpiresAt: expiresAt,
+      });
+    });
+  }
+
+  it("lazily loads the sender only for default delivery and awaits its confirmation", async () => {
+    // A fresh process prevents the API's other email imports from hiding eager loads.
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "--eval",
+        `
+      import assert from "node:assert/strict";
+      import { mock } from "bun:test";
+      let loads = 0;
+      mock.module("@synoro/emails", () => {
+        loads++;
+        return { sendTemplateEmail: (message, options) => globalThis.confirmDelivery(message, options) };
+      });
+      const { sendProNotices } = await import("@synoro/jobs/pro-notices");
+      assert.equal(loads, 0);
+      const { createTestDb } = await import("@synoro/db/testing");
+      const { user, Subscription, SentNotice } = await import("@synoro/db");
+      const { db, close } = await createTestDb();
+      try {
+        const now = new Date("2031-11-20T12:00:00+03:00");
+        let calls = 0;
+        const add = async (id) => {
+          await db.insert(user).values({ id, email: id + "@notices.test", name: "Test" });
+          await db.insert(Subscription).values({ userId: id, trialEndsAt: new Date(now.getTime() + 86400000) });
+        };
+        await add("injected");
+        await sendProNotices(db, async () => { calls++; }, now);
+        assert.equal(calls, 1);
+        assert.equal(loads, 0);
+        await add("default");
+        globalThis.confirmDelivery = async (message, options) => {
+          assert.equal(options.requireDelivery, true);
+          assert.deepEqual(message.to, ["default@notices.test"]);
+          const pending = (await db.select().from(SentNotice)).find(row => row.userId === "default");
+          assert.equal(pending.sentAt, null);
+          throw new Error("provider rejected delivery");
+        };
+        await sendProNotices(db, undefined, now);
+        assert.equal(loads, 1);
+        assert.equal((await db.select().from(SentNotice)).length, 1);
+        globalThis.confirmDelivery = async () => { calls++; };
+        await sendProNotices(db, undefined, now);
+        assert.equal(calls, 2);
+        assert.ok((await db.select().from(SentNotice)).every(row => row.sentAt instanceof Date));
+      } finally { await close(); }
+    `,
+      ],
+      {
+        cwd: new URL("../../../../jobs/", import.meta.url).pathname,
+        env: { ...process.env },
+        stdout: "pipe",
+        stderr: "pipe",
+      },
+    );
+    const [stdout, stderr, status] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    expect({ status, output: stdout + stderr }).toEqual({
+      status: 0,
+      output: "",
+    });
+  });
+
+  for (const configured of [false, true]) {
+    it(`rejects unconfirmed email delivery when ${configured ? "the provider returns an error" : "the provider is missing"}`, async () => {
+      const child = Bun.spawn(
+        [
+          process.execPath,
+          "--eval",
+          `
+        import assert from "node:assert/strict";
+        import { mock } from "bun:test";
+        globalThis.fetch = async () => { throw new Error("Unexpected network request"); };
+        mock.module("resend", () => ({
+          Resend: class { emails = { send: async () => ({ error: { message: "provider rejected delivery" } }) }; }
+        }));
+        const { sendTemplateEmail } = await import("@synoro/emails");
+        const message = { template: "pro-notice", to: ["test@notices.test"], subject: "Test",
+          props: { notice: "ended", name: "Test", paid: false, endsOn: "today", left: "", prices: "", billingUrl: "http://localhost:3000/settings/billing" }
+        };
+        await assert.rejects(sendTemplateEmail(message, { requireDelivery: true }),
+          new RegExp(process.env.RESEND_API_KEY ? "provider rejected delivery" : "Email delivery is not configured"));
+        // The option is opt-in: preserve the existing behavior of other callers.
+        await sendTemplateEmail(message);
+      `,
+        ],
+        {
+          cwd: new URL("../../../../jobs/", import.meta.url).pathname,
+          env: {
+            ...process.env,
+            RESEND_API_KEY: configured ? "re_local_test" : "",
+            EMAIL_SANDBOX_ENABLED: "false",
+          },
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      const [stdout, stderr, status] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect({ status, output: stdout + stderr }).toEqual({
+        status: 0,
+        output: "",
+      });
+    });
+  }
+
   it("starts over when the specialist pays", async () => {
     const email = "payer@notices.test";
     const now = new Date("2026-11-20T12:00:00+03:00");
