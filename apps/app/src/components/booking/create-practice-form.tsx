@@ -87,13 +87,19 @@ const PROFESSION_LABELS = Object.fromEntries(
   PROFESSIONS.map((p) => [p, PROFESSION_TERMS[p].label]),
 );
 
-/** Start a practice: the signed-in user becomes its owner (specialist). */
+/**
+ * Start a practice: the signed-in user becomes its owner (specialist). Then
+ * on to its schedule, or to «Про» billing (`next="billing"`) when the
+ * specialist signed up for «Про».
+ */
 export function CreatePracticeDialog({
   open,
   onOpenChange,
+  next = "schedule",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  next?: "schedule" | "billing";
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -110,7 +116,11 @@ export function CreatePracticeDialog({
       toast.success("Практика создана");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       form.reset();
-      router.push(paths.booking.schedule(practice.id));
+      router.push(
+        next === "billing"
+          ? paths.settings.billing
+          : paths.booking.schedule(practice.id),
+      );
       // The sidebar's practice list is rendered on the server.
       router.refresh();
     },
