@@ -24,10 +24,7 @@ export type EmailHtml = {
   to: string[];
   from?: string;
 };
-export const sendEmail = async (
-  email: Emails,
-  { requireDelivery = false }: { requireDelivery?: boolean } = {},
-) => {
+export const sendEmail = async (email: Emails) => {
   if (env.EMAIL_SANDBOX_ENABLED) {
     const mailOptions: Mail.Options = {
       from: email.from ?? env.EMAIL_FROM,
@@ -43,19 +40,17 @@ export const sendEmail = async (
     return transporter.sendMail(mailOptions);
   }
   if (!resend) {
-    if (requireDelivery) throw new Error("Email delivery is not configured");
     logger.warn("email.resend_not_configured", {
       hint: "Add RESEND_API_KEY to .env for emails to work",
     });
     return Promise.resolve();
   }
-  const { error } = await resend.emails.send({
+  await resend.emails.send({
     to: email.to,
     from: email.from ?? env.EMAIL_FROM,
     subject: email.subject,
     react: email.react,
   });
-  if (requireDelivery && error) throw new Error(error.message);
 };
 
 export const sendEmailHtml = async (email: EmailHtml) => {

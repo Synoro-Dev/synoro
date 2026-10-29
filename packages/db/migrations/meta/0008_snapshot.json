@@ -1,5 +1,5 @@
 {
-  "id": "78e1f359-7470-4956-9886-21c31191f306",
+  "id": "1501a1d5-40e0-46a4-a5be-7ca4a437ec02",
   "prevId": "fbe2d525-6405-4a85-834b-68600c829b68",
   "version": "7",
   "dialect": "postgresql",
@@ -1690,8 +1690,19 @@
           "name": "sent_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
+          "notNull": false
+        },
+        "claim_token": {
+          "name": "claim_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claim_expires_at": {
+          "name": "claim_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
