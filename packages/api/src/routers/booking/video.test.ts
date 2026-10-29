@@ -4,9 +4,10 @@ import type { Session } from "@synoro/auth";
 import { Booking, eq } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
 import {
+  type Deliver,
   notifyBookingConfirmed,
   notifyVideoLinkChanged,
-  sendVideoReminders,
+  sendBookingReminders,
 } from "@synoro/jobs/booking-video";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -35,9 +36,13 @@ function recorder() {
   return { sent, deliver, notices };
 }
 
-/** A confirmed consultation starting `inMs` from now. */
-async function insertBooking(inMs: number, meetingUrl?: string) {
-  const startsAt = new Date(Date.now() + inMs);
+/** A confirmed consultation starting `inMs` from now (or from `base`). */
+async function insertBooking(
+  inMs: number,
+  meetingUrl?: string,
+  base = Date.now(),
+) {
+  const startsAt = new Date(base + inMs);
   const [booking] = await api.db
     .insert(Booking)
     .values({
@@ -212,9 +217,12 @@ describe("mails", () => {
     const mail = recorder();
     await notifyBookingConfirmed(api.db, booking.id, mail.deliver);
 
-    expect(mail.notices()).toEqual(["confirmed"]);
+    // The client's confirmation, then the owner's «new booking».
+    expect(mail.notices()).toEqual(["confirmed", "booked"]);
     expect(mail.sent[0]?.to).toEqual(["ivan@video.test"]);
     expect(mail.sent[0]?.props).toMatchObject({ videoUrl: ROOM });
+    expect(mail.sent[1]?.template).toBe("staff-booking");
+    expect(mail.sent[1]?.to).toEqual([owner.user.email]);
   });
 
   it("does not mail about an unpaid hold", async () => {
@@ -284,16 +292,22 @@ describe("mails", () => {
 });
 
 describe("reminders", () => {
+  /** Noon in Moscow (the practice's zone): day reminders may go out. */
+  const NOON = new Date("2030-03-12T12:00:00+03:00");
+  const at = (inMs: number) => insertBooking(inMs, undefined, NOON.getTime());
+  const remind = (deliver: Deliver) =>
+    sendBookingReminders(api.db, deliver, NOON);
+
   it("sends the day reminder and the hour reminder once each", async () => {
     await clearBookings();
-    await insertBooking(12 * HOUR);
-    const imminent = await insertBooking(30 * MINUTE);
+    await at(12 * HOUR);
+    const imminent = await at(30 * MINUTE);
 
     const mail = recorder();
-    await sendVideoReminders(api.db, mail.deliver);
+    await remind(mail.deliver);
     expect(mail.notices().sort()).toEqual(["reminder-day", "reminder-hour"]);
 
-    await sendVideoReminders(api.db, mail.deliver);
+    await remind(mail.deliver);
     expect(mail.sent).toHaveLength(2);
 
     // Within the hour, the hour reminder also covers the day one.
@@ -304,25 +318,40 @@ describe("reminders", () => {
     expect(row?.reminderDaySentAt).not.toBeNull();
   });
 
-  it("skips bookings without any link and far-off ones", async () => {
+  it("reminds of bookings without a link too, but not far-off ones", async () => {
     await clearBookings();
     await setRoom("");
-    await insertBooking(5 * HOUR);
+    await at(5 * HOUR);
     const mail = recorder();
-    await sendVideoReminders(api.db, mail.deliver);
-    expect(mail.sent).toEqual([]);
+    await remind(mail.deliver);
+    expect(mail.notices()).toEqual(["reminder-day"]);
+    expect(mail.sent[0]?.props).toMatchObject({ videoUrl: null });
 
     await setRoom(ROOM);
     await clearBookings();
-    await insertBooking(3 * DAY);
-    await sendVideoReminders(api.db, mail.deliver);
-    expect(mail.sent).toEqual([]);
+    await at(3 * DAY);
+    await remind(mail.deliver);
+    expect(mail.sent).toHaveLength(1);
+  });
+
+  it("holds the day reminder at night, not the hour one", async () => {
+    await clearBookings();
+    const night = new Date("2030-03-12T23:30:00+03:00");
+    await insertBooking(14 * HOUR, undefined, night.getTime());
+    await insertBooking(40 * MINUTE, undefined, night.getTime());
+    const mail = recorder();
+    await sendBookingReminders(api.db, mail.deliver, night);
+    expect(mail.notices()).toEqual(["reminder-hour"]);
+
+    const morning = new Date("2030-03-13T09:05:00+03:00");
+    await sendBookingReminders(api.db, mail.deliver, morning);
+    expect(mail.notices()).toEqual(["reminder-hour", "reminder-day"]);
   });
 
   it("gives the claim back when sending fails", async () => {
     await clearBookings();
-    const booking = await insertBooking(6 * HOUR);
-    await sendVideoReminders(api.db, async () => {
+    const booking = await at(6 * HOUR);
+    await remind(async () => {
       throw new Error("mail down");
     });
     const row = await api.db.query.Booking.findFirst({
@@ -331,19 +360,19 @@ describe("reminders", () => {
     expect(row?.reminderDaySentAt).toBeNull();
 
     const mail = recorder();
-    await sendVideoReminders(api.db, mail.deliver);
+    await remind(mail.deliver);
     expect(mail.notices()).toEqual(["reminder-day"]);
   });
 
   it("does not remind a cancelled booking", async () => {
     await clearBookings();
-    const booking = await insertBooking(7 * HOUR);
+    const booking = await at(7 * HOUR);
     await api.db
       .update(Booking)
       .set({ status: "cancelled", cancelReason: "staff" })
       .where(eq(Booking.id, booking.id));
     const mail = recorder();
-    await sendVideoReminders(api.db, mail.deliver);
+    await remind(mail.deliver);
     expect(mail.sent).toEqual([]);
   });
 });

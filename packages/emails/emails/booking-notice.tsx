@@ -14,13 +14,15 @@ import {
  * - confirmed     — the booking is paid and confirmed;
  * - link          — the specialist set or changed the video link;
  * - reminder-day  — the meeting is within a day;
- * - reminder-hour — the meeting is within the hour.
+ * - reminder-hour — the meeting is within the hour;
+ * - cancelled     — the client or the specialist cancelled it.
  */
 export type BookingNotice =
   | "confirmed"
   | "link"
   | "reminder-day"
-  | "reminder-hour";
+  | "reminder-hour"
+  | "cancelled";
 
 const COPY: Record<
   BookingNotice,
@@ -46,12 +48,18 @@ const COPY: Record<
     tone: "warning",
     title: "Встреча через час",
   },
+  cancelled: {
+    badge: "Запись отменена",
+    tone: "warning",
+    title: "Запись отменена",
+  },
 };
 
 /**
- * Sent to a client about a confirmed booking: confirmation, the video link
- * (set or changed by the specialist) and reminders with it. The link is
- * optional — a confirmation goes out even when the specialist has none yet.
+ * Sent to a client about their booking: confirmation, the video link (set or
+ * changed by the specialist), reminders and cancellation. The link is
+ * optional — the other mails go out without it — and never shown once the
+ * booking is cancelled.
  */
 export default function BookingNoticeEmail({
   notice = "confirmed",
@@ -60,6 +68,8 @@ export default function BookingNoticeEmail({
   when = "понедельник, 7 января, 10:00",
   videoUrl = "https://company.ktalk.ru/room",
   cabinetUrl = "https://synoro.ru/bookings",
+  cancelledBy = null,
+  refunded = false,
 }: {
   notice: BookingNotice;
   name: string;
@@ -69,8 +79,13 @@ export default function BookingNoticeEmail({
   /** The video room, or null when the specialist has not set one. */
   videoUrl: string | null;
   cabinetUrl: string;
+  /** Who cancelled, for `cancelled`. */
+  cancelledBy?: "client" | "specialist" | null;
+  /** The consultation went back to the balance, for `cancelled`. */
+  refunded?: boolean;
 }) {
   const copy = COPY[notice];
+  const cancelled = notice === "cancelled";
   return (
     <EmailLayout
       preview={`${copy.title}: ${practiceName}, ${when}`}
@@ -79,9 +94,20 @@ export default function BookingNoticeEmail({
       <EmailHeader
         badge={<EmailBadge tone={copy.tone}>{copy.badge}</EmailBadge>}
         title={copy.title}
-        description={`Здравствуйте, ${name}! Встреча с ${practiceName} — ${when}.`}
+        description={
+          cancelled
+            ? `Здравствуйте, ${name}! ${cancelledBy === "specialist" ? "Специалист отменил" : "Вы отменили"} запись: ${practiceName}, ${when}.`
+            : `Здравствуйте, ${name}! Встреча с ${practiceName} — ${when}.`
+        }
       />
-      {videoUrl ? (
+      {cancelled ? (
+        <EmailText>
+          {refunded
+            ? "Занятие вернулось на баланс — запишитесь на другое время, когда будет удобно."
+            : "Занятие не вернулось на баланс. Если это ошибка, свяжитесь со специалистом."}
+        </EmailText>
+      ) : null}
+      {videoUrl && !cancelled ? (
         <>
           <EmailText>
             Встреча пройдёт по видеосвязи: в назначенное время откройте ссылку.

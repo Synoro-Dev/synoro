@@ -5,10 +5,8 @@ import {
   type Database,
   eq,
   gt,
-  isNotNull,
   isNull,
   lte,
-  or,
   Practice,
   PracticeMember,
   user,
@@ -16,17 +14,22 @@ import {
 import type { BookingNotice, TemplateEmail } from "@synoro/emails";
 
 import { dispatchEmail } from "./index";
+import { notifyStaff } from "./staff-notices";
 
 /**
- * Telling a client about their video meeting: the confirmation, the link when
- * the specialist sets or changes it, and reminders. Everything here is best
- * effort — a mail failure is logged and never undoes a booking or a save.
+ * Telling a client about their booking: the confirmation, the video link when
+ * the specialist sets or changes it, reminders and cancellation — and the
+ * practice's staff about bookings made and cancelled (`./staff-notices`).
+ * Everything here is best effort — a mail failure is logged and never undoes
+ * a booking or a save.
  */
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 /** Maximum number of bookings fetched per batch. */
 const MAX_NOTICES = 200;
+/** Day reminders reach clients from 9:00 to 22:00, practice time. */
+const DAY_HOURS = { from: 9, until: 22 };
 
 type Notice = BookingNotice;
 
@@ -40,6 +43,16 @@ function cabinetUrl() {
   ).href;
 }
 
+function localHour(at: Date, timeZone: string) {
+  return Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(at),
+  );
+}
+
 function formatWhen(at: Date, timeZone: string) {
   return new Intl.DateTimeFormat("ru-RU", {
     timeZone,
@@ -51,7 +64,7 @@ function formatWhen(at: Date, timeZone: string) {
   }).format(at);
 }
 
-/** Confirmed paid bookings of clients who can be mailed. */
+/** Paid bookings of clients who can be mailed. */
 function confirmedBookings(db: Database) {
   return db
     .select({
@@ -74,13 +87,20 @@ function confirmedBookings(db: Database) {
 
 type Row = Awaited<ReturnType<typeof confirmedBookings>>[number];
 
-async function send(deliver: Deliver, row: Row, notice: Notice) {
-  const videoUrl = row.meetingUrl ?? row.videoUrl;
+async function send(
+  deliver: Deliver,
+  row: Row,
+  notice: Notice,
+  cancellation?: { by: "client" | "specialist"; refunded: boolean },
+) {
+  const videoUrl =
+    notice === "cancelled" ? null : (row.meetingUrl ?? row.videoUrl);
   const subjects: Record<Notice, string> = {
     confirmed: `Запись подтверждена: ${row.practiceName}`,
     link: `Ссылка на видеовстречу: ${row.practiceName}`,
     "reminder-day": `Напоминание: встреча завтра — ${row.practiceName}`,
     "reminder-hour": `Напоминание: встреча через час — ${row.practiceName}`,
+    cancelled: `Запись отменена: ${row.practiceName}`,
   };
   await deliver({
     template: "booking-notice",
@@ -93,6 +113,8 @@ async function send(deliver: Deliver, row: Row, notice: Notice) {
       when: formatWhen(row.startsAt, row.timezone),
       videoUrl,
       cabinetUrl: cabinetUrl(),
+      cancelledBy: cancellation?.by ?? null,
+      refunded: cancellation?.refunded ?? false,
     },
   });
 }
@@ -122,7 +144,10 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
   });
 }
 
-/** After payment (or a credit) confirmed a booking: tell the client. */
+/**
+ * After payment (or a credit) confirmed a booking, or staff booked a guest:
+ * tell the client (a paid booking only) and the practice's staff.
+ */
 export async function notifyBookingConfirmed(
   db: Database,
   bookingId: string,
@@ -137,12 +162,55 @@ export async function notifyBookingConfirmed(
         isNull(Booking.holdUntil),
       ),
     );
-    if (!row) return;
-    await send(deliver, row, "confirmed");
-    if (row.meetingUrl ?? row.videoUrl) await markDueReminders(db, row);
+    if (row) {
+      await send(deliver, row, "confirmed");
+      // The confirmation names the time: reminders already due are covered.
+      await markDueReminders(db, row);
+    }
   } catch (error) {
     settled(bookingId, "confirmed", error);
   }
+  await notifyStaff(db, bookingId, "booked", {}, deliver);
+}
+
+/**
+ * After the client or staff cancelled a booking: tell the client and the
+ * practice's staff (but not the one who cancelled). A no-show mark and an
+ * unpaid hold that lapsed are nobody's news.
+ */
+export async function notifyBookingCancelled(
+  db: Database,
+  bookingId: string,
+  options: { refunded: boolean },
+  deliver: Deliver = dispatchEmail,
+) {
+  try {
+    const [booking] = await db
+      .select({ cancelReason: Booking.cancelReason })
+      .from(Booking)
+      .where(eq(Booking.id, bookingId));
+    const by = booking?.cancelReason;
+    if (by !== "client" && by !== "staff") return;
+
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        eq(Booking.kind, "consultation"),
+        isNull(Booking.holdUntil),
+        gt(Booking.startsAt, new Date()),
+      ),
+    );
+    if (row) {
+      await send(deliver, row, "cancelled", {
+        by: by === "client" ? "client" : "specialist",
+        refunded: options.refunded,
+      });
+    }
+  } catch (error) {
+    settled(bookingId, "cancelled", error);
+    return;
+  }
+  await notifyStaff(db, bookingId, "cancelled", options, deliver);
 }
 
 /**
@@ -207,16 +275,18 @@ export async function notifyVideoLinkChanged(
 }
 
 /**
- * Reminders with the link: once when the meeting is within a day, once when
- * it is within the hour. Only bookings that have a link are reminded. A
+ * Reminders, with the video link when there is one: once when the meeting is
+ * within a day, once when it is within the hour. The day reminder waits for
+ * the practice's daytime (9:00–22:00); the hour reminder goes at once. A
  * reminder is claimed in the database before it is sent, so two workers (or
  * a retry) never send it twice; a failed send gives the claim back.
  */
-export async function sendVideoReminders(
+export async function sendBookingReminders(
   db: Database,
   deliver: Deliver = dispatchEmail,
+  at = new Date(),
 ) {
-  const now = Date.now();
+  const now = at.getTime();
   const windows = [
     {
       notice: "reminder-day",
@@ -251,13 +321,15 @@ export async function sendVideoReminders(
           window.pending,
           gt(Booking.startsAt, window.from),
           lte(Booking.startsAt, window.until),
-          // Without any link it is not a video meeting (yet).
-          or(isNotNull(Booking.meetingUrl), isNotNull(Practice.videoUrl)),
         ),
       )
       .limit(MAX_NOTICES);
 
     for (const row of due) {
+      if (window.notice === "reminder-day") {
+        const hour = localHour(at, row.timezone);
+        if (hour < DAY_HOURS.from || hour >= DAY_HOURS.until) continue;
+      }
       const claimed = await db
         .update(Booking)
         .set(window.claim())
