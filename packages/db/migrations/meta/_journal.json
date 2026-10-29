@@ -50,6 +50,13 @@
       "when": 1793214603947,
       "tag": "0006_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793250329290,
+      "tag": "0007_booking_cancel_reason",
+      "breakpoints": true
     }
   ]
 }

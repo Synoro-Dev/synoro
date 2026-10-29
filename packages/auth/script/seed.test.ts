@@ -178,6 +178,20 @@ it.each([
     expect(member.credits).toBeGreaterThanOrEqual(0);
   }
 
+  // Every cancellation says why; a no-show keeps the consultation spent.
+  for (const booking of bookings) {
+    expect(booking.cancelReason === null).toBe(booking.status === "active");
+    const refunds = entries.filter(
+      (e) => e.bookingId === booking.id && e.reason === "refund",
+    );
+    expect(refunds).toHaveLength(
+      booking.cancelReason === "client" && booking.kind === "consultation"
+        ? 1
+        : 0,
+    );
+  }
+  expect(bookings.some((b) => b.cancelReason === "no_show")).toBe(true);
+
   // Every paid payment credited the balance once, with the right amount.
   const prices = new Map([
     [1, 350_000],
@@ -256,7 +270,10 @@ it.each([
   const expired = bookings.find(
     (b) => b.accessTokenHash === sha256(DEMO_GUEST_TOKENS.expired),
   );
-  expect(expired?.status).toBe("cancelled");
+  expect(expired).toMatchObject({
+    status: "cancelled",
+    cancelReason: "hold_expired",
+  });
   expect(payments.find((p) => p.bookingId === expired?.id)?.status).toBe(
     "canceled",
   );

@@ -21,7 +21,8 @@ only to these (or `DEMO_LOGIN_EMAIL`), never to a real or admin account.
 - **People**: owner, administrator, ten clients (regulars, a newcomer, one who
   never booked, one with a big package), two visitors without an account.
 - **Calendar**: six weeks back, three ahead; weekly supervision / personal-therapy
-  blocks, free 30-minute consultations for guests, cancellations. Deterministic
+  blocks, free 30-minute consultations for guests, cancellations, a few
+  no-shows (cancelled with `cancel_reason = 'no_show'`, nothing refunded). Deterministic
   per day, never overlapping, always inside the schedule.
 - **Money**: packages 1 × 3 500 ₽, 5 × 16 000 ₽, 10 × 30 000 ₽. The first
   weeks were paid by hand (transfer, cash — `credit_entries` without a

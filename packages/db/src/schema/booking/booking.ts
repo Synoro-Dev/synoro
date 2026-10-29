@@ -18,6 +18,24 @@ export const bookingKind = pgEnum("booking_kind", [
 export const bookingStatus = pgEnum("booking_status", ["active", "cancelled"]);
 
 /**
+ * Why a booking was cancelled; set together with `status = 'cancelled'`.
+ *
+ * client            — the client cancelled it (signed in or by their link).
+ * staff             — the owner or an administrator cancelled it.
+ * no_show           — the client didn't come: staff marked a started booking,
+ *                     the consultation is not given back.
+ * hold_expired      — an online booking wasn't paid within the hold.
+ * payment_cancelled — the payment of an online booking was cancelled.
+ */
+export const bookingCancelReason = pgEnum("booking_cancel_reason", [
+  "client",
+  "staff",
+  "no_show",
+  "hold_expired",
+  "payment_cancelled",
+]);
+
+/**
  * Overlapping active bookings of one practice are rejected by the
  * `bookings_no_overlap` exclusion constraint (btree_gist), added by hand in
  * the migration: drizzle-kit can't express EXCLUDE. That is what guarantees
@@ -71,6 +89,7 @@ export const Booking = pgTable(
     createdById: t.text().references(() => user.id, { onDelete: "set null" }),
     cancelledAt: t.timestamp({ withTimezone: true }),
     cancelledById: t.text().references(() => user.id, { onDelete: "set null" }),
+    cancelReason: bookingCancelReason(),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -81,7 +100,13 @@ export const Booking = pgTable(
     index("bookings_member_idx").on(table.memberId),
     unique("bookings_access_token_hash_unique").on(table.accessTokenHash),
     check("bookings_valid_range", sql`${table.startsAt} < ${table.endsAt}`),
+    check(
+      "bookings_cancel_reason",
+      sql`(${table.status} = 'cancelled') = (${table.cancelReason} is not null)`,
+    ),
   ],
 );
 
 export type BookingKind = (typeof bookingKind.enumValues)[number];
+export type BookingCancelReason =
+  (typeof bookingCancelReason.enumValues)[number];

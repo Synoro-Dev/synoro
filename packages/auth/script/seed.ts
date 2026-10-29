@@ -513,6 +513,7 @@ export async function seedDemoPractice(db: Database) {
   );
   const newClientBookingDay = workday(1, 1);
   let freeIndex = 0;
+  let pastBookings = 0;
   for (let offset = -PAST_DAYS; offset < FUTURE_DAYS; offset++) {
     const day = today + offset * DAY_MS;
     const weekday = isoWeekday(day);
@@ -608,6 +609,7 @@ export async function seedDemoPractice(db: Database) {
           createdAt,
           ...(key === "expired" && {
             status: "cancelled" as const,
+            cancelReason: "hold_expired" as const,
             holdUntil: new Date(createdAt.getTime() + 15 * 60 * 1000),
             cancelledAt: new Date(createdAt.getTime() + 15 * 60 * 1000),
           }),
@@ -672,6 +674,12 @@ export async function seedDemoPractice(db: Database) {
         );
         // A client with something left may cancel; never the one at zero.
         const cancelled = chosen.client.left >= 1 && rng() < 0.1;
+        // Every 25th past booking the client doesn't come: the administrator
+        // marks it and the consultation is spent.
+        const noShow =
+          !cancelled &&
+          startsAt.getTime() < now - DAY_MS &&
+          pastBookings++ % 25 === 12;
         add(
           {
             kind: "consultation",
@@ -679,8 +687,15 @@ export async function seedDemoPractice(db: Database) {
             note: NOTES[Math.floor(rng() * NOTES.length)],
             createdById: clientUserIds[chosen.index],
             createdAt,
+            ...(noShow && {
+              status: "cancelled" as const,
+              cancelReason: "no_show" as const,
+              cancelledAt: new Date(startsAt.getTime() + 20 * 60 * 1000),
+              cancelledById: adminId,
+            }),
             ...(cancelled && {
               status: "cancelled" as const,
+              cancelReason: "client" as const,
               cancelledAt: new Date(
                 Math.min(
                   Math.max(
@@ -768,14 +783,17 @@ export async function seedDemoPractice(db: Database) {
     const own = bookings.filter(
       (b) => b.kind === "consultation" && b.memberId === member.id,
     );
-    const active = own.filter((b) => b.status !== "cancelled").length;
+    // A no-show spent its consultation like a booking that took place.
+    const refunded = (b: BookingRow) =>
+      b.status === "cancelled" && b.cancelReason !== "no_show";
+    const active = own.filter((b) => !refunded(b)).length;
     const bonus = client.bonus ?? 0;
     const sizes = splitIntoPackages(Math.max(active + client.left - bonus, 0));
 
     const events = own
       .flatMap((b) => [
         { at: b.createdAt as Date, delta: -1, booking: b },
-        ...(b.status === "cancelled" && b.cancelledAt
+        ...(refunded(b) && b.cancelledAt
           ? [{ at: b.cancelledAt, delta: 1, booking: b }]
           : []),
       ])
@@ -965,7 +983,7 @@ export async function main(
   const rubles = paid.reduce((sum, p) => sum + p.amount, 0) / 100;
   console.log(`✓ Seeded practice "${practice.name}" → /p/${practice.slug}`);
   console.log(
-    `  ${count("consultation")} consultations, ${count("free")} free, ${count("blocked")} blocked, ${inserted.filter((b) => b.status === "cancelled").length} cancelled`,
+    `  ${count("consultation")} consultations, ${count("free")} free, ${count("blocked")} blocked, ${inserted.filter((b) => b.status === "cancelled").length} cancelled (${inserted.filter((b) => b.cancelReason === "no_show").length} no-shows)`,
   );
   console.log(
     `  ${payments.length} online payments (${paid.length} paid for ${rubles.toLocaleString("ru-RU")} ₽, ${payments.filter((p) => p.status === "pending").length} pending, ${payments.filter((p) => p.status === "canceled").length} declined)`,

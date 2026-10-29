@@ -166,6 +166,7 @@ export const cancelGuest = publicProcedure
     const result = await cancelActiveBooking(context.db, found.id, {
       cancelledById: null,
       refund: true,
+      reason: "client",
     });
     if (!result) throw errors.NOT_FOUND();
     return { refunded: result.refunded };

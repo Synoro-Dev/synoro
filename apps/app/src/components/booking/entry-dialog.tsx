@@ -1,5 +1,6 @@
 "use client";
 
+import { isDefinedError } from "@orpc/client";
 import {
   Button,
   Dialog,
@@ -10,23 +11,33 @@ import {
   DialogTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
   Textarea,
   toast,
 } from "@synoro/ui";
-import { freeBookingFormSchema } from "@synoro/validators";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LockIcon, UserRoundPlusIcon } from "lucide-react";
+import {
+  capitalize,
+  formatCredits,
+  freeBookingFormSchema,
+} from "@synoro/validators";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarCheckIcon, LockIcon, UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey } from "./time";
 import { TimeSelect } from "./time-select";
 
-type EntryMode = "free" | "block";
+type EntryMode = "consultation" | "free" | "block";
 
 export interface EntryDraft {
   mode: EntryMode;
@@ -42,8 +53,9 @@ function atMinute(date: string, minute: number) {
 }
 
 /**
- * Staff-only "new entry": a free 30-minute booking for a guest, or a
- * block of the specialist's own time. Opened from a calendar selection or
+ * Staff-only "new entry": a paid one-hour booking of a practice client
+ * from their balance, a free 30-minute booking for a guest, or a block of
+ * the specialist's own time. Opened from a calendar selection or
  * the toolbar; date and times stay editable.
  */
 export function EntryDialog({
@@ -87,6 +99,18 @@ function EntryForm({
   const [guestPhone, setGuestPhone] = useState("");
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const members = useQuery({
+    ...orpc.practice.members.queryOptions({ input: { practiceId } }),
+    enabled: mode === "consultation",
+  });
+  const clients = (members.data ?? []).filter((m) => m.role === "client");
+  const clientLabels = Object.fromEntries(
+    clients.map((c) => [
+      c.id,
+      `${c.name} · ${formatCredits(c.credits, terms)}`,
+    ]),
+  );
 
   const onSuccess = async (message: string) => {
     toast.success(message);
@@ -98,15 +122,41 @@ function EntryForm({
     onSuccess: () => onSuccess(`${terms.free}: гость записан`),
     onError: (error) => toast.error(error.message),
   });
+  const book = useMutation({
+    ...orpc.booking.book.mutationOptions(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+      await onSuccess(`${capitalize(terms.credit[0])}: клиент записан`);
+    },
+    onError: (error) =>
+      toast.error(
+        isDefinedError(error) && error.code === "NO_CREDITS"
+          ? "У клиента пустой баланс — начислите оплату на странице клиентов"
+          : error.message,
+      ),
+  });
   const block = useMutation({
     ...orpc.booking.block.mutationOptions(),
     onSuccess: () => onSuccess("Время закрыто"),
     onError: (error) => toast.error(error.message),
   });
-  const pending = bookFree.isPending || block.isPending;
+  const pending = book.isPending || bookFree.isPending || block.isPending;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (mode === "consultation") {
+      if (!memberId) {
+        toast.error("Выберите клиента");
+        return;
+      }
+      book.mutate({
+        practiceId,
+        memberId,
+        startsAt: atMinute(date, start),
+        note: note || undefined,
+      });
+      return;
+    }
     if (mode === "free") {
       const parsed = freeBookingFormSchema.safeParse({
         guestName,
@@ -142,12 +192,17 @@ function EntryForm({
       <DialogHeader>
         <DialogTitle>Новая запись</DialogTitle>
         <DialogDescription>
-          {terms.free} на 30 минут для гостя или закрытое время.
+          {capitalize(terms.credit[0])} на час с баланса клиента,{" "}
+          {terms.free.toLowerCase()} на 30 минут для гостя или закрытое время.
         </DialogDescription>
       </DialogHeader>
 
       <Tabs value={mode} onValueChange={(value) => setMode(value as EntryMode)}>
         <TabsList className="w-full">
+          <TabsTrigger value="consultation">
+            <CalendarCheckIcon />
+            Клиент
+          </TabsTrigger>
           <TabsTrigger value="free">
             <UserRoundPlusIcon />
             {terms.free}
@@ -171,7 +226,7 @@ function EntryForm({
           />
         </div>
         <div className="flex flex-col gap-1.5">
-          <Label>{mode === "free" ? "Начало" : "С"}</Label>
+          <Label>{mode === "block" ? "С" : "Начало"}</Label>
           <TimeSelect label="Начало" value={start} onChange={setStart} />
         </div>
         {mode === "block" && (
@@ -181,6 +236,44 @@ function EntryForm({
           </div>
         )}
       </div>
+
+      {mode === "consultation" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-client">Клиент</Label>
+          {members.isError ? (
+            <ErrorState
+              message="Не удалось загрузить список клиентов."
+              onRetry={() => members.refetch()}
+            />
+          ) : (
+            <Select
+              items={clientLabels}
+              value={memberId}
+              onValueChange={(value) => setMemberId(value as string | null)}
+            >
+              <SelectTrigger id="entry-client" className="w-full">
+                <SelectValue
+                  placeholder={
+                    members.isPending ? "Загрузка…" : "Выберите клиента"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {clients.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {clientLabels[c.id]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {members.isSuccess && clients.length === 0
+              ? "В практике пока нет клиентов — пригласите их на странице клиентов."
+              : `Спишется ${formatCredits(1, terms)} с баланса клиента, только целые часы в рабочее время.`}
+          </p>
+        </div>
+      )}
 
       {mode === "free" && (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -225,7 +318,7 @@ function EntryForm({
         <Textarea
           id="entry-note"
           rows={2}
-          placeholder={mode === "free" ? "Запрос клиента" : "Личное время"}
+          placeholder={mode === "block" ? "Личное время" : "Запрос клиента"}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
@@ -236,7 +329,7 @@ function EntryForm({
           Отмена
         </Button>
         <Button type="submit" disabled={pending}>
-          {mode === "free" ? "Записать" : "Закрыть время"}
+          {mode === "block" ? "Закрыть время" : "Записать"}
         </Button>
       </DialogFooter>
     </form>
