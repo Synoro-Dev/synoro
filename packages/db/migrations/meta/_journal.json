@@ -57,6 +57,13 @@
       "when": 1793250329290,
       "tag": "0007_booking_cancel_reason",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793254050739,
+      "tag": "0008_sent_notices",
+      "breakpoints": true
     }
   ]
 }
