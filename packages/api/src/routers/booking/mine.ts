@@ -29,6 +29,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     .select({
       id: Booking.id,
       status: Booking.status,
+      cancelReason: Booking.cancelReason,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
       holdUntil: Booking.holdUntil,

@@ -522,7 +522,11 @@ export function MyBookings() {
                             : "outline"
                         }
                       >
-                        {b.status === "cancelled" ? "Отменена" : "Прошла"}
+                        {b.cancelReason === "no_show"
+                          ? "Неявка"
+                          : b.status === "cancelled"
+                            ? "Отменена"
+                            : "Прошла"}
                       </Badge>
                     </FramePanel>
                   ))}

@@ -20,6 +20,7 @@ import {
 } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import { hashGuestToken } from "../../lib/guests";
 import { handlePaymentWebhook } from "../../lib/payments";
 import { availabilityRouter } from "../availability";
 import { paymentRouter } from "../payment";
@@ -105,6 +106,14 @@ async function balanceOf(email: string) {
     .innerJoin(user, eq(user.id, PracticeMember.userId))
     .where(eq(user.email, email));
   return row?.credits;
+}
+
+async function cancelReasonOf(token: string) {
+  const row = await api.db.query.Booking.findFirst({
+    where: eq(Booking.accessTokenHash, hashGuestToken(token)),
+    columns: { cancelReason: true },
+  });
+  return row?.cancelReason;
 }
 
 async function slotsOn(week: number) {
@@ -290,6 +299,7 @@ describe("booking as a visitor", () => {
 
     remoteStatus({ id: "g-3", status: "canceled" });
     expect(await guest(token)).toMatchObject({ state: "expired" });
+    expect(await cancelReasonOf(token)).toBe("payment_cancelled");
     expect(await slotsOn(2)).toEqual(["07:00", "08:00", "09:00"]);
     expect(await balanceOf("declined@visitor.test")).toBe(0);
   });
@@ -307,6 +317,7 @@ describe("booking as a visitor", () => {
     expect(await slotsOn(3)).toEqual(["07:00", "08:00", "09:00"]);
     acceptsPayment("g-5");
     const taken = await reserve(3, "next@visitor.test");
+    expect(await cancelReasonOf(token)).toBe("hold_expired");
 
     // The first visitor pays after all: nothing to confirm, credits on balance.
     remoteStatus({ id: "g-4", status: "succeeded" });
@@ -347,6 +358,7 @@ describe("booking as a visitor", () => {
       { context: api.context() },
     );
     expect(result).toEqual({ refunded: true });
+    expect(await cancelReasonOf(token)).toBe("client");
     expect(await guest(token)).toMatchObject({
       state: "cancelled",
       balance: 1,

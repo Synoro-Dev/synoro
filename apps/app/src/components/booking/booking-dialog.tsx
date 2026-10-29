@@ -26,6 +26,7 @@ import {
   PhoneIcon,
   StickyNoteIcon,
   UserRoundIcon,
+  UserRoundXIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -163,6 +164,25 @@ export function BookingDialog({
     },
     onError: (error) => toast.error(error.message),
   });
+  const noShow = useMutation({
+    ...orpc.booking.markNoShow.mutationOptions(),
+    onSuccess: async () => {
+      toast.success(`Отмечена неявка: ${terms.credit[0]} не возвращается`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),
+      ]);
+      onClose();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const pending = cancel.isPending || noShow.isPending;
+  // A no-show is marked once the booking has started; unpaid holds never.
+  const started =
+    booking !== null &&
+    booking.kind === "consultation" &&
+    booking.holdUntil === null &&
+    booking.startsAt.getTime() <= Date.now();
 
   return (
     <Dialog open={booking !== null} onOpenChange={(open) => !open && onClose()}>
@@ -225,11 +245,21 @@ export function BookingDialog({
               <MeetingLink booking={booking} onSaved={onClose} />
             )}
 
-            <DialogFooter>
+            <DialogFooter className="flex-wrap">
+              {started && (
+                <Button
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => noShow.mutate({ bookingId: booking.id })}
+                >
+                  <UserRoundXIcon />
+                  Клиент не пришёл
+                </Button>
+              )}
               {booking.kind === "consultation" && (
                 <Button
                   variant="outline"
-                  disabled={cancel.isPending}
+                  disabled={pending}
                   onClick={() =>
                     cancel.mutate({ bookingId: booking.id, refund: false })
                   }
@@ -239,7 +269,7 @@ export function BookingDialog({
               )}
               <Button
                 variant={booking.kind === "blocked" ? "default" : "destructive"}
-                disabled={cancel.isPending}
+                disabled={pending}
                 onClick={() => cancel.mutate({ bookingId: booking.id })}
               >
                 {booking.kind === "blocked"

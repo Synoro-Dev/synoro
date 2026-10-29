@@ -2,6 +2,7 @@ import {
   AvailabilityRule,
   and,
   Booking,
+  type BookingCancelReason,
   CreditEntry,
   type Database,
   eq,
@@ -67,7 +68,11 @@ export function activeBookingOverlaps(
 export async function releaseExpiredHolds(db: Database, practiceId: string) {
   await db
     .update(Booking)
-    .set({ status: "cancelled", cancelledAt: new Date() })
+    .set({
+      status: "cancelled",
+      cancelledAt: new Date(),
+      cancelReason: "hold_expired",
+    })
     .where(
       and(
         eq(Booking.practiceId, practiceId),
@@ -88,7 +93,11 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
 export async function cancelActiveBooking(
   db: Database,
   bookingId: string,
-  options: { cancelledById: string | null; refund: boolean },
+  options: {
+    cancelledById: string | null;
+    refund: boolean;
+    reason: BookingCancelReason;
+  },
 ) {
   const [cancelled] = await db
     .update(Booking)
@@ -96,6 +105,7 @@ export async function cancelActiveBooking(
       status: "cancelled",
       cancelledAt: new Date(),
       cancelledById: options.cancelledById,
+      cancelReason: options.reason,
     })
     .where(and(eq(Booking.id, bookingId), eq(Booking.status, "active")))
     .returning();

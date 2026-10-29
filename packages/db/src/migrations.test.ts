@@ -179,3 +179,75 @@ describe("bookings_no_overlap restoration", () => {
     }
   });
 });
+
+describe("booking cancel reason backfill", () => {
+  it("infers why older bookings were cancelled", async () => {
+    const { client } = await pushedDb(7);
+    try {
+      const practice = "00000000-0000-0000-0000-000000000001";
+      const member = "00000000-0000-0000-0000-000000000002";
+      const account = "00000000-0000-0000-0000-000000000003";
+      const booking = (n: number) =>
+        `00000000-0000-0000-0000-0000000001${String(n).padStart(2, "0")}`;
+      await client.exec(`
+        INSERT INTO users (id, name, email) VALUES
+          ('owner', 'Owner', 'owner@test.local'),
+          ('client', 'Client', 'client@test.local');
+        INSERT INTO practices (id, owner_id, name, slug)
+          VALUES ('${practice}', 'owner', 'Practice', 'practice');
+        INSERT INTO practice_members (id, practice_id, user_id)
+          VALUES ('${member}', '${practice}', 'client');
+        INSERT INTO payment_accounts (id, practice_id, provider, merchant_id, secret)
+          VALUES ('${account}', '${practice}', 'yookassa', 'shop', 'secret');
+        INSERT INTO bookings
+          (id, practice_id, kind, status, member_id, starts_at, ends_at,
+           hold_until, cancelled_at, cancelled_by_id)
+        VALUES
+          ('${booking(1)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-01T10:00Z', '2030-01-01T11:00Z', '2029-12-01T10:15Z', '2029-12-01T10:16Z', NULL),
+          ('${booking(2)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-02T10:00Z', '2030-01-02T11:00Z', '2029-12-01T10:15Z', '2029-12-01T10:16Z', NULL),
+          ('${booking(3)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-03T10:00Z', '2030-01-03T11:00Z', NULL, '2029-12-01T10:00Z', 'client'),
+          ('${booking(4)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-04T10:00Z', '2030-01-04T11:00Z', NULL, '2029-12-01T10:00Z', NULL),
+          ('${booking(5)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-05T10:00Z', '2030-01-05T11:00Z', NULL, '2030-01-05T10:20Z', 'owner'),
+          ('${booking(6)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-06T10:00Z', '2030-01-06T11:00Z', NULL, '2030-01-06T10:20Z', 'owner'),
+          ('${booking(7)}', '${practice}', 'consultation', 'cancelled', '${member}',
+           '2030-01-07T10:00Z', '2030-01-07T11:00Z', NULL, '2030-01-06T10:00Z', 'owner'),
+          ('${booking(8)}', '${practice}', 'blocked', 'cancelled', NULL,
+           '2030-01-08T10:00Z', '2030-01-08T11:00Z', NULL, '2030-01-08T10:20Z', 'owner'),
+          ('${booking(9)}', '${practice}', 'consultation', 'active', '${member}',
+           '2030-01-09T10:00Z', '2030-01-09T11:00Z', NULL, NULL, NULL);
+        INSERT INTO payments
+          (practice_id, account_id, member_id, booking_id, provider, status, credits, amount)
+        VALUES
+          ('${practice}', '${account}', '${member}', '${booking(1)}', 'yookassa', 'canceled', 1, 3000);
+        INSERT INTO credit_entries (member_id, delta, reason, booking_id)
+        VALUES ('${member}', 1, 'refund', '${booking(6)}');
+      `);
+      const migration = migrations[7];
+      if (!migration) throw new Error("Missing cancel reason migration");
+      for (const statement of migration.sql) await client.exec(statement);
+
+      const { rows } = await client.query<{ id: string; reason: string }>(
+        "SELECT id, cancel_reason AS reason FROM bookings ORDER BY id",
+      );
+      expect(rows.map((r) => r.reason)).toEqual([
+        "payment_cancelled", // its payment was cancelled
+        "hold_expired", // the hold ran out
+        "client", // cancelled by the client
+        "client", // by the guest link
+        "no_show", // staff, after the start, nothing returned
+        "staff", // staff, after the start, refunded
+        "staff", // staff, before the start
+        "staff", // reopened blocked time
+        null, // still active
+      ]);
+    } finally {
+      await client.close();
+    }
+  });
+});

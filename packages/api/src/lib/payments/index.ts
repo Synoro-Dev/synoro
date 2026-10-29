@@ -223,7 +223,11 @@ async function settlePayment(
     if (canceled?.bookingId) {
       await db
         .update(Booking)
-        .set({ status: "cancelled", cancelledAt: new Date() })
+        .set({
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancelReason: "payment_cancelled",
+        })
         .where(
           and(
             eq(Booking.id, canceled.bookingId),
