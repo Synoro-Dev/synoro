@@ -14,7 +14,7 @@ import {
   isScheduledSlot,
   overlaps,
   SLOT_MINUTES,
-  seriesStarts,
+  seriesSlots,
   type TimeRange,
 } from "./schedule";
 
@@ -47,15 +47,19 @@ export async function previewSeries(
   options: { checkGoogle: boolean },
 ) {
   const length = SLOT_MINUTES.consultation * 60_000;
-  const ranges: TimeRange[] = seriesStarts(
+  const slots = seriesSlots(
     series.startsAt,
     series.intervalWeeks,
     series.count,
     practice.timezone,
-  ).map((startsAt) => ({
-    startsAt,
-    endsAt: new Date(startsAt.getTime() + length),
-  }));
+  );
+  const ranges: (TimeRange & { exists: boolean })[] = slots.map(
+    ({ startsAt, exists }) => ({
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + length),
+      exists,
+    }),
+  );
   const first = ranges[0];
   const last = ranges.at(-1);
   if (!first || !last) return [];
@@ -76,6 +80,8 @@ export async function previewSeries(
     let status: SeriesDateStatus = "free";
     if (range.startsAt <= now) status = "past";
     else if (
+      // A wall time skipped by a DST jump is not on the schedule either.
+      !range.exists ||
       !isScheduledSlot({
         rules,
         startsAt: range.startsAt,
@@ -87,7 +93,7 @@ export async function previewSeries(
       status = "off_schedule";
     } else if (taken.some((b) => overlaps(b, range))) status = "booked";
     else if (external.some((b) => overlaps(b, range))) status = "google_busy";
-    return { ...range, status };
+    return { startsAt: range.startsAt, endsAt: range.endsAt, status };
   });
 }
 

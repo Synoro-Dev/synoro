@@ -4,7 +4,7 @@ import type { Session } from "@synoro/auth";
 import { Booking, BookingSeries, CreditEntry, eq } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
-import { seriesStarts } from "../../lib/schedule";
+import { seriesSlots, seriesStarts } from "../../lib/schedule";
 import { availabilityRouter } from "../availability";
 import { creditRouter } from "../credit";
 import { practiceRouter } from "../practice";
@@ -86,6 +86,15 @@ describe("seriesStarts", () => {
     const first = new Date("2030-03-25T19:00:00+01:00");
     const [, second] = seriesStarts(first, 1, 2, "Europe/Berlin");
     expect(second?.toISOString()).toBe("2030-04-01T17:00:00.000Z");
+  });
+
+  it("marks a wall time that a daylight saving jump skips", () => {
+    // Berlin: 02:30 does not exist on Sunday 31 March 2030.
+    const first = new Date("2030-03-24T02:30:00+01:00");
+    const [before, skipped, after] = seriesSlots(first, 1, 3, "Europe/Berlin");
+    expect(before?.exists).toBe(true);
+    expect(skipped?.exists).toBe(false);
+    expect(after?.exists).toBe(true);
   });
 });
 

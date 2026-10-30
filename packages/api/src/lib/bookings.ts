@@ -104,6 +104,32 @@ export async function cancelActiveBooking(
     notify?: boolean;
   },
 ) {
+  const result = await cancelBookingRows(db, bookingId, options);
+  if (!result) return undefined;
+  await removeBookingEvent(db, result.booking);
+  if (options.notify ?? true) {
+    await notifyBookingCancelled(db, result.booking.id, {
+      refunded: result.refunded,
+    });
+  }
+  return result;
+}
+
+/**
+ * The database half of `cancelActiveBooking`: the booking, the balance and
+ * the credit log — nothing outside the database, so it can run in a
+ * transaction (pass `tx` as `db`) and be rolled back as a whole. The caller
+ * removes the calendar event and sends the mails after the commit.
+ */
+export async function cancelBookingRows(
+  db: Database,
+  bookingId: string,
+  options: {
+    cancelledById: string | null;
+    refund: boolean;
+    reason: BookingCancelReason;
+  },
+) {
   const [cancelled] = await db
     .update(Booking)
     .set({
@@ -130,10 +156,6 @@ export async function cancelActiveBooking(
       bookingId: cancelled.id,
       createdById: options.cancelledById,
     });
-  }
-  await removeBookingEvent(db, cancelled);
-  if (options.notify ?? true) {
-    await notifyBookingCancelled(db, cancelled.id, { refunded });
   }
   return { booking: cancelled, refunded };
 }

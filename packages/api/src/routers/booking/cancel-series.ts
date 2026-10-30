@@ -2,7 +2,8 @@ import { and, asc, Booking, BookingSeries, eq, gt } from "@synoro/db";
 import { notifySeriesCancelled } from "@synoro/jobs/booking-video";
 import { z } from "zod";
 
-import { cancelActiveBooking } from "../../lib/bookings";
+import { cancelBookingRows } from "../../lib/bookings";
+import { removeBookingEvent } from "../../lib/google-calendar";
 import { findMembership, isStaff } from "../../lib/practice-access";
 import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
@@ -57,34 +58,42 @@ export const cancelSeries = protectedProcedure
       )
       .orderBy(asc(Booking.startsAt));
 
-    const cancelled: string[] = [];
-    let refunded = 0;
-    let kept = 0;
-    for (const booking of upcoming) {
-      if (
-        !staff &&
-        booking.startsAt.getTime() - now < CLIENT_CANCEL_WINDOW_MS
-      ) {
-        kept++;
-        continue;
+    // One transaction: a failure on the way leaves the whole series as it
+    // was, so a retry cancels and tells about all of it.
+    const done = await context.db.transaction(async (tx) => {
+      const rows: Awaited<ReturnType<typeof cancelBookingRows>>[] = [];
+      let kept = 0;
+      for (const booking of upcoming) {
+        if (
+          !staff &&
+          booking.startsAt.getTime() - now < CLIENT_CANCEL_WINDOW_MS
+        ) {
+          kept++;
+          continue;
+        }
+        rows.push(
+          await cancelBookingRows(tx, booking.id, {
+            cancelledById: userId,
+            refund: input.refund || !staff,
+            reason: staff ? "staff" : "client",
+          }),
+        );
       }
-      const result = await cancelActiveBooking(context.db, booking.id, {
-        cancelledById: userId,
-        refund: input.refund || !staff,
-        reason: staff ? "staff" : "client",
-        notify: false,
-      });
-      if (!result) continue;
-      cancelled.push(booking.id);
-      if (result.refunded) refunded++;
-    }
+      if (kept === 0) {
+        await tx
+          .update(BookingSeries)
+          .set({ cancelledAt: new Date() })
+          .where(eq(BookingSeries.id, series.id));
+      }
+      return { rows: rows.filter((r) => r !== undefined), kept };
+    });
 
-    if (kept === 0) {
-      await context.db
-        .update(BookingSeries)
-        .set({ cancelledAt: new Date() })
-        .where(eq(BookingSeries.id, series.id));
+    // After the commit: Google and mails never undo the cancellation.
+    for (const { booking } of done.rows) {
+      await removeBookingEvent(context.db, booking);
     }
+    const cancelled = done.rows.map((r) => r.booking.id);
+    const refunded = done.rows.filter((r) => r.refunded).length;
     if (cancelled.length > 0) {
       await notifySeriesCancelled(context.db, cancelled, {
         by: staff ? "staff" : "client",
@@ -92,5 +101,5 @@ export const cancelSeries = protectedProcedure
       });
     }
 
-    return { cancelled: cancelled.length, refunded, kept };
+    return { cancelled: cancelled.length, refunded, kept: done.kept };
   });

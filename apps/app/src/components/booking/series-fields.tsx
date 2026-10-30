@@ -42,7 +42,8 @@ const STATUS_LABELS: Record<Exclude<SeriesDate["status"], "free">, string> = {
 
 /**
  * «Повторять»: how often and how many times. `max` is how many the balance
- * pays for; below two there is nothing to repeat.
+ * pays for; below two there is nothing to repeat — but a repeat chosen
+ * earlier (another client was selected) can still be turned off.
  */
 export function RepeatSelect({
   value,
@@ -66,7 +67,7 @@ export function RepeatSelect({
         <Select
           items={REPEAT_LABELS}
           value={value ? String(value.intervalWeeks) : "none"}
-          disabled={limit < 2}
+          disabled={limit < 2 && !value}
           onValueChange={(next) =>
             onChange(
               next === "1" || next === "2"
@@ -82,11 +83,13 @@ export function RepeatSelect({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(REPEAT_LABELS).map(([key, label]) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
+            {Object.entries(REPEAT_LABELS)
+              .filter(([key]) => key === "none" || limit >= 2)
+              .map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>

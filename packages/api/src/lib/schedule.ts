@@ -160,8 +160,12 @@ export function subtractRanges(ranges: TimeRange[], cut: TimeRange[]) {
  * Starts of a recurring booking: `count` dates every `intervalWeeks` weeks,
  * keeping the local wall time of `first` in `timeZone` — the days are added
  * on the local calendar, so 19:00 stays 19:00 across a DST change.
+ *
+ * `exists` is false when that wall time is skipped by a DST jump on that day
+ * (02:30 the night the clocks go forward): `startsAt` is then another hour,
+ * and the date cannot be booked as asked.
  */
-export function seriesStarts(
+export function seriesSlots(
   first: Date,
   intervalWeeks: number,
   count: number,
@@ -169,12 +173,27 @@ export function seriesStarts(
 ) {
   const date = toZonedDate(first, timeZone);
   const { hour, minute } = zonedParts(first, timeZone);
-  return Array.from({ length: count }, (_, i) =>
-    zonedTimeToUtc(
-      addDays(date, i * 7 * intervalWeeks),
-      hour * 60 + minute,
-      timeZone,
-    ),
+  const wallMinute = hour * 60 + minute;
+  return Array.from({ length: count }, (_, i) => {
+    const day = addDays(date, i * 7 * intervalWeeks);
+    const startsAt = zonedTimeToUtc(day, wallMinute, timeZone);
+    const local = zonedParts(startsAt, timeZone);
+    const exists =
+      toZonedDate(startsAt, timeZone) === day &&
+      local.hour * 60 + local.minute === wallMinute;
+    return { startsAt, exists };
+  });
+}
+
+/** The start times of `seriesSlots`. */
+export function seriesStarts(
+  first: Date,
+  intervalWeeks: number,
+  count: number,
+  timeZone: string,
+) {
+  return seriesSlots(first, intervalWeeks, count, timeZone).map(
+    (slot) => slot.startsAt,
   );
 }
 

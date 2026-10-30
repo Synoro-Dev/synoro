@@ -203,19 +203,31 @@ export async function notifyBookingCancelled(
     }
   } catch (error) {
     settled(bookingId, "cancelled", error);
-    return;
   }
+  // Staff are told even when the client's mail failed.
   await notifyStaff(db, bookingId, "cancelled", options, deliver);
 }
 
-/** Start times of `bookingIds`, earliest first; the first id with it. */
-async function seriesDates(db: Database, bookingIds: string[]) {
-  const rows = await db
-    .select({ id: Booking.id, startsAt: Booking.startsAt })
-    .from(Booking)
-    .where(inArray(Booking.id, bookingIds))
-    .orderBy(asc(Booking.startsAt));
-  return { firstId: rows[0]?.id, dates: rows.map((r) => r.startsAt) };
+/**
+ * Start times of `bookingIds`, earliest first; the first id with it. A mail
+ * never undoes a saved booking, so a failed lookup is logged and gives
+ * undefined.
+ */
+async function seriesDates(db: Database, bookingIds: string[], notice: Notice) {
+  try {
+    const rows = await db
+      .select({ id: Booking.id, startsAt: Booking.startsAt })
+      .from(Booking)
+      .where(inArray(Booking.id, bookingIds))
+      .orderBy(asc(Booking.startsAt));
+    const firstId = rows[0]?.id;
+    return firstId
+      ? { firstId, dates: rows.map((r) => r.startsAt) }
+      : undefined;
+  } catch (error) {
+    settled(bookingIds.join(","), notice, error);
+    return undefined;
+  }
 }
 
 /**
@@ -227,8 +239,9 @@ export async function notifySeriesBooked(
   bookingIds: string[],
   deliver: Deliver = dispatchEmail,
 ) {
-  const { firstId, dates } = await seriesDates(db, bookingIds);
-  if (!firstId) return;
+  const found = await seriesDates(db, bookingIds, "confirmed");
+  if (!found) return;
+  const { firstId, dates } = found;
   try {
     const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
     if (row) {
@@ -252,8 +265,9 @@ export async function notifySeriesCancelled(
   options: { by: "client" | "staff"; refunded: boolean },
   deliver: Deliver = dispatchEmail,
 ) {
-  const { firstId, dates } = await seriesDates(db, bookingIds);
-  if (!firstId) return;
+  const found = await seriesDates(db, bookingIds, "cancelled");
+  if (!found) return;
+  const { firstId, dates } = found;
   try {
     const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
     if (row) {
@@ -379,39 +393,58 @@ export async function sendBookingReminders(
   ] as const;
 
   for (const window of windows) {
-    const due = await confirmedBookings(db)
-      .where(
-        and(
-          eq(Booking.kind, "consultation"),
-          eq(Booking.status, "active"),
-          isNull(Booking.holdUntil),
-          window.pending,
-          gt(Booking.startsAt, window.from),
-          lte(Booking.startsAt, window.until),
-        ),
-      )
-      .limit(MAX_NOTICES);
+    // Page by id: bookings skipped for the night stay pending, and must not
+    // fill the batch ahead of the ones that are due now.
+    let afterId: string | undefined;
+    while (true) {
+      const due = await confirmedBookings(db)
+        .where(
+          and(
+            eq(Booking.kind, "consultation"),
+            eq(Booking.status, "active"),
+            isNull(Booking.holdUntil),
+            window.pending,
+            gt(Booking.startsAt, window.from),
+            lte(Booking.startsAt, window.until),
+            afterId ? gt(Booking.id, afterId) : undefined,
+          ),
+        )
+        .orderBy(Booking.id)
+        .limit(MAX_NOTICES);
 
-    for (const row of due) {
-      if (window.notice === "reminder-day") {
-        const hour = localHour(at, row.timezone);
-        if (hour < DAY_HOURS.from || hour >= DAY_HOURS.until) continue;
-      }
-      const claimed = await db
-        .update(Booking)
-        .set(window.claim())
-        .where(and(eq(Booking.id, row.id), window.pending))
-        .returning({ id: Booking.id });
-      if (claimed.length === 0) continue;
-      try {
-        await send(deliver, row, window.notice);
-      } catch (error) {
-        await db
+      for (const row of due) {
+        if (window.notice === "reminder-day") {
+          // A practice with an unknown time zone must not stop the others.
+          let daytime: boolean;
+          try {
+            const hour = localHour(at, row.timezone);
+            daytime = hour >= DAY_HOURS.from && hour < DAY_HOURS.until;
+          } catch (error) {
+            settled(row.id, window.notice, error);
+            continue;
+          }
+          if (!daytime) continue;
+        }
+        const claimed = await db
           .update(Booking)
-          .set(window.release)
-          .where(eq(Booking.id, row.id));
-        settled(row.id, window.notice, error);
+          .set(window.claim())
+          .where(and(eq(Booking.id, row.id), window.pending))
+          .returning({ id: Booking.id });
+        if (claimed.length === 0) continue;
+        try {
+          await send(deliver, row, window.notice);
+        } catch (error) {
+          await db
+            .update(Booking)
+            .set(window.release)
+            .where(eq(Booking.id, row.id));
+          settled(row.id, window.notice, error);
+        }
       }
+
+      const last = due.at(-1);
+      if (!last || due.length < MAX_NOTICES) break;
+      afterId = last.id;
     }
   }
 }
