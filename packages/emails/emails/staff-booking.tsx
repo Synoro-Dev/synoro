@@ -25,6 +25,7 @@ export default function StaffBookingEmail({
   cancelledBy = null,
   refunded = false,
   calendarUrl = "https://app.synoro.ru/practices/1/calendar",
+  dates = [],
 }: {
   notice: StaffBookingNotice;
   practiceName: string;
@@ -39,10 +40,20 @@ export default function StaffBookingEmail({
   /** The consultation went back to the client's balance, for `cancelled`. */
   refunded?: boolean;
   calendarUrl: string;
+  /**
+   * Every date of a recurring booking, formatted like `when`; `when` then
+   * sums them up («8 встреч, первая — …»).
+   */
+  dates?: string[];
 }) {
   const booked = notice === "booked";
+  const series = dates.length > 1;
   const title = booked ? "Новая запись" : "Запись отменена";
-  const kind = free ? "Бесплатная встреча" : "Запись";
+  const kind = free
+    ? "Бесплатная встреча"
+    : series
+      ? "Повторная запись"
+      : "Запись";
   return (
     <EmailLayout
       preview={`${title}: ${clientName}, ${when}`}
@@ -60,11 +71,23 @@ export default function StaffBookingEmail({
         }
       />
       {clientPhone ? <EmailText>Телефон: {clientPhone}</EmailText> : null}
+      {series ? (
+        <EmailText>
+          {booked ? "Даты:" : "Отменены даты:"}
+          <br />
+          {dates.map((date) => (
+            <span key={date}>
+              {date}
+              <br />
+            </span>
+          ))}
+        </EmailText>
+      ) : null}
       {!booked && !free ? (
         <EmailText muted>
           {refunded
-            ? "Занятие вернулось клиенту на баланс."
-            : "Занятие не возвращено на баланс."}
+            ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`
+            : `${series ? "Занятия не возвращены" : "Занятие не возвращено"} на баланс.`}
         </EmailText>
       ) : null}
       <EmailButton href={calendarUrl}>Открыть календарь</EmailButton>

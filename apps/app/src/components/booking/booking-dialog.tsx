@@ -24,6 +24,7 @@ import {
   LockIcon,
   MailIcon,
   PhoneIcon,
+  RepeatIcon,
   StickyNoteIcon,
   UserRoundIcon,
   UserRoundXIcon,
@@ -31,6 +32,7 @@ import {
 import type { ReactNode } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ConfirmButton } from "./confirm-button";
 import { useTerms } from "./terms";
 import { formatDateTime, formatTime } from "./time";
 import { VideoLinkButton, VideoLinkForm, VideoServiceName } from "./video-link";
@@ -176,7 +178,22 @@ export function BookingDialog({
     },
     onError: (error) => toast.error(error.message),
   });
-  const pending = cancel.isPending || noShow.isPending;
+  const cancelSeries = useMutation({
+    ...orpc.booking.cancelSeries.mutationOptions(),
+    onSuccess: async (result) => {
+      toast.success(
+        `Серия отменена: ${result.cancelled}, вернулось на баланс: ${result.refunded}`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),
+      ]);
+      onClose();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+  const pending =
+    cancel.isPending || noShow.isPending || cancelSeries.isPending;
   // A no-show is marked once the booking has started; unpaid holds never.
   const started =
     booking !== null &&
@@ -239,6 +256,9 @@ export function BookingDialog({
               {booking.kind === "blocked" && (
                 <Fact icon={<LockIcon />}>Клиенты не могут записаться</Fact>
               )}
+              {booking.seriesId && (
+                <Fact icon={<RepeatIcon />}>Повторная запись</Fact>
+              )}
             </div>
 
             {booking.kind !== "blocked" && (
@@ -246,6 +266,22 @@ export function BookingDialog({
             )}
 
             <DialogFooter className="flex-wrap">
+              {booking.seriesId && (
+                <ConfirmButton
+                  size="default"
+                  title="Отменить серию?"
+                  description={`Отменятся все предстоящие записи этой повторной записи, ${terms.credits} вернутся на баланс клиента.`}
+                  confirmLabel="Отменить серию"
+                  disabled={pending}
+                  onConfirm={() =>
+                    booking.seriesId &&
+                    cancelSeries.mutate({ seriesId: booking.seriesId })
+                  }
+                >
+                  <RepeatIcon />
+                  Отменить серию
+                </ConfirmButton>
+              )}
               {started && (
                 <Button
                   variant="outline"

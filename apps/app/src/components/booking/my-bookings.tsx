@@ -31,6 +31,7 @@ import {
   CalendarXIcon,
   PhoneIcon,
   ReceiptIcon,
+  RepeatIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -340,6 +341,21 @@ export function MyBookings() {
     },
     onError: (error) => toast.error(error.message),
   });
+  const cancelSeries = useMutation({
+    ...orpc.booking.cancelSeries.mutationOptions(),
+    onSuccess: async (result) => {
+      toast.success(
+        result.kept > 0
+          ? `Отменено: ${result.cancelled}. Ближайшее занятие уже не отменить — до него меньше суток.`
+          : `Отменено: ${result.cancelled}, баланс восстановлен`,
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),
+      ]);
+    },
+    onError: (error) => toast.error(error.message),
+  });
 
   const clientOf = practices.data?.filter((p) => p.role === "client") ?? [];
   const topUpPractice = clientOf.find((p) => p.practiceId === topUp);
@@ -348,6 +364,14 @@ export function MyBookings() {
     bookings.data?.filter(
       (b) => b.status === "active" && b.endsAt.getTime() > now,
     ) ?? [];
+  // «Cancel the series» sits on the nearest booking of each series only.
+  const seriesHeads = new Set<string>();
+  const seenSeries = new Set<string>();
+  for (const b of upcoming) {
+    if (!b.seriesId || seenSeries.has(b.seriesId)) continue;
+    seenSeries.add(b.seriesId);
+    seriesHeads.add(b.id);
+  }
   const past = (
     bookings.data?.filter(
       (b) => b.status !== "active" || b.endsAt.getTime() <= now,
@@ -459,10 +483,31 @@ export function MyBookings() {
                           })}
                           , {formatTime(b.startsAt)}–{formatTime(b.endsAt)}
                         </span>
-                        <span className="truncate text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+                          {b.seriesId && (
+                            <RepeatIcon
+                              className="size-3 shrink-0"
+                              aria-label="Повторяется"
+                            />
+                          )}
                           {b.practiceName}
                         </span>
                       </div>
+                      {b.seriesId && seriesHeads.has(b.id) && (
+                        <ConfirmButton
+                          variant="ghost"
+                          title="Отменить все занятия серии?"
+                          description="Отменятся все предстоящие занятия этой повторной записи, до которых больше суток, и вернутся на баланс."
+                          confirmLabel="Отменить серию"
+                          disabled={cancelSeries.isPending}
+                          onConfirm={() =>
+                            b.seriesId &&
+                            cancelSeries.mutate({ seriesId: b.seriesId })
+                          }
+                        >
+                          Отменить серию
+                        </ConfirmButton>
+                      )}
                       {b.awaitingPayment ? (
                         <Badge variant="warning-light">Ждёт оплаты</Badge>
                       ) : b.canCancel ? (

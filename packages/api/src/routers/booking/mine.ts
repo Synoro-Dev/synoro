@@ -34,6 +34,8 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       endsAt: Booking.endsAt,
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
+      /** Set when the booking is part of a recurring booking. */
+      seriesId: Booking.seriesId,
       practiceVideoUrl: Practice.videoUrl,
       practiceId: Practice.id,
       practiceName: Practice.name,

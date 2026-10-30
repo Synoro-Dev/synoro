@@ -32,6 +32,13 @@ import { CalendarCheckIcon, LockIcon, UserRoundPlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import {
+  type Repeat,
+  RepeatSelect,
+  SeriesDateList,
+  seriesChoice,
+  useSeriesPreview,
+} from "./series-fields";
 import { ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey } from "./time";
@@ -100,11 +107,22 @@ function EntryForm({
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [repeat, setRepeat] = useState<Repeat | null>(null);
+  const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
   const members = useQuery({
     ...orpc.practice.members.queryOptions({ input: { practiceId } }),
     enabled: mode === "consultation",
   });
   const clients = (members.data ?? []).filter((m) => m.role === "client");
+  const client = clients.find((c) => c.id === memberId);
+  const series = mode === "consultation" && client ? repeat : null;
+  const preview = useSeriesPreview({
+    practiceId,
+    startsAt: series ? atMinute(date, start) : null,
+    repeat: series,
+    memberId: client?.id,
+  });
+  const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
   const clientLabels = Object.fromEntries(
     clients.map((c) => [
       c.id,
@@ -135,18 +153,50 @@ function EntryForm({
           : error.message,
       ),
   });
+  const bookSeries = useMutation({
+    ...orpc.booking.bookSeries.mutationOptions(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+      await onSuccess(
+        `Клиент записан: ${formatCredits(result.dates.length, terms)}`,
+      );
+    },
+    onError: async (error) => {
+      toast.error(
+        isDefinedError(error) && error.code === "NO_CREDITS"
+          ? "На балансе клиента не хватает оплаты на все даты"
+          : error.message,
+      );
+      await preview.refetch();
+    },
+  });
   const block = useMutation({
     ...orpc.booking.block.mutationOptions(),
     onSuccess: () => onSuccess("Время закрыто"),
     onError: (error) => toast.error(error.message),
   });
-  const pending = book.isPending || bookFree.isPending || block.isPending;
+  const pending =
+    book.isPending ||
+    bookSeries.isPending ||
+    bookFree.isPending ||
+    block.isPending;
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (mode === "consultation") {
       if (!memberId) {
         toast.error("Выберите клиента");
+        return;
+      }
+      if (series) {
+        bookSeries.mutate({
+          practiceId,
+          memberId,
+          startsAt: atMinute(date, start),
+          ...series,
+          skip,
+          note: note || undefined,
+        });
         return;
       }
       book.mutate({
@@ -270,8 +320,32 @@ function EntryForm({
           <p className="text-sm text-muted-foreground">
             {members.isSuccess && clients.length === 0
               ? "В практике пока нет клиентов — пригласите их на странице клиентов."
-              : `Спишется ${formatCredits(1, terms)} с баланса клиента, только целые часы в рабочее время.`}
+              : `Спишется ${formatCredits(1, terms)} с баланса клиента за каждую дату, только целые часы в рабочее время.`}
           </p>
+          {client && (
+            <RepeatSelect
+              value={repeat}
+              onChange={(next) => {
+                setRepeat(next);
+                setUnchecked(new Set());
+              }}
+              max={client.credits}
+              idPrefix="entry"
+            />
+          )}
+          {series && (
+            <SeriesDateList
+              query={preview}
+              unchecked={unchecked}
+              idPrefix="entry"
+              onToggle={(at, checked) => {
+                const next = new Set(unchecked);
+                if (checked) next.delete(at.getTime());
+                else next.add(at.getTime());
+                setUnchecked(next);
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -328,8 +402,15 @@ function EntryForm({
         <Button type="button" variant="outline" onClick={onDone}>
           Отмена
         </Button>
-        <Button type="submit" disabled={pending}>
-          {mode === "block" ? "Закрыть время" : "Записать"}
+        <Button
+          type="submit"
+          disabled={pending || (series !== null && chosen.length < 2)}
+        >
+          {mode === "block"
+            ? "Закрыть время"
+            : series
+              ? `Записать: ${formatCredits(chosen.length, terms)}`
+              : "Записать"}
         </Button>
       </DialogFooter>
     </form>

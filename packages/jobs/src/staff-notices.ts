@@ -15,6 +15,7 @@ import type { StaffBookingNotice } from "@synoro/emails";
 
 import type { Deliver } from "./booking-video";
 import { dispatchEmail } from "./index";
+import { describeDates } from "./when";
 
 /**
  * Telling the specialist and the administrators of a practice that a booking
@@ -26,22 +27,15 @@ import { dispatchEmail } from "./index";
 
 const client = alias(user, "client");
 
-function formatWhen(at: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(at);
-}
-
+/**
+ * Mail the staff about `bookingId`. A series passes the dates of all its
+ * bookings in `dates` (the booking is one of them) and gets one mail.
+ */
 export async function notifyStaff(
   db: Database,
   bookingId: string,
   notice: StaffBookingNotice,
-  options: { refunded?: boolean } = {},
+  options: { refunded?: boolean; dates?: Date[] } = {},
   deliver: Deliver = dispatchEmail,
 ) {
   try {
@@ -86,7 +80,10 @@ export async function notifyStaff(
     if (staff.length === 0) return;
 
     const clientName = row.clientName ?? row.guestName ?? "Клиент";
-    const when = formatWhen(row.startsAt, row.timezone);
+    const { when, dates } = describeDates(
+      options.dates ?? [row.startsAt],
+      row.timezone,
+    );
     const calendarUrl = new URL(
       paths.booking.calendar(row.practiceId),
       env.APP_URL,
@@ -118,6 +115,7 @@ export async function notifyStaff(
                     : null,
               refunded: options.refunded ?? false,
               calendarUrl,
+              dates,
             },
           });
         } catch (error) {
