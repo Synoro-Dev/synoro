@@ -16,6 +16,8 @@ import {
   sql,
 } from "@synoro/db";
 
+import { notifyBookingCancelled } from "@synoro/jobs/booking-video";
+
 import { removeBookingEvent } from "./google-calendar";
 import { addDays, zonedTimeToUtc } from "./schedule";
 
@@ -87,10 +89,39 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
  * Cancel an active booking and, when asked, give the consultation back to
  * the client's balance. Conditional on `active`, so two concurrent cancels
  * refund once. An unpaid hold has spent nothing, so it never refunds. The
- * booking's Google Calendar event, if any, is deleted.
+ * booking's Google Calendar event, if any, is deleted, and the client and
+ * staff are told (unless it was a no-show or a lapsed hold, or `notify` is
+ * off — a series sends one mail for all its bookings).
  * Returns undefined when the booking wasn't active any more.
  */
 export async function cancelActiveBooking(
+  db: Database,
+  bookingId: string,
+  options: {
+    cancelledById: string | null;
+    refund: boolean;
+    reason: BookingCancelReason;
+    notify?: boolean;
+  },
+) {
+  const result = await cancelBookingRows(db, bookingId, options);
+  if (!result) return undefined;
+  await removeBookingEvent(db, result.booking);
+  if (options.notify ?? true) {
+    await notifyBookingCancelled(db, result.booking.id, {
+      refunded: result.refunded,
+    });
+  }
+  return result;
+}
+
+/**
+ * The database half of `cancelActiveBooking`: the booking, the balance and
+ * the credit log — nothing outside the database, so it can run in a
+ * transaction (pass `tx` as `db`) and be rolled back as a whole. The caller
+ * removes the calendar event and sends the mails after the commit.
+ */
+export async function cancelBookingRows(
   db: Database,
   bookingId: string,
   options: {
@@ -126,7 +157,6 @@ export async function cancelActiveBooking(
       createdById: options.cancelledById,
     });
   }
-  await removeBookingEvent(db, cancelled);
   return { booking: cancelled, refunded };
 }
 

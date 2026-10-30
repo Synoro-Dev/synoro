@@ -1,4 +1,5 @@
 import { Booking, isExclusionViolation } from "@synoro/db";
+import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
 import { freeBookingFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
@@ -69,6 +70,7 @@ export const bookFree = practiceProcedure
         .returning();
       if (!booking) throw new Error("Failed to insert booking");
       await exportBooking(context.db, booking.id);
+      await notifyBookingConfirmed(context.db, booking.id);
       return booking;
     } catch (error) {
       if (isExclusionViolation(error, "bookings_no_overlap")) {

@@ -3,6 +3,7 @@ import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 import { Practice, PracticeMember } from "./practice";
+import { BookingSeries } from "./series";
 
 /**
  * consultation — paid, 1 hour, booked by a client for one credit.
@@ -64,6 +65,10 @@ export const Booking = pgTable(
     /** Any other way to reach the guest: Telegram, email. */
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
+    /** The recurring booking this one belongs to (`booking_series`). */
+    seriesId: t
+      .uuid()
+      .references(() => BookingSeries.id, { onDelete: "set null" }),
     /**
      * Video room of this booking only; falls back to `practices.video_url`.
      * Shown to the client once the booking is confirmed.
@@ -98,6 +103,7 @@ export const Booking = pgTable(
   (table) => [
     index("bookings_practice_starts_idx").on(table.practiceId, table.startsAt),
     index("bookings_member_idx").on(table.memberId),
+    index("bookings_series_idx").on(table.seriesId),
     unique("bookings_access_token_hash_unique").on(table.accessTokenHash),
     check("bookings_valid_range", sql`${table.startsAt} < ${table.endsAt}`),
     check(

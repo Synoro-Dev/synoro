@@ -45,12 +45,15 @@ export const sendEmail = async (email: Emails) => {
     });
     return Promise.resolve();
   }
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     to: email.to,
     from: email.from ?? env.EMAIL_FROM,
     subject: email.subject,
     react: email.react,
   });
+  // Resend reports a refusal in `error` instead of throwing: raise it, so
+  // `send-email` fails and retries.
+  if (error) throw new Error(`resend: ${error.name}: ${error.message}`);
 };
 
 export const sendEmailHtml = async (email: EmailHtml) => {
@@ -60,10 +63,11 @@ export const sendEmailHtml = async (email: EmailHtml) => {
     });
     return Promise.resolve();
   }
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     to: email.to,
     from: email.from ?? env.EMAIL_FROM,
     subject: email.subject,
     html: email.html,
   });
+  if (error) throw new Error(`resend: ${error.name}: ${error.message}`);
 };

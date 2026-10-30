@@ -1,10 +1,11 @@
 import { db } from "@synoro/db";
-import { sendVideoReminders } from "../booking-video";
+import { sendBookingReminders } from "../booking-video";
 import { hatchet } from "./client";
 
 /**
- * Reminds clients of video meetings 24 hours and 1 hour ahead, with the link.
- * Every 5 minutes: the reminder marks on the booking keep it to one each.
+ * Reminds clients of their bookings 24 hours and 1 hour ahead, with the video
+ * link when there is one. Every 5 minutes: the reminder marks on the booking
+ * keep it to one each.
  */
 export const bookingRemindersWorkflow = hatchet.workflow({
   name: "booking-reminders",
@@ -16,6 +17,6 @@ bookingRemindersWorkflow.task({
   retries: 2,
   executionTimeout: "120s",
   fn: async () => {
-    await sendVideoReminders(db);
+    await sendBookingReminders(db);
   },
 });
