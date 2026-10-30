@@ -5,78 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1793173305476,
-      "tag": "0000_colossal_inhumans",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1793185978035,
-      "tag": "0001_google_calendar",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1793189597104,
-      "tag": "0002_booking_no_overlap",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1793202006875,
-      "tag": "0003_nostalgic_adam_destine",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1793205916508,
-      "tag": "0004_practice_image",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1793208285390,
-      "tag": "0005_video_links",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1793214603947,
-      "tag": "0006_billing",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1793250329290,
-      "tag": "0007_booking_cancel_reason",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1793254050739,
-      "tag": "0008_sent_notices",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1793257326752,
-      "tag": "0009_notice_claim_leases",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1793259515327,
-      "tag": "0010_booking_series",
+      "when": 1793389606960,
+      "tag": "0000_magical_brother_voodoo",
       "breakpoints": true
     }
   ]

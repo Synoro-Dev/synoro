@@ -1,3 +1,5 @@
+CREATE TYPE "public"."billing_period" AS ENUM('month', 'year');--> statement-breakpoint
+CREATE TYPE "public"."booking_cancel_reason" AS ENUM('client', 'staff', 'no_show', 'hold_expired', 'payment_cancelled');--> statement-breakpoint
 CREATE TYPE "public"."booking_kind" AS ENUM('consultation', 'free', 'blocked');--> statement-breakpoint
 CREATE TYPE "public"."booking_status" AS ENUM('active', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."credit_reason" AS ENUM('purchase', 'booking', 'refund', 'adjustment');--> statement-breakpoint
@@ -53,7 +55,6 @@ CREATE TABLE "users" (
 	"phone" text,
 	"username" text,
 	"bio" text,
-	"language" text DEFAULT 'en',
 	"role" text,
 	"banned" boolean DEFAULT false,
 	"ban_reason" text,
@@ -70,6 +71,33 @@ CREATE TABLE "verifications" (
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "subscriptions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"trial_ends_at" timestamp with time zone NOT NULL,
+	"paid_until" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "subscriptions_userId_unique" UNIQUE("user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "subscription_payments" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"user_id" text NOT NULL,
+	"period" "billing_period" NOT NULL,
+	"amount" integer NOT NULL,
+	"status" "payment_status" DEFAULT 'pending' NOT NULL,
+	"external_id" varchar(64),
+	"confirmation_url" text,
+	"period_start" timestamp with time zone,
+	"period_end" timestamp with time zone,
+	"paid_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "subscription_payments_externalId_unique" UNIQUE("external_id"),
+	CONSTRAINT "subscription_payments_positive" CHECK ("subscription_payments"."amount" > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "availability_rules" (
@@ -95,15 +123,23 @@ CREATE TABLE "bookings" (
 	"guest_phone" varchar(20),
 	"guest_contact" varchar(120),
 	"note" varchar(500),
+	"series_id" uuid,
+	"meeting_url" text,
+	"reminder_day_sent_at" timestamp with time zone,
+	"reminder_hour_sent_at" timestamp with time zone,
+	"google_calendar_id" text,
+	"google_event_id" text,
 	"hold_until" timestamp with time zone,
 	"access_token_hash" varchar(64),
 	"created_by_id" text,
 	"cancelled_at" timestamp with time zone,
 	"cancelled_by_id" text,
+	"cancel_reason" "booking_cancel_reason",
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
 	CONSTRAINT "bookings_access_token_hash_unique" UNIQUE("access_token_hash"),
-	CONSTRAINT "bookings_valid_range" CHECK ("bookings"."starts_at" < "bookings"."ends_at")
+	CONSTRAINT "bookings_valid_range" CHECK ("bookings"."starts_at" < "bookings"."ends_at"),
+	CONSTRAINT "bookings_cancel_reason" CHECK (("bookings"."status" = 'cancelled') = ("bookings"."cancel_reason" is not null))
 );
 --> statement-breakpoint
 CREATE TABLE "credit_entries" (
@@ -132,6 +168,24 @@ CREATE TABLE "practice_domains" (
 	CONSTRAINT "practice_domains_hostname_unique" UNIQUE("hostname")
 );
 --> statement-breakpoint
+CREATE TABLE "google_calendar_connections" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"practice_id" uuid NOT NULL,
+	"connected_by_id" text,
+	"email" varchar(320) NOT NULL,
+	"refresh_token" text NOT NULL,
+	"access_token" text,
+	"access_token_expires_at" timestamp with time zone,
+	"busy_calendar_ids" text[] DEFAULT '{primary}'::text[] NOT NULL,
+	"events_calendar_id" text DEFAULT 'primary' NOT NULL,
+	"export_bookings" boolean DEFAULT true NOT NULL,
+	"last_error" text,
+	"last_error_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone,
+	CONSTRAINT "google_calendar_connections_practiceId_unique" UNIQUE("practice_id")
+);
+--> statement-breakpoint
 CREATE TABLE "practice_invitations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"practice_id" uuid NOT NULL,
@@ -150,6 +204,8 @@ CREATE TABLE "practices" (
 	"slug" varchar(48) NOT NULL,
 	"timezone" text DEFAULT 'Europe/Moscow' NOT NULL,
 	"profession" "practice_profession" DEFAULT 'other' NOT NULL,
+	"image" text,
+	"video_url" text,
 	"owner_id" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone,
@@ -166,6 +222,27 @@ CREATE TABLE "practice_members" (
 	"updated_at" timestamp with time zone,
 	CONSTRAINT "practice_members_practice_user_unique" UNIQUE("practice_id","user_id"),
 	CONSTRAINT "practice_members_credits_non_negative" CHECK ("practice_members"."credits" >= 0)
+);
+--> statement-breakpoint
+CREATE TABLE "booking_series" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"practice_id" uuid NOT NULL,
+	"member_id" uuid NOT NULL,
+	"interval_weeks" smallint NOT NULL,
+	"count" smallint NOT NULL,
+	"created_by_id" text,
+	"cancelled_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "booking_series_interval" CHECK ("booking_series"."interval_weeks" in (1, 2)),
+	CONSTRAINT "booking_series_count" CHECK ("booking_series"."count" between 2 and 12)
+);
+--> statement-breakpoint
+CREATE TABLE "sent_notices" (
+	"key" varchar(200) PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"sent_at" timestamp with time zone,
+	"claim_token" uuid,
+	"claim_expires_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "payment_accounts" (
@@ -224,9 +301,12 @@ CREATE TABLE "posts" (
 --> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "subscription_payments" ADD CONSTRAINT "subscription_payments_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "availability_rules" ADD CONSTRAINT "availability_rules_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_member_id_practice_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."practice_members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "bookings" ADD CONSTRAINT "bookings_series_id_booking_series_id_fk" FOREIGN KEY ("series_id") REFERENCES "public"."booking_series"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "bookings" ADD CONSTRAINT "bookings_cancelled_by_id_users_id_fk" FOREIGN KEY ("cancelled_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "credit_entries" ADD CONSTRAINT "credit_entries_member_id_practice_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."practice_members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -234,11 +314,17 @@ ALTER TABLE "credit_entries" ADD CONSTRAINT "credit_entries_booking_id_bookings_
 ALTER TABLE "credit_entries" ADD CONSTRAINT "credit_entries_payment_id_payments_id_fk" FOREIGN KEY ("payment_id") REFERENCES "public"."payments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "credit_entries" ADD CONSTRAINT "credit_entries_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_domains" ADD CONSTRAINT "practice_domains_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "google_calendar_connections" ADD CONSTRAINT "google_calendar_connections_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "google_calendar_connections" ADD CONSTRAINT "google_calendar_connections_connected_by_id_users_id_fk" FOREIGN KEY ("connected_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_invitations" ADD CONSTRAINT "practice_invitations_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_invitations" ADD CONSTRAINT "practice_invitations_invited_by_id_users_id_fk" FOREIGN KEY ("invited_by_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practices" ADD CONSTRAINT "practices_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_members" ADD CONSTRAINT "practice_members_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "practice_members" ADD CONSTRAINT "practice_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "booking_series" ADD CONSTRAINT "booking_series_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "booking_series" ADD CONSTRAINT "booking_series_member_id_practice_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."practice_members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "booking_series" ADD CONSTRAINT "booking_series_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sent_notices" ADD CONSTRAINT "sent_notices_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_accounts" ADD CONSTRAINT "payment_accounts_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_packages" ADD CONSTRAINT "payment_packages_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_practice_id_practices_id_fk" FOREIGN KEY ("practice_id") REFERENCES "public"."practices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -246,11 +332,15 @@ ALTER TABLE "payments" ADD CONSTRAINT "payments_account_id_payment_accounts_id_f
 ALTER TABLE "payments" ADD CONSTRAINT "payments_member_id_practice_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."practice_members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_booking_id_bookings_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."bookings"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payments" ADD CONSTRAINT "payments_created_by_id_users_id_fk" FOREIGN KEY ("created_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "subscription_payments_user_created_idx" ON "subscription_payments" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "availability_rules_practice_idx" ON "availability_rules" USING btree ("practice_id");--> statement-breakpoint
 CREATE INDEX "bookings_practice_starts_idx" ON "bookings" USING btree ("practice_id","starts_at");--> statement-breakpoint
 CREATE INDEX "bookings_member_idx" ON "bookings" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "bookings_series_idx" ON "bookings" USING btree ("series_id");--> statement-breakpoint
 CREATE INDEX "credit_entries_member_idx" ON "credit_entries" USING btree ("member_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "credit_entries_payment_idx" ON "credit_entries" USING btree ("payment_id");--> statement-breakpoint
+CREATE INDEX "booking_series_member_idx" ON "booking_series" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "sent_notices_user_idx" ON "sent_notices" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_accounts_one_active_idx" ON "payment_accounts" USING btree ("practice_id") WHERE "payment_accounts"."active";--> statement-breakpoint
 CREATE INDEX "payments_practice_created_idx" ON "payments" USING btree ("practice_id","created_at");--> statement-breakpoint
 CREATE INDEX "payments_member_idx" ON "payments" USING btree ("member_id");
