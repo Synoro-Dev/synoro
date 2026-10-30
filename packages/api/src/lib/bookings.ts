@@ -90,7 +90,8 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
  * the client's balance. Conditional on `active`, so two concurrent cancels
  * refund once. An unpaid hold has spent nothing, so it never refunds. The
  * booking's Google Calendar event, if any, is deleted, and the client and
- * staff are told (unless it was a no-show or a lapsed hold).
+ * staff are told (unless it was a no-show or a lapsed hold, or `notify` is
+ * off — a series sends one mail for all its bookings).
  * Returns undefined when the booking wasn't active any more.
  */
 export async function cancelActiveBooking(
@@ -100,6 +101,7 @@ export async function cancelActiveBooking(
     cancelledById: string | null;
     refund: boolean;
     reason: BookingCancelReason;
+    notify?: boolean;
   },
 ) {
   const [cancelled] = await db
@@ -130,7 +132,9 @@ export async function cancelActiveBooking(
     });
   }
   await removeBookingEvent(db, cancelled);
-  await notifyBookingCancelled(db, cancelled.id, { refunded });
+  if (options.notify ?? true) {
+    await notifyBookingCancelled(db, cancelled.id, { refunded });
+  }
   return { booking: cancelled, refunded };
 }
 

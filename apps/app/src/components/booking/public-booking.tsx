@@ -19,6 +19,7 @@ import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
 import {
   capitalize,
+  formatCredits,
   normalizePhone,
   professionTerms,
 } from "@synoro/validators";
@@ -31,6 +32,7 @@ import {
   Clock3Icon,
   GlobeIcon,
   LogInIcon,
+  RepeatIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -40,6 +42,7 @@ import { LegalFooter } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { GuestBookingForm } from "./guest-booking-form";
+import { SeriesDialog } from "./series-dialog";
 import { ErrorState } from "./states";
 import { SynoroBadge } from "./synoro-badge";
 import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
@@ -94,6 +97,9 @@ export function PublicBooking({
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
+  /** How many bookings the last booking made: more than one for a series. */
+  const [bookedCount, setBookedCount] = useState(1);
+  const [seriesFrom, setSeriesFrom] = useState<Date | null>(null);
   const [topUp, setTopUp] = useState(false);
   const [phone, setPhone] = useState("");
 
@@ -175,6 +181,7 @@ export function PublicBooking({
     ...orpc.booking.book.mutationOptions(),
     onSuccess: async (booking) => {
       setBooked(booking.startsAt);
+      setBookedCount(1);
       setPicked(null);
       await refresh();
     },
@@ -290,8 +297,10 @@ export function PublicBooking({
                     Вы записаны
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {formatDateTime(booked)}, 1 час · осталось оплаченных:{" "}
-                    {credits}
+                    {bookedCount > 1
+                      ? `${formatCredits(bookedCount, terms)}, первое — ${formatDateTime(booked)}`
+                      : `${formatDateTime(booked)}, 1 час`}{" "}
+                    · осталось оплаченных: {credits}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -498,6 +507,17 @@ export function PublicBooking({
                             >
                               Записаться
                             </Button>
+                            {credits >= 2 && !needsPhone && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="col-span-2"
+                                onClick={() => setSeriesFrom(slot.startsAt)}
+                              >
+                                <RepeatIcon />
+                                Повторять каждую неделю…
+                              </Button>
+                            )}
                             {needsPhone && (
                               <Input
                                 type="tel"
@@ -533,6 +553,20 @@ export function PublicBooking({
       </div>
       <LegalFooter className="pt-8" />
       {info.showBadge && <SynoroBadge className="pt-2" />}
+      <SeriesDialog
+        practiceId={practice.id}
+        startsAt={seriesFrom}
+        credits={credits}
+        terms={terms}
+        onClose={() => setSeriesFrom(null)}
+        onBooked={async (dates) => {
+          setSeriesFrom(null);
+          setPicked(null);
+          setBooked(dates[0] ?? null);
+          setBookedCount(dates.length);
+          await refresh();
+        }}
+      />
       {canPay && (
         <TopUpDialog
           practice={{

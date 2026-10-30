@@ -11,6 +11,8 @@ import type { TemplateEmail } from "@synoro/emails";
 import {
   notifyBookingCancelled,
   notifyBookingConfirmed,
+  notifySeriesBooked,
+  notifySeriesCancelled,
 } from "@synoro/jobs/booking-video";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -230,5 +232,43 @@ describe("a booking is cancelled", () => {
       );
     }
     expect(mail.sent).toEqual([]);
+  });
+});
+
+describe("a series", () => {
+  it("is one mail to the client and one to each staff member", async () => {
+    const first = await paidBooking(9 * DAY, client);
+    const second = await paidBooking(16 * DAY, client);
+    const ids = [second.id, first.id];
+
+    const booked = recorder();
+    await notifySeriesBooked(api.db, ids, booked.deliver);
+    expect(booked.log()).toEqual([
+      "booking-notice:confirmed → ivan@notices.test",
+      "staff-booking:booked → anna@notices.test",
+      "staff-booking:booked → olga@notices.test",
+    ]);
+    const props = booked.sent[0]?.props as { when: string; dates: string[] };
+    expect(props.dates).toHaveLength(2);
+    expect(props.when).toStartWith("2 встречи, первая — ");
+    expect(props.when).toContain(props.dates[0] ?? "-");
+
+    for (const b of [first, second]) await cancel(b.id, "client", client);
+    const cancelled = recorder();
+    await notifySeriesCancelled(
+      api.db,
+      ids,
+      { by: "client", refunded: true },
+      cancelled.deliver,
+    );
+    expect(cancelled.log()).toEqual([
+      "booking-notice:cancelled → ivan@notices.test",
+      "staff-booking:cancelled → anna@notices.test",
+      "staff-booking:cancelled → olga@notices.test",
+    ]);
+    expect(cancelled.sent[1]?.props).toMatchObject({
+      refunded: true,
+      dates: props.dates,
+    });
   });
 });

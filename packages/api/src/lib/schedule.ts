@@ -156,6 +156,28 @@ export function subtractRanges(ranges: TimeRange[], cut: TimeRange[]) {
   return result;
 }
 
+/**
+ * Starts of a recurring booking: `count` dates every `intervalWeeks` weeks,
+ * keeping the local wall time of `first` in `timeZone` — the days are added
+ * on the local calendar, so 19:00 stays 19:00 across a DST change.
+ */
+export function seriesStarts(
+  first: Date,
+  intervalWeeks: number,
+  count: number,
+  timeZone: string,
+) {
+  const date = toZonedDate(first, timeZone);
+  const { hour, minute } = zonedParts(first, timeZone);
+  return Array.from({ length: count }, (_, i) =>
+    zonedTimeToUtc(
+      addDays(date, i * 7 * intervalWeeks),
+      hour * 60 + minute,
+      timeZone,
+    ),
+  );
+}
+
 /** True when `at` sits on the 30-minute grid (whole minutes, :00 or :30). */
 export function isOnHalfHourGrid(at: Date) {
   return at.getTime() % (30 * MINUTE_MS) === 0;

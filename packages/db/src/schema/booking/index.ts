@@ -5,3 +5,4 @@ export * from "./domain";
 export * from "./google-calendar";
 export * from "./invitation";
 export * from "./practice";
+export * from "./series";

@@ -1,10 +1,12 @@
 import { env, logger, paths } from "@synoro/config";
 import {
   and,
+  asc,
   Booking,
   type Database,
   eq,
   gt,
+  inArray,
   isNull,
   lte,
   Practice,
@@ -15,6 +17,7 @@ import type { BookingNotice, TemplateEmail } from "@synoro/emails";
 
 import { dispatchEmail } from "./index";
 import { notifyStaff } from "./staff-notices";
+import { describeDates } from "./when";
 
 /**
  * Telling a client about their booking: the confirmation, the video link when
@@ -53,17 +56,6 @@ function localHour(at: Date, timeZone: string) {
   );
 }
 
-function formatWhen(at: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("ru-RU", {
-    timeZone,
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(at);
-}
-
 /** Paid bookings of clients who can be mailed. */
 function confirmedBookings(db: Database) {
   return db
@@ -92,7 +84,9 @@ async function send(
   row: Row,
   notice: Notice,
   cancellation?: { by: "client" | "specialist"; refunded: boolean },
+  series?: Date[],
 ) {
+  const { when, dates } = describeDates(series ?? [row.startsAt], row.timezone);
   const videoUrl =
     notice === "cancelled" ? null : (row.meetingUrl ?? row.videoUrl);
   const subjects: Record<Notice, string> = {
@@ -110,7 +104,8 @@ async function send(
       notice,
       name: row.clientName,
       practiceName: row.practiceName,
-      when: formatWhen(row.startsAt, row.timezone),
+      when,
+      dates,
       videoUrl,
       cabinetUrl: cabinetUrl(),
       cancelledBy: cancellation?.by ?? null,
@@ -211,6 +206,78 @@ export async function notifyBookingCancelled(
     return;
   }
   await notifyStaff(db, bookingId, "cancelled", options, deliver);
+}
+
+/** Start times of `bookingIds`, earliest first; the first id with it. */
+async function seriesDates(db: Database, bookingIds: string[]) {
+  const rows = await db
+    .select({ id: Booking.id, startsAt: Booking.startsAt })
+    .from(Booking)
+    .where(inArray(Booking.id, bookingIds))
+    .orderBy(asc(Booking.startsAt));
+  return { firstId: rows[0]?.id, dates: rows.map((r) => r.startsAt) };
+}
+
+/**
+ * After a recurring booking was made: one mail to the client and one to the
+ * staff with all its dates, instead of one per booking.
+ */
+export async function notifySeriesBooked(
+  db: Database,
+  bookingIds: string[],
+  deliver: Deliver = dispatchEmail,
+) {
+  const { firstId, dates } = await seriesDates(db, bookingIds);
+  if (!firstId) return;
+  try {
+    const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
+    if (row) {
+      await send(deliver, row, "confirmed", undefined, dates);
+      // The first booking may already be within a day: it is covered.
+      await markDueReminders(db, row);
+    }
+  } catch (error) {
+    settled(firstId, "confirmed", error);
+  }
+  await notifyStaff(db, firstId, "booked", { dates }, deliver);
+}
+
+/**
+ * After the upcoming bookings of a series were cancelled together: one mail
+ * to the client and one to the staff (but not the one who cancelled).
+ */
+export async function notifySeriesCancelled(
+  db: Database,
+  bookingIds: string[],
+  options: { by: "client" | "staff"; refunded: boolean },
+  deliver: Deliver = dispatchEmail,
+) {
+  const { firstId, dates } = await seriesDates(db, bookingIds);
+  if (!firstId) return;
+  try {
+    const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
+    if (row) {
+      await send(
+        deliver,
+        row,
+        "cancelled",
+        {
+          by: options.by === "client" ? "client" : "specialist",
+          refunded: options.refunded,
+        },
+        dates,
+      );
+    }
+  } catch (error) {
+    settled(firstId, "cancelled", error);
+  }
+  await notifyStaff(
+    db,
+    firstId,
+    "cancelled",
+    { refunded: options.refunded, dates },
+    deliver,
+  );
 }
 
 /**

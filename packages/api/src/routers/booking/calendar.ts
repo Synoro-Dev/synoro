@@ -53,6 +53,8 @@ export const calendar = practiceProcedure
         guestPhone: Booking.guestPhone,
         guestContact: Booking.guestContact,
         memberId: Booking.memberId,
+        /** Set when the booking is part of a recurring booking. */
+        seriesId: Booking.seriesId,
         clientName: user.name,
         clientEmail: user.email,
         clientPhone: user.phone,

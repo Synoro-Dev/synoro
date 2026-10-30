@@ -70,6 +70,7 @@ export default function BookingNoticeEmail({
   cabinetUrl = "https://synoro.ru/bookings",
   cancelledBy = null,
   refunded = false,
+  dates = [],
 }: {
   notice: BookingNotice;
   name: string;
@@ -83,9 +84,15 @@ export default function BookingNoticeEmail({
   cancelledBy?: "client" | "specialist" | null;
   /** The consultation went back to the balance, for `cancelled`. */
   refunded?: boolean;
+  /**
+   * Every date of a recurring booking, formatted like `when`; `when` then
+   * sums them up («8 встреч, первая — …»).
+   */
+  dates?: string[];
 }) {
   const copy = COPY[notice];
   const cancelled = notice === "cancelled";
+  const series = dates.length > 1;
   return (
     <EmailLayout
       preview={`${copy.title}: ${practiceName}, ${when}`}
@@ -100,11 +107,23 @@ export default function BookingNoticeEmail({
             : `Здравствуйте, ${name}! Встреча с ${practiceName} — ${when}.`
         }
       />
+      {series ? (
+        <EmailText>
+          Все даты:
+          <br />
+          {dates.map((date) => (
+            <span key={date}>
+              {date}
+              <br />
+            </span>
+          ))}
+        </EmailText>
+      ) : null}
       {cancelled ? (
         <EmailText>
           {refunded
-            ? "Занятие вернулось на баланс — запишитесь на другое время, когда будет удобно."
-            : "Занятие не вернулось на баланс. Если это ошибка, свяжитесь со специалистом."}
+            ? `${series ? "Занятия вернулись" : "Занятие вернулось"} на баланс — запишитесь на другое время, когда будет удобно.`
+            : `${series ? "Занятия не вернулись" : "Занятие не вернулось"} на баланс. Если это ошибка, свяжитесь со специалистом.`}
         </EmailText>
       ) : null}
       {videoUrl && !cancelled ? (
