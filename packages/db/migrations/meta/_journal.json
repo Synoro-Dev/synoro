@@ -8,6 +8,13 @@
       "when": 1793389606960,
       "tag": "0000_magical_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793390477853,
+      "tag": "0001_workflows",
+      "breakpoints": true
     }
   ]
 }

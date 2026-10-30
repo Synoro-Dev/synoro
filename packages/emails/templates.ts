@@ -5,6 +5,7 @@ import ProNoticeEmail from "./emails/pro-notice";
 import ResetPasswordEmail from "./emails/reset-password";
 import StaffBookingEmail from "./emails/staff-booking";
 import WelcomeEmail from "./emails/welcome";
+import WorkflowMessageEmail from "./emails/workflow-message";
 import { sendEmail } from "./send";
 
 const templates = {
@@ -15,6 +16,7 @@ const templates = {
   "reset-password": ResetPasswordEmail,
   "staff-booking": StaffBookingEmail,
   welcome: WelcomeEmail,
+  "workflow-message": WorkflowMessageEmail,
 };
 
 export type EmailTemplate = keyof typeof templates;

@@ -22,6 +22,13 @@ import {
 } from "./profession";
 import { profileFormSchema } from "./profile";
 import { normalizeVideoUrl, videoServiceName, videoUrlSchema } from "./video";
+import {
+  renderWorkflowText,
+  unknownWorkflowVariables,
+  WORKFLOW_PRESETS,
+  WORKFLOW_TRIGGERS,
+  workflowFormSchema,
+} from "./workflow";
 
 describe("normalizeVideoUrl", () => {
   test("keeps an https link", () => {
@@ -513,5 +520,93 @@ describe("profession terms", () => {
     expect(Object.keys(PROFESSION_TERMS).sort()).toEqual(
       [...PROFESSIONS].sort(),
     );
+  });
+});
+
+describe("workflow texts", () => {
+  const values = {
+    имя: "Иван",
+    практика: "Анна Иванова",
+    дата: "3 ноября",
+    время: "19:00",
+    баланс: "1",
+    ссылка: "https://synoro.ru/p/anna",
+    кабинет: "https://synoro.ru/bookings",
+  };
+
+  test("fills in the placeholders and leaves unknown ones", () => {
+    expect(renderWorkflowText("{имя}, осталось {баланс} ({что})", values)).toBe(
+      "Иван, осталось 1 ({что})",
+    );
+  });
+
+  test("does not read inherited properties as variables", () => {
+    expect(renderWorkflowText("{constructor}", values)).toBe("{constructor}");
+    expect(unknownWorkflowVariables("{toString}")).toEqual(["toString"]);
+  });
+
+  test("lists each unknown placeholder once", () => {
+    expect(unknownWorkflowVariables("{имя} {фамилия} {фамилия} {}")).toEqual([
+      "фамилия",
+      "",
+    ]);
+  });
+
+  test("every preset passes its own form schema", () => {
+    for (const trigger of WORKFLOW_TRIGGERS) {
+      const preset = WORKFLOW_PRESETS[trigger];
+      const result = workflowFormSchema.safeParse({
+        trigger,
+        amount: preset.defaultAmount,
+        subject: preset.subject,
+        text: preset.text,
+        active: true,
+      });
+      expect(result.success).toBe(true);
+    }
+  });
+});
+
+describe("workflowFormSchema", () => {
+  const valid = {
+    trigger: "after_end" as const,
+    amount: 2,
+    subject: "Спасибо",
+    text: "Здравствуйте, {имя}!",
+    active: true,
+  };
+
+  test("keeps amount inside the range of the trigger", () => {
+    expect(workflowFormSchema.safeParse({ ...valid, amount: 0 }).success).toBe(
+      false,
+    );
+    expect(workflowFormSchema.safeParse({ ...valid, amount: 73 }).success).toBe(
+      false,
+    );
+    expect(
+      workflowFormSchema.safeParse({
+        ...valid,
+        trigger: "low_balance",
+        amount: 0,
+      }).success,
+    ).toBe(true);
+    expect(
+      workflowFormSchema.safeParse({
+        ...valid,
+        trigger: "inactive",
+        amount: 3,
+      }).success,
+    ).toBe(false);
+  });
+
+  test("refuses unknown placeholders and a multi-line subject", () => {
+    const text = workflowFormSchema.safeParse({
+      ...valid,
+      text: "Привет {фио}",
+    });
+    expect(text.error?.issues[0]?.message).toContain("{фио}");
+    expect(
+      workflowFormSchema.safeParse({ ...valid, subject: "a\nb" }).success,
+    ).toBe(false);
   });
 });

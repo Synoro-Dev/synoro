@@ -22,6 +22,7 @@ import {
   GlobeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
+  MessageSquareTextIcon,
   PlusIcon,
   SettingsIcon,
   UsersIcon,
@@ -126,6 +127,12 @@ export function AppSidebar({
           href: paths.booking.payments(current.practiceId),
           icon: WalletIcon,
           active: pathname === paths.booking.payments(current.practiceId),
+        },
+        {
+          title: "Сообщения",
+          href: paths.booking.messages(current.practiceId),
+          icon: MessageSquareTextIcon,
+          active: pathname === paths.booking.messages(current.practiceId),
         },
         {
           title: "Домен",

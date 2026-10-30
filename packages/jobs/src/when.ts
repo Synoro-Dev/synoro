@@ -34,3 +34,14 @@ export function describeDates(dates: Date[], timeZone: string) {
     ? { when: `${meetings(listed.length)}, первая — ${first}`, dates: listed }
     : { when: first, dates: [] };
 }
+
+/** Hour of the day (0–23) at `at` in `timeZone`; throws on an unknown zone. */
+export function localHour(at: Date, timeZone: string) {
+  return Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(at),
+  );
+}

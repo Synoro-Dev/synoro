@@ -25,6 +25,8 @@
  *                     payment via Точка Банк              (protected)
  *   payment.*       – ЮKassa / Т-Банк: setup (owner), packages, client
  *                     checkout + status, payment history (client / staff)
+ *   workflow.*      – own messages to clients on «Про»: after a meeting,
+ *                     package running out, quiet client            (owner)
  *   googleCalendar.* – link the specialist's Google Calendar (owner), its
  *                     busy time on the practice calendar (staff)
  */
@@ -40,6 +42,7 @@ import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
 import { userRouter } from "./user";
+import { workflowRouter } from "./workflow";
 
 export const appRouter = {
   user: userRouter,
@@ -53,6 +56,7 @@ export const appRouter = {
   payment: paymentRouter,
   billing: billingRouter,
   googleCalendar: googleCalendarRouter,
+  workflow: workflowRouter,
 };
 
 export type AppRouter = typeof appRouter;
