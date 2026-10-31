@@ -73,11 +73,25 @@ export function PracticeAvatar({
 }) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
+  // The ref blocks a second operation synchronously; `busy` mirrors it for UI.
+  const locked = useRef(false);
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  async function send(request: () => Promise<Response>, fallback: string) {
+  /** One upload or removal at a time, from picking the file to the response. */
+  async function exclusive(task: () => Promise<void>) {
+    if (locked.current) return;
+    locked.current = true;
     setBusy(true);
+    try {
+      await task();
+    } finally {
+      locked.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function send(request: () => Promise<Response>, fallback: string) {
     try {
       const response = await request();
       if (!response.ok) throw await failure(response, fallback);
@@ -88,8 +102,6 @@ export function PracticeAvatar({
     } catch (error) {
       toast.error(error instanceof Error ? error.message : fallback);
       return false;
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -99,24 +111,26 @@ export function PracticeAvatar({
       toast.error("Нужен файл JPG, PNG или WebP");
       return;
     }
-    let jpeg: Blob;
-    try {
-      jpeg = await toSquareJpeg(file);
-    } catch {
-      toast.error("Не удалось прочитать изображение");
-      return;
-    }
-    const form = new FormData();
-    form.set("file", jpeg, "avatar.jpg");
-    const saved = await send(
-      () =>
-        fetch(paths.booking.avatarUpload(practiceId), {
-          method: "POST",
-          body: form,
-        }),
-      "Не удалось загрузить фото",
-    );
-    if (saved) toast.success("Фото обновлено");
+    await exclusive(async () => {
+      let jpeg: Blob;
+      try {
+        jpeg = await toSquareJpeg(file);
+      } catch {
+        toast.error("Не удалось прочитать изображение");
+        return;
+      }
+      const form = new FormData();
+      form.set("file", jpeg, "avatar.jpg");
+      const saved = await send(
+        () =>
+          fetch(paths.booking.avatarUpload(practiceId), {
+            method: "POST",
+            body: form,
+          }),
+        "Не удалось загрузить фото",
+      );
+      if (saved) toast.success("Фото обновлено");
+    });
   }
 
   const pick = () => !busy && input.current?.click();
@@ -176,13 +190,15 @@ export function PracticeAvatar({
               variant="ghost"
               disabled={busy}
               onClick={() =>
-                send(
-                  () =>
-                    fetch(paths.booking.avatarUpload(practiceId), {
-                      method: "DELETE",
-                    }),
-                  "Не удалось удалить фото",
-                )
+                exclusive(async () => {
+                  await send(
+                    () =>
+                      fetch(paths.booking.avatarUpload(practiceId), {
+                        method: "DELETE",
+                      }),
+                    "Не удалось удалить фото",
+                  );
+                })
               }
             >
               <Trash2Icon />
