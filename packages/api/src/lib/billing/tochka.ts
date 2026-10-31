@@ -13,8 +13,53 @@ import { ProviderError } from "../payments/types";
 /** Payment link lifetime, minutes: a pending payment expires after a day. */
 const LINK_TTL_MINUTES = 24 * 60;
 
+/**
+ * The official sandbox: one public test token and fixed ids, no keys to
+ * issue. Its answers are hardcoded (the same `operationId` every time) and
+ * its payment links lead nowhere.
+ * @see https://developers.tochka.com/docs/tochka-api/pesochnica
+ */
+const SANDBOX = {
+  url: "https://enter.tochka.com/sandbox/v2",
+  token: "sandbox.jwt.token",
+  customerCode: "1234567ab",
+  merchantId: "200000000001097",
+  taxSystem: "usn_income",
+} as const;
+
+/** `externalId` prefix of payments opened in the sandbox. */
+const SANDBOX_ID_PREFIX = "sandbox-";
+
+export const tochkaSandbox = () => env.TOCHKA_SANDBOX;
+
+export const sandboxExternalId = (paymentId: string) =>
+  `${SANDBOX_ID_PREFIX}${paymentId}`;
+
+/**
+ * A payment that only exists here: the sandbox bank can't settle it, and a
+ * real one (opened before the sandbox was switched on) must never be.
+ */
+export function isSandboxPayment(payment: { externalId: string | null }) {
+  return (
+    env.TOCHKA_SANDBOX && !!payment.externalId?.startsWith(SANDBOX_ID_PREFIX)
+  );
+}
+
+/** Credentials in force: the sandbox's when TOCHKA_SANDBOX, else the env's. */
+export function tochkaConfig() {
+  if (env.TOCHKA_SANDBOX) return SANDBOX;
+  return {
+    url: env.TOCHKA_API_URL,
+    token: env.TOCHKA_API_TOKEN,
+    customerCode: env.TOCHKA_CUSTOMER_CODE,
+    merchantId: env.TOCHKA_MERCHANT_ID,
+    taxSystem: env.TOCHKA_TAX_SYSTEM,
+  };
+}
+
 export function tochkaAvailable() {
-  return !!env.TOCHKA_API_TOKEN && !!env.TOCHKA_CUSTOMER_CODE;
+  const { token, customerCode } = tochkaConfig();
+  return !!token && !!customerCode;
 }
 
 /**
@@ -48,12 +93,13 @@ async function call<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const { url, token } = tochkaConfig();
   let response: Response;
   try {
-    response = await fetch(`${env.TOCHKA_API_URL}${path}`, {
+    response = await fetch(`${url}${path}`, {
       method,
       headers: {
-        Authorization: `Bearer ${env.TOCHKA_API_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -109,7 +155,8 @@ export async function createTochkaPayment(request: {
   email: string;
   returnUrl: string;
 }): Promise<TochkaPayment> {
-  if (!env.TOCHKA_TAX_SYSTEM) {
+  const { customerCode, merchantId, taxSystem } = tochkaConfig();
+  if (!taxSystem) {
     throw new ProviderError(
       "credentials",
       "Не настроена фискализация оплаты тарифа",
@@ -117,8 +164,8 @@ export async function createTochkaPayment(request: {
   }
   const amount = rubles(request.amount);
   const base = {
-    customerCode: env.TOCHKA_CUSTOMER_CODE,
-    ...(env.TOCHKA_MERCHANT_ID && { merchantId: env.TOCHKA_MERCHANT_ID }),
+    customerCode,
+    ...(merchantId && { merchantId }),
     amount,
     purpose: request.purpose.slice(0, 210),
     redirectUrl: request.returnUrl,
@@ -133,7 +180,7 @@ export async function createTochkaPayment(request: {
     {
       Data: {
         ...base,
-        taxSystemCode: env.TOCHKA_TAX_SYSTEM,
+        taxSystemCode: taxSystem,
         Client: { email: request.email },
         Items: [
           {

@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import {
   findSubscription,
+  isSandboxPayment,
   planOf,
   syncSubscriptionPayment,
 } from "../../lib/billing";
@@ -34,6 +35,8 @@ export const status = protectedProcedure
       period: payment.period,
       amount: payment.amount,
       confirmationUrl: payment.confirmationUrl,
+      /** Opened in Точка's sandbox: confirmed by `billing.sandboxPay`. */
+      sandbox: isSandboxPayment(payment),
       plan: planOf(await findSubscription(context.db, userId)),
     };
   });

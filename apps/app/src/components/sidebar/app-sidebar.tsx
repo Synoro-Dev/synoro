@@ -23,6 +23,7 @@ import {
   LayoutDashboardIcon,
   type LucideIcon,
   MessageSquareTextIcon,
+  PanelTopIcon,
   PlusIcon,
   SettingsIcon,
   UsersIcon,
@@ -142,6 +143,12 @@ export function AppSidebar({
         },
         {
           title: "Страница записи",
+          href: paths.booking.page(current.practiceId),
+          icon: PanelTopIcon,
+          active: pathname === paths.booking.page(current.practiceId),
+        },
+        {
+          title: "Открыть страницу",
           href: paths.booking.public(current.slug),
           icon: ExternalLinkIcon,
           active: false,

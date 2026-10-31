@@ -103,8 +103,13 @@ export const env = createEnv({
     TOCHKA_CUSTOMER_CODE: z.string().optional(),
     // Retailer id (15 digits); needed only with several retailers.
     TOCHKA_MERCHANT_ID: z.string().optional(),
-    // Sandbox: https://enter.tochka.com/sandbox/v2
     TOCHKA_API_URL: z.url().default("https://enter.tochka.com/uapi"),
+    // Точка's official sandbox (docs/billing.md): ignores the four settings
+    // above and uses its public test credentials. Its answers are hardcoded
+    // and its payment links can't be paid, so the "payment" is confirmed by a
+    // button on the billing page instead. Never on a deployment with real
+    // customers: anyone could then grant themselves «Про» for free.
+    TOCHKA_SANDBOX: z.boolean().default(false),
     // Taxation system for 54-ФЗ receipts (Точка's online cash register).
     // Required for real billing: unset disables payment links.
     TOCHKA_TAX_SYSTEM: z
@@ -162,6 +167,7 @@ export const env = createEnv({
     TOCHKA_CUSTOMER_CODE: process.env.TOCHKA_CUSTOMER_CODE,
     TOCHKA_MERCHANT_ID: process.env.TOCHKA_MERCHANT_ID,
     TOCHKA_API_URL: process.env.TOCHKA_API_URL,
+    TOCHKA_SANDBOX: process.env.TOCHKA_SANDBOX === "true",
     TOCHKA_TAX_SYSTEM: process.env.TOCHKA_TAX_SYSTEM,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
