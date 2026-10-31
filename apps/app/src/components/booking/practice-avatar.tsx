@@ -3,12 +3,13 @@
 import { paths } from "@synoro/config";
 import { Avatar, AvatarFallback, AvatarImage, Button, toast } from "@synoro/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { ImageUpIcon, Trash2Icon } from "lucide-react";
+import { ImageUpIcon, Loader2Icon, Trash2Icon } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 
 const SIZE = 512;
+const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
 
 /**
  * Center-crops the picked image to a square and re-encodes it as JPEG, so the
@@ -54,20 +55,26 @@ async function failure(response: Response, fallback: string) {
   return new Error(body?.message ?? fallback);
 }
 
-/** The specialist's photo for the public booking page: upload or remove. */
+/**
+ * The specialist's photo for the public booking page: click or drop a file to
+ * upload, or remove it. The parent owns the current URL so a live preview can
+ * follow it.
+ */
 export function PracticeAvatar({
   practiceId,
   name,
   imageUrl,
+  onChange,
 }: {
   practiceId: string;
   name: string;
   imageUrl: string | null;
+  onChange: (imageUrl: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
-  const [url, setUrl] = useState(imageUrl);
   const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   async function send(request: () => Promise<Response>, fallback: string) {
     setBusy(true);
@@ -75,7 +82,7 @@ export function PracticeAvatar({
       const response = await request();
       if (!response.ok) throw await failure(response, fallback);
       const body = (await response.json()) as { imageUrl: string | null };
-      setUrl(body.imageUrl);
+      onChange(body.imageUrl);
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       return true;
     } catch (error) {
@@ -87,6 +94,10 @@ export function PracticeAvatar({
   }
 
   async function upload(file: File) {
+    if (!ACCEPT.includes(file.type)) {
+      toast.error("Нужен файл JPG, PNG или WebP");
+      return;
+    }
     let jpeg: Blob;
     try {
       jpeg = await toSquareJpeg(file);
@@ -107,28 +118,60 @@ export function PracticeAvatar({
     if (saved) toast.success("Фото обновлено");
   }
 
+  const pick = () => !busy && input.current?.click();
+
   return (
-    <div className="flex items-center gap-4">
-      <Avatar className="size-16">
-        {url && <AvatarImage src={url} alt={name} />}
-        <AvatarFallback className="text-lg font-medium">
-          {name.charAt(0).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex flex-col items-start gap-2">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <button
+        type="button"
+        onClick={pick}
+        disabled={busy}
+        aria-label={imageUrl ? "Заменить фото" : "Загрузить фото"}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          const file = event.dataTransfer.files[0];
+          if (file && !busy) void upload(file);
+        }}
+        className={`group relative size-36 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-wait ${
+          dragging ? "ring-2 ring-primary ring-offset-2" : ""
+        }`}
+      >
+        <Avatar className="size-36">
+          {imageUrl && <AvatarImage src={imageUrl} alt={name} />}
+          <AvatarFallback className="text-4xl font-medium">
+            {name.charAt(0).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <span
+          className={`absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full bg-background/80 text-xs font-medium backdrop-blur-[1px] transition-opacity ${
+            busy || dragging
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+          }`}
+        >
+          {busy ? (
+            <Loader2Icon className="size-5 animate-spin" />
+          ) : (
+            <ImageUpIcon className="size-5" />
+          )}
+          {busy ? "Загружаем…" : dragging ? "Отпустите файл" : "Выбрать фото"}
+        </span>
+      </button>
+
+      <div className="flex min-w-0 flex-col items-start gap-3">
         <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => input.current?.click()}
-          >
+          <Button disabled={busy} onClick={pick}>
             <ImageUpIcon />
-            {url ? "Заменить фото" : "Загрузить фото"}
+            {imageUrl ? "Заменить фото" : "Загрузить фото"}
           </Button>
-          {url && (
+          {imageUrl && (
             <Button
-              size="sm"
               variant="ghost"
               disabled={busy}
               onClick={() =>
@@ -147,13 +190,15 @@ export function PracticeAvatar({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Квадратное фото лучше всего: JPG, PNG или WebP.
+          Нажмите на круг или перетащите файл. Подойдёт квадратное фото: JPG,
+          PNG или WebP — лишнее по краям мы обрежем сами.
         </p>
       </div>
+
       <input
         ref={input}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={ACCEPT.join(",")}
         className="hidden"
         onChange={(event) => {
           const file = event.target.files?.[0];

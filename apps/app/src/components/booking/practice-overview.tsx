@@ -22,6 +22,7 @@ import {
   CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
+  PanelTopIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react";
@@ -37,8 +38,6 @@ import {
   kindLabel,
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
-import { PracticeAvatar } from "./practice-avatar";
-import { PracticeVideoLink } from "./practice-video-link";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
@@ -279,13 +278,6 @@ export function PracticeOverview({
                 Записаться можно без регистрации — отправьте ссылку клиентам
               </FrameDescription>
             </FrameHeader>
-            {practice.membership.role === "owner" && (
-              <PracticeAvatar
-                practiceId={practice.id}
-                name={practice.name}
-                imageUrl={practice.imageUrl}
-              />
-            )}
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -322,13 +314,17 @@ export function PracticeOverview({
                 <ExternalLinkIcon />
               </Button>
             </div>
+            <Button
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={paths.booking.page(practice.id)} />}
+            >
+              <PanelTopIcon />
+              {practice.imageUrl
+                ? "Настроить страницу"
+                : "Добавить фото и настроить"}
+            </Button>
           </FramePanel>
-          {practice.membership.role === "owner" && (
-            <PracticeVideoLink
-              practiceId={practice.id}
-              videoUrl={practice.videoUrl}
-            />
-          )}
           <FramePanel className="flex flex-col gap-1">
             <FrameTitle className="mb-2">Быстрые действия</FrameTitle>
             {[
