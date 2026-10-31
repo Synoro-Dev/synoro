@@ -326,7 +326,8 @@ export function PracticeAnalytics({
   const { stats, previous, series, load } = report;
   // Each section shows when it has data of its own: a client can pay for
   // future meetings or cancel in a period with no meetings held.
-  const hasMeetings = stats.meetings + stats.intros + stats.noShows > 0;
+  // The meetings chart and busy hours count held meetings only.
+  const hasMeetings = stats.meetings + stats.intros > 0;
   const hasCancellations =
     stats.cancelledByClient + stats.cancelledByStaff + stats.noShows > 0;
   const quiet = !hasMeetings && !hasCancellations && stats.revenue === 0;
@@ -348,6 +349,11 @@ export function PracticeAnalytics({
         <span className="text-sm text-muted-foreground">
           Сравнение — с такими же днями раньше
         </span>
+        {overview.isPlaceholderData && (
+          <span className="text-sm text-muted-foreground" aria-live="polite">
+            Загружаем новый период, пока показан прежний…
+          </span>
+        )}
       </div>
 
       <Frame spacing="default" className="min-w-0">
