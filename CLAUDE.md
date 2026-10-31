@@ -158,6 +158,11 @@ and run `tsc` by hand, build them first.
   (`packages/jobs/src/workflow-messages.ts`) mails them once per case through
   `claimNotice` (`notice-claims.ts`, keys `wf:<rule>:…` in `sent_notices`), only
   while the owner has `hasPro`.
+- **Practice analytics («Про»)** (`docs/analytics.md`): `analytics.overview`
+  (owner only, `report: null` without «Про») — meetings, no-shows, online
+  revenue, clients and busy hours for 30/90/365 days against the stretch before;
+  queries in `routers/analytics/stats.ts`, page `/practices/<id>/analytics`.
+  Revenue is online payments only (manual packages have no amount).
 - **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
   and `bookings.meeting_url` (staff) — the link in force is
   `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see

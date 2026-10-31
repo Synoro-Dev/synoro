@@ -17,6 +17,7 @@ import {
 import {
   CalendarCheckIcon,
   CalendarDaysIcon,
+  ChartNoAxesColumnIcon,
   Clock3Icon,
   ExternalLinkIcon,
   GlobeIcon,
@@ -128,6 +129,12 @@ export function AppSidebar({
           href: paths.booking.payments(current.practiceId),
           icon: WalletIcon,
           active: pathname === paths.booking.payments(current.practiceId),
+        },
+        {
+          title: "Аналитика",
+          href: paths.booking.analytics(current.practiceId),
+          icon: ChartNoAxesColumnIcon,
+          active: pathname === paths.booking.analytics(current.practiceId),
         },
         {
           title: "Сообщения",
