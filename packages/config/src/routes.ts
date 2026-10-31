@@ -36,6 +36,9 @@ export const paths = {
       `${ROOTS.PRACTICES}/${practiceId}/clients` as const,
     schedule: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/schedule` as const,
+    /** How the practice is doing («Про»): meetings, no-shows, revenue, clients. */
+    analytics: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/analytics` as const,
     /** Own messages to clients («Про»): after a meeting, package, quiet clients. */
     messages: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/messages` as const,

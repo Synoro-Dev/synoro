@@ -29,11 +29,14 @@
  *                     on «Про»                                      (owner)
  *   workflow.*      – own messages to clients on «Про»: after a meeting,
  *                     package running out, quiet client            (owner)
+ *   analytics.*     – how the practice is doing: meetings, no-shows,
+ *                     online revenue, clients, busy hours      (owner, «Про»)
  *   googleCalendar.* – link the specialist's Google Calendar (owner), its
  *                     busy time on the practice calendar (staff)
  */
 
 import { adminRouter } from "./admin";
+import { analyticsRouter } from "./analytics";
 import { availabilityRouter } from "./availability";
 import { billingRouter } from "./billing";
 import { bookingRouter } from "./booking";
@@ -61,6 +64,7 @@ export const appRouter = {
   googleCalendar: googleCalendarRouter,
   workflow: workflowRouter,
   question: questionRouter,
+  analytics: analyticsRouter,
 };
 
 export type AppRouter = typeof appRouter;

@@ -165,6 +165,11 @@ and run `tsc` by hand, build them first.
   `bookSeries` / `reserve` (`ANSWERS_INVALID` per question id); answers are
   kept with the question's wording in `bookings.answers` and shown to staff in
   `booking.calendar`. Not asked without `hasPro` (`askedQuestions`).
+- **Practice analytics («Про»)** (`docs/analytics.md`): `analytics.overview`
+  (owner only, `report: null` without «Про») — meetings, no-shows, online
+  revenue, clients and busy hours for 30/90/365 days against the stretch before;
+  queries in `routers/analytics/stats.ts`, page `/practices/<id>/analytics`.
+  Revenue is online payments only (manual packages have no amount).
 - **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
   and `bookings.meeting_url` (staff) — the link in force is
   `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see
