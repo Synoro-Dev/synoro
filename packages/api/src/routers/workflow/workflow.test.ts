@@ -235,6 +235,54 @@ describe("workflow rules", () => {
     });
   });
 
+  it("only switches a rule off without «Про», leaving its text alone", async () => {
+    const { owner, practiceId } = await newPractice("wf-free-edit", false);
+    const { id } = await rule(practiceId, { trigger: "after_end", amount: 2 });
+    const context = { context: api.context(owner) };
+
+    await call(
+      workflowRouter.update,
+      {
+        ...form,
+        id,
+        trigger: "inactive",
+        amount: 30,
+        text: "Другой текст",
+        active: false,
+      },
+      context,
+    );
+    const [row] = await api.db
+      .select()
+      .from(Workflow)
+      .where(eq(Workflow.id, id));
+    expect(row).toMatchObject({
+      active: false,
+      trigger: "after_end",
+      amount: 2,
+      text: expect.stringContaining("{имя}"),
+    });
+  });
+
+  it("does not let two requests take the last place", async () => {
+    const { owner, practiceId } = await newPractice("wf-race");
+    for (let i = 0; i < MAX_WORKFLOWS - 1; i++) {
+      await rule(practiceId, { trigger: "after_end", amount: 2 });
+    }
+    const context = { context: api.context(owner) };
+    const results = await Promise.allSettled([
+      call(workflowRouter.create, { ...form, practiceId }, context),
+      call(workflowRouter.create, { ...form, practiceId }, context),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rows = await api.db
+      .select()
+      .from(Workflow)
+      .where(eq(Workflow.practiceId, practiceId));
+    expect(rows).toHaveLength(MAX_WORKFLOWS);
+  });
+
   it("refuses an amount outside the trigger's range and too many rules", async () => {
     const { owner, practiceId } = await newPractice("wf-limits");
     const context = { context: api.context(owner) };
@@ -312,6 +360,22 @@ describe("after_end messages", () => {
       trigger: "after_end",
       amount: 2,
       createdAt: new Date(NOW.getTime() - HOUR),
+    });
+
+    const mail = recorder();
+    await sendWorkflowMessages(api.db, mail.deliver, NOW);
+    expect(mail.sent).toEqual([]);
+  });
+
+  it("skips a meeting that ended before the rule, though its mail would fall after", async () => {
+    const { practiceId } = await newPractice("wf-end-before");
+    const client = await newClient(practiceId, "ivan@before.test");
+    // Ended 3 h ago, two hours' delay: due 1 h ago, after the rule (2.5 h ago).
+    await meeting(practiceId, client.memberId, 3 * HOUR);
+    await rule(practiceId, {
+      trigger: "after_end",
+      amount: 2,
+      createdAt: new Date(NOW.getTime() - 2.5 * HOUR),
     });
 
     const mail = recorder();
@@ -449,6 +513,57 @@ describe("low_balance messages", () => {
     const mail = recorder();
     await sendWorkflowMessages(api.db, mail.deliver, NOW);
     expect(mail.sent).toEqual([]);
+  });
+
+  it("counts a payment and the booking it paid for as one moment", async () => {
+    const { practiceId } = await newPractice("wf-low-tie");
+    const client = await newClient(practiceId, "tie@low.test", 0);
+    const booking = await meeting(practiceId, client.memberId, -DAY);
+    const at = new Date(NOW.getTime() - HOUR);
+    // The purchase has the larger id: it must not hide the booking.
+    await api.db.insert(CreditEntry).values([
+      {
+        id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        memberId: client.memberId,
+        delta: 1,
+        reason: "purchase",
+        createdAt: at,
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000001",
+        memberId: client.memberId,
+        delta: -1,
+        reason: "booking",
+        bookingId: booking.id,
+        createdAt: at,
+      },
+    ]);
+    await rule(practiceId, { trigger: "low_balance", amount: 0 });
+
+    const mail = recorder();
+    await sendWorkflowMessages(api.db, mail.deliver, NOW);
+    expect(mail.sent.map((m) => m.to[0])).toEqual(["tie@low.test"]);
+  });
+
+  it("mails a series booked in one statement once", async () => {
+    const { practiceId } = await newPractice("wf-low-series");
+    const client = await newClient(practiceId, "series@low.test", 0);
+    const at = new Date(NOW.getTime() - HOUR);
+    for (let i = 1; i <= 3; i++) {
+      const booking = await meeting(practiceId, client.memberId, -i * DAY);
+      await api.db.insert(CreditEntry).values({
+        memberId: client.memberId,
+        delta: -1,
+        reason: "booking",
+        bookingId: booking.id,
+        createdAt: at,
+      });
+    }
+    await rule(practiceId, { trigger: "low_balance", amount: 0 });
+
+    const mail = recorder();
+    await sendWorkflowMessages(api.db, mail.deliver, NOW);
+    expect(mail.sent).toHaveLength(1);
   });
 
   it("waits ten minutes so a client can top up first", async () => {

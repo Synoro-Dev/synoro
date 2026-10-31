@@ -26,11 +26,14 @@ export const update = protectedProcedure
       context.session.user.id,
     );
     if (!rule) throw errors.NOT_FOUND();
-    if (input.active && !(await hasPro(context.db, context.session.user.id))) {
-      throw errors.PLAN_REQUIRED();
-    }
+    const pro = await hasPro(context.db, context.session.user.id);
+    if (!pro && input.active) throw errors.PLAN_REQUIRED();
 
     const { id, ...changes } = input;
-    await context.db.update(Workflow).set(changes).where(eq(Workflow.id, id));
+    await context.db
+      .update(Workflow)
+      // Without «Про» the rule is only switched off, never rewritten.
+      .set(pro ? changes : { active: false })
+      .where(eq(Workflow.id, id));
     return { id };
   });

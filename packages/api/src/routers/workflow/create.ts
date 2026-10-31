@@ -1,4 +1,4 @@
-import { count, eq, Workflow } from "@synoro/db";
+import { count, eq, Practice, Workflow } from "@synoro/db";
 import { MAX_WORKFLOWS, workflowFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
@@ -36,17 +36,28 @@ export const create = practiceProcedure
       throw errors.PLAN_REQUIRED();
     }
 
-    const [existing] = await context.db
-      .select({ total: count() })
-      .from(Workflow)
-      .where(eq(Workflow.practiceId, input.practiceId));
-    if ((existing?.total ?? 0) >= MAX_WORKFLOWS) throw errors.LIMIT_REACHED();
-
     const { practiceId, ...rule } = input;
-    const [created] = await context.db
-      .insert(Workflow)
-      .values({ practiceId, ...rule })
-      .returning({ id: Workflow.id });
-    if (!created) throw new Error("Failed to insert workflow");
-    return created;
+    // The practice row is locked, so two requests at the limit are counted
+    // one after the other and only one of them gets the last place.
+    return context.db.transaction(async (tx) => {
+      await tx
+        .select({ id: Practice.id })
+        .from(Practice)
+        .where(eq(Practice.id, practiceId))
+        .for("update");
+      const [existing] = await tx
+        .select({ total: count() })
+        .from(Workflow)
+        .where(eq(Workflow.practiceId, practiceId));
+      if ((existing?.total ?? 0) >= MAX_WORKFLOWS) {
+        throw errors.LIMIT_REACHED();
+      }
+
+      const [created] = await tx
+        .insert(Workflow)
+        .values({ practiceId, ...rule })
+        .returning({ id: Workflow.id });
+      if (!created) throw new Error("Failed to insert workflow");
+      return created;
+    });
   });

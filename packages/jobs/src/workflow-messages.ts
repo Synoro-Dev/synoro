@@ -99,7 +99,10 @@ function dueFrom(rule: Rule, now: Date, windowMs: number) {
 /** Clients whose meeting ended `amount` hours ago. */
 const afterEnd: CandidateQuery = async (db, rule, now, afterId) => {
   const shift = rule.amount * HOUR_MS;
-  const from = dueFrom(rule, now, EVENT_WINDOW_MS);
+  // Late enough to still be due, and no meeting from before the rule existed.
+  const endedAfter = new Date(
+    Math.max(now.getTime() - EVENT_WINDOW_MS - shift, rule.createdAt.getTime()),
+  );
   const rows = await db
     .select({
       id: Booking.id,
@@ -119,7 +122,7 @@ const afterEnd: CandidateQuery = async (db, rule, now, afterId) => {
         eq(Booking.status, "active"),
         sql`${Booking.holdUntil} is null`,
         eq(PracticeMember.role, "client"),
-        gt(Booking.endsAt, new Date(from.getTime() - shift)),
+        gt(Booking.endsAt, endedAfter),
         lte(Booking.endsAt, new Date(now.getTime() - shift)),
         afterId ? gt(Booking.id, afterId) : undefined,
       ),
@@ -173,8 +176,13 @@ const lowBalance: CandidateQuery = async (db, rule, now, afterId) => {
                 eq(newer.memberId, entry.memberId),
                 or(
                   gt(newer.createdAt, entry.createdAt),
+                  // One statement writes several entries with one timestamp
+                  // (a series; a payment and the booking it paid for). Only
+                  // bookings are ranked among themselves, by id, so a series
+                  // is mailed once; a purchase never outranks a booking.
                   and(
                     eq(newer.createdAt, entry.createdAt),
+                    eq(newer.reason, "booking"),
                     gt(newer.id, entry.id),
                   ),
                 ),

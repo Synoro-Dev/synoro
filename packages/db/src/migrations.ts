@@ -58,13 +58,63 @@ export async function baselineMigrations(
     )
   `);
 
-  if ((await appliedMigrationCount(db)) > 0) return "already-tracked";
+  if ((await appliedMigrationCount(db)) > 0) {
+    return (await adoptSquashedHistory(db, folder))
+      ? "baselined"
+      : "already-tracked";
+  }
 
   await db.execute(sql`
     insert into ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE} ("hash", "created_at")
     values (${init.hash}, ${init.folderMillis})
   `);
   return "baselined";
+}
+
+// Last table created by the migrations that were folded into `0000`.
+const SQUASHED_MARKER = "public.booking_series";
+
+/**
+ * Databases migrated before `0000` was regenerated from the whole schema still
+ * track the old chain (`0000`–`0010`). Their schema is already there, but the
+ * new `0000` is newer than every tracked row, so the migrator would run it
+ * again and fail with "already exists".
+ *
+ * When the journal has rows but not the new `0000`, none of them is newer than
+ * it, and the schema is complete (the last table of the old chain exists),
+ * replaces the old rows with the new `0000`. No-op everywhere else, so it is
+ * safe to call before every `migrate()`.
+ */
+export async function adoptSquashedHistory(
+  db: Database,
+  folder = migrationsFolder,
+): Promise<boolean> {
+  const [init] = readMigrationFiles({ migrationsFolder: folder });
+  if (!init || (await appliedMigrationCount(db)) === 0) return false;
+
+  const [state] = await rows<{
+    current: number;
+    latest: string | null;
+    complete: string | null;
+  }>(
+    db,
+    sql`select
+      count(*) filter (where "hash" = ${init.hash})::int as "current",
+      max("created_at")::text as "latest",
+      to_regclass(${SQUASHED_MARKER})::text as "complete"
+      from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`,
+  );
+  if (!state || state.current > 0 || !state.complete) return false;
+  if (Number(state.latest) >= init.folderMillis) return false;
+
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`delete from ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE}`);
+    await tx.execute(sql`
+      insert into ${MIGRATIONS_SCHEMA}.${MIGRATIONS_TABLE} ("hash", "created_at")
+      values (${init.hash}, ${init.folderMillis})
+    `);
+  });
+  return true;
 }
 
 /** Rows in the migrations table (0 when it doesn't exist yet). */

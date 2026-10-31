@@ -4,6 +4,7 @@ import { Pool } from "pg";
 
 import type { Database } from "../client";
 import {
+  adoptSquashedHistory,
   appliedMigrationCount,
   explainMigrationError,
   migrationsFolder,
@@ -60,6 +61,9 @@ async function main() {
   const { db, migrate, close } = connect(url);
 
   try {
+    if (await adoptSquashedHistory(db)) {
+      console.log("• Migration history was regenerated; re-linked 0000.");
+    }
     const before = await appliedMigrationCount(db);
     await migrate();
     const applied = (await appliedMigrationCount(db)) - before;
