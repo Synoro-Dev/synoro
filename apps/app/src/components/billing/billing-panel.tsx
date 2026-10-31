@@ -12,6 +12,7 @@ import {
   CheckIcon,
   CircleAlertIcon,
   CircleCheckIcon,
+  FlaskConicalIcon,
   XIcon,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -167,6 +168,14 @@ function PaymentReturn() {
     void queryClient.invalidateQueries({ queryKey: orpc.billing.key() });
   }, [status, queryClient]);
 
+  // Точка's sandbox links can't be paid: play the bank here instead.
+  const sandboxPay = useMutation({
+    ...orpc.billing.sandboxPay.mutationOptions(),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: orpc.billing.key() }),
+    onError: () => toast.error("Не удалось подтвердить тестовый платёж"),
+  });
+
   if (!paymentId || payment.isError) return null;
 
   const dismiss = (
@@ -180,6 +189,44 @@ function PaymentReturn() {
       <XIcon />
     </Button>
   );
+
+  if (payment.data?.status === "pending" && payment.data.sandbox) {
+    return (
+      <Alert variant="warning">
+        <FlaskConicalIcon />
+        <AlertTitle>Тестовая оплата</AlertTitle>
+        <AlertDescription>
+          <p>
+            Песочница Точки не принимает платежи, деньги не списываются.
+            Подтвердите оплату сами — «Про» продлится так же, как после
+            настоящей.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              disabled={sandboxPay.isPending}
+              onClick={() =>
+                sandboxPay.mutate({ paymentId, outcome: "succeeded" })
+              }
+            >
+              {sandboxPay.isPending && <Spinner />}
+              Оплатить
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={sandboxPay.isPending}
+              onClick={() =>
+                sandboxPay.mutate({ paymentId, outcome: "canceled" })
+              }
+            >
+              Отказаться
+            </Button>
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (!payment.data || payment.data.status === "pending") {
     const checks =
@@ -284,6 +331,17 @@ export function BillingPanel() {
               </li>
             ))}
           </ul>
+
+          {billing.data.sandbox && (
+            <Alert variant="info">
+              <FlaskConicalIcon />
+              <AlertTitle>Тестовый режим</AlertTitle>
+              <AlertDescription>
+                Запросы уходят в песочницу Точки, деньги не списываются. Оплату
+                подтверждаете вы сами на этой странице.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {!billing.data.available && (
             <Alert variant="warning">

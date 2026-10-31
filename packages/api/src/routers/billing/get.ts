@@ -1,7 +1,12 @@
 import { and, desc, eq, SubscriptionPayment } from "@synoro/db";
 import { PRO_PRICES } from "@synoro/validators";
 
-import { billingAvailable, findSubscription, planOf } from "../../lib/billing";
+import {
+  billingAvailable,
+  findSubscription,
+  planOf,
+  tochkaSandbox,
+} from "../../lib/billing";
 import { protectedProcedure } from "../../orpc";
 
 /**
@@ -39,6 +44,8 @@ export const get = protectedProcedure.handler(async ({ context }) => {
     plan: planOf(subscription),
     prices: PRO_PRICES,
     available: billingAvailable(),
+    /** Payments go to Точка's sandbox: nothing is charged. */
+    sandbox: tochkaSandbox(),
     payments,
   };
 });

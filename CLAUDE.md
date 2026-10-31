@@ -149,6 +149,9 @@ and run `tsc` by hand, build them first.
   Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
   features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
   `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
+  `TOCHKA_SANDBOX=true` runs the flow against Точка's official sandbox (built-in
+  test credentials; its links can't be paid, so the billing page confirms with
+  `billing.sandboxPay`); never on a deployment with real customers.
 - **Own client messages («Про»)** (`docs/reminders.md`): `workflows` rules
   (owner edits them at `/practices/<id>/messages`, `workflow.*` router, texts and
   ranges in `@synoro/validators/workflow`); the Hatchet cron `workflow-messages`

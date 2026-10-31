@@ -420,6 +420,123 @@ describe("paying for «Про» through Точка", () => {
   });
 });
 
+describe("Точка sandbox", () => {
+  it("is off by default: nothing to confirm by hand", async () => {
+    tochka();
+    const { session } = await specialist("sandbox-off");
+    const billing = await call(billingRouter.get, undefined, {
+      context: api.context(session),
+    });
+    expect(billing.sandbox).toBe(false);
+
+    const { paymentId } = await pay(session, "month");
+    const error = await call(
+      billingRouter.sandboxPay,
+      { paymentId, outcome: "succeeded" },
+      { context: api.context(session) },
+    ).catch((e) => e);
+    expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
+    expect((await subscriptionOf(session))?.paidUntil).toBeNull();
+  });
+
+  it("calls the sandbox bank, then confirms by hand", async () => {
+    // A fresh process: TOCHKA_SANDBOX is read when the env module loads.
+    const childEnv = { ...process.env, TOCHKA_SANDBOX: "true" };
+    const child = Bun.spawn({
+      cmd: [
+        process.execPath,
+        "--no-env-file",
+        "--eval",
+        `import { expect, spyOn } from "bun:test";
+         import { call } from "@orpc/server";
+         import { eq, SubscriptionPayment } from "@synoro/db";
+         import { createSession, setupTestApi } from ${JSON.stringify(`${import.meta.dir}/../../../test/helpers.ts`)};
+         import { billingRouter } from ${JSON.stringify(`${import.meta.dir}/index.ts`)};
+         const api = await setupTestApi();
+         // The sandbox: the same hardcoded operation for every request.
+         const calls = [];
+         const fetchMock = spyOn(globalThis, "fetch").mockImplementation(async (input, init = {}) => {
+           calls.push({ url: String(input), init });
+           return Response.json({ Data: {
+             operationId: "hardcoded-operation", status: "CREATED", amount: 1,
+             paymentLink: "https://merch.tochka.com/order/?uuid=hardcoded",
+           } });
+         });
+         try {
+           const session = await createSession(api.db);
+           const context = api.context(session);
+           const stranger = api.context(await createSession(api.db));
+
+           const billing = await call(billingRouter.get, undefined, { context });
+           expect(billing).toMatchObject({ sandbox: true, available: true });
+
+           const month = await call(billingRouter.checkout, { period: "month" }, { context });
+           const year = await call(billingRouter.checkout, { period: "year" }, { context });
+
+           // Test credentials go to the sandbox, whatever the env says.
+           expect(calls).toHaveLength(2);
+           expect(calls[0].url).toBe("https://enter.tochka.com/sandbox/v2/acquiring/v1.0/payments_with_receipt");
+           expect(calls[0].init.headers.Authorization).toBe("Bearer sandbox.jwt.token");
+           expect(JSON.parse(calls[0].init.body).Data).toMatchObject({
+             customerCode: "1234567ab", merchantId: "200000000001097",
+             taxSystemCode: "usn_income", amount: 149,
+           });
+
+           // The unpayable bank link is replaced by our own page.
+           expect(month.confirmationUrl).toBe("http://localhost:3000/settings/billing?payment=" + month.paymentId);
+           const pending = await call(billingRouter.status, { paymentId: month.paymentId }, { context });
+           expect(pending).toMatchObject({ status: "pending", sandbox: true });
+           expect(calls).toHaveLength(2);
+
+           // Only the owner can play the bank.
+           await expect(call(billingRouter.sandboxPay,
+             { paymentId: month.paymentId, outcome: "succeeded" }, { context: stranger }))
+             .rejects.toMatchObject({ code: "NOT_FOUND" });
+
+           const paid = await call(billingRouter.sandboxPay,
+             { paymentId: month.paymentId, outcome: "succeeded" }, { context });
+           expect(paid.status).toBe("succeeded");
+           const after = await call(billingRouter.status, { paymentId: month.paymentId }, { context });
+           expect(after.plan).toMatchObject({ status: "active", pro: true });
+           expect(after.plan.paidUntil).not.toBeNull();
+           // Paying twice changes nothing.
+           await call(billingRouter.sandboxPay, { paymentId: month.paymentId, outcome: "canceled" }, { context });
+           expect((await call(billingRouter.status, { paymentId: month.paymentId }, { context })).status).toBe("succeeded");
+
+           const declined = await call(billingRouter.sandboxPay,
+             { paymentId: year.paymentId, outcome: "canceled" }, { context });
+           expect(declined.status).toBe("canceled");
+           expect((await call(billingRouter.get, undefined, { context })).payments).toHaveLength(1);
+
+           // A real payment (opened before the sandbox was switched on) is out of reach.
+           const [real] = await api.db.insert(SubscriptionPayment).values({
+             userId: session.user.id, period: "month", amount: 149_00, externalId: "real-operation",
+           }).returning();
+           await expect(call(billingRouter.sandboxPay,
+             { paymentId: real.id, outcome: "succeeded" }, { context }))
+             .rejects.toMatchObject({ code: "NOT_FOUND" });
+           expect((await api.db.query.SubscriptionPayment.findFirst({
+             where: eq(SubscriptionPayment.id, real.id),
+           })).status).toBe("pending");
+         } finally {
+           fetchMock.mockRestore();
+           await api.close();
+         }`,
+      ],
+      cwd: `${import.meta.dir}/../../..`,
+      env: childEnv,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stderr).text(),
+    ]);
+    expect(stderr).toBe("");
+    expect(exitCode).toBe(0);
+  }, 30_000);
+});
+
 describe("«Про» features", () => {
   it("are closed once the trial ends unpaid", async () => {
     const { session, practiceId } = await specialist("lapsed");

@@ -1,5 +1,6 @@
 import { env, logger, paths } from "@synoro/config";
 import {
+  and,
   type BillingPeriod,
   type Database,
   eq,
@@ -14,9 +15,15 @@ import { ProviderError } from "../payments/types";
 import {
   createTochkaPayment,
   fetchTochkaPayment,
+  isSandboxPayment,
+  sandboxExternalId,
   tochkaAvailable,
+  tochkaConfig,
+  tochkaSandbox,
   tochkaWebhookOperationId,
 } from "./tochka";
+
+export { isSandboxPayment, tochkaSandbox };
 
 type SubscriptionRow = typeof Subscription.$inferSelect;
 type SubscriptionPaymentRow = typeof SubscriptionPayment.$inferSelect;
@@ -99,7 +106,7 @@ function isDemoBilling() {
 
 /** «Про» can be paid for on this deployment. */
 export function billingAvailable() {
-  return (tochkaAvailable() && !!env.TOCHKA_TAX_SYSTEM) || isDemoBilling();
+  return (tochkaAvailable() && !!tochkaConfig().taxSystem) || isDemoBilling();
 }
 
 /**
@@ -145,14 +152,21 @@ export async function startSubscriptionPayment(
       email: input.user.email,
       returnUrl: billingReturnUrl(payment.id),
     });
+    // The sandbox answers every request with the same operation and a link
+    // nobody can pay: keep only the fact that the request was accepted, and
+    // let the billing page confirm the payment (`settleSandboxPayment`).
+    const sandbox = tochkaSandbox();
+    const confirmationUrl = sandbox
+      ? billingReturnUrl(payment.id)
+      : remote.confirmationUrl;
     await db
       .update(SubscriptionPayment)
       .set({
-        externalId: remote.externalId,
-        confirmationUrl: remote.confirmationUrl,
+        externalId: sandbox ? sandboxExternalId(payment.id) : remote.externalId,
+        confirmationUrl,
       })
       .where(eq(SubscriptionPayment.id, payment.id));
-    return { paymentId: payment.id, confirmationUrl: remote.confirmationUrl };
+    return { paymentId: payment.id, confirmationUrl };
   } catch (error) {
     await db
       .delete(SubscriptionPayment)
@@ -216,6 +230,32 @@ async function settleSubscriptionPayment(
 }
 
 /**
+ * Sandbox only: play the bank for the caller's pending payment — paid or
+ * declined — and settle it exactly as a real `APPROVED` / `EXPIRED` would.
+ * Returns undefined for a payment that isn't the caller's, isn't from the
+ * sandbox, or when the sandbox is off.
+ */
+export async function settleSandboxPayment(
+  db: Database,
+  input: {
+    userId: string;
+    paymentId: string;
+    outcome: Extract<PaymentStatus, "succeeded" | "canceled">;
+  },
+) {
+  if (!tochkaSandbox()) return undefined;
+  const found = await db.query.SubscriptionPayment.findFirst({
+    where: and(
+      eq(SubscriptionPayment.id, input.paymentId),
+      eq(SubscriptionPayment.userId, input.userId),
+    ),
+  });
+  if (!found || !isSandboxPayment(found)) return undefined;
+  if (found.status !== "pending") return found;
+  return settleSubscriptionPayment(db, found.id, input.outcome);
+}
+
+/**
  * Ask Точка about a pending «Про» payment and settle it. The bank is the
  * source of truth; a webhook only says "look again". When it can't be
  * reached the payment stays pending and is checked next time.
@@ -225,7 +265,8 @@ export async function syncSubscriptionPayment(
   payment: SubscriptionPaymentRow,
 ) {
   if (payment.status !== "pending" || !payment.externalId) return payment;
-  if (!tochkaAvailable()) return payment;
+  // The sandbox bank knows nothing about our payments (hardcoded answers).
+  if (!tochkaAvailable() || tochkaSandbox()) return payment;
 
   try {
     const remote = await fetchTochkaPayment(payment.externalId);
