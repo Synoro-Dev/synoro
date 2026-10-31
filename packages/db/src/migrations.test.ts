@@ -178,3 +178,19 @@ describe("appliedMigrationCount", () => {
     await client.close();
   });
 });
+
+describe("hand-written constraints", () => {
+  // drizzle-kit can't express EXCLUDE, so squashing the migrations has
+  // dropped it twice; double bookings depend on it.
+  it("keeps bookings_no_overlap on a freshly migrated database", async () => {
+    const client = new PGlite({ extensions: { btree_gist } });
+    const db = drizzle({ client, schema, casing: "snake_case" });
+    await migrate(db, { migrationsFolder });
+
+    const { rows } = await client.query<{ name: string }>(
+      `select conname as name from pg_constraint where conname = 'bookings_no_overlap'`,
+    );
+    expect(rows).toHaveLength(1);
+    await client.close();
+  });
+});
