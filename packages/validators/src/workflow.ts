@@ -129,7 +129,7 @@ const placeholders =
 export const workflowFormSchema = z
   .object({
     trigger: z.enum(WORKFLOW_TRIGGERS),
-    amount: z.number().int(),
+    amount: z.number("Укажите число").int("Нужно целое число"),
     subject: z
       .string()
       .trim()

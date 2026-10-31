@@ -599,6 +599,16 @@ describe("workflowFormSchema", () => {
     ).toBe(false);
   });
 
+  test("explains a missing or fractional amount in Russian", () => {
+    const empty = workflowFormSchema.safeParse({
+      ...valid,
+      amount: Number.NaN,
+    });
+    expect(empty.error?.issues[0]?.message).toBe("Укажите число");
+    const fraction = workflowFormSchema.safeParse({ ...valid, amount: 1.5 });
+    expect(fraction.error?.issues[0]?.message).toBe("Нужно целое число");
+  });
+
   test("refuses unknown placeholders and a multi-line subject", () => {
     const text = workflowFormSchema.safeParse({
       ...valid,
