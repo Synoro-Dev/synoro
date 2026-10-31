@@ -17,6 +17,15 @@ export const practiceProfession = pgEnum("practice_profession", [
   "other",
 ]);
 
+/** Mirrors `BookingQuestion` in `@synoro/validators`. */
+export interface PracticeBookingQuestion {
+  id: string;
+  label: string;
+  kind: "text" | "long_text" | "choice";
+  options: string[];
+  required: boolean;
+}
+
 /**
  * A practice is the SaaS tenant: one specialist's schedule, clients and
  * credit balances. Everything in the booking domain hangs off it.
@@ -40,6 +49,16 @@ export const Practice = pgTable("practices", (t) => ({
    * confirmed bookings that have no `meetingUrl` of their own.
    */
   videoUrl: t.text(),
+  /**
+   * The questionnaire clients fill in when booking («Про»), in the order
+   * shown. Validated by `bookingQuestionsSchema` in `@synoro/validators`;
+   * kept while the owner is on the free plan, but not asked.
+   */
+  bookingQuestions: t
+    .jsonb()
+    .$type<PracticeBookingQuestion[]>()
+    .notNull()
+    .default([]),
   ownerId: t
     .text()
     .notNull()

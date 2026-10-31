@@ -34,6 +34,7 @@ export function SeriesDialog({
   startsAt,
   credits,
   terms,
+  answers,
   onClose,
   onBooked,
 }: {
@@ -42,6 +43,8 @@ export function SeriesDialog({
   startsAt: Date | null;
   credits: number;
   terms: ProfessionTerms;
+  /** The questionnaire, already filled in on the booking page. */
+  answers: Record<string, string>;
   onClose: () => void;
   onBooked: (dates: Date[]) => void;
 }) {
@@ -57,6 +60,7 @@ export function SeriesDialog({
             startsAt={startsAt}
             credits={credits}
             terms={terms}
+            answers={answers}
             onBooked={onBooked}
             onCancel={onClose}
           />
@@ -71,6 +75,7 @@ function SeriesForm({
   startsAt,
   credits,
   terms,
+  answers,
   onBooked,
   onCancel,
 }: {
@@ -78,6 +83,7 @@ function SeriesForm({
   startsAt: Date;
   credits: number;
   terms: ProfessionTerms;
+  answers: Record<string, string>;
   onBooked: (dates: Date[]) => void;
   onCancel: () => void;
 }) {
@@ -106,7 +112,7 @@ function SeriesForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (!repeat) return;
-        book.mutate({ practiceId, startsAt, ...repeat, skip });
+        book.mutate({ practiceId, startsAt, ...repeat, skip, answers });
       }}
     >
       <DialogHeader>

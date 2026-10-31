@@ -8,6 +8,11 @@ import {
   normalizeHostname,
   practiceFormSchema,
 } from "./booking";
+import {
+  type BookingQuestion,
+  bookingQuestionsSchema,
+  checkBookingAnswers,
+} from "./booking-questions";
 import { loginFormSchema } from "./login";
 import { otpFormSchema } from "./otp";
 import { changePasswordFormSchema } from "./password";
@@ -618,5 +623,72 @@ describe("workflowFormSchema", () => {
     expect(
       workflowFormSchema.safeParse({ ...valid, subject: "a\nb" }).success,
     ).toBe(false);
+  });
+});
+
+describe("booking questionnaire", () => {
+  const question = (over: Partial<BookingQuestion>): BookingQuestion => ({
+    id: crypto.randomUUID(),
+    label: "Вопрос",
+    kind: "text",
+    options: [],
+    required: false,
+    ...over,
+  });
+
+  test("a choice needs two distinct options, other kinds none", () => {
+    const ok = question({ kind: "choice", options: ["Да", "Нет"] });
+    expect(bookingQuestionsSchema.safeParse([ok]).success).toBe(true);
+    for (const bad of [
+      question({ kind: "choice", options: ["Да"] }),
+      question({ kind: "choice", options: ["Да", "Да"] }),
+      question({ kind: "text", options: ["Да", "Нет"] }),
+      question({ label: "  " }),
+    ]) {
+      expect(bookingQuestionsSchema.safeParse([bad]).success).toBe(false);
+    }
+  });
+
+  test("rejects repeated ids and more than ten questions", () => {
+    const one = question({});
+    expect(bookingQuestionsSchema.safeParse([one, one]).success).toBe(false);
+    const many = Array.from({ length: 11 }, () => question({}));
+    expect(bookingQuestionsSchema.safeParse(many).success).toBe(false);
+  });
+
+  test("checks answers and keeps them with the wording, in order", () => {
+    const a = question({ label: "Запрос", required: true });
+    const b = question({
+      label: "Формат",
+      kind: "choice",
+      options: ["Онлайн", "Очно"],
+    });
+    const c = question({ label: "Откуда узнали" });
+
+    expect(checkBookingAnswers([a, b, c], {})).toEqual({
+      answers: [],
+      errors: { [a.id]: "Ответьте на вопрос" },
+    });
+    expect(
+      checkBookingAnswers([a, b, c], {
+        [b.id]: "Очно",
+        [a.id]: " Тревога ",
+        [c.id]: "",
+        unknown: "x",
+      }),
+    ).toEqual({
+      answers: [
+        { question: "Запрос", answer: "Тревога" },
+        { question: "Формат", answer: "Очно" },
+      ],
+      errors: {},
+    });
+    expect(
+      checkBookingAnswers([a, b], { [a.id]: "x".repeat(201), [b.id]: "Да" })
+        .errors,
+    ).toEqual({
+      [a.id]: "Не больше 200 символов",
+      [b.id]: "Выберите вариант из списка",
+    });
   });
 });

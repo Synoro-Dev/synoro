@@ -15,6 +15,8 @@ import {
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import {
+  type BookingQuestion,
+  checkBookingAnswers,
   formatCredits,
   type GuestBookingFormInput,
   type GuestBookingFormValues,
@@ -31,6 +33,7 @@ import { BookingLegalNotice } from "~/components/legal-links";
 import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
+import { BookingQuestionFields } from "./booking-question-fields";
 import { formatDateTime } from "./time";
 
 interface Offer {
@@ -58,17 +61,22 @@ export function GuestBookingForm({
   practice,
   startsAt,
   offer,
+  questions,
   onBack,
 }: {
   practice: { id: string; name: string; profession: Profession };
   startsAt: Date;
   offer: Offer;
+  /** The practice's questionnaire («Про»); empty when none is asked. */
+  questions: BookingQuestion[];
   onBack: () => void;
 }) {
   const terms = professionTerms(practice.profession);
   const deals = packageDeals(offer.packages);
   const [packageId, setPackageId] = useState(deals[0]?.id ?? "");
   const selected = deals.find((d) => d.id === packageId) ?? deals[0];
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
 
   const form = useForm<GuestBookingFormInput, unknown, GuestBookingFormValues>({
     resolver: zodResolver(guestBookingFormSchema),
@@ -81,17 +89,25 @@ export function GuestBookingForm({
     // Keep the button busy until the browser leaves for the payment page.
     // The booking page may sit in an iframe; the payment page can't.
     onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
-    onError: (error) =>
+    onError: (error) => {
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",
-      ),
+      );
+      if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
+        setAnswerErrors(error.data.errors);
+      }
+    },
   });
   const leaving = reserve.isPending || reserve.isSuccess;
 
   function submit(values: GuestBookingFormValues) {
     if (!selected) return;
+    const { errors } = checkBookingAnswers(questions, answers);
+    setAnswerErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     reserve.mutate({
       ...values,
+      answers,
       note: values.note || undefined,
       practiceId: practice.id,
       packageId: selected.id,
@@ -179,6 +195,16 @@ export function GuestBookingForm({
           {...form.register("note")}
         />
       </div>
+
+      {questions.length > 0 && (
+        <BookingQuestionFields
+          questions={questions}
+          values={answers}
+          errors={answerErrors}
+          onChange={setAnswers}
+          idPrefix="guest-question"
+        />
+      )}
 
       <RadioGroup
         value={selected?.id ?? ""}

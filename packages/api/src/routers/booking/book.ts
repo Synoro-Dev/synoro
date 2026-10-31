@@ -7,8 +7,9 @@ import {
   user,
 } from "@synoro/db";
 import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
+import { bookingAnswersInput } from "@synoro/validators";
 import { z } from "zod";
-
+import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import {
   adjustCredits,
   loadRules,
@@ -32,6 +33,8 @@ import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
  * someone else's `memberId` gets FORBIDDEN, an unknown member NOT_FOUND.
  *
  * PHONE_REQUIRED when a client booking for themselves has no phone yet;
+ * ANSWERS_INVALID when they left the practice's questionnaire («Про»)
+ * unfilled — `answers` are keyed by question id, staff booking a client skip it;
  * NO_CREDITS when the client's balance is zero; SLOT_UNAVAILABLE when the
  * time is off the schedule, busy in the specialist's Google Calendar (checked
  * for clients only: staff see it on the calendar, as in `bookFree`), or
@@ -55,6 +58,7 @@ export const book = practiceProcedure
       message: "Это время недоступно для записи",
     },
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
+    ANSWERS_INVALID,
   })
   .input(
     z.object({
@@ -63,6 +67,7 @@ export const book = practiceProcedure
       note: z.string().trim().max(500).optional(),
       /** Staff only: the client to book; defaults to the caller. */
       memberId: z.uuid().optional(),
+      answers: bookingAnswersInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -94,6 +99,13 @@ export const book = practiceProcedure
         columns: { phone: true },
       });
       if (!account?.phone) throw errors.PHONE_REQUIRED();
+    }
+    // Staff booking a client skip the questionnaire: it's the client's to fill.
+    const questionnaire = forOther
+      ? { answers: null, errors: null }
+      : await bookingAnswers(context.db, practice, input.answers);
+    if (questionnaire.errors) {
+      throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
     }
 
     const rules = await loadRules(context.db, practice.id);
@@ -128,6 +140,7 @@ export const book = practiceProcedure
           endsAt,
           memberId: member.id,
           note: input.note,
+          answers: questionnaire.answers,
           createdById: userId,
         })
         .returning();

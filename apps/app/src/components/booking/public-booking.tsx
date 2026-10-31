@@ -1,5 +1,6 @@
 "use client";
 
+import { isDefinedError } from "@orpc/client";
 import type { RouterOutputs } from "@synoro/api";
 import { paths } from "@synoro/config";
 import {
@@ -19,6 +20,7 @@ import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
 import {
   capitalize,
+  checkBookingAnswers,
   formatCredits,
   normalizePhone,
   professionTerms,
@@ -41,6 +43,7 @@ import { useState } from "react";
 import { LegalFooter } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
+import { BookingQuestionFields } from "./booking-question-fields";
 import { GuestBookingForm } from "./guest-booking-form";
 import { SeriesDialog } from "./series-dialog";
 import { ErrorState } from "./states";
@@ -102,6 +105,8 @@ export function PublicBooking({
   const [seriesFrom, setSeriesFrom] = useState<Date | null>(null);
   const [topUp, setTopUp] = useState(false);
   const [phone, setPhone] = useState("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
 
   const { data: info } = useQuery({
     ...orpc.practice.bySlug.queryOptions({ input: { slug: practice.slug } }),
@@ -126,6 +131,16 @@ export function PublicBooking({
     enabled: signedIn && !isStaff,
   });
   const needsPhone = !!me.data && !me.data.phone;
+  const { questions } = info;
+
+  /** The questionnaire is filled in; otherwise its errors are shown. */
+  function answered() {
+    const { errors } = checkBookingAnswers(questions, answers);
+    setAnswerErrors(errors);
+    if (Object.keys(errors).length === 0) return true;
+    toast.error("Ответьте на вопросы анкеты");
+    return false;
+  }
 
   const range = monthWindow(month, today);
   const slots = useQuery({
@@ -183,11 +198,18 @@ export function PublicBooking({
       setBooked(booking.startsAt);
       setBookedCount(1);
       setPicked(null);
+      setAnswers({});
       await refresh();
     },
     onError: async (error) => {
       // NO_CREDITS / SLOT_UNAVAILABLE carry a user-facing message.
       toast.error(error.message || "Не удалось записаться");
+      if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
+        // The questionnaire changed meanwhile: keep the time, show the fields.
+        setAnswerErrors(error.data.errors);
+        await refresh();
+        return;
+      }
       setPicked(null);
       await refresh();
     },
@@ -454,6 +476,7 @@ export function PublicBooking({
                       practice={practice}
                       startsAt={picked.startsAt}
                       offer={offer.data}
+                      questions={questions}
                       onBack={() => setPicked(null)}
                     />
                   ) : slots.isPending && !slots.data ? (
@@ -487,6 +510,7 @@ export function PublicBooking({
                             <Button
                               disabled={book.isPending || savePhone.isPending}
                               onClick={async () => {
+                                if (!answered()) return;
                                 if (needsPhone) {
                                   const normalized = normalizePhone(phone);
                                   if (!normalized) {
@@ -502,6 +526,7 @@ export function PublicBooking({
                                 book.mutate({
                                   practiceId: practice.id,
                                   startsAt: slot.startsAt,
+                                  answers,
                                 });
                               }}
                             >
@@ -512,7 +537,9 @@ export function PublicBooking({
                                 variant="ghost"
                                 size="sm"
                                 className="col-span-2"
-                                onClick={() => setSeriesFrom(slot.startsAt)}
+                                onClick={() =>
+                                  answered() && setSeriesFrom(slot.startsAt)
+                                }
                               >
                                 <RepeatIcon />
                                 Повторять каждую неделю…
@@ -529,6 +556,17 @@ export function PublicBooking({
                                 onChange={(e) => setPhone(e.target.value)}
                                 className="col-span-2"
                               />
+                            )}
+                            {questions.length > 0 && (
+                              <div className="order-first col-span-2 rounded-md border p-3">
+                                <BookingQuestionFields
+                                  questions={questions}
+                                  values={answers}
+                                  errors={answerErrors}
+                                  onChange={setAnswers}
+                                  idPrefix="booking-question"
+                                />
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -558,10 +596,12 @@ export function PublicBooking({
         startsAt={seriesFrom}
         credits={credits}
         terms={terms}
+        answers={answers}
         onClose={() => setSeriesFrom(null)}
         onBooked={async (dates) => {
           setSeriesFrom(null);
           setPicked(null);
+          setAnswers({});
           setBooked(dates[0] ?? null);
           setBookedCount(dates.length);
           await refresh();

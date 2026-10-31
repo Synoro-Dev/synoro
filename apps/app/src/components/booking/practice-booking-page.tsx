@@ -30,10 +30,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { PracticeAvatar } from "./practice-avatar";
+import { PracticeBookingQuestions } from "./practice-booking-questions";
 import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
-/** Where the practice's public page is edited: photo, link, video room. */
+/**
+ * Where the practice's public page is edited: photo, link, video room and
+ * the questionnaire clients fill in when booking.
+ */
 export function PracticeBookingPage({
   practice,
 }: {
@@ -71,8 +75,8 @@ export function PracticeBookingPage({
             <ImageUpIcon />
             <AlertTitle>Страницу записи настраивает владелец</AlertTitle>
             <AlertDescription>
-              Фото и видеовстречу меняет владелец практики. Ссылкой можно
-              делиться.
+              Фото, видеовстречу и анкету меняет владелец практики. Ссылкой
+              можно делиться.
             </AlertDescription>
           </Alert>
         )}
@@ -148,6 +152,12 @@ export function PracticeBookingPage({
               practiceId={practice.id}
               videoUrl={practice.videoUrl}
             />
+          </Frame>
+        )}
+
+        {isOwner && (
+          <Frame spacing="default" className="min-w-0">
+            <PracticeBookingQuestions practiceId={practice.id} />
           </Frame>
         )}
 

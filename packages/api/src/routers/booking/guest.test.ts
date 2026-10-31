@@ -25,6 +25,7 @@ import { handlePaymentWebhook } from "../../lib/payments";
 import { availabilityRouter } from "../availability";
 import { paymentRouter } from "../payment";
 import { practiceRouter } from "../practice";
+import { questionRouter } from "../question";
 import { bookingRouter } from ".";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
@@ -367,6 +368,55 @@ describe("booking as a visitor", () => {
     await expect(
       call(bookingRouter.cancelGuest, { token }, { context: api.context() }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("asks the practice's questionnaire before opening the payment", async () => {
+    const question = {
+      id: "6a2f3e4d-5c6b-4a7e-8f90-1a2b3c4d5e6f",
+      label: "Какой у вас запрос?",
+      kind: "text" as const,
+      options: [],
+      required: true,
+    };
+    await call(
+      questionRouter.save,
+      { practiceId, questions: [question] },
+      { context: api.context(owner) },
+    );
+    try {
+      const email = "anketa@visitor.test";
+      await expect(reserve(10, email)).rejects.toMatchObject({
+        code: "ANSWERS_INVALID",
+        data: { errors: { [question.id]: "Ответьте на вопрос" } },
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      acceptsPayment("g-anketa");
+      const { token } = await call(
+        bookingRouter.reserve,
+        {
+          practiceId,
+          packageId: await packageId(1),
+          startsAt: monday(10),
+          ...visitor(email),
+          answers: { [question.id]: "Выгорание" },
+        },
+        { context: api.context() },
+      );
+      const booking = await api.db.query.Booking.findFirst({
+        where: eq(Booking.accessTokenHash, hashGuestToken(token)),
+        columns: { answers: true },
+      });
+      expect(booking?.answers).toEqual([
+        { question: question.label, answer: "Выгорание" },
+      ]);
+    } finally {
+      await call(
+        questionRouter.save,
+        { practiceId, questions: [] },
+        { context: api.context(owner) },
+      );
+    }
   });
 
   it("does not open someone else's booking with a wrong token", async () => {
