@@ -149,6 +149,12 @@ and run `tsc` by hand, build them first.
   Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
   features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
   `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
+- **Own client messages («Про»)** (`docs/reminders.md`): `workflows` rules
+  (owner edits them at `/practices/<id>/messages`, `workflow.*` router, texts and
+  ranges in `@synoro/validators/workflow`); the Hatchet cron `workflow-messages`
+  (`packages/jobs/src/workflow-messages.ts`) mails them once per case through
+  `claimNotice` (`notice-claims.ts`, keys `wf:<rule>:…` in `sent_notices`), only
+  while the owner has `hasPro`.
 - **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
   and `bookings.meeting_url` (staff) — the link in force is
   `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see

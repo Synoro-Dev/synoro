@@ -6,9 +6,6 @@ import {
   type Database,
   eq,
   gt,
-  isNull,
-  lte,
-  SentNotice,
   Subscription,
   SubscriptionPayment,
   sql,
@@ -19,6 +16,7 @@ import { PRO_PRICES } from "@synoro/validators";
 
 import type { Deliver } from "./booking-video";
 import { dispatchEmail } from "./index";
+import { claimNotice } from "./notice-claims";
 
 /**
  * Telling a specialist that their «Про» runs out: two weeks ahead when a paid
@@ -32,8 +30,6 @@ const ENDING_MS = 3 * DAY_MS;
 /** «Про» that ended earlier than this is not announced any more. */
 const ENDED_MS = 2 * DAY_MS;
 const MAX_NOTICES = 200;
-/** Longer than the workflow's 120-second execution timeout. */
-const CLAIM_MS = 5 * 60 * 1000;
 /** Specialists' time zone is unknown; the plan's dates are Moscow time. */
 const TIME_ZONE = "Europe/Moscow";
 /** Mails go out from 9:00 to 21:00 Moscow time. */
@@ -141,12 +137,9 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
 }
 
 /**
- * Mail every due «Про» notice once. Each notice is claimed in `sent_notices`
- * for five minutes and marked sent once the mail is handed over: a second
- * worker skips a live claim, a failed send gives the claim back, and a
- * crashed worker's claim expires for the next run (a crash right after
- * sending can repeat the mail). Outside Moscow daytime nothing is sent: the
- * windows are days long, the next run catches up.
+ * Mail every due «Про» notice once, claimed in `sent_notices` (see
+ * `./notice-claims`). Outside Moscow daytime nothing is sent: the windows
+ * are days long, the next run catches up.
  */
 export async function sendProNotices(
   db: Database,
@@ -165,28 +158,8 @@ export async function sendProNotices(
       const due = dueProNotice(row, now);
       if (!due) continue;
       const key = `pro:${due.notice}:${row.userId}:${due.endsAt.toISOString()}`;
-      const claimToken = crypto.randomUUID();
-      const claimedAt = new Date();
-      const claimExpiresAt = new Date(claimedAt.getTime() + CLAIM_MS);
-      const claimed = await db
-        .insert(SentNotice)
-        .values({ key, userId: row.userId, claimToken, claimExpiresAt })
-        .onConflictDoUpdate({
-          target: SentNotice.key,
-          set: { claimToken, claimExpiresAt },
-          setWhere: and(
-            isNull(SentNotice.sentAt),
-            lte(SentNotice.claimExpiresAt, claimedAt),
-          ),
-        })
-        .returning({ key: SentNotice.key });
-      if (claimed.length === 0) continue;
-      // A worker whose lease expired cannot release or finish a newer claim.
-      const ownsClaim = and(
-        eq(SentNotice.key, key),
-        eq(SentNotice.claimToken, claimToken),
-        isNull(SentNotice.sentAt),
-      );
+      const claim = await claimNotice(db, key, row.userId);
+      if (!claim) continue;
 
       const endsOn = formatEnd(due.endsAt);
       const left = formatLeft(due.endsAt, now);
@@ -212,7 +185,7 @@ export async function sendProNotices(
         };
         await deliver(message);
       } catch (error) {
-        await db.delete(SentNotice).where(ownsClaim);
+        await claim.release();
         logger.warn("billing.pro_notice_failed", {
           userId: row.userId,
           notice: due.notice,
@@ -220,10 +193,7 @@ export async function sendProNotices(
         });
         continue;
       }
-      await db
-        .update(SentNotice)
-        .set({ sentAt: new Date(), claimToken: null, claimExpiresAt: null })
-        .where(ownsClaim);
+      await claim.done();
     }
 
     const last = rows.at(-1);

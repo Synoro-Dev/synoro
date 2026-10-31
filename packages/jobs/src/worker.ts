@@ -29,6 +29,7 @@ async function main() {
     proNoticesWorkflow,
     scheduledWorkflow,
     sendEmailTask,
+    workflowMessagesWorkflow,
   } = await import("./workflows");
 
   const worker = await hatchet.worker("acme-worker", {
@@ -37,6 +38,7 @@ async function main() {
       googleCalendarCleanupWorkflow,
       bookingRemindersWorkflow,
       proNoticesWorkflow,
+      workflowMessagesWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

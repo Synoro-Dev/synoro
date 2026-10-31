@@ -1,4 +1,4 @@
-import { env, logger, paths } from "@synoro/config";
+import { logger } from "@synoro/config";
 import {
   and,
   asc,
@@ -17,7 +17,8 @@ import type { BookingNotice, TemplateEmail } from "@synoro/emails";
 
 import { dispatchEmail } from "./index";
 import { notifyStaff } from "./staff-notices";
-import { describeDates } from "./when";
+import { cabinetUrl } from "./urls";
+import { describeDates, localHour } from "./when";
 
 /**
  * Telling a client about their booking: the confirmation, the video link when
@@ -38,23 +39,6 @@ type Notice = BookingNotice;
 
 /** How a mail leaves: `dispatchEmail` by default, a recorder in tests. */
 export type Deliver = (message: TemplateEmail) => Promise<void>;
-
-function cabinetUrl() {
-  return new URL(
-    paths.booking.mine,
-    new URL(env.BOOKING_URL ?? env.APP_URL).origin,
-  ).href;
-}
-
-function localHour(at: Date, timeZone: string) {
-  return Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hour: "numeric",
-      hourCycle: "h23",
-    }).format(at),
-  );
-}
 
 /** Paid bookings of clients who can be mailed. */
 function confirmedBookings(db: Database) {

@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/pglite";
 import { migrate } from "drizzle-orm/pglite/migrator";
 
 import {
+  adoptSquashedHistory,
   appliedMigrationCount,
   baselineMigrations,
   explainMigrationError,
@@ -37,12 +38,12 @@ async function hasTable(client: PGlite, name: string) {
 describe("baselineMigrations", () => {
   it("adopts a pushed database so migrate applies only newer migrations", async () => {
     const { client, db } = await pushedDb(1);
-    expect(await hasTable(client, "google_calendar_connections")).toBe(false);
+    expect(await hasTable(client, "workflows")).toBe(false);
 
     expect(await baselineMigrations(db)).toBe("baselined");
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
+    expect(await hasTable(client, "workflows")).toBe(true);
     expect(await baselineMigrations(db)).toBe("already-tracked");
     await client.close();
   });
@@ -53,7 +54,7 @@ describe("baselineMigrations", () => {
     await baselineMigrations(db);
     await migrate(db, { migrationsFolder });
 
-    expect(await hasTable(client, "google_calendar_connections")).toBe(true);
+    expect(await hasTable(client, "workflows")).toBe(true);
     await client.close();
   });
 
@@ -65,6 +66,57 @@ describe("baselineMigrations", () => {
   });
 });
 
+describe("adoptSquashedHistory", () => {
+  /** The schema of 0000 plus a journal left by the pre-squash chain. */
+  async function legacyDb() {
+    const { client, db } = await pushedDb(1);
+    await client.exec(`
+      CREATE SCHEMA drizzle;
+      CREATE TABLE drizzle.__drizzle_migrations (
+        id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint
+      );
+      INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES
+        ('old-0000', 1793173305476), ('old-0010', 1793259515327);
+    `);
+    return { client, db };
+  }
+
+  it("re-links the regenerated 0000 so migrate applies only what is new", async () => {
+    const { client, db } = await legacyDb();
+
+    // Without it the migrator replays 0000 and trips over existing types.
+    const failure = await migrate(db, { migrationsFolder }).catch((e) => e);
+    expect(explainMigrationError(failure).message).toContain("already exists");
+
+    expect(await adoptSquashedHistory(db)).toBe(true);
+    await migrate(db, { migrationsFolder });
+
+    expect(await hasTable(client, "workflows")).toBe(true);
+    expect(await appliedMigrationCount(db)).toBe(migrations.length);
+    expect(await adoptSquashedHistory(db)).toBe(false);
+    await client.close();
+  });
+
+  it("leaves a database that has not reached the end of the old chain", async () => {
+    const { client, db } = await legacyDb();
+    await client.exec("DROP TABLE booking_series CASCADE");
+
+    expect(await adoptSquashedHistory(db)).toBe(false);
+    expect(await appliedMigrationCount(db)).toBe(2);
+    await client.close();
+  });
+
+  it("does nothing on fresh and up-to-date databases", async () => {
+    const { client, db } = await pushedDb(0);
+    expect(await adoptSquashedHistory(db)).toBe(false);
+
+    await migrate(db, { migrationsFolder });
+    expect(await adoptSquashedHistory(db)).toBe(false);
+    expect(await appliedMigrationCount(db)).toBe(migrations.length);
+    await client.close();
+  });
+});
+
 describe("explainMigrationError", () => {
   it("points a pushed database at db:baseline", async () => {
     const { client, db } = await pushedDb(1);
@@ -72,7 +124,7 @@ describe("explainMigrationError", () => {
     const error = await migrate(db, { migrationsFolder }).catch((e) => e);
     const { message, hint } = explainMigrationError(error);
 
-    expect(message).toContain('type "booking_kind" already exists');
+    expect(message).toContain('type "billing_period" already exists');
     expect(message).toContain("(42710)");
     expect(hint).toContain("bun db:baseline");
     await client.close();
@@ -124,159 +176,5 @@ describe("appliedMigrationCount", () => {
     await migrate(db, { migrationsFolder });
     expect(await appliedMigrationCount(db)).toBe(migrations.length);
     await client.close();
-  });
-});
-
-describe("notice claim leases migration", () => {
-  it("preserves existing sent timestamps while allowing pending claims", async () => {
-    const { client } = await pushedDb(9);
-    try {
-      await client.exec(`
-        INSERT INTO users (id, name, email) VALUES ('owner', 'Owner', 'owner@notices.test');
-        INSERT INTO sent_notices (key, user_id, sent_at)
-          VALUES ('legacy', 'owner', '2026-10-01T12:00Z');
-      `);
-      const migration = migrations[9];
-      if (!migration) throw new Error("Missing notice claim leases migration");
-      for (const statement of migration.sql) await client.exec(statement);
-      const { rows } = await client.query<{ sent_at: Date }>(
-        "SELECT sent_at FROM sent_notices WHERE key = 'legacy'",
-      );
-      expect(rows[0]?.sent_at.toISOString()).toBe("2026-10-01T12:00:00.000Z");
-      await client.exec(
-        "INSERT INTO sent_notices (key, user_id) VALUES ('pending', 'owner')",
-      );
-      const pending = await client.query(
-        "SELECT sent_at FROM sent_notices WHERE key = 'pending'",
-      );
-      expect(pending.rows).toEqual([{ sent_at: null }]);
-    } finally {
-      await client.close();
-    }
-  });
-});
-
-describe("bookings_no_overlap restoration", () => {
-  it("preserves conflicting rows and fails before applying the constraint", async () => {
-    const { client } = await pushedDb(2);
-    try {
-      await client.exec(`
-        INSERT INTO "users" (id, name, email) VALUES ('owner', 'Owner', 'owner@test.local');
-        INSERT INTO practices (id, owner_id, name, slug) VALUES ('00000000-0000-0000-0000-000000000001', 'owner', 'Practice', 'practice');
-        INSERT INTO bookings (practice_id, kind, starts_at, ends_at) VALUES
-          ('00000000-0000-0000-0000-000000000001', 'consultation', '2030-01-01T10:00Z', '2030-01-01T11:00Z'),
-          ('00000000-0000-0000-0000-000000000001', 'free', '2030-01-01T10:30Z', '2030-01-01T11:00Z');
-      `);
-      const migration = migrations[2];
-      if (!migration) throw new Error("Missing overlap migration");
-      await expect(
-        client.transaction(async (tx) => {
-          for (const statement of migration.sql) await tx.exec(statement);
-        }),
-      ).rejects.toMatchObject({
-        code: "23P01",
-        message:
-          "Active bookings overlap; bookings_no_overlap cannot be applied",
-      });
-      expect(
-        (await client.query("SELECT * FROM bookings WHERE status = 'active'"))
-          .rows,
-      ).toHaveLength(2);
-      expect(
-        (
-          await client.query(
-            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
-          )
-        ).rows,
-      ).toHaveLength(0);
-      // Resolve the conflict explicitly; retry installs the constraint.
-      await client.exec(
-        "UPDATE bookings SET status = 'cancelled' WHERE kind = 'free'",
-      );
-      for (const statement of migration.sql) await client.exec(statement);
-      expect(
-        (
-          await client.query(
-            "SELECT 1 FROM pg_constraint WHERE conname = 'bookings_no_overlap'",
-          )
-        ).rows,
-      ).toHaveLength(1);
-      // Applying it again is still idempotent.
-      for (const statement of migration.sql) await client.exec(statement);
-    } finally {
-      await client.close();
-    }
-  });
-});
-
-describe("booking cancel reason backfill", () => {
-  it("infers why older bookings were cancelled", async () => {
-    const { client } = await pushedDb(7);
-    try {
-      const practice = "00000000-0000-0000-0000-000000000001";
-      const member = "00000000-0000-0000-0000-000000000002";
-      const account = "00000000-0000-0000-0000-000000000003";
-      const booking = (n: number) =>
-        `00000000-0000-0000-0000-0000000001${String(n).padStart(2, "0")}`;
-      await client.exec(`
-        INSERT INTO users (id, name, email) VALUES
-          ('owner', 'Owner', 'owner@test.local'),
-          ('client', 'Client', 'client@test.local');
-        INSERT INTO practices (id, owner_id, name, slug)
-          VALUES ('${practice}', 'owner', 'Practice', 'practice');
-        INSERT INTO practice_members (id, practice_id, user_id)
-          VALUES ('${member}', '${practice}', 'client');
-        INSERT INTO payment_accounts (id, practice_id, provider, merchant_id, secret)
-          VALUES ('${account}', '${practice}', 'yookassa', 'shop', 'secret');
-        INSERT INTO bookings
-          (id, practice_id, kind, status, member_id, starts_at, ends_at,
-           hold_until, cancelled_at, cancelled_by_id)
-        VALUES
-          ('${booking(1)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-01T10:00Z', '2030-01-01T11:00Z', '2029-12-01T10:15Z', '2029-12-01T10:16Z', NULL),
-          ('${booking(2)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-02T10:00Z', '2030-01-02T11:00Z', '2029-12-01T10:15Z', '2029-12-01T10:16Z', NULL),
-          ('${booking(3)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-03T10:00Z', '2030-01-03T11:00Z', NULL, '2029-12-01T10:00Z', 'client'),
-          ('${booking(4)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-04T10:00Z', '2030-01-04T11:00Z', NULL, '2029-12-01T10:00Z', NULL),
-          ('${booking(5)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-05T10:00Z', '2030-01-05T11:00Z', NULL, '2030-01-05T10:20Z', 'owner'),
-          ('${booking(6)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-06T10:00Z', '2030-01-06T11:00Z', NULL, '2030-01-06T10:20Z', 'owner'),
-          ('${booking(7)}', '${practice}', 'consultation', 'cancelled', '${member}',
-           '2030-01-07T10:00Z', '2030-01-07T11:00Z', NULL, '2030-01-06T10:00Z', 'owner'),
-          ('${booking(8)}', '${practice}', 'blocked', 'cancelled', NULL,
-           '2030-01-08T10:00Z', '2030-01-08T11:00Z', NULL, '2030-01-08T10:20Z', 'owner'),
-          ('${booking(9)}', '${practice}', 'consultation', 'active', '${member}',
-           '2030-01-09T10:00Z', '2030-01-09T11:00Z', NULL, NULL, NULL);
-        INSERT INTO payments
-          (practice_id, account_id, member_id, booking_id, provider, status, credits, amount)
-        VALUES
-          ('${practice}', '${account}', '${member}', '${booking(1)}', 'yookassa', 'canceled', 1, 3000);
-        INSERT INTO credit_entries (member_id, delta, reason, booking_id)
-        VALUES ('${member}', 1, 'refund', '${booking(6)}');
-      `);
-      const migration = migrations[7];
-      if (!migration) throw new Error("Missing cancel reason migration");
-      for (const statement of migration.sql) await client.exec(statement);
-
-      const { rows } = await client.query<{ id: string; reason: string }>(
-        "SELECT id, cancel_reason AS reason FROM bookings ORDER BY id",
-      );
-      expect(rows.map((r) => r.reason)).toEqual([
-        "payment_cancelled", // its payment was cancelled
-        "hold_expired", // the hold ran out
-        "client", // cancelled by the client
-        "client", // by the guest link
-        "no_show", // staff, after the start, nothing returned
-        "staff", // staff, after the start, refunded
-        "staff", // staff, before the start
-        "staff", // reopened blocked time
-        null, // still active
-      ]);
-    } finally {
-      await client.close();
-    }
   });
 });

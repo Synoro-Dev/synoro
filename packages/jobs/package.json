@@ -22,6 +22,10 @@
     "./pro-notices": {
       "types": "./dist/pro-notices.d.ts",
       "default": "./src/pro-notices.ts"
+    },
+    "./workflow-messages": {
+      "types": "./dist/workflow-messages.d.ts",
+      "default": "./src/workflow-messages.ts"
     }
   },
   "license": "MIT",

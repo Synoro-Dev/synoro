@@ -11,3 +11,4 @@ export * from "./phone";
 export * from "./profession";
 export * from "./profile";
 export * from "./video";
+export * from "./workflow";
