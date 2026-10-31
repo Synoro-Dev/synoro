@@ -22,11 +22,10 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChartNoAxesColumnIcon } from "lucide-react";
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-
+import { ProRequired } from "~/components/billing/pro-required";
+import { ErrorState } from "~/components/booking/states";
+import { formatRub } from "~/components/payment/format";
 import { orpc } from "~/orpc/react";
-import { ProRequired } from "../billing/pro-required";
-import { formatRub } from "../payment/format";
-import { ErrorState } from "./states";
 
 type Report = NonNullable<RouterOutputs["analytics"]["overview"]["report"]>;
 type Stats = Report["stats"];
@@ -325,7 +324,12 @@ export function PracticeAnalytics({
   }
 
   const { stats, previous, series, load } = report;
-  const quiet = stats.meetings + stats.intros + stats.noShows === 0;
+  // Each section shows when it has data of its own: a client can pay for
+  // future meetings or cancel in a period with no meetings held.
+  const hasMeetings = stats.meetings + stats.intros + stats.noShows > 0;
+  const hasCancellations =
+    stats.cancelledByClient + stats.cancelledByStaff + stats.noShows > 0;
+  const quiet = !hasMeetings && !hasCancellations && stats.revenue === 0;
 
   return (
     <div className="flex max-w-4xl flex-col gap-6">
@@ -362,26 +366,29 @@ export function PracticeAnalytics({
 
       {quiet ? (
         <p className="text-sm text-muted-foreground">
-          За этот период встреч не было — графики появятся, когда они будут.
+          За этот период не было ни встреч, ни оплат, ни отмен — графики
+          появятся, когда они будут.
         </p>
       ) : (
         <>
-          <Frame spacing="default" className="min-w-0">
-            <FramePanel className="flex flex-col gap-4">
-              <FrameHeader className="p-0">
-                <FrameTitle>Встречи</FrameTitle>
-                <FrameDescription>
-                  {series.unit === "week" ? "По неделям." : "По дням."}
-                </FrameDescription>
-              </FrameHeader>
-              <Series
-                series={series.points}
-                field="meetings"
-                config={meetingsConfig}
-                unit={series.unit}
-              />
-            </FramePanel>
-          </Frame>
+          {hasMeetings && (
+            <Frame spacing="default" className="min-w-0">
+              <FramePanel className="flex flex-col gap-4">
+                <FrameHeader className="p-0">
+                  <FrameTitle>Встречи</FrameTitle>
+                  <FrameDescription>
+                    {series.unit === "week" ? "По неделям." : "По дням."}
+                  </FrameDescription>
+                </FrameHeader>
+                <Series
+                  series={series.points}
+                  field="meetings"
+                  config={meetingsConfig}
+                  unit={series.unit}
+                />
+              </FramePanel>
+            </Frame>
+          )}
 
           {stats.revenue > 0 && (
             <Frame spacing="default" className="min-w-0">
@@ -403,31 +410,35 @@ export function PracticeAnalytics({
             </Frame>
           )}
 
-          <Frame spacing="default" className="min-w-0">
-            <FramePanel className="flex flex-col gap-4">
-              <FrameHeader className="p-0">
-                <FrameTitle>Когда вы работаете</FrameTitle>
-                <FrameDescription>
-                  Начало встреч по дням недели и часам, время практики (
-                  {report.timeZone}). Темнее — больше встреч.
-                </FrameDescription>
-              </FrameHeader>
-              <BusyHours load={load} />
-            </FramePanel>
-          </Frame>
+          {hasMeetings && (
+            <Frame spacing="default" className="min-w-0">
+              <FramePanel className="flex flex-col gap-4">
+                <FrameHeader className="p-0">
+                  <FrameTitle>Когда вы работаете</FrameTitle>
+                  <FrameDescription>
+                    Начало встреч по дням недели и часам, время практики (
+                    {report.timeZone}). Темнее — больше встреч.
+                  </FrameDescription>
+                </FrameHeader>
+                <BusyHours load={load} />
+              </FramePanel>
+            </Frame>
+          )}
 
-          <Frame spacing="default" className="min-w-0">
-            <FramePanel className="flex flex-col gap-4">
-              <FrameHeader className="p-0">
-                <FrameTitle>Отмены и неявки</FrameTitle>
-                <FrameDescription>
-                  Неявка — когда клиент не пришёл и занятие не вернулось на
-                  баланс.
-                </FrameDescription>
-              </FrameHeader>
-              <Cancellations stats={stats} />
-            </FramePanel>
-          </Frame>
+          {hasCancellations && (
+            <Frame spacing="default" className="min-w-0">
+              <FramePanel className="flex flex-col gap-4">
+                <FrameHeader className="p-0">
+                  <FrameTitle>Отмены и неявки</FrameTitle>
+                  <FrameDescription>
+                    Неявка — когда клиент не пришёл и занятие не вернулось на
+                    баланс.
+                  </FrameDescription>
+                </FrameHeader>
+                <Cancellations stats={stats} />
+              </FramePanel>
+            </Frame>
+          )}
         </>
       )}
     </div>
