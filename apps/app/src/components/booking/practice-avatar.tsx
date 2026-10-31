@@ -94,7 +94,8 @@ export function PracticeAvatar({
   }
 
   async function upload(file: File) {
-    if (!ACCEPT.includes(file.type)) {
+    // An empty type (dropped file without an extension) is decided by decoding.
+    if (file.type && !ACCEPT.includes(file.type)) {
       toast.error("Нужен файл JPG, PNG или WebP");
       return;
     }
