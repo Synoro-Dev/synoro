@@ -101,13 +101,16 @@ function byDayPart(slots: Slot[]) {
 
 /** «Анна Иванова» → «АИ», for the photo's place when there is none. */
 function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word.charAt(0))
-    .join("")
-    .toUpperCase();
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      // The first code point: `charAt` would split an emoji's surrogate pair.
+      .map((word) => Array.from(word)[0] ?? "")
+      .join("")
+      .toUpperCase()
+  );
 }
 
 /**
@@ -186,6 +189,9 @@ export function PublicBooking({
   /** Opens or closes the booking form for a time. */
   function choose(slot: Slot | null) {
     flushSync(() => setPicked(slot));
+    // The pressed button is gone with the swap: keep keyboard and screen
+    // reader users in the panel.
+    panel.current?.focus({ preventScroll: true });
     // On a phone the times end below the fold: start the swapped panel from
     // its top.
     const top = panel.current?.getBoundingClientRect().top ?? 0;
@@ -286,7 +292,14 @@ export function PublicBooking({
     // `_top`: the sign-in page can't open inside an iframe.
     <Link href={paths.auth.login} target="_top" />
   );
-  const checkout = picked && (guestFlow ? !!offer.data : canBook);
+  // Someone else may take the time while the form is open: once the refreshed
+  // list no longer has it, the form closes and says so.
+  const pickedFree =
+    !!picked &&
+    (byDay.get(dateKey(picked.startsAt)) ?? []).some(
+      (slot) => slot.startsAt.getTime() === picked.startsAt.getTime(),
+    );
+  const checkout = picked && pickedFree && (guestFlow ? !!offer.data : canBook);
 
   return (
     <main
@@ -366,7 +379,8 @@ export function PublicBooking({
 
         <div
           ref={panel}
-          className="scroll-mt-4 overflow-hidden rounded-2xl border bg-card shadow-xs"
+          tabIndex={-1}
+          className="scroll-mt-4 overflow-hidden rounded-2xl border bg-card shadow-xs outline-none"
         >
           {booked ? (
             <section className="flex flex-col items-center gap-6 px-6 py-14 text-center">
@@ -483,7 +497,10 @@ export function PublicBooking({
                     locale={ru}
                     weekStartsOn={1}
                     month={month}
-                    onMonthChange={setMonth}
+                    onMonthChange={(next) => {
+                      setMonth(next);
+                      setPicked(null);
+                    }}
                     startMonth={keyToDate(today)}
                     selected={selectedDay ? keyToDate(selectedDay) : undefined}
                     onSelect={(date) => {
@@ -519,6 +536,15 @@ export function PublicBooking({
                       })
                     : "Свободное время"}
                 </h2>
+
+                {picked && !pickedFree && (
+                  <Alert variant="warning">
+                    <AlertTitle>
+                      Время {formatTime(picked.startsAt)} уже заняли
+                    </AlertTitle>
+                    <AlertDescription>Выберите другое.</AlertDescription>
+                  </Alert>
+                )}
 
                 {isStaff ? (
                   <Alert variant="info">
@@ -599,11 +625,12 @@ export function PublicBooking({
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={() => {
                         setMonth(
                           new Date(month.getFullYear(), month.getMonth() + 1),
-                        )
-                      }
+                        );
+                        setPicked(null);
+                      }}
                     >
                       Следующий месяц
                     </Button>
