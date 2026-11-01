@@ -25,7 +25,7 @@ import {
   professionTerms,
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeftIcon, LockIcon } from "lucide-react";
+import { LockIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -34,7 +34,6 @@ import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
 import { BookingQuestionFields } from "./booking-question-fields";
-import { formatDateTime } from "./time";
 
 interface Offer {
   provider: string | null;
@@ -55,21 +54,20 @@ function FieldError({ id, message }: { id: string; message?: string }) {
  * The visitor's side of booking without an account: who they are (name,
  * phone and email are required), which package to pay for, and off to the
  * provider's payment page. The time is held for 15 minutes meanwhile; the
- * visitor comes back to `/b/<token>`, where the payment is checked.
+ * visitor comes back to `/b/<token>`, where the payment is checked. The
+ * chosen time itself is shown beside the form (`BookingTicket`).
  */
 export function GuestBookingForm({
   practice,
   startsAt,
   offer,
   questions,
-  onBack,
 }: {
   practice: { id: string; name: string; profession: Profession };
   startsAt: Date;
   offer: Offer;
   /** The practice's questionnaire («Про»); empty when none is asked. */
   questions: BookingQuestion[];
-  onBack: () => void;
 }) {
   const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
@@ -127,21 +125,7 @@ export function GuestBookingForm({
       className="flex flex-col gap-4"
       noValidate
     >
-      <div className="flex flex-col gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          className="-ml-2 self-start"
-          onClick={onBack}
-        >
-          <ArrowLeftIcon />
-          Другое время
-        </Button>
-        <p className="text-sm font-semibold first-letter:uppercase">
-          {formatDateTime(startsAt)}
-        </p>
-      </div>
+      <h2 className="text-base font-semibold">Ваши данные</h2>
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="guest-name">Имя</Label>
@@ -212,10 +196,13 @@ export function GuestBookingForm({
         />
       )}
 
+      <h3 id="guest-package" className="pt-2 text-base font-semibold">
+        Что оплатить
+      </h3>
       <RadioGroup
         value={selected?.id ?? ""}
         onValueChange={(value) => setPackageId(String(value))}
-        aria-label="Что оплатить"
+        aria-labelledby="guest-package"
         className="gap-2"
       >
         {deals.map((deal) => (

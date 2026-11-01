@@ -35,6 +35,16 @@ export function viewerTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+/** The viewer's zone in words: «Москва» for Europe/Moscow. */
+export function viewerTimeZoneName() {
+  const part = new Intl.DateTimeFormat("ru-RU", {
+    timeZoneName: "shortGeneric",
+  })
+    .formatToParts(new Date())
+    .find((p) => p.type === "timeZoneName");
+  return part?.value ?? viewerTimeZone();
+}
+
 export function formatTime(at: Date) {
   return at.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
 }
