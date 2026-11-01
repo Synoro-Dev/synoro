@@ -37,3 +37,7 @@ process.env.MAX_BOT_TOKEN = "test-max-token";
 process.env.MAX_BOT_USERNAME = "synoro_max_bot";
 process.env.MAX_WEBHOOK_SECRET = "test-max-secret-0123456";
 process.env.MAX_API_URL = "https://max.test";
+// The webhook script builds its address from APP_URL, and the sandbox has
+// no webhooks: a local .env must not change either.
+process.env.APP_URL = "http://localhost:3000";
+process.env.TOCHKA_SANDBOX = "false";

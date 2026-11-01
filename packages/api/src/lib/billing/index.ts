@@ -6,9 +6,14 @@ import {
   eq,
   type PaymentStatus,
   Subscription,
+  SubscriptionAutorenewal,
   SubscriptionPayment,
   sql,
 } from "@synoro/db";
+import {
+  cancelAutorenewal,
+  settleSubscriptionPayment,
+} from "@synoro/jobs/billing";
 import { PRO_PRICES, TRIAL_DAYS } from "@synoro/validators";
 
 import { ProviderError } from "../payments/types";
@@ -16,6 +21,7 @@ import {
   createTochkaPayment,
   fetchTochkaPayment,
   isSandboxPayment,
+  refundTochkaPayment,
   sandboxExternalId,
   tochkaAvailable,
   tochkaConfig,
@@ -23,7 +29,7 @@ import {
   tochkaWebhookOperationId,
 } from "./tochka";
 
-export { isSandboxPayment, tochkaSandbox };
+export { cancelAutorenewal, isSandboxPayment, tochkaSandbox };
 
 type SubscriptionRow = typeof Subscription.$inferSelect;
 type SubscriptionPaymentRow = typeof SubscriptionPayment.$inferSelect;
@@ -70,6 +76,16 @@ export function findSubscription(db: Database, userId: string) {
   });
 }
 
+/** The user's auto-renewal, while it is on. */
+export function findActiveAutorenewal(db: Database, userId: string) {
+  return db.query.SubscriptionAutorenewal.findFirst({
+    where: and(
+      eq(SubscriptionAutorenewal.userId, userId),
+      eq(SubscriptionAutorenewal.status, "active"),
+    ),
+  });
+}
+
 /** Whether the user (a practice owner) is on «Про» right now. */
 export async function hasPro(db: Database, userId: string) {
   return planOf(await findSubscription(db, userId)).pro;
@@ -113,10 +129,18 @@ export function billingAvailable() {
  * Create a pending payment for a month or a year of «Про» and open a Точка
  * payment link for it. Throws `ProviderError` when the bank refuses; the
  * row is then dropped, since nothing was charged.
+ *
+ * With `autorenew` (the specialist ticked the consent box) the link is a
+ * Точка subscription: once this payment is paid, auto-renewal starts and the
+ * `billing-renewals` job charges the card for each next period.
  */
 export async function startSubscriptionPayment(
   db: Database,
-  input: { user: { id: string; email: string }; period: BillingPeriod },
+  input: {
+    user: { id: string; email: string };
+    period: BillingPeriod;
+    autorenew?: boolean;
+  },
 ) {
   const price = PRO_PRICES[input.period];
   await ensureSubscription(db, input.user.id);
@@ -126,6 +150,7 @@ export async function startSubscriptionPayment(
       userId: input.user.id,
       period: input.period,
       amount: price.amount,
+      autorenewConsentAt: input.autorenew ? new Date() : null,
     })
     .returning();
   if (!payment) throw new Error("Failed to insert subscription payment");
@@ -147,10 +172,13 @@ export async function startSubscriptionPayment(
     const remote = await createTochkaPayment({
       orderId: payment.id,
       amount: price.amount,
-      purpose: `Оплата тарифа «Про» в Synoro на ${term}`,
+      purpose: input.autorenew
+        ? `Тариф «Про» Synoro на ${term}, автопродление`
+        : `Оплата тарифа «Про» в Synoro на ${term}`,
       itemName: `Тариф «Про» Synoro, ${term}`,
       email: input.user.email,
       returnUrl: billingReturnUrl(payment.id),
+      autorenew: input.autorenew,
     });
     // The sandbox answers every request with the same operation and a link
     // nobody can pay: keep only the fact that the request was accepted, and
@@ -175,58 +203,135 @@ export async function startSubscriptionPayment(
   }
 }
 
+/** Payments that never reached a bank (demo stand, Точка's sandbox). */
+const BANKLESS_ID = /^(demo|sandbox)-/;
+
 /**
- * Move a pending «Про» payment to its final status. Success marks it paid
- * and extends `subscriptions.paid_until` by its period in ONE statement:
- * the paid period starts when the current one ends (trial or an earlier
- * payment), or now if «Про» has lapsed. The rows are locked first, so racing
- * webhooks and status checks — or two payments of one user — never add a
- * period twice or lose one. Settled payments never change.
+ * Give a paid «Про» payment back, whole: Точка returns the money, then the
+ * payment is marked `refunded_at` and `subscriptions.paid_until` drops to the
+ * end of the user's latest payment that is still in force (null if none).
+ * The payment's and the subscription's rows stay locked from the check to the
+ * commit, bank call included, so a webhook settling another payment waits
+ * instead of moving `paid_until` under the refund, and two refunds of one
+ * payment can't both reach the bank.
+ * Only the payment that ends the paid period can go back — otherwise taking
+ * its months off would leave a hole before the later ones — so refund the
+ * newest first. Throws `ProviderError` when the bank refuses; nothing changes
+ * then. A refund also switches the user's auto-renewal off (in the same
+ * transaction): it is a sign they don't want to be charged.
+ *
+ * Точка refunds payments made through a subscription (the one that turned
+ * auto-renewal on and every automatic charge) only in the internet bank, so
+ * for those `recorded` is required: the money has gone back there already,
+ * and only the paid period is taken off here (`bank_only` without it).
  */
-async function settleSubscriptionPayment(
+export async function refundSubscriptionPayment(
   db: Database,
   paymentId: string,
-  status: PaymentStatus,
+  options: { recorded?: boolean } = {},
 ) {
-  if (status === "canceled") {
-    await db.execute(sql`
-      update subscription_payments
-      set status = 'canceled', confirmation_url = null, updated_at = now()
-      where id = ${paymentId} and status = 'pending'
-    `);
-  } else if (status === "succeeded") {
-    await db.execute(sql`
-      with target as (
-        select sp.id, sp.user_id, sp.period,
-          greatest(now(), s.trial_ends_at, coalesce(s.paid_until, now()))
-            as period_start
-        from subscription_payments sp
-        join subscriptions s on s.user_id = sp.user_id
-        where sp.id = ${paymentId} and sp.status = 'pending'
-        for update of sp, s
-      ), paid as (
-        update subscription_payments sp
-        set status = 'succeeded', paid_at = now(), confirmation_url = null,
-            period_start = target.period_start,
-            period_end = target.period_start + case target.period
-              when 'year' then interval '1 year' else interval '1 month' end,
-            updated_at = now()
-        from target
-        where sp.id = target.id
-        returning sp.user_id, sp.period_end
-      )
-      update subscriptions s
-      set paid_until = paid.period_end, updated_at = now()
-      from paid
-      where s.user_id = paid.user_id
-    `);
-  }
+  // Set once the bank has paid the money back; anything that goes wrong after
+  // it (the writes, the commit) leaves a refund nobody recorded.
+  let bankRefunded: { externalId: string } | undefined;
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const [found] = await tx
+        .select({
+          payment: SubscriptionPayment,
+          paidUntil: Subscription.paidUntil,
+        })
+        .from(SubscriptionPayment)
+        .innerJoin(
+          Subscription,
+          eq(Subscription.userId, SubscriptionPayment.userId),
+        )
+        .where(eq(SubscriptionPayment.id, paymentId))
+        .for("update", { of: [SubscriptionPayment, Subscription] });
+      if (!found) return { result: "not_found" as const };
 
-  const payment = await db.query.SubscriptionPayment.findFirst({
-    where: eq(SubscriptionPayment.id, paymentId),
-  });
-  if (!payment) throw new Error(`Subscription payment ${paymentId} vanished`);
-  return payment;
+      const { payment, paidUntil } = found;
+      const { externalId } = payment;
+      const viaSubscription =
+        !!payment.autorenewConsentAt || !!payment.chargedFor;
+      if (
+        payment.status !== "succeeded" ||
+        payment.refundedAt ||
+        (externalId && BANKLESS_ID.test(externalId)) ||
+        (!options.recorded &&
+          !viaSubscription &&
+          (!externalId || !tochkaAvailable()))
+      ) {
+        return { result: "not_refundable" as const };
+      }
+      if (viaSubscription && !options.recorded) {
+        return { result: "bank_only" as const };
+      }
+      if (
+        !payment.periodEnd ||
+        payment.periodEnd.getTime() !== paidUntil?.getTime()
+      ) {
+        return { result: "not_latest" as const };
+      }
+
+      if (!options.recorded && externalId) {
+        await refundTochkaPayment(externalId, payment.amount);
+        bankRefunded = { externalId };
+      }
+
+      await tx
+        .update(SubscriptionPayment)
+        .set({ refundedAt: sql`now()` })
+        .where(eq(SubscriptionPayment.id, paymentId));
+      await tx.execute(sql`
+        update subscriptions s
+        set paid_until = (
+              select max(sp.period_end) from subscription_payments sp
+              where sp.user_id = s.user_id and sp.status = 'succeeded'
+                and sp.refunded_at is null
+            ),
+            updated_at = now()
+        where s.user_id = ${payment.userId}
+      `);
+      // A refund is a sign the specialist doesn't want to be charged.
+      await tx
+        .update(SubscriptionAutorenewal)
+        .set({
+          status: "canceled",
+          canceledAt: new Date(),
+          cancelReason: "refund",
+        })
+        .where(
+          and(
+            eq(SubscriptionAutorenewal.userId, payment.userId),
+            eq(SubscriptionAutorenewal.status, "active"),
+          ),
+        );
+
+      const settled = await tx.query.SubscriptionPayment.findFirst({
+        where: eq(SubscriptionPayment.id, paymentId),
+      });
+      if (!settled)
+        throw new Error(`Subscription payment ${paymentId} vanished`);
+      return { result: "refunded" as const, payment: settled };
+    });
+    if (outcome.result === "refunded") {
+      logger.info("billing.refunded", {
+        paymentId,
+        amount: outcome.payment.amount,
+      });
+    }
+    return outcome;
+  } catch (error) {
+    if (bankRefunded) {
+      // The money is back with the customer and the records rolled back: a
+      // human has to record it.
+      logger.error("billing.refund_unrecorded", error, {
+        paymentId,
+        externalId: bankRefunded.externalId,
+      });
+    }
+    throw error;
+  }
 }
 
 /**

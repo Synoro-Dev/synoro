@@ -28,26 +28,21 @@ const audience = [
 
 export function Audience() {
   return (
-    <Section containerClassName="py-12">
-      <p className="text-muted-foreground px-4 text-center text-sm">
+    <Section containerClassName="flex flex-col items-center gap-6 px-4 py-12 sm:px-10">
+      <h2 className="text-muted-foreground text-center text-sm">
         Для всех, кто работает с людьми по записи
-      </p>
-      <div className="mt-8 flex overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_15%,black_85%,transparent)]">
-        {/* Two copies so the -50% translate loops seamlessly. */}
-        <div className="animate-marquee flex shrink-0 gap-10 pr-10 hover:[animation-play-state:paused]">
-          {[...audience, ...audience].map((item, index) => (
-            <span
-              // biome-ignore lint/suspicious/noArrayIndexKey: duplicated list
-              key={index}
-              aria-hidden={index >= audience.length}
-              className="flex items-center gap-2 text-lg font-medium whitespace-nowrap text-zinc-400"
-            >
-              <item.icon className="size-5" />
-              {item.label}
-            </span>
-          ))}
-        </div>
-      </div>
+      </h2>
+      <ul className="flex max-w-4xl flex-wrap justify-center gap-2">
+        {audience.map((item) => (
+          <li
+            key={item.label}
+            className="text-foreground/80 flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[15px] whitespace-nowrap"
+          >
+            <item.icon className="text-muted-foreground size-4" />
+            {item.label}
+          </li>
+        ))}
+      </ul>
     </Section>
   );
 }

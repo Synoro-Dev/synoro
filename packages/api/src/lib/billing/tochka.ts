@@ -89,9 +89,11 @@ export interface TochkaPayment {
 }
 
 async function call<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
+  /** A 2xx without a JSON body is an answer too (`{}`), not a refusal. */
+  allowEmptyBody = false,
 ): Promise<T> {
   const { url, token } = tochkaConfig();
   let response: Response;
@@ -119,7 +121,7 @@ async function call<T>(
   if (response.status === 401 || response.status === 403) {
     throw new ProviderError("credentials", "Точка Банк не принял JWT-ключ");
   }
-  if (!response.ok || !data) {
+  if (!response.ok || (!data && !allowEmptyBody)) {
     throw new ProviderError(
       "rejected",
       data?.Errors?.[0]?.message ??
@@ -127,7 +129,7 @@ async function call<T>(
         `Точка Банк: ошибка ${response.status}`,
     );
   }
-  return data;
+  return data ?? ({} as T);
 }
 
 function toPayment(operation: TochkaOperation): TochkaPayment {
@@ -144,6 +146,14 @@ const rubles = (kopecks: number) => Math.round(kopecks) / 100;
 /**
  * Open a payment link through `payments_with_receipt`: Точка's cash
  * register mails the 54-ФЗ receipt to `email`. Requires TOCHKA_TAX_SYSTEM.
+ *
+ * With `autorenew` the link is a subscription without a schedule
+ * (`subscriptions_with_receipt`, `recurring: true`): the first payment binds
+ * the card, and the `billing-renewals` job charges it later for each period
+ * (`@synoro/jobs/billing-renewal`). Such a link takes cards only and lives
+ * seven days (168 h), the buyer then has an hour to pay; it has no
+ * `paymentMode` or `ttl`.
+ * @see https://developers.tochka.com/docs/tochka-api/opisanie-metodov/podpiski-rekurrentnye-platezhi/rabota-s-podpiskami-bez-grafika-spisania
  */
 export async function createTochkaPayment(request: {
   /** Our payment id, Точка's `paymentLinkId` (unique per link). */
@@ -154,6 +164,8 @@ export async function createTochkaPayment(request: {
   itemName: string;
   email: string;
   returnUrl: string;
+  /** Open a schedule-less subscription instead of a one-off payment. */
+  autorenew?: boolean;
 }): Promise<TochkaPayment> {
   const { customerCode, merchantId, taxSystem } = tochkaConfig();
   if (!taxSystem) {
@@ -167,16 +179,22 @@ export async function createTochkaPayment(request: {
     customerCode,
     ...(merchantId && { merchantId }),
     amount,
-    purpose: request.purpose.slice(0, 210),
     redirectUrl: request.returnUrl,
     failRedirectUrl: request.returnUrl,
-    paymentMode: ["card", "sbp"],
-    ttl: LINK_TTL_MINUTES,
     paymentLinkId: request.orderId,
+    ...(request.autorenew
+      ? { purpose: request.purpose.slice(0, 140), recurring: true }
+      : {
+          purpose: request.purpose.slice(0, 210),
+          paymentMode: ["card", "sbp"],
+          ttl: LINK_TTL_MINUTES,
+        }),
   };
   const { Data } = await call<{ Data: TochkaOperation }>(
     "POST",
-    "/acquiring/v1.0/payments_with_receipt",
+    request.autorenew
+      ? "/acquiring/v1.0/subscriptions_with_receipt"
+      : "/acquiring/v1.0/payments_with_receipt",
     {
       Data: {
         ...base,
@@ -211,6 +229,67 @@ export async function fetchTochkaPayment(
     throw new ProviderError("rejected", `Операция ${operationId} не найдена`);
   }
   return toPayment(operation);
+}
+
+/**
+ * Send the money of an `APPROVED` operation back to the customer's card or
+ * account (`POST …/payments/{operationId}/refund`). `amount` is kopecks; we
+ * only ever refund a payment whole. A 2xx is the bank's acceptance; the
+ * collection documents no response body, so only an explicit
+ * `isRefund: false` is read as a refusal.
+ */
+export async function refundTochkaPayment(
+  operationId: string,
+  amount: number,
+): Promise<void> {
+  const { Data } = await call<{ Data?: { isRefund?: boolean } }>(
+    "POST",
+    `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}/refund`,
+    { Data: { amount: rubles(amount) } },
+    true,
+  );
+  if (Data?.isRefund === false) {
+    throw new ProviderError("rejected", "Точка Банк не вернул платёж");
+  }
+}
+
+/** The only notification billing listens to: `acquiringInternetPayment`. */
+const WEBHOOK_TYPE = "acquiringInternetPayment";
+
+/**
+ * Manage the platform key's webhook (`/webhook/v1.0/{client_id}`): register
+ * `url` for payments, read what is registered, drop it, or ask Точка to send a
+ * test notification there. `clientId` is the one saved next to the JWT key.
+ */
+export async function manageTochkaWebhook(
+  action: "create" | "show" | "delete" | "test",
+  clientId: string,
+  url: string,
+) {
+  const path = `/webhook/v1.0/${encodeURIComponent(clientId)}`;
+  const registration = { webhooksList: [WEBHOOK_TYPE], url };
+  switch (action) {
+    case "create":
+      return call<unknown>("PUT", path, registration);
+    case "show":
+      return call<unknown>("GET", path);
+    case "delete": {
+      const answer = await call<{ Data?: { result?: boolean } }>(
+        "DELETE",
+        path,
+        registration,
+      );
+      // The contract allows a 200 with `Data.result: false`: not deleted.
+      if (answer.Data?.result === false) {
+        throw new ProviderError("rejected", "Точка Банк не удалил вебхук");
+      }
+      return answer;
+    }
+    case "test":
+      return call<unknown>("POST", `${path}/test_send`, {
+        webhookType: WEBHOOK_TYPE,
+      });
+  }
 }
 
 /**

@@ -149,6 +149,11 @@ and run `tsc` by hand, build them first.
   Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
   features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
   `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
+  Auto-renewal is opt-in (checkbox → Точка subscription `recurring: true`,
+  `subscription_autorenewals`): the `billing-renewals` cron in
+  `@synoro/jobs/billing-renewal` charges it before `paid_until`; shared
+  settle code lives in `@synoro/jobs/billing`. Subscription payments are
+  refunded in the bank's cabinet, then `billing.refund { recorded: true }`.
   `TOCHKA_SANDBOX=true` runs the flow against Точка's official sandbox (built-in
   test credentials; its links can't be paid, so the billing page confirms with
   `billing.sandboxPay`); never on a deployment with real customers.

@@ -2,6 +2,7 @@ import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
 import OtpSignInEmail from "./emails/otp-sign-in";
 import ProNoticeEmail from "./emails/pro-notice";
+import RenewalNoticeEmail from "./emails/renewal-notice";
 import ResetPasswordEmail from "./emails/reset-password";
 import StaffBookingEmail from "./emails/staff-booking";
 import WelcomeEmail from "./emails/welcome";
@@ -13,6 +14,7 @@ const templates = {
   "booking-notice": BookingNoticeEmail,
   "otp-sign-in": OtpSignInEmail,
   "pro-notice": ProNoticeEmail,
+  "renewal-notice": RenewalNoticeEmail,
   "reset-password": ResetPasswordEmail,
   "staff-booking": StaffBookingEmail,
   welcome: WelcomeEmail,

@@ -26,8 +26,7 @@ export const legal = {
     fullName: "Индивидуальный предприниматель Карпычев Максим Александрович",
     inn: "504408371838",
     ogrnip: "318500700048744",
-    address:
-      "141554, Московская обл., г. о. Солнечногорск, д. Кривцово, д. 14, кв. 35",
+    address: "141554, Московская обл., г. о. Солнечногорск, д. Кривцово, д. 14",
     email: "info@synoro.ru",
   } satisfies Operator as Operator,
   /** Canonical origin of the documents (the landing). */
