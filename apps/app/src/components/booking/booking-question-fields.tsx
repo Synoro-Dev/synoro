@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Button,
   FieldLabel,
   Input,
   Label,
@@ -75,6 +76,17 @@ export function BookingQuestionFields({
                     </FieldLabel>
                   ))}
                 </RadioGroup>
+                {!question.required && value !== "" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="-ml-2 self-start text-muted-foreground"
+                    onClick={() => set(question.id, "")}
+                  >
+                    Сбросить выбор
+                  </Button>
+                )}
               </>
             ) : (
               <>

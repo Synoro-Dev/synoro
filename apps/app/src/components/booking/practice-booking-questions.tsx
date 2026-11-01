@@ -128,7 +128,6 @@ function Editor({
       toast.success(
         questions.length > 0 ? "Анкета сохранена" : "Анкета выключена",
       );
-      setDrafts(questions.map(toDraft));
       await queryClient.invalidateQueries({ queryKey: orpc.question.key() });
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
@@ -177,7 +176,17 @@ function Editor({
       return;
     }
     setError(undefined);
-    save.mutate({ practiceId, questions: parsed.data });
+    const sent = drafts;
+    save.mutate(
+      { practiceId, questions: parsed.data },
+      {
+        // Show what was stored, unless the owner kept editing meanwhile.
+        onSuccess: ({ questions }) =>
+          setDrafts((current) =>
+            current === sent ? questions.map(toDraft) : current,
+          ),
+      },
+    );
   }
 
   return (

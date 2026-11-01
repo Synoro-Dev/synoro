@@ -204,7 +204,8 @@ export function BookingDialog({
 
   return (
     <Dialog open={booking !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/* Long questionnaire answers can outgrow the screen: scroll. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         {booking && (
           <>
             <DialogHeader>

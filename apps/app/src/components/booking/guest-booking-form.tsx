@@ -24,7 +24,7 @@ import {
   type Profession,
   professionTerms,
 } from "@synoro/validators";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, LockIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -71,6 +71,7 @@ export function GuestBookingForm({
   questions: BookingQuestion[];
   onBack: () => void;
 }) {
+  const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
   const deals = packageDeals(offer.packages);
   const [packageId, setPackageId] = useState(deals[0]?.id ?? "");
@@ -89,12 +90,17 @@ export function GuestBookingForm({
     // Keep the button busy until the browser leaves for the payment page.
     // The booking page may sit in an iframe; the payment page can't.
     onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
-    onError: (error) => {
+    onError: async (error) => {
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",
       );
       if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
+        // The questionnaire may have changed meanwhile: fetch the questions
+        // asked now (`questions` comes from `practice.bySlug`).
         setAnswerErrors(error.data.errors);
+        await queryClient.invalidateQueries({
+          queryKey: orpc.practice.key(),
+        });
       }
     },
   });

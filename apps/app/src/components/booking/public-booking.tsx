@@ -597,6 +597,12 @@ export function PublicBooking({
         credits={credits}
         terms={terms}
         answers={answers}
+        onAnswersInvalid={async (errors) => {
+          // Back to the questionnaire, with the questions asked now.
+          setSeriesFrom(null);
+          setAnswerErrors(errors);
+          await refresh();
+        }}
         onClose={() => setSeriesFrom(null)}
         onBooked={async (dates) => {
           setSeriesFrom(null);

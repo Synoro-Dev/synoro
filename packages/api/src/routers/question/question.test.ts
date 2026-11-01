@@ -122,6 +122,17 @@ describe("booking questionnaire", () => {
 
     const error = await save(session, practiceId, [REQUEST]).catch((e) => e);
     expect(error).toMatchObject({ code: "FORBIDDEN" });
+
+    // Nor does practice.get hand it to members.
+    const { owner, practiceId: hidden } = await newPractice("q-hidden");
+    await save(owner, hidden, [REQUEST]);
+    const { session: client } = await newClient(hidden, 0);
+    const practice = await call(
+      practiceRouter.get,
+      { practiceId: hidden },
+      { context: api.context(client) },
+    );
+    expect(practice).not.toHaveProperty("bookingQuestions");
   });
 
   it("rejects a choice question without two distinct options", async () => {

@@ -8,6 +8,17 @@ DO $$ BEGIN
  -- be reviewed under the normal cancellation/refund policy before migrating.
  -- Hold the lock through ALTER so no writer can introduce a new overlap.
  LOCK TABLE "bookings" IN SHARE ROW EXCLUSIVE MODE;
+ -- Databases that kept it: nothing to do. Checked by name, table and kind
+ -- rather than by swallowing the error, so an unrelated object named
+ -- bookings_no_overlap fails loudly instead of leaving no constraint.
+ IF EXISTS (
+  SELECT 1 FROM pg_constraint
+  WHERE conname = 'bookings_no_overlap'
+   AND conrelid = '"bookings"'::regclass
+   AND contype = 'x'
+ ) THEN
+  RETURN;
+ END IF;
  IF EXISTS (
   SELECT 1 FROM "bookings" a JOIN "bookings" b
    ON a."practice_id" = b."practice_id" AND a."id" < b."id"
@@ -20,5 +31,4 @@ DO $$ BEGIN
    HINT = 'Review conflicting bookings and cancel/refund through the normal booking flow, then rerun the migration. No bookings were changed.';
  END IF;
  ALTER TABLE "bookings" ADD CONSTRAINT "bookings_no_overlap" EXCLUDE USING gist ("practice_id" WITH =, tstzrange("starts_at", "ends_at") WITH &&) WHERE ("status" = 'active');
-EXCEPTION WHEN duplicate_object OR duplicate_table THEN null;
 END $$;

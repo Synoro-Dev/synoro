@@ -35,6 +35,7 @@ export function SeriesDialog({
   credits,
   terms,
   answers,
+  onAnswersInvalid,
   onClose,
   onBooked,
 }: {
@@ -45,6 +46,8 @@ export function SeriesDialog({
   terms: ProfessionTerms;
   /** The questionnaire, already filled in on the booking page. */
   answers: Record<string, string>;
+  /** The server rejected `answers`: an error per question id. */
+  onAnswersInvalid: (errors: Record<string, string>) => void;
   onClose: () => void;
   onBooked: (dates: Date[]) => void;
 }) {
@@ -61,6 +64,7 @@ export function SeriesDialog({
             credits={credits}
             terms={terms}
             answers={answers}
+            onAnswersInvalid={onAnswersInvalid}
             onBooked={onBooked}
             onCancel={onClose}
           />
@@ -76,6 +80,7 @@ function SeriesForm({
   credits,
   terms,
   answers,
+  onAnswersInvalid,
   onBooked,
   onCancel,
 }: {
@@ -84,6 +89,7 @@ function SeriesForm({
   credits: number;
   terms: ProfessionTerms;
   answers: Record<string, string>;
+  onAnswersInvalid: (errors: Record<string, string>) => void;
   onBooked: (dates: Date[]) => void;
   onCancel: () => void;
 }) {
@@ -100,6 +106,10 @@ function SeriesForm({
     onSuccess: (result) => onBooked(result.dates),
     onError: async (error) => {
       toast.error(error.message || "Не удалось записаться");
+      if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
+        onAnswersInvalid(error.data.errors);
+        return;
+      }
       if (isDefinedError(error) && error.code === "SLOT_UNAVAILABLE") {
         await preview.refetch();
       }
