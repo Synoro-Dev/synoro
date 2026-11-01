@@ -208,13 +208,17 @@ const BANKLESS_ID = /^(demo|sandbox)-/;
 
 /**
  * Give a paid «Про» payment back, whole: Точка returns the money, then the
- * payment is marked `refunded_at` and its period is taken off
- * `subscriptions.paid_until` in ONE statement (rows locked, as in settling).
+ * payment is marked `refunded_at` and `subscriptions.paid_until` drops to the
+ * end of the user's latest payment that is still in force (null if none).
+ * The payment's and the subscription's rows stay locked from the check to the
+ * commit, bank call included, so a webhook settling another payment waits
+ * instead of moving `paid_until` under the refund, and two refunds of one
+ * payment can't both reach the bank.
  * Only the payment that ends the paid period can go back — otherwise taking
  * its months off would leave a hole before the later ones — so refund the
  * newest first. Throws `ProviderError` when the bank refuses; nothing changes
- * then. A refund also switches the user's auto-renewal off (the same
- * statement): it is a sign they don't want to be charged.
+ * then. A refund also switches the user's auto-renewal off (in the same
+ * transaction): it is a sign they don't want to be charged.
  *
  * Точка refunds payments made through a subscription (the one that turned
  * auto-renewal on and every automatic charge) only in the internet bank, so
@@ -226,89 +230,95 @@ export async function refundSubscriptionPayment(
   paymentId: string,
   options: { recorded?: boolean } = {},
 ) {
-  const [found] = await db
-    .select({
-      payment: SubscriptionPayment,
-      paidUntil: Subscription.paidUntil,
-    })
-    .from(SubscriptionPayment)
-    .innerJoin(
-      Subscription,
-      eq(Subscription.userId, SubscriptionPayment.userId),
-    )
-    .where(eq(SubscriptionPayment.id, paymentId));
-  if (!found) return { result: "not_found" as const };
+  return db.transaction(async (tx) => {
+    const [found] = await tx
+      .select({
+        payment: SubscriptionPayment,
+        paidUntil: Subscription.paidUntil,
+      })
+      .from(SubscriptionPayment)
+      .innerJoin(
+        Subscription,
+        eq(Subscription.userId, SubscriptionPayment.userId),
+      )
+      .where(eq(SubscriptionPayment.id, paymentId))
+      .for("update", { of: [SubscriptionPayment, Subscription] });
+    if (!found) return { result: "not_found" as const };
 
-  const { payment, paidUntil } = found;
-  const { externalId } = payment;
-  const viaSubscription = !!payment.autorenewConsentAt || !!payment.chargedFor;
-  if (
-    payment.status !== "succeeded" ||
-    payment.refundedAt ||
-    (externalId && BANKLESS_ID.test(externalId)) ||
-    (!options.recorded &&
-      !viaSubscription &&
-      (!externalId || !tochkaAvailable()))
-  ) {
-    return { result: "not_refundable" as const };
-  }
-  if (viaSubscription && !options.recorded) {
-    return { result: "bank_only" as const };
-  }
-  if (
-    !payment.periodEnd ||
-    payment.periodEnd.getTime() !== paidUntil?.getTime()
-  ) {
-    return { result: "not_latest" as const };
-  }
+    const { payment, paidUntil } = found;
+    const { externalId } = payment;
+    const viaSubscription =
+      !!payment.autorenewConsentAt || !!payment.chargedFor;
+    if (
+      payment.status !== "succeeded" ||
+      payment.refundedAt ||
+      (externalId && BANKLESS_ID.test(externalId)) ||
+      (!options.recorded &&
+        !viaSubscription &&
+        (!externalId || !tochkaAvailable()))
+    ) {
+      return { result: "not_refundable" as const };
+    }
+    if (viaSubscription && !options.recorded) {
+      return { result: "bank_only" as const };
+    }
+    if (
+      !payment.periodEnd ||
+      payment.periodEnd.getTime() !== paidUntil?.getTime()
+    ) {
+      return { result: "not_latest" as const };
+    }
 
-  if (!options.recorded && externalId) {
-    await refundTochkaPayment(externalId, payment.amount);
-  }
+    if (!options.recorded && externalId) {
+      await refundTochkaPayment(externalId, payment.amount);
+    }
 
-  await db.execute(sql`
-    with target as (
-      select sp.id, sp.user_id, sp.period_start
-      from subscription_payments sp
-      join subscriptions s on s.user_id = sp.user_id
-      where sp.id = ${paymentId} and sp.status = 'succeeded'
-        and sp.refunded_at is null and sp.period_end = s.paid_until
-      for update of sp, s
-    ), refunded as (
-      update subscription_payments sp
-      set refunded_at = now(), updated_at = now()
-      from target
-      where sp.id = target.id
-      returning sp.user_id, target.period_start
-    ), canceled as (
-      update subscription_autorenewals r
-      set status = 'canceled', canceled_at = now(), cancel_reason = 'refund',
-          updated_at = now()
-      from refunded
-      where r.user_id = refunded.user_id and r.status = 'active'
-    )
-    update subscriptions s
-    set paid_until = case
-          when refunded.period_start <= s.trial_ends_at then null
-          else refunded.period_start end,
-        updated_at = now()
-    from refunded
-    where s.user_id = refunded.user_id
-  `);
+    try {
+      await tx
+        .update(SubscriptionPayment)
+        .set({ refundedAt: sql`now()` })
+        .where(eq(SubscriptionPayment.id, paymentId));
+      await tx.execute(sql`
+        update subscriptions s
+        set paid_until = (
+              select max(sp.period_end) from subscription_payments sp
+              where sp.user_id = s.user_id and sp.status = 'succeeded'
+                and sp.refunded_at is null
+            ),
+            updated_at = now()
+        where s.user_id = ${payment.userId}
+      `);
+      // A refund is a sign the specialist doesn't want to be charged.
+      await tx
+        .update(SubscriptionAutorenewal)
+        .set({
+          status: "canceled",
+          canceledAt: new Date(),
+          cancelReason: "refund",
+        })
+        .where(
+          and(
+            eq(SubscriptionAutorenewal.userId, payment.userId),
+            eq(SubscriptionAutorenewal.status, "active"),
+          ),
+        );
+    } catch (error) {
+      // The money has already gone back to the customer and this rolls back:
+      // a human has to record it.
+      logger.error("billing.refund_unrecorded", error, {
+        paymentId,
+        externalId,
+      });
+      throw error;
+    }
 
-  const settled = await db.query.SubscriptionPayment.findFirst({
-    where: eq(SubscriptionPayment.id, paymentId),
-  });
-  if (!settled?.refundedAt) {
-    // The money has already gone back to the customer: this needs a human.
-    logger.error("billing.refund_unrecorded", undefined, {
-      paymentId,
-      externalId,
+    logger.info("billing.refunded", { paymentId, amount: payment.amount });
+    const settled = await tx.query.SubscriptionPayment.findFirst({
+      where: eq(SubscriptionPayment.id, paymentId),
     });
-    throw new Error(`Refund of ${paymentId} was not recorded`);
-  }
-  logger.info("billing.refunded", { paymentId, amount: payment.amount });
-  return { result: "refunded" as const, payment: settled };
+    if (!settled) throw new Error(`Subscription payment ${paymentId} vanished`);
+    return { result: "refunded" as const, payment: settled };
+  });
 }
 
 /**

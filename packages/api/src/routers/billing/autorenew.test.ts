@@ -650,8 +650,8 @@ describe("switching auto-renewal off", () => {
       status: "canceled",
       cancelReason: "refund",
     });
-    const after = await paidUntilOf(session);
-    expect(after && end && after.getTime() < end.getTime()).toBe(true);
+    // No other payment is in force, so the paid period is gone.
+    expect(await paidUntilOf(session)).toBeNull();
   });
 });
 
