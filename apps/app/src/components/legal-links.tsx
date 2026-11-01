@@ -3,7 +3,7 @@ import { cn } from "@synoro/ui";
 import type { ReactNode } from "react";
 
 /** A link to a legal document; opens aside, so a half-filled form stays put. */
-function LegalLink({
+export function LegalLink({
   doc,
   children,
 }: {

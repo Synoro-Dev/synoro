@@ -144,6 +144,14 @@ const rubles = (kopecks: number) => Math.round(kopecks) / 100;
 /**
  * Open a payment link through `payments_with_receipt`: Точка's cash
  * register mails the 54-ФЗ receipt to `email`. Requires TOCHKA_TAX_SYSTEM.
+ *
+ * With `autorenew` the link is a subscription without a schedule
+ * (`subscriptions_with_receipt`, `recurring: true`): the first payment binds
+ * the card, and the `billing-renewals` job charges it later for each period
+ * (`@synoro/jobs/billing-renewal`). Such a link takes cards only and lives
+ * seven days (168 h), the buyer then has an hour to pay; it has no
+ * `paymentMode` or `ttl`.
+ * @see https://developers.tochka.com/docs/tochka-api/opisanie-metodov/podpiski-rekurrentnye-platezhi/rabota-s-podpiskami-bez-grafika-spisania
  */
 export async function createTochkaPayment(request: {
   /** Our payment id, Точка's `paymentLinkId` (unique per link). */
@@ -154,6 +162,8 @@ export async function createTochkaPayment(request: {
   itemName: string;
   email: string;
   returnUrl: string;
+  /** Open a schedule-less subscription instead of a one-off payment. */
+  autorenew?: boolean;
 }): Promise<TochkaPayment> {
   const { customerCode, merchantId, taxSystem } = tochkaConfig();
   if (!taxSystem) {
@@ -167,16 +177,22 @@ export async function createTochkaPayment(request: {
     customerCode,
     ...(merchantId && { merchantId }),
     amount,
-    purpose: request.purpose.slice(0, 210),
     redirectUrl: request.returnUrl,
     failRedirectUrl: request.returnUrl,
-    paymentMode: ["card", "sbp"],
-    ttl: LINK_TTL_MINUTES,
     paymentLinkId: request.orderId,
+    ...(request.autorenew
+      ? { purpose: request.purpose.slice(0, 140), recurring: true }
+      : {
+          purpose: request.purpose.slice(0, 210),
+          paymentMode: ["card", "sbp"],
+          ttl: LINK_TTL_MINUTES,
+        }),
   };
   const { Data } = await call<{ Data: TochkaOperation }>(
     "POST",
-    "/acquiring/v1.0/payments_with_receipt",
+    request.autorenew
+      ? "/acquiring/v1.0/subscriptions_with_receipt"
+      : "/acquiring/v1.0/payments_with_receipt",
     {
       Data: {
         ...base,
