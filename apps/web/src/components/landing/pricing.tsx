@@ -3,7 +3,6 @@ import { buttonVariants, cn } from "@synoro/ui";
 import {
   BadgePercentIcon,
   CheckIcon,
-  CreditCardIcon,
   GiftIcon,
   InfinityIcon,
 } from "lucide-react";
@@ -19,35 +18,21 @@ import {
   signupGoal,
 } from "~/lib/pricing";
 
-import {
-  Eyebrow,
-  IconTile,
-  Lead,
-  SectionHeading,
-  type Tone,
-} from "./primitives";
+import { IconTile, Lead, SectionHeading } from "./primitives";
 
-const perks: {
-  icon: typeof InfinityIcon;
-  tone: Tone;
-  title: string;
-  text: string;
-}[] = [
+const perks = [
   {
     icon: InfinityIcon,
-    tone: "emerald",
     title: "Бесплатно навсегда",
     text: "Без лимитов на записи и клиентов и без пробного срока.",
   },
   {
     icon: BadgePercentIcon,
-    tone: "violet",
     title: "Без процента с оплат",
     text: "Деньги клиентов идут сразу на ваш счёт в ЮKassa — мы ничего не удерживаем.",
   },
   {
     icon: GiftIcon,
-    tone: "amber",
     title: `${paidPlan.trialDays} дней «${paidPlan.name}» бесплатно`,
     text: "Попробуйте онлайн-оплату без привязки карты. Без автосписаний — продлеваете сами, когда удобно.",
   },
@@ -57,7 +42,9 @@ function Price({ plan }: { plan: Plan }) {
   if (plan.custom) {
     return (
       <div>
-        <p className="text-4xl font-medium tracking-tight">По договорённости</p>
+        <p className="text-[2rem] leading-10 font-semibold tracking-[-0.035em]">
+          По договорённости
+        </p>
         <p className="text-muted-foreground mt-1.5 text-sm">
           Стоимость зависит от задач и объёма доработок
         </p>
@@ -69,7 +56,9 @@ function Price({ plan }: { plan: Plan }) {
     return (
       <div>
         <p className="flex items-baseline gap-1.5">
-          <span className="text-4xl font-medium tracking-tight">0 ₽</span>
+          <span className="text-4xl font-semibold tracking-[-0.035em]">
+            0 ₽
+          </span>
           <span className="text-muted-foreground text-sm">навсегда</span>
         </p>
         <p className="text-muted-foreground mt-1.5 text-sm">
@@ -82,7 +71,7 @@ function Price({ plan }: { plan: Plan }) {
   return (
     <div>
       <p className="flex items-baseline gap-1.5">
-        <span className="text-4xl font-medium tracking-tight tabular-nums">
+        <span className="text-4xl font-semibold tracking-[-0.035em] tabular-nums">
           {rubles(plan.monthly)}
         </span>
         <span className="text-muted-foreground text-sm">в месяц</span>
@@ -135,9 +124,6 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
   return (
     <>
       <div className="flex flex-col items-center gap-5 px-4 pt-16 pb-12 text-center sm:px-10 sm:pt-24">
-        <Eyebrow icon={CreditCardIcon} tone="sky">
-          Тарифы
-        </Eyebrow>
         <SectionHeading>
           Бесплатно для практики. «{paidPlan.name}» — {rubles(paidPlan.monthly)}{" "}
           в месяц
@@ -201,7 +187,7 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
             key={perk.title}
             className="flex gap-3 border-b p-6 last:border-b-0 sm:border-b-0 sm:p-8"
           >
-            <IconTile icon={perk.icon} tone={perk.tone} className="shrink-0" />
+            <IconTile icon={perk.icon} className="shrink-0" />
             <div>
               <p className="font-medium">{perk.title}</p>
               <p className="text-muted-foreground mt-1 text-sm">{perk.text}</p>

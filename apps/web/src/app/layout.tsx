@@ -1,6 +1,6 @@
 import { cn } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Onest } from "next/font/google";
 
 import { CookieNotice } from "~/components/cookie-notice";
 import { Metrika } from "~/components/metrika";
@@ -41,9 +41,9 @@ export const viewport: Viewport = {
   themeColor: "#fcfcfc",
 };
 
-const geistSans = Geist({
+const onest = Onest({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-geist-sans",
+  variable: "--font-onest",
 });
 const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
@@ -56,7 +56,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       <body
         className={cn(
           "bg-background text-foreground min-h-screen font-sans antialiased",
-          geistSans.variable,
+          onest.variable,
           geistMono.variable,
         )}
       >

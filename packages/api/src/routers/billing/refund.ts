@@ -8,7 +8,10 @@ import { adminProcedure } from "../../orpc";
 /**
  * Give a specialist's «Про» payment back in full: Точка returns the money and
  * the paid period comes off `paid_until`. Only the newest paid period can be
- * refunded; for several, go from the last one backwards.
+ * refunded; for several, go from the last one backwards. Also switches the
+ * specialist's auto-renewal off. Payments made through a subscription (the
+ * first one and automatic charges) are refunded in the internet bank, then
+ * recorded here with `recorded: true`.
  *
  * @example await client.billing.refund({ paymentId })
  */
@@ -19,6 +22,10 @@ export const refund = adminProcedure
       message:
         "Этот платёж нельзя вернуть: он не оплачен, уже возвращён или тестовый",
     },
+    BANK_ONLY: {
+      message:
+        "Платёж по подписке возвращается только в интернет-банке: верните его там и повторите с recorded",
+    },
     NOT_LATEST: {
       message: "Сначала верните более поздний платёж этого специалиста",
     },
@@ -26,18 +33,27 @@ export const refund = adminProcedure
       message: "Банк не вернул платёж, попробуйте позже",
     },
   })
-  .input(z.object({ paymentId: z.uuid() }))
+  .input(
+    z.object({
+      paymentId: z.uuid(),
+      /** The money has been returned in the internet bank already. */
+      recorded: z.boolean().default(false),
+    }),
+  )
   .handler(async ({ context, input, errors }) => {
     try {
       const outcome = await refundSubscriptionPayment(
         context.db,
         input.paymentId,
+        { recorded: input.recorded },
       );
       switch (outcome.result) {
         case "not_found":
           throw errors.NOT_FOUND();
         case "not_refundable":
           throw errors.NOT_REFUNDABLE();
+        case "bank_only":
+          throw errors.BANK_ONLY();
         case "not_latest":
           throw errors.NOT_LATEST();
         case "refunded":

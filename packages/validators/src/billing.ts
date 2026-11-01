@@ -21,4 +21,10 @@ export const PRO_PRICES: Record<
 
 export const billingCheckoutSchema = z.object({
   period: z.enum(BILLING_PERIODS),
+  /**
+   * The specialist ticked the consent to automatic charges (the checkbox
+   * next to the link to the Terms): the card is then charged for the next
+   * period before this one ends, until they switch it off.
+   */
+  autorenew: z.boolean().default(false),
 });

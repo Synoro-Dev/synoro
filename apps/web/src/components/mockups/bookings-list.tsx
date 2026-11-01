@@ -43,7 +43,7 @@ const rows: Row[] = [
 const kinds = {
   consultation: {
     label: "Консультация · 60 мин",
-    className: "bg-violet-50 text-violet-700 ring-violet-600/15",
+    className: "bg-background text-foreground ring-border",
   },
   free: {
     label: "Знакомство · 30 мин",
