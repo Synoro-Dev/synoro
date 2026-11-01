@@ -84,10 +84,12 @@ async function chatFor(db: Database, to: Recipient) {
 }
 
 /**
- * `send` may still go by messenger: its chat is still the user's, linked
- * and not blocked, and the practice's owner is still on «Про».
+ * `send` may still go by messenger: the bot is still set up, its chat is
+ * still the user's, linked and not blocked, and the practice's owner is
+ * still on «Про».
  */
 async function stillDeliverable(db: Database, send: MessengerSend) {
+  if (!messengerConfigured(send.messenger)) return false;
   const [chat] = await db
     .select({ userId: MessengerChat.userId })
     .from(MessengerChat)
