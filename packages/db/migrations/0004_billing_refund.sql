@@ -1,1 +1,0 @@
-ALTER TABLE "subscription_payments" ADD COLUMN "refunded_at" timestamp with time zone;
