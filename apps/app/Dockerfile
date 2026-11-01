@@ -79,6 +79,12 @@ RUN groupadd --gid 1001 synoro \
 COPY --from=build --chown=1001:1001 /app/apps/app/.next/standalone ./
 COPY --from=build --chown=1001:1001 /app/apps/app/.next/static ./apps/app/.next/static
 COPY --from=build --chown=1001:1001 /app/apps/app/public ./apps/app/public
+# Точка Банк (enter.tochka.com) is signed by the Минцифры root, which Node's
+# bundled CA list does not have: without it every call fails with
+# "self-signed certificate in certificate chain". NODE_EXTRA_CA_CERTS adds it
+# to Node's trust store; the system CAs stay.
+COPY apps/app/certs/russian-trusted-root-ca.crt /app/certs/russian-trusted-root-ca.crt
+ENV NODE_EXTRA_CA_CERTS=/app/certs/russian-trusted-root-ca.crt
 USER 1001:1001
 EXPOSE 3000
 CMD ["node", "apps/app/server.js"]
