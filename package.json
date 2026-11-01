@@ -22,6 +22,7 @@
     "dev:next": "turbo watch dev -F @synoro/app...",
     "dev:web": "turbo watch dev -F @synoro/web...",
     "jobs:dev": "bun run --cwd packages/jobs worker",
+    "messenger:webhooks": "bun run --cwd packages/jobs messenger:webhooks",
     "format": "biome format . --skip-parse-errors",
     "format:fix": "biome format --write . --skip-parse-errors",
     "lint": "biome lint . --skip-parse-errors",

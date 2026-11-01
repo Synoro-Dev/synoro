@@ -180,6 +180,12 @@ describe("appliedMigrationCount", () => {
 });
 
 describe("hand-written constraints", () => {
+  /** 0003, which restores bookings_no_overlap; later migrations follow it. */
+  const restoreAt = migrations.findIndex((m) =>
+    m.sql.join("").includes("EXCLUDE USING gist"),
+  );
+  const restore = migrations[restoreAt];
+
   // drizzle-kit can't express EXCLUDE, so squashing the migrations has
   // dropped it twice; double bookings depend on it.
   it("keeps bookings_no_overlap on a freshly migrated database", async () => {
@@ -196,8 +202,6 @@ describe("hand-written constraints", () => {
 
   it("re-runs 0003 as a no-op where the constraint was kept", async () => {
     const { client } = await pushedDb(migrations.length);
-    const restore = migrations.at(-1);
-    expect(restore?.sql.join("")).toContain("EXCLUDE");
     for (const statement of restore?.sql ?? []) await client.exec(statement);
 
     const { rows } = await client.query(
@@ -208,12 +212,11 @@ describe("hand-written constraints", () => {
   });
 
   it("fails loudly if bookings_no_overlap names something else", async () => {
-    const { client } = await pushedDb(migrations.length - 1);
+    const { client } = await pushedDb(restoreAt);
     await client.exec(
       `create index "bookings_no_overlap" on "bookings" ("practice_id")`,
     );
-    const restore = migrations.at(-1);
-    expect(restore?.sql.join("")).toContain("EXCLUDE");
+    expect(restore).toBeDefined();
 
     let error: unknown;
     try {

@@ -28,3 +28,12 @@ process.env.TOCHKA_API_TOKEN = "test-tochka-jwt";
 process.env.TOCHKA_CUSTOMER_CODE = "300000001";
 process.env.TOCHKA_TAX_SYSTEM = "usn_income";
 process.env.TOCHKA_API_URL = "https://tochka.test/uapi";
+// Both messenger bots are "configured"; tests stub fetch for their APIs.
+process.env.TELEGRAM_BOT_TOKEN = "test-telegram-token";
+process.env.TELEGRAM_BOT_USERNAME = "synoro_test_bot";
+process.env.TELEGRAM_WEBHOOK_SECRET = "test-telegram-secret-0123";
+process.env.TELEGRAM_API_URL = "https://telegram.test";
+process.env.MAX_BOT_TOKEN = "test-max-token";
+process.env.MAX_BOT_USERNAME = "synoro_max_bot";
+process.env.MAX_WEBHOOK_SECRET = "test-max-secret-0123456";
+process.env.MAX_API_URL = "https://max.test";

@@ -33,6 +33,8 @@
  *                     online revenue, clients, busy hours      (owner, «Про»)
  *   googleCalendar.* – link the specialist's Google Calendar (owner), its
  *                     busy time on the practice calendar (staff)
+ *   messenger.*     – the caller's Telegram / MAX chat for notices on
+ *                     «Про»: status, start link, unlink    (any signed-in)
  */
 
 import { adminRouter } from "./admin";
@@ -43,6 +45,7 @@ import { bookingRouter } from "./booking";
 import { creditRouter } from "./credit";
 import { domainRouter } from "./domain";
 import { googleCalendarRouter } from "./google-calendar";
+import { messengerRouter } from "./messenger";
 import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
@@ -65,6 +68,7 @@ export const appRouter = {
   workflow: workflowRouter,
   question: questionRouter,
   analytics: analyticsRouter,
+  messenger: messengerRouter,
 };
 
 export type AppRouter = typeof appRouter;

@@ -2,7 +2,10 @@ import { env, logger } from "@synoro/config";
 import { PostHog } from "posthog-node";
 
 /** Events the server reports; the browser's own come from posthog-js. */
-type ServerEvent = "booking_reserved" | "payment_succeeded";
+type ServerEvent =
+  | "booking_reserved"
+  | "messenger_linked"
+  | "payment_succeeded";
 
 let client: PostHog | null | undefined;
 

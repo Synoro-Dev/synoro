@@ -23,6 +23,7 @@ type RouterOutputs = InferRouterOutputs<AppRouter>;
 export { errorStatusMap } from "./errors";
 export { handleBillingWebhook } from "./lib/billing";
 export { finishGoogleConnect } from "./lib/google-calendar";
+export { handleMaxWebhook, handleTelegramWebhook } from "./lib/messenger";
 export { handlePaymentWebhook } from "./lib/payments";
 export { findOwnerMembership } from "./lib/practice-access";
 export { createORPCContext } from "./orpc";

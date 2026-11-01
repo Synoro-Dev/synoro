@@ -6,6 +6,7 @@ export * from "./billing";
 export * from "./booking";
 export * from "./booking-questions";
 export * from "./login";
+export * from "./messenger";
 export * from "./otp";
 export * from "./password";
 export * from "./payment";
