@@ -92,6 +92,8 @@ async function call<T>(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
+  /** A 2xx without a JSON body is an answer too (`{}`), not a refusal. */
+  allowEmptyBody = false,
 ): Promise<T> {
   const { url, token } = tochkaConfig();
   let response: Response;
@@ -119,7 +121,7 @@ async function call<T>(
   if (response.status === 401 || response.status === 403) {
     throw new ProviderError("credentials", "Точка Банк не принял JWT-ключ");
   }
-  if (!response.ok || !data) {
+  if (!response.ok || (!data && !allowEmptyBody)) {
     throw new ProviderError(
       "rejected",
       data?.Errors?.[0]?.message ??
@@ -127,7 +129,7 @@ async function call<T>(
         `Точка Банк: ошибка ${response.status}`,
     );
   }
-  return data;
+  return data ?? ({} as T);
 }
 
 function toPayment(operation: TochkaOperation): TochkaPayment {
@@ -228,6 +230,7 @@ export async function refundTochkaPayment(
     "POST",
     `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}/refund`,
     { Data: { amount: rubles(amount) } },
+    true,
   );
   if (Data?.isRefund === false) {
     throw new ProviderError("rejected", "Точка Банк не вернул платёж");
@@ -254,8 +257,18 @@ export async function manageTochkaWebhook(
       return call<unknown>("PUT", path, registration);
     case "show":
       return call<unknown>("GET", path);
-    case "delete":
-      return call<unknown>("DELETE", path, registration);
+    case "delete": {
+      const answer = await call<{ Data?: { result?: boolean } }>(
+        "DELETE",
+        path,
+        registration,
+      );
+      // The contract allows a 200 with `Data.result: false`: not deleted.
+      if (answer.Data?.result === false) {
+        throw new ProviderError("rejected", "Точка Банк не удалил вебхук");
+      }
+      return answer;
+    }
     case "test":
       return call<unknown>("POST", `${path}/test_send`, {
         webhookType: WEBHOOK_TYPE,

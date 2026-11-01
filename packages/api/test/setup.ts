@@ -28,3 +28,7 @@ process.env.TOCHKA_API_TOKEN = "test-tochka-jwt";
 process.env.TOCHKA_CUSTOMER_CODE = "300000001";
 process.env.TOCHKA_TAX_SYSTEM = "usn_income";
 process.env.TOCHKA_API_URL = "https://tochka.test/uapi";
+// The webhook script builds its address from APP_URL, and the sandbox has
+// no webhooks: a local .env must not change either.
+process.env.APP_URL = "http://localhost:3000";
+process.env.TOCHKA_SANDBOX = "false";

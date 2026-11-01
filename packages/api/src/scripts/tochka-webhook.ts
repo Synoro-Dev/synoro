@@ -2,7 +2,7 @@ import { env, logger } from "@synoro/config";
 
 import {
   manageTochkaWebhook,
-  tochkaAvailable,
+  tochkaConfig,
   tochkaSandbox,
 } from "../lib/billing/tochka";
 
@@ -28,11 +28,12 @@ export async function main(args: string[]) {
     });
     return 1;
   }
-  if (tochkaSandbox() || !tochkaAvailable()) {
+  // The webhook is managed with the key alone: no customerCode needed.
+  if (tochkaSandbox() || !tochkaConfig().token) {
     logger.error("billing.webhook_unavailable", undefined, {
       reason: tochkaSandbox()
         ? "TOCHKA_SANDBOX: the sandbox has no webhooks"
-        : "TOCHKA_API_TOKEN and TOCHKA_CUSTOMER_CODE are not set",
+        : "TOCHKA_API_TOKEN is not set",
     });
     return 1;
   }
@@ -40,7 +41,10 @@ export async function main(args: string[]) {
   const target = url ?? new URL("/api/billing/tochka", env.APP_URL).href;
   try {
     const answer = await manageTochkaWebhook(action, clientId, target);
-    logger.info("billing.webhook", { action, url: target, answer });
+    // The answer is what `show` is for: print it whatever LOG_LEVEL is.
+    process.stdout.write(`${JSON.stringify(answer, null, 2)}
+`);
+    logger.info("billing.webhook", { action, url: target });
     return 0;
   } catch (error) {
     logger.error("billing.webhook_failed", error, { action, url: target });
