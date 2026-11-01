@@ -41,10 +41,10 @@ export async function main(args: string[]) {
   const target = url ?? new URL("/api/billing/tochka", env.APP_URL).href;
   try {
     const answer = await manageTochkaWebhook(action, clientId, target);
-    // The answer is what `show` is for: print it whatever LOG_LEVEL is.
+    // The answer is what `show` is for: print it whatever LOG_LEVEL is, and
+    // alone — the logger writes to stdout too, which would break parsing it.
     process.stdout.write(`${JSON.stringify(answer, null, 2)}
 `);
-    logger.info("billing.webhook", { action, url: target });
     return 0;
   } catch (error) {
     logger.error("billing.webhook_failed", error, { action, url: target });
