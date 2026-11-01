@@ -4,6 +4,11 @@
 
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
 
+@theme inline {
+  /* Public booking pages only (`displayFont` sets the variable there). */
+  --font-display: var(--font-literata), ui-serif, Georgia, serif;
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
 @custom-variant auto (&:where(.auto, .auto *));

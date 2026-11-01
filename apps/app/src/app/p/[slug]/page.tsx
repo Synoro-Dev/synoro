@@ -21,7 +21,7 @@ export default function PublicBookingPage({ params }: PageProps<"/p/[slug]">) {
   return (
     <Suspense
       fallback={
-        <Skeleton className="mx-auto mt-10 h-96 max-w-5xl rounded-xl" />
+        <Skeleton className="mx-auto mt-10 h-[32rem] max-w-4xl rounded-2xl" />
       }
     >
       <PublicBookingWithData params={params} />

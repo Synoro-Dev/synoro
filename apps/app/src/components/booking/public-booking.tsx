@@ -9,10 +9,11 @@ import {
   AvatarImage,
   Button,
   Calendar,
-  Card,
+  cn,
   Input,
-  Separator,
+  Label,
   Skeleton,
+  Spinner,
   toast,
 } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
@@ -31,24 +32,32 @@ import { ru } from "date-fns/locale";
 import {
   CalendarCheckIcon,
   CircleCheckIcon,
-  Clock3Icon,
   GlobeIcon,
   LogInIcon,
   RepeatIcon,
+  UndoDotIcon,
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { LegalFooter } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { BookingQuestionFields } from "./booking-question-fields";
+import { BookingTicket } from "./booking-ticket";
+import { displayFont } from "./display-font";
 import { GuestBookingForm } from "./guest-booking-form";
 import { SeriesDialog } from "./series-dialog";
 import { ErrorState } from "./states";
 import { SynoroBadge } from "./synoro-badge";
-import { dateKey, formatDateTime, formatTime, viewerTimeZone } from "./time";
+import {
+  dateKey,
+  formatDateTime,
+  formatTime,
+  viewerTimeZoneName,
+} from "./time";
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
@@ -72,9 +81,42 @@ function monthWindow(month: Date, today: string) {
 
 const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 
+/** Parts of the day the free times are grouped by, in the viewer's zone. */
+const DAY_PARTS = [
+  { label: "Утро", until: 12 },
+  { label: "День", until: 17 },
+  { label: "Вечер", until: 24 },
+] as const;
+
+function byDayPart(slots: Slot[]) {
+  return DAY_PARTS.map((part, index) => ({
+    label: part.label,
+    slots: slots.filter((slot) => {
+      const hour = slot.startsAt.getHours();
+      const from = DAY_PARTS[index - 1]?.until ?? 0;
+      return hour >= from && hour < part.until;
+    }),
+  })).filter((part) => part.slots.length > 0);
+}
+
+/** «Анна Иванова» → «АИ», for the photo's place when there is none. */
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      // The first code point: `charAt` would split an emoji's surrogate pair.
+      .map((word) => Array.from(word)[0] ?? "")
+      .join("")
+      .toUpperCase()
+  );
+}
+
 /**
- * The booking page, cal.com style: practice details, a month with the
- * bookable days, and the free hours of the chosen day.
+ * The booking page: the specialist up top, then one panel with a month of
+ * bookable days and the free hours of the chosen day. Picking an hour turns
+ * the panel into a ticket (the time, large) beside the booking form.
  *
  * A visitor needs no account: with online payment connected they pick a time,
  * leave name, phone and email and pay (`GuestBookingForm`). A signed-in client
@@ -95,6 +137,7 @@ export function PublicBooking({
 }) {
   const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
+  const what = capitalize(terms.credit[0]);
   const today = dateKey(new Date(), practice.timezone);
   const [month, setMonth] = useState(() => keyToDate(today));
   const [day, setDay] = useState<string | null>(null);
@@ -107,6 +150,7 @@ export function PublicBooking({
   const [phone, setPhone] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
+  const panel = useRef<HTMLDivElement>(null);
 
   const { data: info } = useQuery({
     ...orpc.practice.bySlug.queryOptions({ input: { slug: practice.slug } }),
@@ -140,6 +184,18 @@ export function PublicBooking({
     if (Object.keys(errors).length === 0) return true;
     toast.error("Ответьте на вопросы анкеты");
     return false;
+  }
+
+  /** Opens or closes the booking form for a time. */
+  function choose(slot: Slot | null) {
+    flushSync(() => setPicked(slot));
+    // The pressed button is gone with the swap: keep keyboard and screen
+    // reader users in the panel.
+    panel.current?.focus({ preventScroll: true });
+    // On a phone the times end below the fold: start the swapped panel from
+    // its top.
+    const top = panel.current?.getBoundingClientRect().top ?? 0;
+    if (top < 0) panel.current?.scrollIntoView({ block: "start" });
   }
 
   const range = monthWindow(month, today);
@@ -215,381 +271,416 @@ export function PublicBooking({
     },
   });
 
+  async function confirm(slot: Slot) {
+    if (!answered()) return;
+    if (needsPhone) {
+      const normalized = normalizePhone(phone);
+      if (!normalized) {
+        toast.error("Укажите номер телефона, например +7 900 123-45-67");
+        return;
+      }
+      await savePhone.mutateAsync({ phone: normalized });
+    }
+    book.mutate({ practiceId: practice.id, startsAt: slot.startsAt, answers });
+  }
+
+  // The client's own cabinet; on the practice's host it lives on the app host.
+  const cabinet = bookingUrl ? (
+    // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
+    <a href={bookingUrl} />
+  ) : (
+    // `_top`: the sign-in page can't open inside an iframe.
+    <Link href={paths.auth.login} target="_top" />
+  );
+  // Someone else may take the time while the form is open: once the refreshed
+  // list no longer has it, the form closes and says so.
+  const pickedFree =
+    !!picked &&
+    (byDay.get(dateKey(picked.startsAt)) ?? []).some(
+      (slot) => slot.startsAt.getTime() === picked.startsAt.getTime(),
+    );
+  const checkout = picked && pickedFree && (guestFlow ? !!offer.data : canBook);
+
   return (
-    <main className="flex min-h-svh flex-col bg-muted/40 px-4 py-8 md:py-12 dark:bg-background">
-      <div className="flex flex-1 items-start justify-center md:items-center">
-        <Card className="w-full max-w-5xl gap-0 overflow-hidden p-0">
-          <div className="grid md:grid-cols-[17rem_1fr] lg:grid-cols-[17rem_1fr_15rem]">
-            {/* Practice */}
-            <section className="flex flex-col gap-5 border-b p-6 md:border-r md:border-b-0">
-              {practice.imageUrl ? (
-                <Avatar className="size-16">
-                  <AvatarImage src={practice.imageUrl} alt={practice.name} />
-                  <AvatarFallback>
-                    {practice.name.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              ) : (
-                <IconTile variant="soft" size="lg" aria-hidden="true">
-                  {practice.name.charAt(0).toUpperCase()}
-                </IconTile>
+    <main
+      className={cn(
+        displayFont.variable,
+        "flex min-h-svh flex-col items-center px-4 py-8 md:py-14",
+      )}
+    >
+      <div className="flex w-full max-w-4xl flex-1 flex-col gap-8">
+        {/* The specialist */}
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar className="size-16 shrink-0 sm:size-20">
+              {practice.imageUrl && (
+                <AvatarImage src={practice.imageUrl} alt={practice.name} />
               )}
-              <div className="flex flex-col gap-1">
-                <span className="text-sm text-muted-foreground">
-                  {practice.name}
-                </span>
-                <h1 className="text-xl font-semibold tracking-tight">
-                  {capitalize(terms.credit[0])}
-                </h1>
-              </div>
-              <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <Clock3Icon className="size-4" />1 час
-                </li>
-                <li className="flex items-center gap-2">
-                  <GlobeIcon className="size-4" />
-                  {viewerTimeZone()}
-                </li>
-                {membership && (
-                  <li className="flex items-center gap-2">
-                    <WalletIcon className="size-4" />
-                    <span>Оплачено:</span>
-                    <Badge
-                      variant={credits > 0 ? "success-light" : "warning-light"}
-                    >
-                      {credits}
-                    </Badge>
-                    {canPay && (
-                      <Button
-                        variant="link"
-                        size="xs"
-                        className="h-auto px-0"
-                        onClick={() => setTopUp(true)}
-                      >
-                        Пополнить
-                      </Button>
-                    )}
-                  </li>
-                )}
-              </ul>
-              <Separator />
-              <p className="text-xs text-muted-foreground">
-                Отменить запись и вернуть {terms.creditAccusative} на баланс
-                можно не позднее чем за 24 часа до начала.
+              <AvatarFallback className="font-display text-xl sm:text-2xl">
+                {initials(practice.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col gap-1">
+              <h1 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl">
+                {practice.name}
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Запись на {terms.creditAccusative}, 1 час
               </p>
-              {membership && (
+            </div>
+          </div>
+
+          {membership ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-col sm:items-end">
+              <Button
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={<Link href={paths.booking.mine} target="_top" />}
+              >
+                <CalendarCheckIcon />
+                Мои записи
+              </Button>
+              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <WalletIcon className="size-4" />
+                Оплачено
+                <Badge
+                  variant={credits > 0 ? "success-light" : "warning-light"}
+                >
+                  {formatCredits(credits, terms)}
+                </Badge>
+                {canPay && (
+                  <Button
+                    variant="link"
+                    size="xs"
+                    className="h-auto px-0"
+                    onClick={() => setTopUp(true)}
+                  >
+                    Пополнить
+                  </Button>
+                )}
+              </p>
+            </div>
+          ) : (
+            !signedIn && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start sm:self-auto"
+                nativeButton={false}
+                render={cabinet}
+              >
+                <LogInIcon />
+                Мой кабинет
+              </Button>
+            )
+          )}
+        </header>
+
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className="scroll-mt-4 overflow-hidden rounded-2xl border bg-card shadow-xs outline-none"
+        >
+          {booked ? (
+            <section className="flex flex-col items-center gap-6 px-6 py-14 text-center">
+              <IconTile variant="soft" size="xl" className="text-success">
+                <CircleCheckIcon />
+              </IconTile>
+              <div className="flex flex-col gap-2">
+                <h2 className="font-display text-3xl font-medium tracking-tight">
+                  Вы записаны
+                </h2>
+                <p className="first-letter:uppercase">
+                  {bookedCount > 1
+                    ? `${formatCredits(bookedCount, terms)}, начиная с ${formatDateTime(booked)}`
+                    : `${formatDateTime(booked)}, 1 час`}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Осталось оплаченных: {formatCredits(credits, terms)}
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
                 <Button
                   variant="outline"
-                  size="sm"
                   nativeButton={false}
                   render={<Link href={paths.booking.mine} target="_top" />}
                 >
-                  <CalendarCheckIcon />
                   Мои записи
                 </Button>
-              )}
-              {!signedIn && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={
-                    bookingUrl ? (
-                      // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
-                      <a href={bookingUrl} />
-                    ) : (
-                      // `_top`: the sign-in page can't open inside an iframe.
-                      <Link href={paths.auth.login} target="_top" />
-                    )
-                  }
-                >
-                  <LogInIcon />
-                  Мой кабинет
-                </Button>
-              )}
+                <Button onClick={() => setBooked(null)}>Записаться ещё</Button>
+              </div>
             </section>
-
-            {booked ? (
-              <section className="flex flex-col items-center justify-center gap-4 p-10 text-center lg:col-span-2">
-                <IconTile variant="soft" size="xl" className="text-success">
-                  <CircleCheckIcon />
-                </IconTile>
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    Вы записаны
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {bookedCount > 1
-                      ? `${formatCredits(bookedCount, terms)}, первое — ${formatDateTime(booked)}`
-                      : `${formatDateTime(booked)}, 1 час`}{" "}
-                    · осталось оплаченных: {credits}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    nativeButton={false}
-                    render={<Link href={paths.booking.mine} target="_top" />}
-                  >
-                    Мои записи
-                  </Button>
-                  <Button onClick={() => setBooked(null)}>
-                    Записаться ещё
-                  </Button>
-                </div>
+          ) : checkout ? (
+            <div
+              key={picked.startsAt.toISOString()}
+              className="grid animate-in duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] fade-in motion-reduce:animate-none md:grid-cols-[18rem_1fr]"
+            >
+              <BookingTicket
+                startsAt={picked.startsAt}
+                endsAt={picked.endsAt}
+                what={what}
+                onBack={() => choose(null)}
+              />
+              <section className="p-6 md:p-8 [&>*]:max-w-lg">
+                {guestFlow && offer.data ? (
+                  <GuestBookingForm
+                    practice={practice}
+                    startsAt={picked.startsAt}
+                    offer={offer.data}
+                    questions={questions}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="text-base font-semibold">
+                      Подтвердите запись
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      С баланса спишется {formatCredits(1, terms)}, останется{" "}
+                      {formatCredits(credits - 1, terms)}.
+                    </p>
+                    {questions.length > 0 && (
+                      <BookingQuestionFields
+                        questions={questions}
+                        values={answers}
+                        errors={answerErrors}
+                        onChange={setAnswers}
+                        idPrefix="booking-question"
+                      />
+                    )}
+                    {needsPhone && (
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="booking-phone">Телефон</Label>
+                        <Input
+                          id="booking-phone"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          placeholder="+7 900 123-45-67"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <Button
+                      size="lg"
+                      disabled={book.isPending || savePhone.isPending}
+                      onClick={() => confirm(picked)}
+                    >
+                      {(book.isPending || savePhone.isPending) && <Spinner />}
+                      Записаться
+                    </Button>
+                    {credits >= 2 && !needsPhone && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          answered() && setSeriesFrom(picked.startsAt)
+                        }
+                      >
+                        <RepeatIcon />
+                        Повторять каждую неделю…
+                      </Button>
+                    )}
+                  </div>
+                )}
               </section>
-            ) : (
-              <>
-                {/* Month */}
-                <section className="flex flex-col gap-4 border-b p-6 lg:border-r lg:border-b-0">
-                  <h2 className="text-sm font-semibold">Выберите день</h2>
-                  {slots.isError ? (
-                    <ErrorState onRetry={() => slots.refetch()} />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      locale={ru}
-                      weekStartsOn={1}
-                      month={month}
-                      onMonthChange={setMonth}
-                      startMonth={keyToDate(today)}
-                      selected={
-                        selectedDay ? keyToDate(selectedDay) : undefined
-                      }
-                      onSelect={(date) => {
-                        if (date) setDay(dateKey(date));
-                        setPicked(null);
-                      }}
-                      disabled={(date) => !byDay.has(dateKey(date))}
-                      formatters={{
-                        formatCaption: (date) => {
-                          const caption = format(date, "LLLL yyyy", {
-                            locale: ru,
-                          });
-                          return (
-                            caption.charAt(0).toUpperCase() + caption.slice(1)
-                          );
-                        },
-                      }}
-                      modifiers={{
-                        available: (date) => byDay.has(dateKey(date)),
-                      }}
-                      modifiersClassNames={{
-                        available:
-                          "[&>button]:bg-primary/10 [&>button]:font-semibold [&>button]:text-primary dark:[&>button]:bg-primary/20",
-                      }}
-                      className="mx-auto w-full max-w-sm p-0 [--cell-size:--spacing(10)]"
-                    />
-                  )}
-                </section>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-[auto_1fr]">
+              {/* Month */}
+              <section className="border-b p-6 md:border-r md:border-b-0">
+                {slots.isError ? (
+                  <ErrorState onRetry={() => slots.refetch()} />
+                ) : (
+                  <Calendar
+                    mode="single"
+                    locale={ru}
+                    weekStartsOn={1}
+                    month={month}
+                    onMonthChange={(next) => {
+                      setMonth(next);
+                      setPicked(null);
+                    }}
+                    startMonth={keyToDate(today)}
+                    selected={selectedDay ? keyToDate(selectedDay) : undefined}
+                    onSelect={(date) => {
+                      if (date) setDay(dateKey(date));
+                      setPicked(null);
+                    }}
+                    disabled={(date) => !byDay.has(dateKey(date))}
+                    formatters={{
+                      formatCaption: (date) =>
+                        capitalize(format(date, "LLLL yyyy", { locale: ru })),
+                    }}
+                    modifiers={{
+                      available: (date) => byDay.has(dateKey(date)),
+                    }}
+                    modifiersClassNames={{
+                      // A dot under each day with free time.
+                      available:
+                        "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground data-[selected=true]:after:bg-primary-foreground",
+                    }}
+                    className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
+                  />
+                )}
+              </section>
 
-                {/* Times */}
-                <section className="flex min-h-72 flex-col gap-3 p-6 md:col-span-2 lg:col-span-1">
-                  <h2 className="text-sm font-semibold first-letter:uppercase">
-                    {selectedDay
-                      ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "long",
-                        })
-                      : "Время"}
-                  </h2>
+              {/* Times */}
+              <section className="flex min-h-80 flex-col gap-5 p-6">
+                <h2 className="font-display text-2xl font-medium tracking-tight first-letter:uppercase">
+                  {selectedDay
+                    ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      })
+                    : "Свободное время"}
+                </h2>
 
-                  {isStaff ? (
-                    <Alert variant="info">
-                      <AlertTitle>Предпросмотр</AlertTitle>
-                      <AlertDescription>
-                        Так страницу видят ваши клиенты.
-                      </AlertDescription>
-                    </Alert>
-                  ) : guestFlow ? null : !signedIn ? (
-                    <Alert variant="info">
-                      <AlertTitle>Войдите, чтобы записаться</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        <span>Свободное время видно и без входа.</span>
+                {picked && !pickedFree && (
+                  <Alert variant="warning">
+                    <AlertTitle>
+                      Время {formatTime(picked.startsAt)} уже заняли
+                    </AlertTitle>
+                    <AlertDescription>Выберите другое.</AlertDescription>
+                  </Alert>
+                )}
+
+                {isStaff ? (
+                  <Alert variant="info">
+                    <AlertTitle>Предпросмотр</AlertTitle>
+                    <AlertDescription>
+                      Так страницу видят ваши клиенты.
+                    </AlertDescription>
+                  </Alert>
+                ) : guestFlow ? null : !signedIn ? (
+                  <Alert variant="info">
+                    <AlertTitle>Войдите, чтобы записаться</AlertTitle>
+                    <AlertDescription className="flex flex-col items-start gap-2">
+                      <span>Свободное время видно и без входа.</span>
+                      <Button size="sm" nativeButton={false} render={cabinet}>
+                        {bookingUrl ? "Войти и записаться" : "Войти"}
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
+                ) : !membership ? (
+                  <Alert variant="info">
+                    <AlertTitle>Станьте клиентом</AlertTitle>
+                    <AlertDescription className="flex flex-col items-start gap-2">
+                      <span>
+                        {canPay
+                          ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
+                          : "Затем администратор добавит оплату."}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {canPay && (
+                          <Button size="sm" onClick={() => setTopUp(true)}>
+                            <WalletIcon />
+                            Оплатить {terms.credits}
+                          </Button>
+                        )}
                         <Button
                           size="sm"
-                          nativeButton={false}
-                          render={
-                            bookingUrl ? (
-                              // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
-                              <a href={bookingUrl} />
-                            ) : (
-                              <Link href={paths.auth.login} target="_top" />
-                            )
+                          variant={canPay ? "outline" : "default"}
+                          disabled={join.isPending}
+                          onClick={() =>
+                            join.mutate({ practiceId: practice.id })
                           }
                         >
-                          {bookingUrl ? "Войти и записаться" : "Войти"}
+                          Стать клиентом
                         </Button>
-                      </AlertDescription>
-                    </Alert>
-                  ) : !membership ? (
-                    <Alert variant="info">
-                      <AlertTitle>Станьте клиентом</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        <span>
-                          {canPay
-                            ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
-                            : "Затем администратор добавит оплату."}
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {canPay && (
-                            <Button size="sm" onClick={() => setTopUp(true)}>
-                              <WalletIcon />
-                              Оплатить {terms.credits}
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant={canPay ? "outline" : "default"}
-                            disabled={join.isPending}
-                            onClick={() =>
-                              join.mutate({ practiceId: practice.id })
-                            }
-                          >
-                            Стать клиентом
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : credits === 0 ? (
+                  <Alert variant="warning">
+                    <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
+                    <AlertDescription className="flex flex-col items-start gap-2">
+                      {canPay ? (
+                        <>
+                          <span>Пополните баланс, чтобы записаться.</span>
+                          <Button size="sm" onClick={() => setTopUp(true)}>
+                            <WalletIcon />
+                            Пополнить баланс
                           </Button>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  ) : credits === 0 ? (
-                    <Alert variant="warning">
-                      <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        {canPay ? (
-                          <>
-                            <span>Пополните баланс, чтобы записаться.</span>
-                            <Button size="sm" onClick={() => setTopUp(true)}>
-                              <WalletIcon />
-                              Пополнить баланс
-                            </Button>
-                          </>
-                        ) : (
-                          "Обратитесь к администратору, чтобы оплатить."
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
+                        </>
+                      ) : (
+                        "Обратитесь к администратору, чтобы оплатить."
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
 
-                  {guestFlow && picked && offer.data ? (
-                    <GuestBookingForm
-                      practice={practice}
-                      startsAt={picked.startsAt}
-                      offer={offer.data}
-                      questions={questions}
-                      onBack={() => setPicked(null)}
-                    />
-                  ) : slots.isPending && !slots.data ? (
-                    <div className="flex flex-col gap-2">
-                      {["a", "b", "c", "d"].map((k) => (
-                        <Skeleton key={k} className="h-9 w-full" />
-                      ))}
-                    </div>
-                  ) : daySlots.length === 0 ? (
+                {slots.isPending && !slots.data ? (
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                    {["a", "b", "c", "d", "e", "f"].map((k) => (
+                      <Skeleton key={k} className="h-10" />
+                    ))}
+                  </div>
+                ) : daySlots.length === 0 ? (
+                  <div className="flex flex-col items-start gap-3">
                     <p className="text-sm text-muted-foreground">
-                      В этом месяце свободного времени нет
+                      В этом месяце свободного времени нет.
                     </p>
-                  ) : (
-                    <div className="grid max-h-[26rem] grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-2 overflow-y-auto pr-1 lg:grid-cols-1">
-                      {daySlots.map((slot) => {
-                        const active =
-                          picked?.startsAt.getTime() ===
-                          slot.startsAt.getTime();
-                        return active ? (
-                          <div
-                            key={slot.startsAt.toISOString()}
-                            className="col-span-2 grid grid-cols-2 gap-2 lg:col-span-1"
-                          >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setMonth(
+                          new Date(month.getFullYear(), month.getMonth() + 1),
+                        );
+                        setPicked(null);
+                      }}
+                    >
+                      Следующий месяц
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-5">
+                    {byDayPart(daySlots).map((part) => (
+                      <div key={part.label} className="flex flex-col gap-2">
+                        <h3 className="text-sm text-muted-foreground">
+                          {part.label}
+                        </h3>
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                          {part.slots.map((slot) => (
                             <Button
-                              variant="secondary"
-                              className="tabular-nums"
-                              onClick={() => setPicked(null)}
+                              key={slot.startsAt.toISOString()}
+                              variant="outline"
+                              size="lg"
+                              disabled={!canBook && !guestFlow}
+                              onClick={() => choose(slot)}
+                              className="text-base tabular-nums"
                             >
                               {formatTime(slot.startsAt)}
                             </Button>
-                            <Button
-                              disabled={book.isPending || savePhone.isPending}
-                              onClick={async () => {
-                                if (!answered()) return;
-                                if (needsPhone) {
-                                  const normalized = normalizePhone(phone);
-                                  if (!normalized) {
-                                    toast.error(
-                                      "Укажите номер телефона, например +7 900 123-45-67",
-                                    );
-                                    return;
-                                  }
-                                  await savePhone.mutateAsync({
-                                    phone: normalized,
-                                  });
-                                }
-                                book.mutate({
-                                  practiceId: practice.id,
-                                  startsAt: slot.startsAt,
-                                  answers,
-                                });
-                              }}
-                            >
-                              Записаться
-                            </Button>
-                            {credits >= 2 && !needsPhone && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="col-span-2"
-                                onClick={() =>
-                                  answered() && setSeriesFrom(slot.startsAt)
-                                }
-                              >
-                                <RepeatIcon />
-                                Повторять каждую неделю…
-                              </Button>
-                            )}
-                            {needsPhone && (
-                              <Input
-                                type="tel"
-                                inputMode="tel"
-                                autoComplete="tel"
-                                aria-label="Ваш телефон"
-                                placeholder="Телефон: +7 900 123-45-67"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                className="col-span-2"
-                              />
-                            )}
-                            {questions.length > 0 && (
-                              <div className="order-first col-span-2 rounded-md border p-3">
-                                <BookingQuestionFields
-                                  questions={questions}
-                                  values={answers}
-                                  errors={answerErrors}
-                                  onChange={setAnswers}
-                                  idPrefix="booking-question"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <Button
-                            key={slot.startsAt.toISOString()}
-                            variant="outline"
-                            disabled={!canBook && !guestFlow}
-                            onClick={() => setPicked(slot)}
-                            className="tabular-nums"
-                          >
-                            {formatTime(slot.startsAt)}
-                          </Button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              </>
-            )}
-          </div>
-        </Card>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          <footer className="flex flex-col gap-2 border-t bg-muted/40 px-6 py-4 text-xs text-muted-foreground sm:flex-row sm:gap-6 dark:bg-muted/20">
+            <p className="flex items-start gap-2">
+              <UndoDotIcon className="mt-px size-3.5 shrink-0" />
+              Отменить запись и вернуть {terms.creditAccusative} на баланс можно
+              не позднее чем за 24 часа до начала.
+            </p>
+            <p className="flex shrink-0 items-start gap-2">
+              <GlobeIcon className="mt-px size-3.5 shrink-0" />
+              <span suppressHydrationWarning>
+                Время по часовому поясу: {viewerTimeZoneName()}
+              </span>
+            </p>
+          </footer>
+        </div>
       </div>
-      <LegalFooter className="pt-8" />
+
+      <LegalFooter className="pt-10" />
       {info.showBadge && <SynoroBadge className="pt-2" />}
       <SeriesDialog
         practiceId={practice.id}
