@@ -308,6 +308,19 @@ describe("linking a messenger", () => {
     expect((await chatOf(client.user.id))?.chatId).toBe("1402");
   });
 
+  it("revokes a link not opened yet on unlink", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-revoke");
+    const client = await newClient(practiceId);
+    const { code } = await codeFor(client, "telegram");
+
+    await call(messengerRouter.unlink, undefined, {
+      context: api.context(client),
+    });
+    await startTelegram(1601, `/start ${code}`);
+    expect(await chatOf(client.user.id)).toBeUndefined();
+  });
+
   it("answers a start without a code with how to link", async () => {
     bots();
     await startTelegram(901, "/start");
@@ -428,8 +441,8 @@ describe("notices in the messenger", () => {
     expect(mails).toHaveLength(4);
   });
 
-  it("mails a queued notice whose chat was unlinked or replaced", async () => {
-    const { practiceId } = await newPractice("m-queued");
+  it("mails a queued notice once the chat or «Про» is gone", async () => {
+    const { owner, practiceId } = await newPractice("m-queued");
     const client = await newClient(practiceId);
     bots();
     await startTelegram(
@@ -440,6 +453,7 @@ describe("notices in the messenger", () => {
     const mails: TemplateEmail[] = [];
     const send = {
       userId: client.user.id,
+      practiceId,
       messenger: "telegram" as const,
       chatId: "1501",
       message: { text: "Напоминание", buttons: [] },
@@ -459,6 +473,16 @@ describe("notices in the messenger", () => {
     expect(sent).toHaveLength(0);
     expect(mails).toHaveLength(1);
 
+    // «Про» ended before the task ran.
+    await endPro(owner);
+    await deliverMessenger(
+      api.db,
+      { ...send, messenger: "max", chatId: "1502" },
+      options,
+    );
+    expect(sent).toHaveLength(0);
+    expect(mails).toHaveLength(2);
+
     await call(messengerRouter.unlink, undefined, {
       context: api.context(client),
     });
@@ -468,7 +492,7 @@ describe("notices in the messenger", () => {
       options,
     );
     expect(sent).toHaveLength(0);
-    expect(mails).toHaveLength(2);
+    expect(mails).toHaveLength(3);
   });
 
   it("falls back to mail when the platform fails", async () => {

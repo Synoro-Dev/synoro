@@ -66,7 +66,7 @@
 1. **Почта** — у клиентов и посетителей она есть всегда (`user.email`).
    Шаблоны в `packages/emails/emails/`: `booking-notice`, `staff-booking`,
    `pro-notice`; добавятся `staff-daily-agenda` и `workflow-message`.
-2. **Telegram и MAX** («Про») — по одному боту Synoro на всех практик.
+2. **Telegram и MAX** («Про») — по одному боту Synoro для всех практик.
    Сделано, см. «Мессенджеры» ниже.
 3. **SMS** — позже, только «Про» и с лимитом в месяц: каждое сообщение стоит
    денег. Провайдер (SMS.ru, SMSC, МТС Exolve) выбрать отдельно; тот же

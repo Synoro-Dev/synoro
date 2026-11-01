@@ -42,6 +42,8 @@ export type Deliver = (message: TemplateEmail, to?: Recipient) => Promise<void>;
 /** A messenger notice as a task input (JSON); `email` is its fallback. */
 export interface MessengerSend {
   userId: string;
+  /** The practice whose owner's «Про» lets the notice go by messenger. */
+  practiceId: string;
   messenger: Messenger;
   chatId: string;
   message: MessengerMessage;
@@ -81,8 +83,11 @@ async function chatFor(db: Database, to: Recipient) {
   return (await ownerHasPro(db, to.practiceId)) ? chat : null;
 }
 
-/** `send`'s chat is still the user's, linked and not blocked. */
-async function stillLinked(db: Database, send: MessengerSend) {
+/**
+ * `send` may still go by messenger: its chat is still the user's, linked
+ * and not blocked, and the practice's owner is still on «Про».
+ */
+async function stillDeliverable(db: Database, send: MessengerSend) {
   const [chat] = await db
     .select({ userId: MessengerChat.userId })
     .from(MessengerChat)
@@ -94,15 +99,15 @@ async function stillLinked(db: Database, send: MessengerSend) {
         isNull(MessengerChat.blockedAt),
       ),
     );
-  return chat !== undefined;
+  return chat !== undefined && (await ownerHasPro(db, send.practiceId));
 }
 
 /**
  * Sends one messenger notice. A task may wait for its run or a retry: if the
- * user unlinked or switched the chat meanwhile, the mail goes instead. When
- * the bot can't write there any more the chat is marked blocked and the mail
- * goes too; any other failure is thrown for a retry, or — on the last
- * attempt — also turns into the mail.
+ * user unlinked or switched the chat meanwhile, or the owner's «Про» ended,
+ * the mail goes instead. When the bot can't write there any more the chat is
+ * marked blocked and the mail goes too; any other failure is thrown for a
+ * retry, or — on the last attempt — also turns into the mail.
  */
 export async function deliverMessenger(
   db: Database,
@@ -113,7 +118,7 @@ export async function deliverMessenger(
   },
 ) {
   const sendEmail = options.sendEmail ?? dispatchEmail;
-  if (!(await stillLinked(db, send))) {
+  if (!(await stillDeliverable(db, send))) {
     await sendEmail(send.email);
     return;
   }
@@ -187,6 +192,7 @@ export async function dispatchNotice(
     db,
     {
       userId: to.userId,
+      practiceId: to.practiceId,
       messenger: chat.messenger,
       chatId: chat.chatId,
       message,

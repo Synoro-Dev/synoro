@@ -161,21 +161,27 @@ function Connect({
     );
   }
 
-  const buttons = messengers.map((messenger) => {
+  const linkButton = (messenger: Messenger, action: string) => {
     const Icon = ICONS[messenger];
     const pending = link.isPending && link.variables?.messenger === messenger;
     return (
       <Button
         key={messenger}
         variant="outline"
+        size={action === "Подключить" ? "default" : "sm"}
         disabled={link.isPending}
         onClick={() => link.mutate({ messenger })}
       >
         {pending ? <Spinner /> : <Icon />}
-        Подключить {MESSENGER_LABELS[messenger]}
+        {action} {MESSENGER_LABELS[messenger]}
       </Button>
     );
-  });
+  };
+  const buttons = messengers.map((m) => linkButton(m, "Подключить"));
+  // The linked chat keeps working until the bot in the new one confirms.
+  const switches = messengers
+    .filter((m) => chat && !chat.blocked && m !== chat.messenger)
+    .map((m) => linkButton(m, "Перейти в"));
 
   if (!chat) {
     return <div className="flex flex-wrap gap-2">{buttons}</div>;
@@ -208,6 +214,9 @@ function Connect({
           Отключить
         </Button>
       </div>
+      {switches.length > 0 && (
+        <div className="flex flex-wrap gap-2">{switches}</div>
+      )}
       {chat.blocked && (
         <Alert variant="warning">
           <CircleAlertIcon />
@@ -240,10 +249,17 @@ export function MessengerSettings() {
   } else if (status.isPending) {
     content = <Skeleton className="h-10 w-64 rounded-md" />;
   } else if (status.data.messengers.length === 0) {
+    // No bot set up: a chat linked before can still be unlinked.
     content = (
-      <p className="text-sm text-muted-foreground">
-        Мессенджеры пока не подключены к Synoro — уведомления приходят на почту.
-      </p>
+      <div className="flex flex-col gap-4">
+        {status.data.chat && (
+          <Connect messengers={[]} chat={status.data.chat} />
+        )}
+        <p className="text-sm text-muted-foreground">
+          Мессенджеры пока не подключены к Synoro — уведомления приходят на
+          почту.
+        </p>
+      </div>
     );
   } else if (!status.data.available) {
     // Without «Про» a linked chat waits; it can still be unlinked.

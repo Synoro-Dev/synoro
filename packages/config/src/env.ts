@@ -134,7 +134,10 @@ export const env = createEnv({
       .regex(/^[\w-]{16,256}$/)
       .optional(),
     // Bot API host: a relay can stand in where api.telegram.org is blocked.
-    TELEGRAM_API_URL: z.url().default("https://api.telegram.org"),
+    // https only: the bot token travels in the path.
+    TELEGRAM_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://api.telegram.org"),
     // MAX (business.max.ru → Чат-боты). Its API is served with a
     // certificate of the Russian Trusted Root CA: the images trust it via
     // NODE_EXTRA_CA_CERTS (apps/app/certs/russian-trusted-root-ca.crt).
@@ -144,7 +147,10 @@ export const env = createEnv({
       .string()
       .regex(/^[\w-]{16,256}$/)
       .optional(),
-    MAX_API_URL: z.url().default("https://platform-api2.max.ru"),
+    // https only: the bot token travels in a header.
+    MAX_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://platform-api2.max.ru"),
 
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
