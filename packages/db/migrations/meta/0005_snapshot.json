@@ -1,5 +1,5 @@
 {
-  "id": "74cf105f-be5b-4271-9a57-0db31f49d96d",
+  "id": "d2d5a001-0cf6-4718-b1b3-9255d39be560",
   "prevId": "7c7a143c-67b9-41e2-b6e4-b09bb1833227",
   "version": "7",
   "dialect": "postgresql",
@@ -698,6 +698,13 @@
         "charged_for": {
           "name": "charged_for",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "decline_kind": {
+          "name": "decline_kind",
+          "type": "decline_kind",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
         },
@@ -2698,6 +2705,14 @@
       "values": [
         "month",
         "year"
+      ]
+    },
+    "public.decline_kind": {
+      "name": "decline_kind",
+      "schema": "public",
+      "values": [
+        "retry",
+        "final"
       ]
     },
     "public.booking_cancel_reason": {

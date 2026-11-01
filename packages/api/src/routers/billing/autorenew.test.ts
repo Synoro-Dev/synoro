@@ -467,15 +467,127 @@ describe("an unclear answer from the bank", () => {
     await renewSubscriptions(api.db, recorder().deliver, start);
 
     expect(await paymentsOf(session)).toHaveLength(0);
-    expect(await autorenewalOf(session)).toMatchObject({ failedAttempts: 0 });
+    expect(await autorenewalOf(session)).toMatchObject({
+      failedAttempts: 0,
+      lastAttemptAt: null,
+    });
 
+    // The key works again: the next hourly run charges, not 12 hours later.
     chargeAnswer = () => Response.json({ Data: { result: true } });
     await renewSubscriptions(
       api.db,
       recorder().deliver,
-      new Date(start.getTime() + 13 * HOUR),
+      new Date(start.getTime() + HOUR),
     );
     expect(await paymentsOf(session)).toMatchObject([{ status: "succeeded" }]);
+  });
+});
+
+describe("mails about charges", () => {
+  it("are delivered by a later run after a failed delivery", async () => {
+    tochka();
+    const start = new Date();
+    const session = await renewing(
+      "mail@test.local",
+      new Date(start.getTime() + HOUR),
+    );
+    const mail = recorder();
+
+    await renewSubscriptions(
+      api.db,
+      async () => {
+        throw new Error("smtp down");
+      },
+      start,
+    );
+    expect(await paymentsOf(session)).toMatchObject([{ status: "succeeded" }]);
+    expect(mail.sent).toHaveLength(0);
+
+    // The period is long out of the charging window; the mail still goes.
+    await renewSubscriptions(
+      api.db,
+      mail.deliver,
+      new Date(start.getTime() + 2 * HOUR),
+    );
+    expect(mail.notices()).toEqual(["charged"]);
+
+    await renewSubscriptions(
+      api.db,
+      mail.deliver,
+      new Date(start.getTime() + 3 * HOUR),
+    );
+    expect(mail.sent).toHaveLength(1);
+  });
+});
+
+describe("a late confirmation of an older agreement", () => {
+  /** A pending first payment with consent given `consentAgo` ago. */
+  async function pendingConsent(
+    session: Session,
+    operationId: string,
+    consentAgo: number,
+  ) {
+    const [payment] = await api.db
+      .insert(SubscriptionPayment)
+      .values({
+        userId: session.user.id,
+        period: "month",
+        amount: 149_00,
+        externalId: operationId,
+        autorenewConsentAt: new Date(Date.now() - consentAgo),
+      })
+      .returning();
+    operations.set(operationId, { status: "APPROVED", amount: 149 });
+    return call(
+      billingRouter.status,
+      { paymentId: payment?.id ?? "" },
+      { context: api.context(session) },
+    );
+  }
+
+  async function canceledSession(email: string) {
+    const session = await createSession(api.db, { email });
+    await api.db.insert(Subscription).values({
+      userId: session.user.id,
+      trialEndsAt: new Date(Date.now() + 5 * DAY),
+    });
+    await api.db.insert(SubscriptionAutorenewal).values({
+      userId: session.user.id,
+      externalId: "newer-subscription",
+      period: "month",
+      status: "canceled",
+      cancelReason: "user",
+      consentAt: new Date(Date.now() - 2 * DAY),
+      canceledAt: new Date(Date.now() - DAY),
+    });
+    return session;
+  }
+
+  it("extends the period but does not undo a cancellation", async () => {
+    tochka();
+    const session = await canceledSession("late-old@test.local");
+
+    const paid = await pendingConsent(session, "old-link-1", 3 * DAY);
+
+    expect(paid.status).toBe("succeeded");
+    expect(await paidUntilOf(session)).toBeInstanceOf(Date);
+    expect(await autorenewalOf(session)).toMatchObject({
+      status: "canceled",
+      externalId: "newer-subscription",
+    });
+  });
+
+  it("is replaced by an agreement made after the cancellation", async () => {
+    tochka();
+    const session = await canceledSession("late-new@test.local");
+
+    await pendingConsent(session, "new-link-1", HOUR);
+
+    expect(await autorenewalOf(session)).toMatchObject({
+      status: "active",
+      externalId: "new-link-1",
+      cancelReason: null,
+    });
   });
 });
 

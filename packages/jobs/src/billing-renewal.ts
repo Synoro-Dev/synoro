@@ -11,6 +11,7 @@ import {
   lte,
   notLike,
   or,
+  SentNotice,
   Subscription,
   SubscriptionAutorenewal,
   SubscriptionPayment,
@@ -32,11 +33,15 @@ import { billingUrl, formatEnd, rubles } from "./pro-notices";
  * Точка's `POST /acquiring/v1.0/subscriptions/{operationId}/charge`, and the
  * payment is settled like any other (`settleSubscriptionPayment`).
  *
- * Charging twice is the one thing that must not happen, so an attempt is a
- * row first: `subscription_payments` with `charged_for = paid_until`, unique
- * per user, inserted BEFORE the bank is called. A second worker, a retry of
- * the workflow or a crash after the charge finds the row and skips that
- * period. Only a definite refusal frees the period for another attempt.
+ * Charging twice, or after the specialist said stop, is the one thing that
+ * must not happen. So an attempt is a row first: `subscription_payments` with
+ * `charged_for = paid_until`, unique per user, inserted BEFORE the bank is
+ * called — in the same statement that re-checks, with the rows locked, that
+ * the renewal is still on, still due for this very `paid_until` and not tried
+ * within the last 12 hours (`claimAttempt`). A second worker, a retry of the
+ * workflow, a cancellation or a manual payment racing the first, or a crash
+ * after the charge, can't get a second charge out of it. Only a definite
+ * refusal frees the period for another attempt.
  */
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -49,6 +54,8 @@ const GRACE_MS = 3 * DAY_MS;
 const RETRY_MS = 12 * HOUR_MS;
 const MAX_ATTEMPTS = 3;
 const BATCH = 100;
+/** A mail about a charge is still delivered (and retried) this long after. */
+const NOTICE_MS = 3 * DAY_MS;
 
 /**
  * charged  — the bank said `result: true`.
@@ -105,16 +112,14 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
       userId: SubscriptionAutorenewal.userId,
       externalId: SubscriptionAutorenewal.externalId,
       period: SubscriptionAutorenewal.period,
+      lastAttemptAt: SubscriptionAutorenewal.lastAttemptAt,
       paidUntil: Subscription.paidUntil,
-      name: user.name,
-      email: user.email,
     })
     .from(SubscriptionAutorenewal)
     .innerJoin(
       Subscription,
       eq(Subscription.userId, SubscriptionAutorenewal.userId),
     )
-    .innerJoin(user, eq(user.id, SubscriptionAutorenewal.userId))
     .where(
       and(
         eq(SubscriptionAutorenewal.status, "active"),
@@ -140,90 +145,66 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
 
 type Candidate = Awaited<ReturnType<typeof candidates>>[number];
 
-const periodLabel = (period: BillingPeriod) =>
-  period === "year" ? "год" : "месяц";
-
-/** Tell the specialist about an attempt, once per payment (`sent_notices`). */
-async function notify(
+/**
+ * Take the right to charge `paidUntil` of this renewal, or undefined if it
+ * is gone. One statement: with the renewal and subscription rows locked, it
+ * checks that the renewal is still on, for the same bank subscription, that
+ * `paid_until` is still the one picked (a manual payment moves it), and that
+ * the last attempt is old enough — whatever a racing worker, a cancellation
+ * or a payment did since the candidates were read — then marks the attempt
+ * time and inserts the attempt row. The row's unique `(user_id, charged_for)`
+ * turns away a repeat of the same period.
+ */
+async function claimAttempt(
   db: Database,
-  deliver: Deliver,
-  row: Candidate,
-  paymentId: string,
-  notice: RenewalNotice,
-  subject: string,
-  paidUntil: Date,
-  newEnd?: Date,
-) {
-  const claim = await claimNotice(
-    db,
-    `renewal:${notice}:${paymentId}`,
-    row.userId,
-  );
-  if (!claim) return;
-  try {
-    await deliver({
-      template: "renewal-notice",
-      to: [row.email],
-      subject,
-      props: {
-        notice,
-        name: row.name,
-        amount: rubles(PRO_PRICES[row.period].amount),
-        period: periodLabel(row.period),
-        until: newEnd ? formatEnd(newEnd) : "",
-        endsOn: formatEnd(paidUntil),
-        billingUrl: billingUrl(),
-      },
-    });
-  } catch (error) {
-    await claim.release();
-    logger.warn("billing.renewal_notice_failed", {
-      userId: row.userId,
-      paymentId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-  await claim.done();
-}
-
-async function renew(
-  db: Database,
-  deliver: Deliver,
-  row: Candidate,
+  row: Candidate & { paidUntil: Date },
+  amount: number,
   now: Date,
 ) {
+  const paidUntil = row.paidUntil.toISOString();
+  const retryBefore = new Date(now.getTime() - RETRY_MS).toISOString();
+  const result: unknown = await db.execute(sql`
+    with target as (
+      select r.id, r.user_id, r.period
+      from subscription_autorenewals r
+      join subscriptions s on s.user_id = r.user_id
+      where r.id = ${row.id} and r.status = 'active'
+        and r.external_id = ${row.externalId}
+        and s.paid_until >= ${paidUntil}::timestamptz
+        and s.paid_until < ${paidUntil}::timestamptz + interval '1 millisecond'
+        and (r.last_attempt_at is null
+          or r.last_attempt_at <= ${retryBefore}::timestamptz)
+      for update of r, s
+    ), touched as (
+      update subscription_autorenewals r
+      set last_attempt_at = ${now.toISOString()}::timestamptz,
+          updated_at = now()
+      from target
+      where r.id = target.id
+    )
+    insert into subscription_payments (user_id, period, amount, charged_for)
+    select user_id, period, ${amount}, ${paidUntil}::timestamptz from target
+    on conflict (user_id, charged_for) do nothing
+    returning id
+  `);
+  return (result as { rows: { id: string }[] }).rows[0]?.id;
+}
+
+async function renew(db: Database, row: Candidate, now: Date) {
   const { paidUntil } = row;
   if (!paidUntil) return;
   const amount = PRO_PRICES[row.period].amount;
 
-  // The claim: one attempt row per user and period end, before the bank.
-  const [attempt] = await db
-    .insert(SubscriptionPayment)
-    .values({
-      userId: row.userId,
-      period: row.period,
-      amount,
-      chargedFor: paidUntil,
-    })
-    .onConflictDoNothing({
-      target: [SubscriptionPayment.userId, SubscriptionPayment.chargedFor],
-    })
-    .returning({ id: SubscriptionPayment.id });
-  if (!attempt) return;
-
-  await db
-    .update(SubscriptionAutorenewal)
-    .set({ lastAttemptAt: now })
-    .where(eq(SubscriptionAutorenewal.id, row.id));
+  const attemptId = await claimAttempt(db, { ...row, paidUntil }, amount, now);
+  if (!attemptId) return;
 
   const outcome = await chargeTochka(row.externalId, amount);
-  const log = { userId: row.userId, paymentId: attempt.id, amount };
+  const log = { userId: row.userId, paymentId: attemptId, amount };
 
   if (outcome === "charged") {
     let settled: Awaited<ReturnType<typeof settleSubscriptionPayment>>;
     try {
-      settled = await settleSubscriptionPayment(db, attempt.id, "succeeded");
+      settled = await settleSubscriptionPayment(db, attemptId, "succeeded");
     } catch (error) {
       // The money has moved but the period isn't recorded: a human must.
       logger.error("billing.renewal_unrecorded", error, log);
@@ -238,27 +219,9 @@ async function renew(
       .set({ failedAttempts: 0 })
       .where(eq(SubscriptionAutorenewal.id, row.id));
     logger.info("billing.renewed", log);
-    await notify(
-      db,
-      deliver,
-      row,
-      attempt.id,
-      "charged",
-      "«Про» продлён",
-      paidUntil,
-      settled.periodEnd,
-    );
   } else if (outcome === "declined") {
-    // Free the period for the next try, and count the failure.
-    await db
-      .update(SubscriptionPayment)
-      .set({ status: "canceled", chargedFor: null })
-      .where(
-        and(
-          eq(SubscriptionPayment.id, attempt.id),
-          eq(SubscriptionPayment.status, "pending"),
-        ),
-      );
+    // Count the failure, then free the period for the next try. The mail the
+    // specialist is owed is recorded on the payment (`decline_kind`).
     const [counted] = await db
       .update(SubscriptionAutorenewal)
       .set({
@@ -268,28 +231,35 @@ async function renew(
       .returning({ failedAttempts: SubscriptionAutorenewal.failedAttempts });
     const final = (counted?.failedAttempts ?? MAX_ATTEMPTS) >= MAX_ATTEMPTS;
     if (final) await cancelAutorenewal(db, row.userId, "charge_failed");
+    await db
+      .update(SubscriptionPayment)
+      .set({
+        status: "canceled",
+        chargedFor: null,
+        declineKind: final ? "final" : "retry",
+      })
+      .where(
+        and(
+          eq(SubscriptionPayment.id, attemptId),
+          eq(SubscriptionPayment.status, "pending"),
+        ),
+      );
     logger.warn("billing.renewal_declined", { ...log, final });
-    await notify(
-      db,
-      deliver,
-      row,
-      attempt.id,
-      final ? "canceled" : "failed",
-      final
-        ? "Автопродление «Про» отключено"
-        : "Не удалось продлить «Про» — проверьте карту",
-      paidUntil,
-    );
   } else if (outcome === "not_sent") {
-    // Nothing reached the bank: forget the attempt, try again next run.
+    // Nothing reached the bank: forget the attempt, and let the next run try
+    // again at once instead of after the 12 hours that follow a refusal.
     await db
       .delete(SubscriptionPayment)
       .where(
         and(
-          eq(SubscriptionPayment.id, attempt.id),
+          eq(SubscriptionPayment.id, attemptId),
           eq(SubscriptionPayment.status, "pending"),
         ),
       );
+    await db
+      .update(SubscriptionAutorenewal)
+      .set({ lastAttemptAt: row.lastAttemptAt })
+      .where(eq(SubscriptionAutorenewal.id, row.id));
     logger.error("billing.renewal_not_sent", undefined, log);
   } else {
     // No clear answer: the card may have been charged. The attempt stays
@@ -299,30 +269,129 @@ async function renew(
   }
 }
 
+const periodLabel = (period: BillingPeriod) =>
+  period === "year" ? "год" : "месяц";
+
+const SUBJECTS: Record<RenewalNotice, string> = {
+  charged: "«Про» продлён",
+  failed: "Не удалось продлить «Про» — проверьте карту",
+  canceled: "Автопродление «Про» отключено",
+};
+
 /**
- * Charge every auto-renewal whose paid period ends within a day. Does
- * nothing in the sandbox or without a key: there is no card to charge.
+ * Mail the specialist about each recent automatic charge: charged, declined
+ * (will retry) or declined for the last time. Works from the payments, not
+ * from the subscriptions due for a charge, so a mail whose delivery failed
+ * is retried by the next runs for three days. One mail per payment: a claim
+ * in `sent_notices` (key `renewal:<paymentId>`) keeps repeats out.
+ */
+async function sendRenewalNotices(db: Database, deliver: Deliver, now: Date) {
+  const rows = await db
+    .select({
+      id: SubscriptionPayment.id,
+      status: SubscriptionPayment.status,
+      declineKind: SubscriptionPayment.declineKind,
+      period: SubscriptionPayment.period,
+      amount: SubscriptionPayment.amount,
+      periodStart: SubscriptionPayment.periodStart,
+      periodEnd: SubscriptionPayment.periodEnd,
+      userId: SubscriptionPayment.userId,
+      paidUntil: Subscription.paidUntil,
+      name: user.name,
+      email: user.email,
+    })
+    .from(SubscriptionPayment)
+    .innerJoin(
+      Subscription,
+      eq(Subscription.userId, SubscriptionPayment.userId),
+    )
+    .innerJoin(user, eq(user.id, SubscriptionPayment.userId))
+    .where(
+      and(
+        gt(SubscriptionPayment.createdAt, new Date(now.getTime() - NOTICE_MS)),
+        or(
+          and(
+            eq(SubscriptionPayment.status, "succeeded"),
+            isNotNull(SubscriptionPayment.chargedFor),
+          ),
+          isNotNull(SubscriptionPayment.declineKind),
+        ),
+        sql`not exists (
+          select 1 from ${SentNotice}
+          where ${SentNotice.key} = 'renewal:' || ${SubscriptionPayment.id}
+            and ${SentNotice.sentAt} is not null
+        )`,
+      ),
+    )
+    .orderBy(asc(SubscriptionPayment.createdAt))
+    .limit(BATCH);
+
+  for (const row of rows) {
+    const notice: RenewalNotice =
+      row.status === "succeeded"
+        ? "charged"
+        : row.declineKind === "final"
+          ? "canceled"
+          : "failed";
+    const claim = await claimNotice(db, `renewal:${row.id}`, row.userId);
+    if (!claim) continue;
+    const endsOn = notice === "charged" ? row.periodStart : row.paidUntil;
+    try {
+      await deliver({
+        template: "renewal-notice",
+        to: [row.email],
+        subject: SUBJECTS[notice],
+        props: {
+          notice,
+          name: row.name,
+          amount: rubles(row.amount),
+          period: periodLabel(row.period),
+          until: row.periodEnd ? formatEnd(row.periodEnd) : "",
+          endsOn: endsOn ? formatEnd(endsOn) : "",
+          billingUrl: billingUrl(),
+        },
+      });
+    } catch (error) {
+      await claim.release();
+      logger.warn("billing.renewal_notice_failed", {
+        userId: row.userId,
+        paymentId: row.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+    await claim.done();
+  }
+}
+
+/**
+ * Charge every auto-renewal whose paid period ends within a day, then mail
+ * about the charges. Charges nothing in the sandbox or without a key: there
+ * is no card to charge.
  */
 export async function renewSubscriptions(
   db: Database,
   deliver: Deliver = dispatchEmail,
   now = new Date(),
 ) {
-  if (env.TOCHKA_SANDBOX || !env.TOCHKA_API_TOKEN) return;
-
-  let afterId: string | undefined;
-  while (true) {
-    const rows = await candidates(db, now, afterId);
-    for (const row of rows) {
-      try {
-        await renew(db, deliver, row, now);
-      } catch (error) {
-        // One failing user must not stop the others.
-        logger.error("billing.renewal_failed", error, { userId: row.userId });
+  if (!env.TOCHKA_SANDBOX && env.TOCHKA_API_TOKEN) {
+    let afterId: string | undefined;
+    while (true) {
+      const rows = await candidates(db, now, afterId);
+      for (const row of rows) {
+        try {
+          await renew(db, row, now);
+        } catch (error) {
+          // One failing user must not stop the others.
+          logger.error("billing.renewal_failed", error, {
+            userId: row.userId,
+          });
+        }
       }
+      const last = rows.at(-1);
+      if (!last || rows.length < BATCH) break;
+      afterId = last.id;
     }
-    const last = rows.at(-1);
-    if (!last || rows.length < BATCH) break;
-    afterId = last.id;
   }
+  await sendRenewalNotices(db, deliver, now);
 }

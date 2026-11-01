@@ -1,16 +1,10 @@
 import { buttonVariants, cn } from "@synoro/ui";
-import {
-  ArrowRightIcon,
-  CalendarClockIcon,
-  CalendarRangeIcon,
-  CoffeeIcon,
-  HandshakeIcon,
-} from "lucide-react";
+import { CalendarRangeIcon, CoffeeIcon, HandshakeIcon } from "lucide-react";
 
 import { BookingsListMockup } from "~/components/mockups/bookings-list";
 import type { SiteLinks } from "~/lib/site";
 
-import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
+import { Lead, Section, SectionHeading } from "./primitives";
 
 const points = [
   {
@@ -34,9 +28,6 @@ export function Scheduling({ links }: { links: SiteLinks }) {
   return (
     <Section id="features">
       <div className="flex flex-col gap-5 px-4 pt-16 pb-12 sm:px-10 sm:pt-24">
-        <Eyebrow icon={CalendarClockIcon} tone="violet">
-          Онлайн-запись
-        </Eyebrow>
         <SectionHeading>
           Расписание, которое
           <br className="hidden sm:block" /> заполняется без вас
@@ -55,7 +46,6 @@ export function Scheduling({ links }: { links: SiteLinks }) {
             )}
           >
             Посмотреть, как видит клиент
-            <ArrowRightIcon data-icon="inline-end" />
           </a>
         )}
       </div>

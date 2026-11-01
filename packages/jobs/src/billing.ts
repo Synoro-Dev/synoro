@@ -22,7 +22,8 @@ import {
  * payment), or now if «Про» has lapsed. The rows are locked first, so racing
  * webhooks and status checks — or two payments of one user — never add a
  * period twice or lose one. A payment that carries the specialist's consent
- * to auto-renewal also (re)starts it in the same statement. Settled payments
+ * to auto-renewal also (re)starts it in the same statement — unless a newer
+ * agreement or a cancellation came after that consent. Settled payments
  * never change.
  */
 export async function settleSubscriptionPayment(
@@ -68,6 +69,12 @@ export async function settleSubscriptionPayment(
             status = 'active', consent_at = excluded.consent_at,
             failed_attempts = 0, last_attempt_at = null, canceled_at = null,
             cancel_reason = null, updated_at = now()
+        -- A late confirmation of an older link must not undo a newer
+        -- agreement or a cancellation made since: only a consent given
+        -- after both replaces the card.
+        where excluded.consent_at > subscription_autorenewals.consent_at
+          and (subscription_autorenewals.canceled_at is null
+            or excluded.consent_at > subscription_autorenewals.canceled_at)
       )
       update subscriptions s
       set paid_until = paid.period_end, updated_at = now()

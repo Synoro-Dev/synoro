@@ -33,6 +33,8 @@ export const Subscription = pgTable("subscriptions", (t) => ({
     .$onUpdateFn(() => sql`now()`),
 }));
 
+export const declineKind = pgEnum("decline_kind", ["retry", "final"]);
+
 /** What one payment buys: a month or a year of «Про». */
 export const billingPeriod = pgEnum("billing_period", ["month", "year"]);
 
@@ -80,6 +82,12 @@ export const SubscriptionPayment = pgTable(
      * period twice; a declined attempt clears it to allow a retry.
      */
     chargedFor: t.timestamp({ withTimezone: true }),
+    /**
+     * Set on an automatic charge the bank declined: which mail the
+     * specialist is owed (retry — "will try again", final — renewal is off).
+     * The worker sends it, and sends it again after a failed delivery.
+     */
+    declineKind: declineKind(),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })

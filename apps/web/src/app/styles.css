@@ -4,19 +4,14 @@
 
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
 
-@theme {
-  --animate-marquee: marquee 40s linear infinite;
-  --animate-fade-up: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
-  --animate-float: float 6s ease-in-out infinite;
+/* Onest is drawn for Cyrillic first; the landing sets everything in it. */
+@theme inline {
+  --font-sans: var(--font-onest);
+}
 
-  @keyframes marquee {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(-50%);
-    }
-  }
+@theme {
+  --animate-fade-up: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+
   @keyframes fade-up {
     from {
       opacity: 0;
@@ -27,15 +22,6 @@
       opacity: 1;
       transform: none;
       filter: none;
-    }
-  }
-  @keyframes float {
-    0%,
-    100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-6px);
     }
   }
 }
