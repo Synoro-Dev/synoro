@@ -46,7 +46,7 @@
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "worker": "bun --env-file=../../.env --watch run src/worker.ts",
     "start": "bun run src/worker.ts",
-    "messenger:webhooks": "bun --env-file=../../.env run src/scripts/messenger-webhooks.ts",
+    "messenger:webhooks": "bun run --cwd ../config build && bun --env-file=../../.env run src/scripts/messenger-webhooks.ts",
     "format": "biome format .",
     "lint": "biome lint .",
     "check": "biome check .",
