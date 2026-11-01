@@ -27,6 +27,7 @@ export const get = protectedProcedure.handler(async ({ context }) => {
         status: SubscriptionPayment.status,
         periodEnd: SubscriptionPayment.periodEnd,
         paidAt: SubscriptionPayment.paidAt,
+        refundedAt: SubscriptionPayment.refundedAt,
         createdAt: SubscriptionPayment.createdAt,
       })
       .from(SubscriptionPayment)

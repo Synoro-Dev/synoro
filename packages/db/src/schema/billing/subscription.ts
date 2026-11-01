@@ -55,6 +55,12 @@ export const SubscriptionPayment = pgTable(
     periodStart: t.timestamp({ withTimezone: true }),
     periodEnd: t.timestamp({ withTimezone: true }),
     paidAt: t.timestamp({ withTimezone: true }),
+    /**
+     * When the whole payment went back to the customer (`billing.refund`).
+     * The status stays `succeeded`; the paid period is taken off
+     * `subscriptions.paid_until` in the same statement.
+     */
+    refundedAt: t.timestamp({ withTimezone: true }),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })

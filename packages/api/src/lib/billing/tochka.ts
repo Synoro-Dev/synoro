@@ -89,7 +89,7 @@ export interface TochkaPayment {
 }
 
 async function call<T>(
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {
@@ -211,6 +211,56 @@ export async function fetchTochkaPayment(
     throw new ProviderError("rejected", `Операция ${operationId} не найдена`);
   }
   return toPayment(operation);
+}
+
+/**
+ * Send the money of an `APPROVED` operation back to the customer's card or
+ * account (`POST …/payments/{operationId}/refund`). `amount` is kopecks; we
+ * only ever refund a payment whole. A 2xx is the bank's acceptance; the
+ * collection documents no response body, so only an explicit
+ * `isRefund: false` is read as a refusal.
+ */
+export async function refundTochkaPayment(
+  operationId: string,
+  amount: number,
+): Promise<void> {
+  const { Data } = await call<{ Data?: { isRefund?: boolean } }>(
+    "POST",
+    `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}/refund`,
+    { Data: { amount: rubles(amount) } },
+  );
+  if (Data?.isRefund === false) {
+    throw new ProviderError("rejected", "Точка Банк не вернул платёж");
+  }
+}
+
+/** The only notification billing listens to: `acquiringInternetPayment`. */
+const WEBHOOK_TYPE = "acquiringInternetPayment";
+
+/**
+ * Manage the platform key's webhook (`/webhook/v1.0/{client_id}`): register
+ * `url` for payments, read what is registered, drop it, or ask Точка to send a
+ * test notification there. `clientId` is the one saved next to the JWT key.
+ */
+export async function manageTochkaWebhook(
+  action: "create" | "show" | "delete" | "test",
+  clientId: string,
+  url: string,
+) {
+  const path = `/webhook/v1.0/${encodeURIComponent(clientId)}`;
+  const registration = { webhooksList: [WEBHOOK_TYPE], url };
+  switch (action) {
+    case "create":
+      return call<unknown>("PUT", path, registration);
+    case "show":
+      return call<unknown>("GET", path);
+    case "delete":
+      return call<unknown>("DELETE", path, registration);
+    case "test":
+      return call<unknown>("POST", `${path}/test_send`, {
+        webhookType: WEBHOOK_TYPE,
+      });
+  }
 }
 
 /**

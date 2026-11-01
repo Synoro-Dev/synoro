@@ -3,7 +3,7 @@
 import { isDefinedError } from "@orpc/client";
 import type { RouterOutputs } from "@synoro/api";
 import type { paths } from "@synoro/config";
-import { Button, Skeleton, Spinner, toast } from "@synoro/ui";
+import { Button, cn, Skeleton, Spinner, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { type BillingPeriodId, TRIAL_DAYS } from "@synoro/validators";
@@ -384,8 +384,21 @@ export function BillingPanel() {
                       {payment.periodEnd &&
                         ` · до ${formatDate(payment.periodEnd)}`}
                     </span>
-                    <span className="font-medium tabular-nums">
-                      {formatRub(payment.amount)}
+                    <span className="flex items-center gap-2">
+                      {payment.refundedAt && (
+                        <span className="text-xs text-muted-foreground">
+                          возвращён {formatDate(payment.refundedAt)}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "font-medium tabular-nums",
+                          payment.refundedAt &&
+                            "text-muted-foreground line-through",
+                        )}
+                      >
+                        {formatRub(payment.amount)}
+                      </span>
                     </span>
                   </li>
                 ))}

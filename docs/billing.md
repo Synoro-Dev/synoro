@@ -59,14 +59,17 @@
 
 5. Вебхук (один раз на ключ). Точка шлёт тестовое уведомление и не создаёт
    вебхук, если адрес не ответил 200 — деплой с маршрутом должен быть уже
-   доступен по HTTPS:
+   доступен по HTTPS. Из корня репозитория, с `TOCHKA_API_TOKEN` и `APP_URL`
+   в `.env`:
 
    ```bash
-   curl -X PUT "https://enter.tochka.com/uapi/webhook/v1.0/<client_id>" \
-     -H "Authorization: Bearer $TOCHKA_API_TOKEN" \
-     -H "Content-Type: application/json" \
-     -d '{"webhooksList":["acquiringInternetPayment"],"url":"https://app.synoro.ru/api/billing/tochka"}'
+   bun billing:webhook create <client_id>   # PUT, адрес — ${APP_URL}/api/billing/tochka
+   bun billing:webhook show <client_id>     # что зарегистрировано
+   bun billing:webhook test <client_id>     # тестовое уведомление на адрес
+   bun billing:webhook delete <client_id>
    ```
+
+   Другой адрес — третьим аргументом. В песочнице вебхуков нет.
 
    Тело вебхука — JWT (RS256). Подпись не проверяем: из него берём только
    `operationId` и перечитываем операцию по API своим ключом. Пока банк не
@@ -145,7 +148,26 @@ Cron `pro-notices` (`packages/jobs/src/pro-notices.ts`) раз в час пиш�
 наверстать — после окончания приходит только «закончился». Вместе с воркером
 заработают `booking-reminders` и `google-calendar-cleanup`.
 
+## Возвраты
+
+`billing.refund { paymentId }` (только администратор платформы): возвращает
+платёж целиком через `POST /acquiring/v1.0/payments/{operationId}/refund`, а
+затем одним SQL-выражением ставит `subscription_payments.refunded_at` и снимает
+оплаченный период с `subscriptions.paid_until` (если период начинался не
+позже конца пробного, `paid_until` становится `null`). Статус платежа остаётся
+`succeeded`, в «Истории оплат» он помечен как возвращённый.
+
+- Вернуть можно только платёж, которым заканчивается оплаченный срок: иначе
+  после снятия его месяцев между платежами остался бы провал. Несколько — с
+  последнего к первому (`NOT_LATEST`).
+- Демо- и песочничные платежи (`demo-…`, `sandbox-…`) не возвращаются
+  (`NOT_REFUNDABLE`), как и неоплаченные и уже возвращённые.
+- Возврат частичный не поддерживается. Тело ответа банка в коллекции Точки не
+  описано, поэтому отказом считаем ошибку HTTP или явный `isRefund: false`.
+- Если банк вернул деньги, а запись в базе не удалась, в лог пишется
+  `billing.refund_unrecorded`: нужно разобрать руками.
+- Экрана для администратора пока нет, процедура вызывается через API.
+
 ## Что ещё не сделано
 
-- Возвраты — вручную в интернет-банке Точки; `paid_until` после возврата
-  поправить в базе.
+- Автосписания (`/acquiring/v1.0/subscriptions`): нужно согласие в Условиях.

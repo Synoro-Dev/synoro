@@ -16,6 +16,7 @@ import {
   createTochkaPayment,
   fetchTochkaPayment,
   isSandboxPayment,
+  refundTochkaPayment,
   sandboxExternalId,
   tochkaAvailable,
   tochkaConfig,
@@ -227,6 +228,94 @@ async function settleSubscriptionPayment(
   });
   if (!payment) throw new Error(`Subscription payment ${paymentId} vanished`);
   return payment;
+}
+
+/** Payments that never reached a bank (demo stand, Точка's sandbox). */
+const BANKLESS_ID = /^(demo|sandbox)-/;
+
+/**
+ * Give a paid «Про» payment back, whole: Точка returns the money, then the
+ * payment is marked `refunded_at` and its period is taken off
+ * `subscriptions.paid_until` in ONE statement (rows locked, as in settling).
+ * Only the payment that ends the paid period can go back — otherwise taking
+ * its months off would leave a hole before the later ones — so refund the
+ * newest first. Throws `ProviderError` when the bank refuses; nothing changes
+ * then.
+ */
+export async function refundSubscriptionPayment(
+  db: Database,
+  paymentId: string,
+) {
+  const [found] = await db
+    .select({
+      payment: SubscriptionPayment,
+      paidUntil: Subscription.paidUntil,
+    })
+    .from(SubscriptionPayment)
+    .innerJoin(
+      Subscription,
+      eq(Subscription.userId, SubscriptionPayment.userId),
+    )
+    .where(eq(SubscriptionPayment.id, paymentId));
+  if (!found) return { result: "not_found" as const };
+
+  const { payment, paidUntil } = found;
+  const { externalId } = payment;
+  if (
+    payment.status !== "succeeded" ||
+    payment.refundedAt ||
+    !externalId ||
+    BANKLESS_ID.test(externalId) ||
+    !tochkaAvailable()
+  ) {
+    return { result: "not_refundable" as const };
+  }
+  if (
+    !payment.periodEnd ||
+    payment.periodEnd.getTime() !== paidUntil?.getTime()
+  ) {
+    return { result: "not_latest" as const };
+  }
+
+  await refundTochkaPayment(externalId, payment.amount);
+
+  await db.execute(sql`
+    with target as (
+      select sp.id, sp.user_id, sp.period_start
+      from subscription_payments sp
+      join subscriptions s on s.user_id = sp.user_id
+      where sp.id = ${paymentId} and sp.status = 'succeeded'
+        and sp.refunded_at is null and sp.period_end = s.paid_until
+      for update of sp, s
+    ), refunded as (
+      update subscription_payments sp
+      set refunded_at = now(), updated_at = now()
+      from target
+      where sp.id = target.id
+      returning sp.user_id, target.period_start
+    )
+    update subscriptions s
+    set paid_until = case
+          when refunded.period_start <= s.trial_ends_at then null
+          else refunded.period_start end,
+        updated_at = now()
+    from refunded
+    where s.user_id = refunded.user_id
+  `);
+
+  const settled = await db.query.SubscriptionPayment.findFirst({
+    where: eq(SubscriptionPayment.id, paymentId),
+  });
+  if (!settled?.refundedAt) {
+    // The bank has already paid the money back: this needs a human.
+    logger.error("billing.refund_unrecorded", undefined, {
+      paymentId,
+      externalId,
+    });
+    throw new Error(`Refund of ${paymentId} was not recorded`);
+  }
+  logger.info("billing.refunded", { paymentId, amount: payment.amount });
+  return { result: "refunded" as const, payment: settled };
 }
 
 /**
