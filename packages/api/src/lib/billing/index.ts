@@ -275,7 +275,7 @@ export async function syncSubscriptionPayment(
       remote.status === "succeeded" &&
       Math.round(remote.amount * 100) !== payment.amount
     ) {
-      logger.error("billing.amount_mismatch", {
+      logger.error("billing.amount_mismatch", undefined, {
         paymentId: payment.id,
         expected: payment.amount,
         received: remote.amount,

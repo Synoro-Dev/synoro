@@ -413,7 +413,7 @@ export async function handlePaymentWebhook(
 
   const status = tbankStatus(String(body.Status ?? ""));
   if (status === "succeeded" && Number(body.Amount) !== payment.amount) {
-    logger.error("payment.amount_mismatch", {
+    logger.error("payment.amount_mismatch", undefined, {
       paymentId: payment.id,
       expected: payment.amount,
       received: body.Amount,

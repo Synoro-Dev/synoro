@@ -32,10 +32,9 @@ export const checkout = protectedProcedure
       });
     } catch (error) {
       if (!(error instanceof ProviderError)) throw error;
-      logger.error("billing.create_failed", {
+      logger.error("billing.create_failed", error, {
         userId: user.id,
         kind: error.kind,
-        error: error.message,
       });
       throw errors.PROVIDER_ERROR({ cause: error });
     }
