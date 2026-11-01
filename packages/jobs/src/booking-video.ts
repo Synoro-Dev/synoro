@@ -13,9 +13,9 @@ import {
   PracticeMember,
   user,
 } from "@synoro/db";
-import type { BookingNotice, TemplateEmail } from "@synoro/emails";
+import type { BookingNotice } from "@synoro/emails";
 
-import { dispatchEmail } from "./index";
+import { type Deliver, noticeSender } from "./messenger/deliver";
 import { notifyStaff } from "./staff-notices";
 import { cabinetUrl } from "./urls";
 import { describeDates, localHour } from "./when";
@@ -37,14 +37,14 @@ const DAY_HOURS = { from: 9, until: 22 };
 
 type Notice = BookingNotice;
 
-/** How a mail leaves: `dispatchEmail` by default, a recorder in tests. */
-export type Deliver = (message: TemplateEmail) => Promise<void>;
+export type { Deliver } from "./messenger/deliver";
 
 /** Paid bookings of clients who can be mailed. */
 function confirmedBookings(db: Database) {
   return db
     .select({
       id: Booking.id,
+      practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
       reminderDaySentAt: Booking.reminderDaySentAt,
@@ -52,6 +52,7 @@ function confirmedBookings(db: Database) {
       videoUrl: Practice.videoUrl,
       practiceName: Practice.name,
       timezone: Practice.timezone,
+      clientId: user.id,
       clientName: user.name,
       clientEmail: user.email,
     })
@@ -80,22 +81,25 @@ async function send(
     "reminder-hour": `Напоминание: встреча через час — ${row.practiceName}`,
     cancelled: `Запись отменена: ${row.practiceName}`,
   };
-  await deliver({
-    template: "booking-notice",
-    to: [row.clientEmail],
-    subject: subjects[notice],
-    props: {
-      notice,
-      name: row.clientName,
-      practiceName: row.practiceName,
-      when,
-      dates,
-      videoUrl,
-      cabinetUrl: cabinetUrl(),
-      cancelledBy: cancellation?.by ?? null,
-      refunded: cancellation?.refunded ?? false,
+  await deliver(
+    {
+      template: "booking-notice",
+      to: [row.clientEmail],
+      subject: subjects[notice],
+      props: {
+        notice,
+        name: row.clientName,
+        practiceName: row.practiceName,
+        when,
+        dates,
+        videoUrl,
+        cabinetUrl: cabinetUrl(),
+        cancelledBy: cancellation?.by ?? null,
+        refunded: cancellation?.refunded ?? false,
+      },
     },
-  });
+    { userId: row.clientId, practiceId: row.practiceId },
+  );
 }
 
 /**
@@ -130,7 +134,7 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
 export async function notifyBookingConfirmed(
   db: Database,
   bookingId: string,
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   try {
     const [row] = await confirmedBookings(db).where(
@@ -161,7 +165,7 @@ export async function notifyBookingCancelled(
   db: Database,
   bookingId: string,
   options: { refunded: boolean },
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   try {
     const [booking] = await db
@@ -221,7 +225,7 @@ async function seriesDates(db: Database, bookingIds: string[], notice: Notice) {
 export async function notifySeriesBooked(
   db: Database,
   bookingIds: string[],
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   const found = await seriesDates(db, bookingIds, "confirmed");
   if (!found) return;
@@ -247,7 +251,7 @@ export async function notifySeriesCancelled(
   db: Database,
   bookingIds: string[],
   options: { by: "client" | "staff"; refunded: boolean },
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   const found = await seriesDates(db, bookingIds, "cancelled");
   if (!found) return;
@@ -287,7 +291,7 @@ export async function notifySeriesCancelled(
 export async function notifyVideoLinkChanged(
   db: Database,
   scope: { bookingId: string } | { practiceId: string },
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   try {
     const upcoming = and(
@@ -348,7 +352,7 @@ export async function notifyVideoLinkChanged(
  */
 export async function sendBookingReminders(
   db: Database,
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
   at = new Date(),
 ) {
   const now = at.getTime();

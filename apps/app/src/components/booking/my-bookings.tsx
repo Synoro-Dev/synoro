@@ -41,6 +41,7 @@ import { orpc } from "~/orpc/react";
 import { formatRub, PAYMENT_STATUS } from "../payment/format";
 import { PaymentReturn } from "../payment/payment-return";
 import { TopUpDialog } from "../payment/top-up-dialog";
+import { MessengerCard } from "../settings/messenger-notifications";
 import { ConfirmButton } from "./confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 import { formatDateTime, formatTime } from "./time";
@@ -383,6 +384,8 @@ export function MyBookings() {
       <PageHeading title="Кабинет" description="Баланс, записи и оплаты" />
 
       <ContactCard />
+
+      <MessengerCard />
 
       <PaymentReturn onRetry={setTopUp} />
 

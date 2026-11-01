@@ -123,6 +123,35 @@ export const env = createEnv({
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+    // Messenger bots («Про» notices, docs/reminders.md): the bot's token,
+    // its @name for the start link (without @) and the secret the platform
+    // sends with every webhook call (bun messenger:webhooks registers it).
+    // All three unset: that messenger is off and notices go by mail.
+    TELEGRAM_BOT_TOKEN: z.string().optional(),
+    TELEGRAM_BOT_USERNAME: z.string().optional(),
+    TELEGRAM_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^[\w-]{16,256}$/)
+      .optional(),
+    // Bot API host: a relay can stand in where api.telegram.org is blocked.
+    // https only: the bot token travels in the path.
+    TELEGRAM_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://api.telegram.org"),
+    // MAX (business.max.ru → Чат-боты). Its API is served with a
+    // certificate of the Russian Trusted Root CA: the images trust it via
+    // NODE_EXTRA_CA_CERTS (apps/app/certs/russian-trusted-root-ca.crt).
+    MAX_BOT_TOKEN: z.string().optional(),
+    MAX_BOT_USERNAME: z.string().optional(),
+    MAX_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^[\w-]{16,256}$/)
+      .optional(),
+    // https only: the bot token travels in a header.
+    MAX_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://platform-api2.max.ru"),
+
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
 
@@ -171,6 +200,14 @@ export const env = createEnv({
     TOCHKA_TAX_SYSTEM: process.env.TOCHKA_TAX_SYSTEM,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME,
+    TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
+    TELEGRAM_API_URL: process.env.TELEGRAM_API_URL,
+    MAX_BOT_TOKEN: process.env.MAX_BOT_TOKEN,
+    MAX_BOT_USERNAME: process.env.MAX_BOT_USERNAME,
+    MAX_WEBHOOK_SECRET: process.env.MAX_WEBHOOK_SECRET,
+    MAX_API_URL: process.env.MAX_API_URL,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,

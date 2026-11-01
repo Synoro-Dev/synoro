@@ -27,8 +27,7 @@ import {
   type WorkflowVariable,
 } from "@synoro/validators";
 
-import type { Deliver } from "./booking-video";
-import { dispatchEmail } from "./index";
+import { type Deliver, noticeSender } from "./messenger/deliver";
 import { claimNotice } from "./notice-claims";
 import { cabinetUrl, practicePageUrl } from "./urls";
 import { localHour } from "./when";
@@ -326,16 +325,19 @@ async function sendOne(
     const subject = renderWorkflowText(rule.subject, values)
       .replace(/\s+/g, " ")
       .trim();
-    await deliver({
-      template: "workflow-message",
-      to: [client.email],
-      subject,
-      props: {
-        practiceName: rule.practiceName,
-        title: subject,
-        text: renderWorkflowText(rule.text, values),
+    await deliver(
+      {
+        template: "workflow-message",
+        to: [client.email],
+        subject,
+        props: {
+          practiceName: rule.practiceName,
+          title: subject,
+          text: renderWorkflowText(rule.text, values),
+        },
       },
-    });
+      { userId: client.userId, practiceId: rule.practiceId },
+    );
   } catch (error) {
     await claim.release();
     logger.warn("workflow.message_failed", {
@@ -387,7 +389,7 @@ async function runRule(db: Database, deliver: Deliver, rule: Rule, now: Date) {
  */
 export async function sendWorkflowMessages(
   db: Database,
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
   now = new Date(),
 ) {
   for (const rule of await activeRules(db, now)) {

@@ -175,6 +175,14 @@ and run `tsc` by hand, build them first.
   revenue, clients and busy hours for 30/90/365 days against the stretch before;
   queries in `routers/analytics/stats.ts`, page `/practices/<id>/analytics`.
   Revenue is online payments only (manual packages have no amount).
+- **Messenger notices («Про»)** (`docs/reminders.md`, «Мессенджеры»):
+  Synoro bots in Telegram and MAX (`TELEGRAM_*` / `MAX_*` env, webhooks
+  `/api/telegram`, `/api/max`, registered by `bun messenger:webhooks`). A
+  user links one chat (`messenger_chats`) via `messenger.link` → one-time
+  start code. Notice senders in `packages/jobs` take a `Deliver` with a
+  recipient (`userId`, `practiceId`); the default `noticeSender(db)` sends to
+  the chat when the practice owner has «Про», else mail; a blocked bot or
+  the last failed retry of `send-messenger` falls back to mail.
 - **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
   and `bookings.meeting_url` (staff) — the link in force is
   `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see

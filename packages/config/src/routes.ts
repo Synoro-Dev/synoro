@@ -22,6 +22,8 @@ export const paths = {
     root: ROOTS.SETTINGS,
     profile: `${ROOTS.SETTINGS}/profile`,
     security: `${ROOTS.SETTINGS}/security`,
+    /** Notices in Telegram or MAX instead of mail («Про»). */
+    notifications: `${ROOTS.SETTINGS}/notifications`,
     /** The «Про» plan: trial, paid period, payment. */
     billing: `${ROOTS.SETTINGS}/billing`,
   },

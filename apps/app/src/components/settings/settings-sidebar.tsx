@@ -2,7 +2,7 @@
 
 import { paths } from "@synoro/config";
 import { cn } from "@synoro/ui";
-import { Circle, KeyRound, Sparkles, User } from "lucide-react";
+import { Bell, Circle, KeyRound, Sparkles, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -21,6 +21,11 @@ const sidebarNavItems = [
     title: "Безопасность",
     href: paths.settings.security,
     icon: KeyRound,
+  },
+  {
+    title: "Уведомления",
+    href: paths.settings.notifications,
+    icon: Bell,
   },
   {
     title: "Тариф",

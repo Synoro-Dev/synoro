@@ -15,4 +15,5 @@ export { processDocumentWorkflow } from "./multi-step";
 export { proNoticesWorkflow } from "./pro-notices";
 export { scheduledWorkflow } from "./scheduled";
 export { sendEmailTask } from "./send-email";
+export { sendMessengerTask } from "./send-messenger";
 export { workflowMessagesWorkflow } from "./workflow-messages";

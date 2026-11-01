@@ -1,0 +1,101 @@
+import type { TemplateEmail } from "@synoro/emails";
+
+import type { MessengerMessage } from "./bots";
+
+/**
+ * The same notice as the mail, written for a messenger: short, plain text
+ * (no markup to escape), links as buttons. Like the mail it names only the
+ * practice, the time and the link — nothing about the service.
+ */
+
+type Props<T extends TemplateEmail["template"]> = Extract<
+  TemplateEmail,
+  { template: T }
+>["props"];
+
+function bookingNotice(p: Props<"booking-notice">): MessengerMessage {
+  const series = (p.dates?.length ?? 0) > 1;
+  const titles = {
+    confirmed: "Вы записаны",
+    link: "Ссылка на видеовстречу",
+    "reminder-day": "Напоминание: встреча в ближайшие 24 часа",
+    "reminder-hour": "Напоминание: встреча через час",
+    cancelled: "Запись отменена",
+  } as const;
+  const lines = [`${titles[p.notice]}`];
+  if (p.notice === "cancelled") {
+    lines.push(
+      `${p.cancelledBy === "specialist" ? "Специалист отменил" : "Вы отменили"} запись: ${p.practiceName}, ${p.when}.`,
+      p.refunded
+        ? `${series ? "Занятия вернулись" : "Занятие вернулось"} на баланс.`
+        : `${series ? "Занятия не вернулись" : "Занятие не вернулось"} на баланс. Если это ошибка, свяжитесь со специалистом.`,
+    );
+  } else {
+    lines.push(`${p.practiceName} — ${p.when}.`);
+  }
+  if (series) lines.push(`Все даты:\n${p.dates?.join("\n")}`);
+  const buttons: MessengerMessage["buttons"] = [];
+  if (p.videoUrl && p.notice !== "cancelled") {
+    buttons.push({ text: "Войти на встречу", url: p.videoUrl });
+  }
+  buttons.push({ text: "Мои записи", url: p.cabinetUrl });
+  return { text: lines.join("\n"), buttons };
+}
+
+function staffBooking(p: Props<"staff-booking">): MessengerMessage {
+  const booked = p.notice === "booked";
+  const series = (p.dates?.length ?? 0) > 1;
+  const kind = p.free
+    ? "Бесплатная встреча"
+    : series
+      ? "Повторная запись"
+      : "Запись";
+  const lines = [
+    `${booked ? "Новая запись" : "Запись отменена"}: ${p.clientName} — ${p.when}`,
+    booked
+      ? `${kind} в практике «${p.practiceName}».`
+      : `${kind} в практике «${p.practiceName}» отменена${p.cancelledBy === "client" ? " клиентом" : ""}.`,
+  ];
+  if (p.clientPhone) lines.push(`Телефон: ${p.clientPhone}`);
+  if (series) {
+    lines.push(`${booked ? "Даты" : "Отменены даты"}:\n${p.dates?.join("\n")}`);
+  }
+  if (!booked && !p.free) {
+    lines.push(
+      p.refunded
+        ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`
+        : `${series ? "Занятия не возвращены" : "Занятие не возвращено"} на баланс.`,
+    );
+  }
+  return {
+    text: lines.join("\n"),
+    buttons: [{ text: "Открыть календарь", url: p.calendarUrl }],
+  };
+}
+
+function workflowMessage(p: Props<"workflow-message">): MessengerMessage {
+  // One bot writes for every practice: say whose message it is.
+  return {
+    text: `${p.title}\nСообщение от: ${p.practiceName}\n\n${p.text}`,
+    buttons: [],
+  };
+}
+
+/**
+ * The messenger version of `email`, or null for mails that only go by mail
+ * (sign-in codes, «Про» notices and the like).
+ */
+export function messengerMessage(
+  email: TemplateEmail,
+): MessengerMessage | null {
+  switch (email.template) {
+    case "booking-notice":
+      return bookingNotice(email.props);
+    case "staff-booking":
+      return staffBooking(email.props);
+    case "workflow-message":
+      return workflowMessage(email.props);
+    default:
+      return null;
+  }
+}

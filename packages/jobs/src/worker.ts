@@ -30,12 +30,14 @@ async function main() {
     proNoticesWorkflow,
     scheduledWorkflow,
     sendEmailTask,
+    sendMessengerTask,
     workflowMessagesWorkflow,
   } = await import("./workflows");
 
   const worker = await hatchet.worker("acme-worker", {
     workflows: [
       sendEmailTask,
+      sendMessengerTask,
       googleCalendarCleanupWorkflow,
       bookingRemindersWorkflow,
       proNoticesWorkflow,

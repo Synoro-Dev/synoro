@@ -13,8 +13,7 @@ import {
 } from "@synoro/db";
 import type { StaffBookingNotice } from "@synoro/emails";
 
-import type { Deliver } from "./booking-video";
-import { dispatchEmail } from "./index";
+import { type Deliver, noticeSender } from "./messenger/deliver";
 import { describeDates } from "./when";
 
 /**
@@ -36,7 +35,7 @@ export async function notifyStaff(
   bookingId: string,
   notice: StaffBookingNotice,
   options: { refunded?: boolean; dates?: Date[] } = {},
-  deliver: Deliver = dispatchEmail,
+  deliver: Deliver = noticeSender(db),
 ) {
   try {
     const [row] = await db
@@ -67,7 +66,7 @@ export async function notifyStaff(
 
     const actorId = notice === "booked" ? row.createdById : row.cancelledById;
     const staff = await db
-      .select({ email: user.email })
+      .select({ userId: user.id, email: user.email })
       .from(PracticeMember)
       .innerJoin(user, eq(user.id, PracticeMember.userId))
       .where(
@@ -94,30 +93,33 @@ export async function notifyStaff(
         : `Запись отменена: ${clientName}, ${when}`;
 
     await Promise.all(
-      staff.map(async ({ email }) => {
+      staff.map(async ({ userId, email }) => {
         try {
-          await deliver({
-            template: "staff-booking",
-            to: [email],
-            subject,
-            props: {
-              notice,
-              practiceName: row.practiceName,
-              clientName,
-              clientPhone: row.clientPhone ?? row.guestPhone,
-              when,
-              free: row.kind === "free",
-              cancelledBy:
-                row.cancelReason === "client"
-                  ? "client"
-                  : row.cancelReason === "staff"
-                    ? "staff"
-                    : null,
-              refunded: options.refunded ?? false,
-              calendarUrl,
-              dates,
+          await deliver(
+            {
+              template: "staff-booking",
+              to: [email],
+              subject,
+              props: {
+                notice,
+                practiceName: row.practiceName,
+                clientName,
+                clientPhone: row.clientPhone ?? row.guestPhone,
+                when,
+                free: row.kind === "free",
+                cancelledBy:
+                  row.cancelReason === "client"
+                    ? "client"
+                    : row.cancelReason === "staff"
+                      ? "staff"
+                      : null,
+                refunded: options.refunded ?? false,
+                calendarUrl,
+                dates,
+              },
             },
-          });
+            { userId, practiceId: row.practiceId },
+          );
         } catch (error) {
           logger.warn("booking.staff_notice_failed", {
             bookingId,
