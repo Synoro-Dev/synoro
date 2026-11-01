@@ -136,8 +136,8 @@ export const env = createEnv({
     // Bot API host: a relay can stand in where api.telegram.org is blocked.
     TELEGRAM_API_URL: z.url().default("https://api.telegram.org"),
     // MAX (business.max.ru → Чат-боты). Its API is served with a
-    // certificate of the Russian Trusted Root CA: the process needs it, e.g.
-    // NODE_EXTRA_CA_CERTS=/path/to/russian_trusted_root_ca.pem.
+    // certificate of the Russian Trusted Root CA: the images trust it via
+    // NODE_EXTRA_CA_CERTS (apps/app/certs/russian-trusted-root-ca.crt).
     MAX_BOT_TOKEN: z.string().optional(),
     MAX_BOT_USERNAME: z.string().optional(),
     MAX_WEBHOOK_SECRET: z

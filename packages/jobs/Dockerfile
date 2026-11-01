@@ -48,5 +48,10 @@ WORKDIR /app
 RUN groupadd --gid 1001 synoro \
     && useradd --uid 1001 --gid 1001 --no-create-home --shell /usr/sbin/nologin synoro
 COPY --from=build --chown=1001:1001 /app ./
+# The MAX bot API (platform-api2.max.ru) and Точка Банк are signed by the
+# Минцифры root, which bun's bundled CA list does not have; as in
+# apps/app/Dockerfile, NODE_EXTRA_CA_CERTS adds it and the system CAs stay.
+COPY apps/app/certs/russian-trusted-root-ca.crt /app/certs/russian-trusted-root-ca.crt
+ENV NODE_EXTRA_CA_CERTS=/app/certs/russian-trusted-root-ca.crt
 USER 1001:1001
 CMD ["bun", "run", "packages/db/src/scripts/migrate.ts"]

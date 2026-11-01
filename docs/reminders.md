@@ -194,8 +194,9 @@
 
 - `api.telegram.org` доступен; если нет — `TELEGRAM_API_URL` на прокси.
 - API MAX (`platform-api2.max.ru`) отдаёт сертификат Russian Trusted Root
-  CA (Минцифры): добавить его в образ и указать `NODE_EXTRA_CA_CERTS` в app
-  и в воркере, иначе отправка в MAX падает на TLS (и уходит письмо).
+  CA (Минцифры): он лежит в образах app и воркера
+  (`apps/app/certs/russian-trusted-root-ca.crt`, `NODE_EXTRA_CA_CERTS`), как
+  для Точки. Без него отправка в MAX падает на TLS (и уходит письмо).
 - Код ошибки MAX для остановленного бота не задокументирован: 403 / 404
   считаем блокировкой, проверить на живом боте.
 
