@@ -36,7 +36,7 @@
     "@opentelemetry/context-async-hooks": "3.0.0",
     "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
-    "@types/node": "26.6.5",
+    "@types/node": "26.6.6",
     "tsdown": "0.23.3",
     "typescript": "7.0.2"
   }
