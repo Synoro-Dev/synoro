@@ -4,15 +4,13 @@ import { env } from "./src/env";
 
 /**
  * Browser analytics goes through `/ingest` on our own origin (ad blockers
- * block the PostHog hosts). Static assets live on a separate `-assets` host in
- * PostHog Cloud; a self-hosted instance serves both from one.
+ * block the PostHog hosts). Everything, static assets included, goes to the API
+ * host: PostHog Cloud's separate `-assets` host sits behind Cloudflare, whose
+ * addresses are throttled from the production server (about half of the TLS
+ * handshakes time out), while `eu.i.posthog.com` is reliable.
  * @see https://posthog.com/docs/advanced/proxy/nextjs
  */
 const posthogHost = env.NEXT_PUBLIC_POSTHOG_HOST;
-const posthogAssetsHost = posthogHost.replace(
-  /^(https:\/\/\w+)\.i\.posthog\.com$/,
-  "$1-assets.i.posthog.com",
-);
 
 /**
  * Security headers applied to every response.
@@ -108,14 +106,6 @@ export default async function createNextConfig(): Promise<NextConfig> {
     async rewrites() {
       if (!env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return [];
       return [
-        {
-          source: "/ingest/static/:path*",
-          destination: `${posthogAssetsHost}/static/:path*`,
-        },
-        {
-          source: "/ingest/array/:path*",
-          destination: `${posthogAssetsHost}/array/:path*`,
-        },
         { source: "/ingest/:path*", destination: `${posthogHost}/:path*` },
       ];
     },
