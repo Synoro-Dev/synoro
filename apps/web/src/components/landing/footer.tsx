@@ -1,13 +1,12 @@
 import { legal } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
-import { ArrowRightIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
 import { paidPlan, signupGoal } from "~/lib/pricing";
 import type { SiteLinks } from "~/lib/site";
 
 import { Logo } from "./logo";
-import { Section } from "./primitives";
+import { Section, SectionHeading } from "./primitives";
 
 async function CurrentYear() {
   "use cache";
@@ -22,13 +21,9 @@ export function FinalCta({ links }: { links: SiteLinks }) {
           aria-hidden
           className="bg-grid absolute inset-0 -z-10 [--grid-color:rgb(255_255_255/0.06)] [--grid-size:32px] [mask-image:radial-gradient(ellipse_50%_70%_at_50%_100%,black,transparent)]"
         />
-        <div
-          aria-hidden
-          className="absolute -bottom-40 left-1/2 -z-10 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-[conic-gradient(from_180deg,#8b5cf6,#22d3ee,#34d399,#8b5cf6)] opacity-40 blur-[100px]"
-        />
-        <h2 className="mx-auto max-w-2xl text-3xl font-medium tracking-tight text-balance sm:text-5xl">
+        <SectionHeading className="mx-auto max-w-2xl">
           Начните принимать записи сегодня — бесплатно
-        </h2>
+        </SectionHeading>
         <p className="mx-auto mt-5 max-w-lg text-zinc-400 sm:text-lg">
           Пять минут на настройку — и больше никаких «а есть окошко в четверг?».
           А когда клиенты захотят платить онлайн, подключите ЮKassa — первые{" "}
@@ -44,7 +39,6 @@ export function FinalCta({ links }: { links: SiteLinks }) {
             )}
           >
             Начать бесплатно
-            <ArrowRightIcon data-icon="inline-end" />
           </a>
           {links.demo && (
             <a

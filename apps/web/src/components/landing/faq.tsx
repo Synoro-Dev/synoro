@@ -4,11 +4,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@synoro/ui";
-import { MessageCircleQuestionIcon } from "lucide-react";
-
 import { paidPlan, rubles } from "~/lib/pricing";
 
-import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
+import { Lead, Section, SectionHeading } from "./primitives";
 
 const questions = [
   {
@@ -63,10 +61,7 @@ export function Faq() {
       id="faq"
       containerClassName="grid gap-10 px-4 py-16 sm:px-10 sm:py-24 lg:grid-cols-[1fr_1.4fr]"
     >
-      <div className="flex flex-col gap-5">
-        <Eyebrow icon={MessageCircleQuestionIcon} tone="rose">
-          Вопросы
-        </Eyebrow>
+      <div className="flex flex-col gap-5 lg:sticky lg:top-24 lg:self-start">
         <SectionHeading>Частые вопросы</SectionHeading>
         <Lead>
           Не нашли ответ? Напишите нам — поможем настроить практику и перенести

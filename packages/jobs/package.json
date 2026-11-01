@@ -11,6 +11,14 @@
       "types": "./dist/workflows/index.d.ts",
       "default": "./src/workflows/index.ts"
     },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "default": "./src/billing.ts"
+    },
+    "./billing-renewal": {
+      "types": "./dist/billing-renewal.d.ts",
+      "default": "./src/billing-renewal.ts"
+    },
     "./booking-video": {
       "types": "./dist/booking-video.d.ts",
       "default": "./src/booking-video.ts"

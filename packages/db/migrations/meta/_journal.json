@@ -36,6 +36,13 @@
       "when": 1793525089979,
       "tag": "0004_billing_refund",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793526901124,
+      "tag": "0005_billing_autorenew",
+      "breakpoints": true
     }
   ]
 }

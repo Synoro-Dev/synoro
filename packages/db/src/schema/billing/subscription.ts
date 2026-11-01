@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { check, index, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import {
+  check,
+  index,
+  pgEnum,
+  pgTable,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 import { paymentStatus } from "../payment/payment";
@@ -8,7 +14,8 @@ import { paymentStatus } from "../payment/payment";
  * The specialist's «Про» plan on Synoro: one row per user, created with
  * their first practice (that starts the trial). «Про» is on while
  * `now()` is before `trialEndsAt` or `paidUntil`; after both it falls back
- * to the free plan. No auto-renewal: each paid period is bought up front.
+ * to the free plan. Each paid period is bought up front, by hand or by the
+ * auto-renewal (`SubscriptionAutorenewal`) the specialist agreed to.
  */
 export const Subscription = pgTable("subscriptions", (t) => ({
   id: t.uuid().notNull().primaryKey().defaultRandom(),
@@ -25,6 +32,8 @@ export const Subscription = pgTable("subscriptions", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+export const declineKind = pgEnum("decline_kind", ["retry", "final"]);
 
 /** What one payment buys: a month or a year of «Про». */
 export const billingPeriod = pgEnum("billing_period", ["month", "year"]);
@@ -61,6 +70,24 @@ export const SubscriptionPayment = pgTable(
      * `subscriptions.paid_until` in the same statement.
      */
     refundedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * Set when the specialist agreed to auto-renewal while paying: this
+     * payment opened a Точка subscription (`externalId` is the subscription's
+     * `operationId`) and, once paid, turns auto-renewal on.
+     */
+    autorenewConsentAt: t.timestamp({ withTimezone: true }),
+    /**
+     * Set on a payment made by auto-renewal: the `paid_until` it renews. At
+     * most one per user and value, so two workers can never charge one
+     * period twice; a declined attempt clears it to allow a retry.
+     */
+    chargedFor: t.timestamp({ withTimezone: true }),
+    /**
+     * Set on an automatic charge the bank declined: which mail the
+     * specialist is owed (retry — "will try again", final — renewal is off).
+     * The worker sends it, and sends it again after a failed delivery.
+     */
+    declineKind: declineKind(),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -72,7 +99,67 @@ export const SubscriptionPayment = pgTable(
       table.createdAt,
     ),
     check("subscription_payments_positive", sql`${table.amount} > 0`),
+    uniqueIndex("subscription_payments_user_charged_for_idx").on(
+      table.userId,
+      table.chargedFor,
+    ),
   ],
 );
 
+export const autorenewalStatus = pgEnum("autorenewal_status", [
+  "active",
+  "canceled",
+]);
+
+/**
+ * user          — the specialist turned it off;
+ * refund        — a payment was refunded (`billing.refund`);
+ * charge_failed — the bank declined the charge on every attempt.
+ */
+export const autorenewalCancelReason = pgEnum("autorenewal_cancel_reason", [
+  "user",
+  "refund",
+  "charge_failed",
+]);
+
+/**
+ * Auto-renewal of «Про»: a Точка subscription without a schedule
+ * (`recurring: true`) that holds the specialist's card. The `billing-renewals`
+ * cron charges it for a new period shortly before `paid_until`; the amount
+ * and the dates are ours, the bank only moves the money. One row per user:
+ * agreeing again replaces the subscription. A schedule-less subscription
+ * can't be cancelled through the bank's API, so "canceled" only means that
+ * we stop charging.
+ */
+export const SubscriptionAutorenewal = pgTable(
+  "subscription_autorenewals",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    userId: t
+      .text()
+      .notNull()
+      .unique()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** Точка's subscription `operationId` (the first payment's id). */
+    externalId: t.varchar({ length: 64 }).notNull().unique(),
+    /** What each charge buys. */
+    period: billingPeriod().notNull(),
+    status: autorenewalStatus().notNull().default("active"),
+    /** When the specialist agreed (the checkbox on the payment form). */
+    consentAt: t.timestamp({ withTimezone: true }).notNull(),
+    /** Declined charges in a row; reset by a successful one. */
+    failedAttempts: t.integer().notNull().default(0),
+    lastAttemptAt: t.timestamp({ withTimezone: true }),
+    canceledAt: t.timestamp({ withTimezone: true }),
+    cancelReason: autorenewalCancelReason(),
+    createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .$onUpdateFn(() => sql`now()`),
+  }),
+  (table) => [index("subscription_autorenewals_status_idx").on(table.status)],
+);
+
 export type BillingPeriod = (typeof billingPeriod.enumValues)[number];
+export type AutorenewalCancelReason =
+  (typeof autorenewalCancelReason.enumValues)[number];

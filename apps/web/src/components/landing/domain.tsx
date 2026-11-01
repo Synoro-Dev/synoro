@@ -1,9 +1,9 @@
 import { cn } from "@synoro/ui";
-import { CheckIcon, GlobeIcon, LockIcon } from "lucide-react";
+import { CheckIcon, GlobeIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
 
-import { Container } from "./primitives";
+import { Container, SectionHeading } from "./primitives";
 
 const stages = [
   {
@@ -87,21 +87,9 @@ export function Domain() {
         aria-hidden
         className="bg-grid absolute inset-0 -z-10 [--grid-color:rgb(255_255_255/0.05)] [mask-image:radial-gradient(ellipse_60%_60%_at_70%_40%,black,transparent)]"
       />
-      <div
-        aria-hidden
-        className="absolute top-1/3 right-0 -z-10 h-96 w-[36rem] rounded-full bg-violet-600/20 blur-[120px]"
-      />
       <Container className="grid items-center gap-14 border-zinc-800 px-4 py-20 sm:px-10 sm:py-28 lg:grid-cols-2">
         <div className="flex flex-col gap-5">
-          <div className="flex items-center gap-2 text-sm font-medium text-zinc-400">
-            <span className="inline-flex size-6 items-center justify-center rounded-md bg-violet-500/15 text-violet-300 ring-1 ring-violet-500/30 ring-inset">
-              <LockIcon className="size-3.5" />
-            </span>
-            Свой домен
-          </div>
-          <h2 className="text-3xl font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
-            Страница записи на вашем адресе
-          </h2>
+          <SectionHeading>Страница записи на вашем адресе</SectionHeading>
           <p className="max-w-lg text-base text-pretty text-zinc-400 sm:text-lg">
             Начните со ссылки на платформе, а когда будете готовы — подключите
             свой домен. Добавьте две DNS-записи, остальное мы проверим сами.

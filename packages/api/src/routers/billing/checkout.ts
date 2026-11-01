@@ -6,11 +6,12 @@ import { ProviderError } from "../../lib/payments";
 import { protectedProcedure } from "../../orpc";
 
 /**
- * Start paying for a month or a year of «Про». Returns the Точка payment
- * page to redirect to; afterwards the specialist lands on the billing page,
+ * Start paying for a month or a year of «Про». With `autorenew` (the consent
+ * to automatic charges) the payment also binds the card for renewals. Returns
+ * the Точка payment page to redirect to; afterwards the specialist lands on the billing page,
  * which checks the payment (`billing.status`) — the webhook settles it too.
  *
- * @example const { confirmationUrl } = await client.billing.checkout({ period: "year" })
+ * @example const { confirmationUrl } = await client.billing.checkout({ period: "year", autorenew: true })
  */
 export const checkout = protectedProcedure
   .errors({
@@ -29,6 +30,7 @@ export const checkout = protectedProcedure
       return await startSubscriptionPayment(context.db, {
         user,
         period: input.period,
+        autorenew: input.autorenew,
       });
     } catch (error) {
       if (!(error instanceof ProviderError)) throw error;
