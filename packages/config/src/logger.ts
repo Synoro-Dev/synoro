@@ -42,9 +42,16 @@ function resolveMinLevel(): MinLevel {
   return process.env.NODE_ENV === "production" ? "info" : "debug";
 }
 
-function serializeError(error: unknown): LogMeta {
+function serializeError(error: unknown, depth = 0): LogMeta {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message, stack: error.stack };
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...(error.cause !== undefined && depth < 3
+        ? { cause: serializeError(error.cause, depth + 1) }
+        : {}),
+    };
   }
   return { error: String(error) };
 }
