@@ -25,6 +25,8 @@
  *                     payment via Точка Банк              (protected)
  *   payment.*       – ЮKassa / Т-Банк: setup (owner), packages, client
  *                     checkout + status, payment history (client / staff)
+ *   question.*      – the questionnaire clients fill in when booking,
+ *                     on «Про»                                      (owner)
  *   workflow.*      – own messages to clients on «Про»: after a meeting,
  *                     package running out, quiet client            (owner)
  *   analytics.*     – how the practice is doing: meetings, no-shows,
@@ -44,6 +46,7 @@ import { googleCalendarRouter } from "./google-calendar";
 import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
+import { questionRouter } from "./question";
 import { userRouter } from "./user";
 import { workflowRouter } from "./workflow";
 
@@ -60,6 +63,7 @@ export const appRouter = {
   billing: billingRouter,
   googleCalendar: googleCalendarRouter,
   workflow: workflowRouter,
+  question: questionRouter,
   analytics: analyticsRouter,
 };
 

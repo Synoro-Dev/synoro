@@ -441,7 +441,8 @@ describe("after_end messages", () => {
       .insert(PracticeMember)
       .values({ practiceId, userId: staff.user.id, role: "admin" })
       .returning();
-    await meeting(practiceId, adminMember?.id ?? "", 3 * HOUR);
+    // An hour earlier than the client's: one practice's bookings can't overlap.
+    await meeting(practiceId, adminMember?.id ?? "", 4 * HOUR);
     const client = await newClient(practiceId, "ivan@off.test");
     await meeting(practiceId, client.memberId, 3 * HOUR);
     const off = await rule(practiceId, {
@@ -465,9 +466,12 @@ describe("after_end messages", () => {
 });
 
 describe("low_balance messages", () => {
+  /** Bookings made by `spend`, so each one gets its own hour. */
+  let spent = 0;
+
   /** A booking that spent a credit `ago` before `NOW`. */
   async function spend(memberId: string, practiceId: string, ago: number) {
-    const booking = await meeting(practiceId, memberId, -DAY);
+    const booking = await meeting(practiceId, memberId, -DAY - spent++ * HOUR);
     const [entry] = await api.db
       .insert(CreditEntry)
       .values({

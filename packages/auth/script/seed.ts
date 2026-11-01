@@ -202,6 +202,36 @@ const GUESTS = [
   },
   { name: "Артём Фомин", phone: "+79167778899", contact: "@artem_fomin" },
 ];
+/** The demo practice's booking questionnaire («Про»). */
+const QUESTIONS = [
+  {
+    id: "5d1c2b7a-0e4f-4a8b-9c3d-1a2b3c4d5e01",
+    label: "С каким запросом хотите прийти?",
+    kind: "long_text" as const,
+    options: [],
+    required: true,
+  },
+  {
+    id: "5d1c2b7a-0e4f-4a8b-9c3d-1a2b3c4d5e02",
+    label: "Формат встречи",
+    kind: "choice" as const,
+    options: ["Онлайн", "В кабинете"],
+    required: false,
+  },
+];
+
+/** What a client answered when booking with `note` as their request. */
+function answersFor(note: string | null | undefined) {
+  if (!note) return null;
+  return [
+    { question: QUESTIONS[0]?.label ?? "", answer: note },
+    {
+      question: QUESTIONS[1]?.label ?? "",
+      answer: note.length % 3 === 0 ? "В кабинете" : "Онлайн",
+    },
+  ];
+}
+
 const NOTES = [
   "Тревога перед публичными выступлениями",
   null,
@@ -391,6 +421,7 @@ export async function seedDemoPractice(db: Database) {
       slug: "klyuev",
       timezone: TIME_ZONE,
       profession: "psychologist",
+      bookingQuestions: QUESTIONS,
       ownerId,
       createdAt: longAgo,
     })
@@ -680,11 +711,13 @@ export async function seedDemoPractice(db: Database) {
           !cancelled &&
           startsAt.getTime() < now - DAY_MS &&
           pastBookings++ % 25 === 12;
+        const note = NOTES[Math.floor(rng() * NOTES.length)];
         add(
           {
             kind: "consultation",
             memberId: member.id,
-            note: NOTES[Math.floor(rng() * NOTES.length)],
+            note,
+            answers: answersFor(note),
             createdById: clientUserIds[chosen.index],
             createdAt,
             ...(noShow && {

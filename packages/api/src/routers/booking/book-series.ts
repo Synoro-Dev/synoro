@@ -7,8 +7,10 @@ import {
   user,
 } from "@synoro/db";
 import { notifySeriesBooked } from "@synoro/jobs/booking-video";
+import { bookingAnswersInput } from "@synoro/validators";
 import { z } from "zod";
 
+import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { adjustCredits, releaseExpiredHolds } from "../../lib/bookings";
 import { exportBooking } from "../../lib/google-calendar";
 import {
@@ -28,8 +30,9 @@ import { seriesInput } from "./series-preview";
  * taken, busy in Google for clients, past): skip them or pick another time.
  * It is also raised, with no dates, when someone took a date between the
  * check and the insert (`bookings_no_overlap`); nothing is booked then.
- * NO_CREDITS when the balance doesn't cover every booking. Access, the phone
- * and the Google check as in `book`.
+ * NO_CREDITS when the balance doesn't cover every booking. Access, the phone,
+ * the questionnaire (its answers go on every booking) and the Google check
+ * as in `book`.
  *
  * @example client.booking.bookSeries({ practiceId, startsAt, intervalWeeks: 1, count: 8 })
  */
@@ -49,12 +52,14 @@ export const bookSeries = practiceProcedure
     },
     TOO_FEW: { message: "Для повторной записи нужно хотя бы две даты" },
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
+    ANSWERS_INVALID,
   })
   .input(
     seriesInput.extend({
       /** Dates of the series left out on purpose. */
       skip: z.array(z.date()).max(SERIES_MAX).default([]),
       note: z.string().trim().max(500).optional(),
+      answers: bookingAnswersInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -79,6 +84,13 @@ export const bookSeries = practiceProcedure
         columns: { phone: true },
       });
       if (!account?.phone) throw errors.PHONE_REQUIRED();
+    }
+    // Staff booking a client skip the questionnaire: it's the client's to fill.
+    const questionnaire = forOther
+      ? { answers: null, errors: null }
+      : await bookingAnswers(context.db, practice, input.answers);
+    if (questionnaire.errors) {
+      throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
     }
 
     const skipped = new Set(input.skip.map((d) => d.getTime()));
@@ -120,6 +132,7 @@ export const bookSeries = practiceProcedure
               endsAt: d.endsAt,
               memberId: member.id,
               note: input.note,
+              answers: questionnaire.answers,
               seriesId: series.id,
               createdById: userId,
             })),

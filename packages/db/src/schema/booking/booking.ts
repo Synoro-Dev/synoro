@@ -65,6 +65,12 @@ export const Booking = pgTable(
     /** Any other way to reach the guest: Telegram, email. */
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
+    /**
+     * The client's answers to the practice's questionnaire, with each
+     * question's wording at booking time (`BookingAnswer` in
+     * `@synoro/validators`). Null when nothing was asked or answered.
+     */
+    answers: t.jsonb().$type<{ question: string; answer: string }[]>(),
     /** The recurring booking this one belongs to (`booking_series`). */
     seriesId: t
       .uuid()

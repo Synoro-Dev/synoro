@@ -158,6 +158,13 @@ and run `tsc` by hand, build them first.
   (`packages/jobs/src/workflow-messages.ts`) mails them once per case through
   `claimNotice` (`notice-claims.ts`, keys `wf:<rule>:…` in `sent_notices`), only
   while the owner has `hasPro`.
+- **Booking questionnaire («Про»)** (`docs/booking-questions.md`): up to 10
+  questions in `practices.booking_questions` (owner edits them on the booking
+  page settings, `question.*` router, schema and `checkBookingAnswers` in
+  `@synoro/validators/booking-questions`). Clients answer in `booking.book` /
+  `bookSeries` / `reserve` (`ANSWERS_INVALID` per question id); answers are
+  kept with the question's wording in `bookings.answers` and shown to staff in
+  `booking.calendar`. Not asked without `hasPro` (`askedQuestions`).
 - **Practice analytics («Про»)** (`docs/analytics.md`): `analytics.overview`
   (owner only, `report: null` without «Про») — meetings, no-shows, online
   revenue, clients and busy hours for 30/90/365 days against the stretch before;

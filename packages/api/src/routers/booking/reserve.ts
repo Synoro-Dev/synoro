@@ -10,10 +10,14 @@ import {
   PaymentPackage,
 } from "@synoro/db";
 import { dispatchEmail } from "@synoro/jobs";
-import { guestBookingFormSchema } from "@synoro/validators";
+import {
+  bookingAnswersInput,
+  guestBookingFormSchema,
+} from "@synoro/validators";
 import { z } from "zod";
 
 import { track } from "../../lib/analytics";
+import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { HOLD_MS, loadRules, releaseExpiredHolds } from "../../lib/bookings";
 import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
@@ -97,6 +101,7 @@ async function sendBookingLink(input: {
  *
  * The visitor becomes a passive client of the practice (see
  * `findOrCreateGuestMember`); `token` opens `/b/<token>`, their booking page.
+ * ANSWERS_INVALID when the practice's questionnaire («Про») is left unfilled.
  *
  * @example client.booking.reserve({ practiceId, packageId, startsAt, name: "Иван", phone: "+7 900 000-00-00", email: "ivan@example.com" })
  */
@@ -116,12 +121,14 @@ export const reserve = publicProcedure
     PROVIDER_ERROR: {
       message: "Платёжная система не приняла платёж, попробуйте позже",
     },
+    ANSWERS_INVALID,
   })
   .input(
     guestBookingFormSchema.extend({
       practiceId: z.uuid(),
       packageId: z.uuid(),
       startsAt: z.date(),
+      answers: bookingAnswersInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -139,6 +146,14 @@ export const reserve = publicProcedure
     ]);
     if (!account) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
+    const questionnaire = await bookingAnswers(
+      context.db,
+      practice,
+      input.answers,
+    );
+    if (questionnaire.errors) {
+      throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
+    }
 
     const rules = await loadRules(context.db, practice.id);
     const scheduled = isScheduledSlot({
@@ -188,6 +203,7 @@ export const reserve = publicProcedure
           memberId: guest.memberId,
           guestPhone: input.phone,
           note: input.note || null,
+          answers: questionnaire.answers,
           holdUntil: new Date(Date.now() + HOLD_MS),
           accessTokenHash: hashGuestToken(token),
           createdById: guest.user.id,

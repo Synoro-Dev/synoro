@@ -47,6 +47,8 @@ export const calendar = practiceProcedure
         startsAt: Booking.startsAt,
         endsAt: Booking.endsAt,
         note: Booking.note,
+        /** The client's answers to the questionnaire, if any. */
+        answers: Booking.answers,
         /** This booking's own video link; see `videoUrl` for the one in force. */
         meetingUrl: Booking.meetingUrl,
         guestName: Booking.guestName,

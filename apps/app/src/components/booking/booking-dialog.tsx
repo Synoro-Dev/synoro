@@ -20,6 +20,7 @@ import {
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  ClipboardListIcon,
   Clock3Icon,
   LockIcon,
   MailIcon,
@@ -203,7 +204,8 @@ export function BookingDialog({
 
   return (
     <Dialog open={booking !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      {/* Long questionnaire answers can outgrow the screen: scroll. */}
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         {booking && (
           <>
             <DialogHeader>
@@ -260,6 +262,25 @@ export function BookingDialog({
                 <Fact icon={<RepeatIcon />}>Повторная запись</Fact>
               )}
             </div>
+
+            {booking.answers && booking.answers.length > 0 && (
+              <section className="flex flex-col gap-2 rounded-md border bg-muted/40 p-3">
+                <h3 className="flex items-center gap-2 text-sm font-medium">
+                  <ClipboardListIcon className="size-4 text-muted-foreground" />
+                  Анкета
+                </h3>
+                <dl className="flex flex-col gap-2 text-sm">
+                  {booking.answers.map((item) => (
+                    <div key={item.question} className="flex flex-col gap-0.5">
+                      <dt className="text-muted-foreground">{item.question}</dt>
+                      <dd className="whitespace-pre-line break-words">
+                        {item.answer}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            )}
 
             {booking.kind !== "blocked" && (
               <MeetingLink booking={booking} onSaved={onClose} />

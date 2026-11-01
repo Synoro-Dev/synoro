@@ -4,6 +4,7 @@ export * from "./account";
 export * from "./analytics";
 export * from "./billing";
 export * from "./booking";
+export * from "./booking-questions";
 export * from "./login";
 export * from "./otp";
 export * from "./password";
