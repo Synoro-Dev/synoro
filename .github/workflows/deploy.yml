@@ -185,11 +185,10 @@ jobs:
           mkdir -p ~/.kube
           printf '%s' "$KUBECONFIG_DATA" > ~/.kube/config
 
-      # The worker is left out: it ships scaled to zero.
       - name: Restart deployments
         run: |
-          kubectl rollout restart deploy/synoro-app deploy/synoro-demo deploy/synoro-landing
-          for d in synoro-app synoro-demo synoro-landing; do
+          kubectl rollout restart deploy/synoro-app deploy/synoro-demo deploy/synoro-landing deploy/synoro-worker
+          for d in synoro-app synoro-demo synoro-landing synoro-worker; do
             kubectl rollout status "deploy/$d" --timeout=10m
           done
 
