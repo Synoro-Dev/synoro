@@ -22,6 +22,7 @@ import {
   planName,
 } from "../billing/plan";
 import { TrialDays } from "../billing/trial-days";
+import { usePlanClock } from "../billing/use-plan-clock";
 
 /**
  * The owner's plan, always in sight: the trial counting down, the paid
@@ -30,12 +31,18 @@ import { TrialDays } from "../billing/trial-days";
 export function NavPlan() {
   const pathname = usePathname();
   const billing = useQuery(orpc.billing.get.queryOptions());
-  if (!billing.data) return null;
+  const plan = billing.data?.plan;
+  const until = !plan?.pro
+    ? null
+    : plan.status === "trial"
+      ? plan.trialEndsAt
+      : plan.activeUntil;
+  usePlanClock(until);
+  if (!billing.data || !plan) return null;
 
-  const { plan, autorenew } = billing.data;
+  const { autorenew } = billing.data;
   const onBilling = pathname === paths.settings.billing;
-  const until = plan.status === "trial" ? plan.trialEndsAt : plan.activeUntil;
-  const left = plan.pro && until ? daysLeft(until) : 0;
+  const left = until ? daysLeft(until) : 0;
   const endingSoon = plan.pro && !autorenew && left <= ENDING_SOON_DAYS;
   const name = planName(plan);
 
@@ -83,14 +90,14 @@ export function NavPlan() {
           tooltip={`Тариф: ${name}. ${status}`}
           isActive={onBilling}
           render={<Link href={paths.settings.billing} />}
+          // On the button: its own `[&>svg]:` grey outranks an icon class.
+          className={cn(
+            endingSoon || plan.status === "expired"
+              ? "[&>svg]:text-warning"
+              : plan.pro && "[&>svg]:text-info",
+          )}
         >
-          <SparklesIcon
-            className={cn(
-              endingSoon || plan.status === "expired"
-                ? "text-warning"
-                : plan.pro && "text-info",
-            )}
-          />
+          <SparklesIcon />
           <span>{name}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>

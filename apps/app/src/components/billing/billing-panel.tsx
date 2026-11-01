@@ -44,6 +44,7 @@ import {
   planName,
 } from "./plan";
 import { TrialDays } from "./trial-days";
+import { usePlanClock } from "./use-plan-clock";
 
 type Billing = RouterOutputs["billing"]["get"];
 
@@ -53,8 +54,13 @@ const MAX_CHECKS = 48;
 /** What the user is on right now, how long it lasts and what happens next. */
 function CurrentPlan({ billing }: { billing: Billing }) {
   const { plan, autorenew } = billing;
-  const until = plan.status === "trial" ? plan.trialEndsAt : plan.activeUntil;
-  const left = plan.pro && until ? daysLeft(until) : 0;
+  const until = !plan.pro
+    ? null
+    : plan.status === "trial"
+      ? plan.trialEndsAt
+      : plan.activeUntil;
+  usePlanClock(until);
+  const left = until ? daysLeft(until) : 0;
   const endingSoon = plan.pro && !autorenew && left <= ENDING_SOON_DAYS;
 
   let badge: { label: string; variant: BadgeProps["variant"] } | null = null;
