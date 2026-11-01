@@ -230,50 +230,54 @@ export async function refundSubscriptionPayment(
   paymentId: string,
   options: { recorded?: boolean } = {},
 ) {
-  return db.transaction(async (tx) => {
-    const [found] = await tx
-      .select({
-        payment: SubscriptionPayment,
-        paidUntil: Subscription.paidUntil,
-      })
-      .from(SubscriptionPayment)
-      .innerJoin(
-        Subscription,
-        eq(Subscription.userId, SubscriptionPayment.userId),
-      )
-      .where(eq(SubscriptionPayment.id, paymentId))
-      .for("update", { of: [SubscriptionPayment, Subscription] });
-    if (!found) return { result: "not_found" as const };
+  // Set once the bank has paid the money back; anything that goes wrong after
+  // it (the writes, the commit) leaves a refund nobody recorded.
+  let bankRefunded: { externalId: string } | undefined;
+  try {
+    const outcome = await db.transaction(async (tx) => {
+      const [found] = await tx
+        .select({
+          payment: SubscriptionPayment,
+          paidUntil: Subscription.paidUntil,
+        })
+        .from(SubscriptionPayment)
+        .innerJoin(
+          Subscription,
+          eq(Subscription.userId, SubscriptionPayment.userId),
+        )
+        .where(eq(SubscriptionPayment.id, paymentId))
+        .for("update", { of: [SubscriptionPayment, Subscription] });
+      if (!found) return { result: "not_found" as const };
 
-    const { payment, paidUntil } = found;
-    const { externalId } = payment;
-    const viaSubscription =
-      !!payment.autorenewConsentAt || !!payment.chargedFor;
-    if (
-      payment.status !== "succeeded" ||
-      payment.refundedAt ||
-      (externalId && BANKLESS_ID.test(externalId)) ||
-      (!options.recorded &&
-        !viaSubscription &&
-        (!externalId || !tochkaAvailable()))
-    ) {
-      return { result: "not_refundable" as const };
-    }
-    if (viaSubscription && !options.recorded) {
-      return { result: "bank_only" as const };
-    }
-    if (
-      !payment.periodEnd ||
-      payment.periodEnd.getTime() !== paidUntil?.getTime()
-    ) {
-      return { result: "not_latest" as const };
-    }
+      const { payment, paidUntil } = found;
+      const { externalId } = payment;
+      const viaSubscription =
+        !!payment.autorenewConsentAt || !!payment.chargedFor;
+      if (
+        payment.status !== "succeeded" ||
+        payment.refundedAt ||
+        (externalId && BANKLESS_ID.test(externalId)) ||
+        (!options.recorded &&
+          !viaSubscription &&
+          (!externalId || !tochkaAvailable()))
+      ) {
+        return { result: "not_refundable" as const };
+      }
+      if (viaSubscription && !options.recorded) {
+        return { result: "bank_only" as const };
+      }
+      if (
+        !payment.periodEnd ||
+        payment.periodEnd.getTime() !== paidUntil?.getTime()
+      ) {
+        return { result: "not_latest" as const };
+      }
 
-    if (!options.recorded && externalId) {
-      await refundTochkaPayment(externalId, payment.amount);
-    }
+      if (!options.recorded && externalId) {
+        await refundTochkaPayment(externalId, payment.amount);
+        bankRefunded = { externalId };
+      }
 
-    try {
       await tx
         .update(SubscriptionPayment)
         .set({ refundedAt: sql`now()` })
@@ -302,23 +306,32 @@ export async function refundSubscriptionPayment(
             eq(SubscriptionAutorenewal.status, "active"),
           ),
         );
-    } catch (error) {
-      // The money has already gone back to the customer and this rolls back:
-      // a human has to record it.
+
+      const settled = await tx.query.SubscriptionPayment.findFirst({
+        where: eq(SubscriptionPayment.id, paymentId),
+      });
+      if (!settled)
+        throw new Error(`Subscription payment ${paymentId} vanished`);
+      return { result: "refunded" as const, payment: settled };
+    });
+    if (outcome.result === "refunded") {
+      logger.info("billing.refunded", {
+        paymentId,
+        amount: outcome.payment.amount,
+      });
+    }
+    return outcome;
+  } catch (error) {
+    if (bankRefunded) {
+      // The money is back with the customer and the records rolled back: a
+      // human has to record it.
       logger.error("billing.refund_unrecorded", error, {
         paymentId,
-        externalId,
+        externalId: bankRefunded.externalId,
       });
-      throw error;
     }
-
-    logger.info("billing.refunded", { paymentId, amount: payment.amount });
-    const settled = await tx.query.SubscriptionPayment.findFirst({
-      where: eq(SubscriptionPayment.id, paymentId),
-    });
-    if (!settled) throw new Error(`Subscription payment ${paymentId} vanished`);
-    return { result: "refunded" as const, payment: settled };
-  });
+    throw error;
+  }
 }
 
 /**

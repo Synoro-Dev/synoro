@@ -576,6 +576,7 @@ describe("refunds", () => {
   it("holds the payment's rows while the bank answers", async () => {
     tochka();
     const { session } = await specialist("refund-race");
+    const trialEndsAt = (await subscriptionOf(session))?.trialEndsAt;
     const first = await paid(session, "month");
     const second = await pay(session, "month");
 
@@ -584,10 +585,16 @@ describe("refunds", () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    refundAnswer = () => Response.json({ Data: { isRefund: true } });
+    let reachBank: () => void = () => {};
+    const reached = new Promise<void>((resolve) => {
+      reachBank = resolve;
+    });
     const inner = fetchMock.getMockImplementation();
     fetchMock.mockImplementation((async (input, init) => {
-      if (String(input).endsWith("/refund")) await gate;
+      if (String(input).endsWith("/refund")) {
+        reachBank();
+        await gate;
+      }
       return inner?.(input, init);
     }) as typeof fetch);
 
@@ -596,6 +603,8 @@ describe("refunds", () => {
       { paymentId: first.paymentId },
       { context: api.context(admin) },
     );
+    // Only now, with the refund holding its rows, the other payment comes in.
+    await reached;
     operations.set(second.operationId, { status: "APPROVED", amount: 149 });
     const settling = webhook(
       webhookJwt({
@@ -606,14 +615,16 @@ describe("refunds", () => {
     release();
     const [refunded, settled] = await Promise.all([refunding, settling]);
 
-    // Both went through, one after the other: the refund is on record and
-    // the second month starts from what was left.
+    // Both went through, one after the other: the refund is on record, and
+    // the second month started from what was left — the end of the trial —
+    // not from the end of the month that went back.
     expect(refunded.refundedAt).toBeInstanceOf(Date);
     expect(settled.status).toBe(200);
     const stored = await api.db.query.SubscriptionPayment.findFirst({
       where: eq(SubscriptionPayment.id, second.paymentId),
     });
     expect(stored?.status).toBe("succeeded");
+    expect(stored?.periodStart).toEqual(trialEndsAt ?? null);
     expect((await subscriptionOf(session))?.paidUntil).toEqual(
       stored?.periodEnd ?? null,
     );
