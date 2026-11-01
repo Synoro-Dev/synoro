@@ -12,7 +12,11 @@ import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { eq, Subscription, SubscriptionPayment } from "@synoro/db";
 
-import { createSession, setupTestApi } from "../../../test/helpers";
+import {
+  ADMIN_EMAIL,
+  createSession,
+  setupTestApi,
+} from "../../../test/helpers";
 import { handleBillingWebhook } from "../../lib/billing";
 import { paymentRouter } from "../payment";
 import { practiceRouter } from "../practice";
@@ -26,12 +30,15 @@ let fetchMock: Mock<typeof fetch>;
 /** Точка's answers by operation: `status` and `amount` (rubles). */
 const operations = new Map<string, { status: string; amount: number }>();
 let requests: { method: string; url: string; body: unknown }[] = [];
+/** What Точка answers to a refund; tests swap it to make the bank refuse. */
+let refundAnswer = () => Response.json({ Data: { isRefund: true } });
 
 function tochka() {
   fetchMock.mockImplementation((async (input, init = {}) => {
     const url = String(input);
     const body = init.body ? JSON.parse(String(init.body)) : null;
     requests.push({ method: init.method ?? "GET", url, body });
+    if (url.endsWith("/refund")) return refundAnswer();
     if (init.method === "POST") {
       const operationId = `op-${operations.size + 1}`;
       operations.set(operationId, {
@@ -125,6 +132,7 @@ beforeAll(async () => {
 afterEach(() => {
   fetchMock.mockReset();
   requests = [];
+  refundAnswer = () => Response.json({ Data: { isRefund: true } });
 });
 afterAll(async () => {
   fetchMock.mockRestore();
@@ -417,6 +425,263 @@ describe("paying for «Про» through Точка", () => {
       paid.slice(0, 20).map((p) => p.id),
     );
     expect(billing.payments.every((p) => p.status === "succeeded")).toBe(true);
+  });
+});
+
+describe("refunds", () => {
+  let admin: Session;
+  beforeAll(async () => {
+    admin = await createSession(api.db, { email: ADMIN_EMAIL });
+  });
+
+  /** Pays and settles a payment through the bank, as the webhook does. */
+  async function paid(session: Session, period: "month" | "year") {
+    const started = await pay(session, period);
+    operations.set(started.operationId, {
+      status: "APPROVED",
+      amount: period === "year" ? 1490 : 149,
+    });
+    await call(
+      billingRouter.status,
+      { paymentId: started.paymentId },
+      { context: api.context(session) },
+    );
+    return started;
+  }
+
+  const refundRequests = () =>
+    requests.filter((r) => r.url.endsWith("/refund"));
+
+  it("returns the money and takes the period off «Про»", async () => {
+    tochka();
+    const { session } = await specialist("refund-one");
+    const { trialEndsAt } = (await subscriptionOf(session)) ?? {};
+    const { paymentId, operationId } = await paid(session, "month");
+    expect((await subscriptionOf(session))?.paidUntil).not.toBeNull();
+
+    const refunded = await call(
+      billingRouter.refund,
+      { paymentId },
+      { context: api.context(admin) },
+    );
+    expect(refunded.refundedAt).toBeInstanceOf(Date);
+    expect(refundRequests()).toEqual([
+      {
+        method: "POST",
+        url: `https://tochka.test/uapi/acquiring/v1.0/payments/${operationId}/refund`,
+        body: { Data: { amount: 149 } },
+      },
+    ]);
+
+    // The month is off; the trial it was bought on is still there.
+    const subscription = await subscriptionOf(session);
+    expect(subscription?.paidUntil).toBeNull();
+    expect(subscription?.trialEndsAt).toEqual(trialEndsAt ?? new Date(0));
+    const billing = await call(billingRouter.get, undefined, {
+      context: api.context(session),
+    });
+    expect(billing.plan.status).toBe("trial");
+    expect(billing.payments[0]?.refundedAt).toBeInstanceOf(Date);
+
+    // Once is enough: no second request to the bank.
+    const again = await call(
+      billingRouter.refund,
+      { paymentId },
+      { context: api.context(admin) },
+    ).catch((e) => e);
+    expect(isDefinedError(again) && again.code).toBe("NOT_REFUNDABLE");
+    expect(refundRequests()).toHaveLength(1);
+  });
+
+  it("goes from the newest payment backwards", async () => {
+    tochka();
+    const { session } = await specialist("refund-two");
+    const first = await paid(session, "month");
+    const second = await paid(session, "month");
+    const afterTwo = (await subscriptionOf(session))?.paidUntil;
+
+    const early = await call(
+      billingRouter.refund,
+      { paymentId: first.paymentId },
+      { context: api.context(admin) },
+    ).catch((e) => e);
+    expect(isDefinedError(early) && early.code).toBe("NOT_LATEST");
+    expect(refundRequests()).toHaveLength(0);
+    expect((await subscriptionOf(session))?.paidUntil).toEqual(
+      afterTwo ?? null,
+    );
+
+    for (const { paymentId } of [second, first]) {
+      await call(
+        billingRouter.refund,
+        { paymentId },
+        { context: api.context(admin) },
+      );
+    }
+    expect(refundRequests()).toHaveLength(2);
+    expect((await subscriptionOf(session))?.paidUntil).toBeNull();
+  });
+
+  it("accepts a bank answer without a body", async () => {
+    tochka();
+    const { session } = await specialist("refund-empty");
+    const { paymentId } = await paid(session, "month");
+    refundAnswer = () => new Response(null, { status: 204 });
+
+    const refunded = await call(
+      billingRouter.refund,
+      { paymentId },
+      { context: api.context(admin) },
+    );
+    expect(refunded.refundedAt).toBeInstanceOf(Date);
+  });
+
+  it("restores the end of the earlier payment after a break between them", async () => {
+    tochka();
+    const { session } = await specialist("refund-gap");
+    await endTrial(session);
+    const first = await paid(session, "month");
+
+    // The first month ended ten days ago; the second is bought afterwards.
+    const ended = new Date(Date.now() - 10 * DAY_MS);
+    await api.db
+      .update(SubscriptionPayment)
+      .set({
+        periodStart: new Date(ended.getTime() - 30 * DAY_MS),
+        periodEnd: ended,
+      })
+      .where(eq(SubscriptionPayment.id, first.paymentId));
+    await api.db
+      .update(Subscription)
+      .set({ paidUntil: ended })
+      .where(eq(Subscription.userId, session.user.id));
+    const second = await paid(session, "month");
+
+    await call(
+      billingRouter.refund,
+      { paymentId: second.paymentId },
+      { context: api.context(admin) },
+    );
+    expect((await subscriptionOf(session))?.paidUntil).toEqual(ended);
+
+    // Nothing later is left, so the first one is the newest again.
+    await call(
+      billingRouter.refund,
+      { paymentId: first.paymentId },
+      { context: api.context(admin) },
+    );
+    expect((await subscriptionOf(session))?.paidUntil).toBeNull();
+  });
+
+  it("holds the payment's rows while the bank answers", async () => {
+    tochka();
+    const { session } = await specialist("refund-race");
+    const first = await paid(session, "month");
+    const second = await pay(session, "month");
+
+    // The bank is slow; the second payment is approved in the meantime.
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    refundAnswer = () => Response.json({ Data: { isRefund: true } });
+    const inner = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((async (input, init) => {
+      if (String(input).endsWith("/refund")) await gate;
+      return inner?.(input, init);
+    }) as typeof fetch);
+
+    const refunding = call(
+      billingRouter.refund,
+      { paymentId: first.paymentId },
+      { context: api.context(admin) },
+    );
+    operations.set(second.operationId, { status: "APPROVED", amount: 149 });
+    const settling = webhook(
+      webhookJwt({
+        webhookType: "acquiringInternetPayment",
+        operationId: second.operationId,
+      }),
+    );
+    release();
+    const [refunded, settled] = await Promise.all([refunding, settling]);
+
+    // Both went through, one after the other: the refund is on record and
+    // the second month starts from what was left.
+    expect(refunded.refundedAt).toBeInstanceOf(Date);
+    expect(settled.status).toBe(200);
+    const stored = await api.db.query.SubscriptionPayment.findFirst({
+      where: eq(SubscriptionPayment.id, second.paymentId),
+    });
+    expect(stored?.status).toBe("succeeded");
+    expect((await subscriptionOf(session))?.paidUntil).toEqual(
+      stored?.periodEnd ?? null,
+    );
+  });
+
+  it("changes nothing when the bank refuses", async () => {
+    tochka();
+    const { session } = await specialist("refund-refused");
+    const { paymentId } = await paid(session, "month");
+    const before = await subscriptionOf(session);
+
+    for (const answer of [
+      () => Response.json({ Data: { isRefund: false } }),
+      () => Response.json({ message: "Недостаточно средств" }, { status: 422 }),
+    ]) {
+      refundAnswer = answer;
+      const error = await call(
+        billingRouter.refund,
+        { paymentId },
+        { context: api.context(admin) },
+      ).catch((e) => e);
+      expect(isDefinedError(error) && error.code).toBe("PROVIDER_ERROR");
+    }
+
+    expect(await subscriptionOf(session)).toEqual(before);
+    const payment = await api.db.query.SubscriptionPayment.findFirst({
+      where: eq(SubscriptionPayment.id, paymentId),
+    });
+    expect(payment?.refundedAt).toBeNull();
+  });
+
+  it("is for administrators and for paid, real payments only", async () => {
+    tochka();
+    const { session } = await specialist("refund-guard");
+    const unpaid = await pay(session, "month");
+    const paidOne = await paid(session, "month");
+
+    const forbidden = await call(
+      billingRouter.refund,
+      { paymentId: paidOne.paymentId },
+      { context: api.context(session) },
+    ).catch((e) => e);
+    expect(isDefinedError(forbidden) && forbidden.code).toBe("FORBIDDEN");
+
+    const [pending, missing] = await Promise.all(
+      [unpaid.paymentId, crypto.randomUUID()].map((paymentId) =>
+        call(
+          billingRouter.refund,
+          { paymentId },
+          { context: api.context(admin) },
+        ).catch((e) => e),
+      ),
+    );
+    expect(isDefinedError(pending) && pending.code).toBe("NOT_REFUNDABLE");
+    expect(isDefinedError(missing) && missing.code).toBe("NOT_FOUND");
+
+    // A payment that never reached a bank has nothing to send back.
+    await api.db
+      .update(SubscriptionPayment)
+      .set({ externalId: "demo-1" })
+      .where(eq(SubscriptionPayment.id, paidOne.paymentId));
+    const demo = await call(
+      billingRouter.refund,
+      { paymentId: paidOne.paymentId },
+      { context: api.context(admin) },
+    ).catch((e) => e);
+    expect(isDefinedError(demo) && demo.code).toBe("NOT_REFUNDABLE");
+    expect(refundRequests()).toHaveLength(0);
   });
 });
 

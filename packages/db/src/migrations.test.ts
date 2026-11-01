@@ -194,9 +194,14 @@ describe("hand-written constraints", () => {
     await client.close();
   });
 
+  // The migration that adds the constraint (0003), wherever later ones go.
+  const noOverlap = migrations.findIndex((migration) =>
+    migration.sql.join("").includes("EXCLUDE"),
+  );
+
   it("re-runs 0003 as a no-op where the constraint was kept", async () => {
-    const { client } = await pushedDb(migrations.length);
-    const restore = migrations.at(-1);
+    const { client } = await pushedDb(noOverlap + 1);
+    const restore = migrations[noOverlap];
     expect(restore?.sql.join("")).toContain("EXCLUDE");
     for (const statement of restore?.sql ?? []) await client.exec(statement);
 
@@ -208,11 +213,11 @@ describe("hand-written constraints", () => {
   });
 
   it("fails loudly if bookings_no_overlap names something else", async () => {
-    const { client } = await pushedDb(migrations.length - 1);
+    const { client } = await pushedDb(noOverlap);
     await client.exec(
       `create index "bookings_no_overlap" on "bookings" ("practice_id")`,
     );
-    const restore = migrations.at(-1);
+    const restore = migrations[noOverlap];
     expect(restore?.sql.join("")).toContain("EXCLUDE");
 
     let error: unknown;

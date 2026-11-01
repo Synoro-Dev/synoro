@@ -1,7 +1,6 @@
 import { cn } from "@synoro/ui";
 import {
   CheckIcon,
-  LayersIcon,
   ShieldCheckIcon,
   UndoIcon,
   UserRoundIcon,
@@ -9,7 +8,7 @@ import {
   XIcon,
 } from "lucide-react";
 
-import { Eyebrow, IconTile, Initials, Section } from "./primitives";
+import { IconTile, Initials, Section, SectionHeading } from "./primitives";
 
 function Card({
   className,
@@ -50,7 +49,7 @@ function CreditsVisual() {
         <div className="flex-1">
           <p className="text-sm font-medium">Ольга Петрова</p>
           <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-            <div className="h-full w-[90%] rounded-full bg-linear-to-r from-violet-500 to-sky-400" />
+            <div className="bg-foreground h-full w-[90%] rounded-full" />
           </div>
         </div>
         <div className="text-right">
@@ -136,11 +135,15 @@ function CancelVisual() {
 }
 
 const team = [
-  { name: "Андрей Клюев", role: "Владелец", tone: "bg-zinc-900 text-white" },
+  {
+    name: "Андрей Клюев",
+    role: "Владелец",
+    tone: "bg-foreground text-background",
+  },
   {
     name: "Мария Соколова",
     role: "Админ",
-    tone: "bg-sky-50 text-sky-700",
+    tone: "ring-border ring-1 ring-inset",
   },
   {
     name: "Екатерина Смирнова",
@@ -178,7 +181,7 @@ function CabinetVisual() {
     <div className="bg-background w-full max-w-64 rounded-xl border p-3 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Мои записи</p>
-        <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+        <span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
           7 занятий
         </span>
       </div>
@@ -202,13 +205,10 @@ function CabinetVisual() {
 export function Bento() {
   return (
     <Section>
-      <div className="flex flex-col items-center gap-5 px-4 pt-16 pb-12 text-center sm:px-10 sm:pt-24">
-        <Eyebrow icon={LayersIcon} tone="emerald">
-          Всё для частной практики
-        </Eyebrow>
-        <h2 className="max-w-2xl text-3xl font-medium tracking-tight text-balance sm:text-4xl md:text-5xl">
+      <div className="flex flex-col items-center px-4 pt-16 pb-12 text-center sm:px-10 sm:pt-24">
+        <SectionHeading className="max-w-2xl">
           Оплата, отмены и команда уже продуманы
-        </h2>
+        </SectionHeading>
       </div>
 
       <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(2)]:border-r-0 md:[&>*:nth-child(5)]:border-r-0 md:[&>*:nth-child(n+3)]:border-b-0 [&>*:last-child]:border-b-0">
@@ -251,19 +251,19 @@ export function Bento() {
 
       <div className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t px-4 py-6 text-sm">
         <span className="flex items-center gap-2">
-          <IconTile icon={ShieldCheckIcon} tone="emerald" />
+          <IconTile icon={ShieldCheckIcon} />
           Приглашения с подтверждением email
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UndoIcon} tone="amber" />
+          <IconTile icon={UndoIcon} />
           Возвраты и ручные корректировки
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UsersIcon} tone="sky" />
+          <IconTile icon={UsersIcon} />
           Список клиентов с балансами
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UserRoundIcon} tone="violet" />
+          <IconTile icon={UserRoundIcon} />
           Вход по коду из письма
         </span>
       </div>

@@ -7,6 +7,7 @@ import {
   eq,
   gt,
   Subscription,
+  SubscriptionAutorenewal,
   SubscriptionPayment,
   sql,
   user,
@@ -40,6 +41,8 @@ export interface ProPlan {
   paidUntil: Date | null;
   /** Period of the last successful payment, null if none. */
   lastPeriod: BillingPeriod | null;
+  /** Auto-renewal is on: the paid period renews itself, no need to warn. */
+  autorenew?: boolean;
 }
 
 /**
@@ -57,6 +60,8 @@ export function dueProNotice(plan: ProPlan, now: Date) {
   else if (left <= 0) notice = "ended";
   else if (left <= ENDING_MS) notice = "ending";
   else if (left <= SOON_MS && year) notice = "ending-soon";
+  // A renewing paid period is not "ending"; only a failed renewal is "ended".
+  if (paid && plan.autorenew && notice !== "ended") notice = undefined;
   return notice ? { notice, endsAt, paid } : undefined;
 }
 
@@ -71,7 +76,7 @@ function moscowHour(at: Date) {
 }
 
 /** «20 ноября 2027», with the time unless it is midnight. */
-function formatEnd(at: Date) {
+export function formatEnd(at: Date) {
   const part = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat("ru-RU", {
       timeZone: TIME_ZONE,
@@ -98,9 +103,9 @@ function formatLeft(endsAt: Date, now: Date) {
   return `через ${days(Math.floor(left / DAY_MS))}`;
 }
 
-const rubles = (kopecks: number) => `${kopecks / 100} ₽`;
+export const rubles = (kopecks: number) => `${kopecks / 100} ₽`;
 
-function billingUrl() {
+export function billingUrl() {
   return new URL(paths.settings.billing, env.APP_URL).href;
 }
 
@@ -119,6 +124,11 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
           and ${SubscriptionPayment.status} = 'succeeded'
         order by ${SubscriptionPayment.paidAt} desc nulls last
         limit 1
+      )`,
+      autorenew: sql<boolean>`exists (
+        select 1 from ${SubscriptionAutorenewal}
+        where ${SubscriptionAutorenewal.userId} = ${Subscription.userId}
+          and ${SubscriptionAutorenewal.status} = 'active'
       )`,
       name: user.name,
       email: user.email,

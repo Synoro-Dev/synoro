@@ -1,13 +1,9 @@
-import {
-  CalendarCogIcon,
-  RocketIcon,
-  Share2Icon,
-  StoreIcon,
-} from "lucide-react";
+import { cn } from "@synoro/ui";
+import { CalendarCogIcon, Share2Icon, StoreIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
 
-import { Eyebrow, Lead, Section, SectionHeading } from "./primitives";
+import { display, Lead, Section, SectionHeading } from "./primitives";
 
 const steps = [
   {
@@ -34,9 +30,6 @@ export function Steps() {
   return (
     <Section id="how">
       <div className="flex flex-col gap-5 px-4 pt-16 pb-12 sm:px-10 sm:pt-24">
-        <Eyebrow icon={RocketIcon} tone="amber">
-          Как начать
-        </Eyebrow>
         <SectionHeading>Три шага до первой записи</SectionHeading>
         <Lead>
           Без внедрения и обучения: всё настраивается за один вечер, а клиенты
@@ -53,8 +46,10 @@ export function Steps() {
               <span className="bg-background flex size-10 items-center justify-center rounded-xl border shadow-xs">
                 <step.icon className="size-5" />
               </span>
-              <span className="font-mono text-5xl font-medium text-zinc-200 tabular-nums">
-                0{index + 1}
+              <span
+                className={cn(display, "text-6xl text-zinc-200 tabular-nums")}
+              >
+                {index + 1}
               </span>
             </div>
             <p className="mt-4 text-lg font-medium">{step.title}</p>

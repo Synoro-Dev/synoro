@@ -48,30 +48,17 @@ export function Section({
   );
 }
 
-const tones = {
-  violet: "bg-violet-500/10 text-violet-600 ring-violet-500/20",
-  emerald: "bg-emerald-500/10 text-emerald-600 ring-emerald-500/20",
-  amber: "bg-amber-500/10 text-amber-600 ring-amber-500/20",
-  sky: "bg-sky-500/10 text-sky-600 ring-sky-500/20",
-  rose: "bg-rose-500/10 text-rose-600 ring-rose-500/20",
-} as const;
-
-export type Tone = keyof typeof tones;
-
 export function IconTile({
   icon: Icon,
-  tone,
   className,
 }: {
   icon: LucideIcon;
-  tone: Tone;
   className?: string;
 }) {
   return (
     <span
       className={cn(
-        "inline-flex size-6 items-center justify-center rounded-md ring-1 ring-inset",
-        tones[tone],
+        "bg-background text-foreground inline-flex size-6 items-center justify-center rounded-md border shadow-xs",
         className,
       )}
     >
@@ -80,22 +67,8 @@ export function IconTile({
   );
 }
 
-export function Eyebrow({
-  icon,
-  tone,
-  children,
-}: {
-  icon: LucideIcon;
-  tone: Tone;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
-      <IconTile icon={icon} tone={tone} />
-      {children}
-    </div>
-  );
-}
+/** Display type shared by every heading on the landing. */
+export const display = "font-semibold tracking-[-0.035em] text-balance";
 
 export function SectionHeading({
   className,
@@ -104,7 +77,8 @@ export function SectionHeading({
   return (
     <h2
       className={cn(
-        "text-3xl font-medium tracking-tight text-balance sm:text-4xl md:text-5xl",
+        display,
+        "text-3xl leading-[1.05] sm:text-4xl md:text-[3.25rem]",
         className,
       )}
       {...props}

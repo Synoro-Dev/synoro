@@ -3,7 +3,15 @@
 import { isDefinedError } from "@orpc/client";
 import type { RouterOutputs } from "@synoro/api";
 import type { paths } from "@synoro/config";
-import { Button, Skeleton, Spinner, toast } from "@synoro/ui";
+import {
+  Button,
+  Checkbox,
+  cn,
+  Label,
+  Skeleton,
+  Spinner,
+  toast,
+} from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { type BillingPeriodId, TRIAL_DAYS } from "@synoro/validators";
@@ -16,10 +24,11 @@ import {
   XIcon,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
+import { LegalLink } from "../legal-links";
 import { formatRub } from "../payment/format";
 
 type Billing = RouterOutputs["billing"]["get"];
@@ -123,7 +132,7 @@ function PeriodOption({
       <span className="text-xs text-muted-foreground">
         {period === "year"
           ? `${formatRub(Math.round(price.amount / 12))} в месяц, два месяца в подарок`
-          : "Без автосписаний: продлеваете, когда удобно"}
+          : "Продлеваете, когда удобно, или включаете автопродление"}
       </span>
       <Button
         className="mt-auto"
@@ -276,12 +285,59 @@ function PaymentReturn() {
   );
 }
 
+/** Auto-renewal is on: when the card is charged next, and the way to stop it. */
+function AutorenewOn({
+  autorenew,
+  plan,
+}: {
+  autorenew: NonNullable<Billing["autorenew"]>;
+  plan: Plan;
+}) {
+  const queryClient = useQueryClient();
+  const cancel = useMutation({
+    ...orpc.billing.cancelAutorenew.mutationOptions(),
+    onSuccess: () => {
+      toast.success("Автопродление отключено");
+      return queryClient.invalidateQueries({ queryKey: orpc.billing.key() });
+    },
+    onError: () => toast.error("Не удалось отключить автопродление"),
+  });
+
+  return (
+    <Alert variant="info">
+      <CircleCheckIcon />
+      <AlertTitle>Автопродление включено</AlertTitle>
+      <AlertDescription>
+        <p>
+          {plan.paidUntil
+            ? `За сутки до ${formatDate(plan.paidUntil)} `
+            : "Перед окончанием оплаченного срока "}
+          с карты спишется {formatRub(autorenew.amount)} за{" "}
+          {autorenew.period === "year" ? "год" : "месяц"}. Уже оплаченный период
+          сохранится, если отключить.
+        </p>
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-3"
+          disabled={cancel.isPending}
+          onClick={() => cancel.mutate()}
+        >
+          {cancel.isPending && <Spinner />}
+          Отключить автопродление
+        </Button>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 /**
  * The «Про» plan: what it gives, the trial or paid period, and paying for a
  * month or a year through Точка Банк (card or СБП).
  */
 export function BillingPanel() {
   const billing = useQuery(orpc.billing.get.queryOptions());
+  const [autorenew, setAutorenew] = useState(false);
   const checkout = useMutation({
     ...orpc.billing.checkout.mutationOptions(),
     // Keep the button busy until the browser leaves for the payment page.
@@ -360,13 +416,45 @@ export function BillingPanel() {
                 period={period}
                 billing={billing.data}
                 pending={pending}
-                onPay={(value) => checkout.mutate({ period: value })}
+                onPay={(value) =>
+                  checkout.mutate({
+                    period: value,
+                    autorenew: autorenew && !billing.data.autorenew,
+                  })
+                }
               />
             ))}
           </div>
+          {billing.data.autorenew ? (
+            <AutorenewOn
+              autorenew={billing.data.autorenew}
+              plan={billing.data.plan}
+            />
+          ) : (
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="autorenew"
+                checked={autorenew}
+                onCheckedChange={(checked) => setAutorenew(checked === true)}
+                className="mt-0.5"
+              />
+              {/* TODO(legal): final wording of the consent and the section of
+                  the Terms on automatic charges are written by a lawyer. */}
+              <Label
+                htmlFor="autorenew"
+                className="text-xs leading-snug font-normal text-muted-foreground"
+              >
+                Продлевать «Про» автоматически: согласен, что с моей карты будут
+                списываться деньги за следующий период, пока я не отключу
+                автопродление. Условия — в{" "}
+                <LegalLink doc="terms">пользовательском соглашении</LegalLink>.
+                Только оплата картой.
+              </Label>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
-            Оплата картой или через СБП на странице Точка Банка. Чек придёт на
-            почту. Автоматических списаний нет.
+            Оплата картой или через СБП на странице Точка Банка (с
+            автопродлением — только картой). Чек придёт на почту.
           </p>
 
           {billing.data.payments.length > 0 && (
@@ -384,8 +472,21 @@ export function BillingPanel() {
                       {payment.periodEnd &&
                         ` · до ${formatDate(payment.periodEnd)}`}
                     </span>
-                    <span className="font-medium tabular-nums">
-                      {formatRub(payment.amount)}
+                    <span className="flex items-center gap-2">
+                      {payment.refundedAt && (
+                        <span className="text-xs text-muted-foreground">
+                          возвращён {formatDate(payment.refundedAt)}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "font-medium tabular-nums",
+                          payment.refundedAt &&
+                            "text-muted-foreground line-through",
+                        )}
+                      >
+                        {formatRub(payment.amount)}
+                      </span>
                     </span>
                   </li>
                 ))}
