@@ -20,8 +20,11 @@ import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
 import { ErrorState } from "../booking/states";
 
-/** A start link lives 15 minutes; checks stop a bit earlier. */
-const WAIT_MS = 14 * 60 * 1000;
+/**
+ * A start link lives 15 minutes; checks go on a little longer, for one
+ * opened at the last moment.
+ */
+const WAIT_MS = 15 * 60 * 1000 + 15_000;
 
 const ICONS: Record<Messenger, typeof SendIcon> = {
   telegram: SendIcon,
@@ -49,14 +52,25 @@ function Connect({
     messenger: Messenger;
     url: string;
     since: number;
+    /** The link ran out before the bot confirmed the chat. */
+    expired: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    if (!waiting || waiting.expired) return;
+    const timer = setTimeout(
+      () => setWaiting((w) => w && { ...w, expired: true }),
+      waiting.since + WAIT_MS - Date.now(),
+    );
+    return () => clearTimeout(timer);
+  }, [waiting]);
 
   // The bot links the chat on its side: check until it shows up.
   const linked = useQuery({
     ...orpc.messenger.status.queryOptions(),
-    enabled: waiting !== null,
+    enabled: waiting !== null && !waiting.expired,
     refetchInterval: (query) => {
-      if (!waiting || Date.now() - waiting.since > WAIT_MS) return false;
+      if (!waiting || waiting.expired) return false;
       const now = query.state.data?.chat;
       return now?.messenger === waiting.messenger && !now.blocked
         ? false
@@ -77,7 +91,7 @@ function Connect({
   const link = useMutation({
     ...orpc.messenger.link.mutationOptions(),
     onSuccess: ({ url }, { messenger }) =>
-      setWaiting({ messenger, url, since: Date.now() }),
+      setWaiting({ messenger, url, since: Date.now(), expired: false }),
     onError: (error) =>
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось получить ссылку",
@@ -92,6 +106,30 @@ function Connect({
     },
     onError: (error) => toast.error(error.message),
   });
+
+  if (waiting?.expired) {
+    const { messenger } = waiting;
+    return (
+      <div className="flex flex-col items-start gap-3">
+        <p className="text-sm">
+          Ссылка истекла, а бот так и не ответил. Получите новую и откройте её в{" "}
+          {MESSENGER_LABELS[messenger]}.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            disabled={link.isPending}
+            onClick={() => link.mutate({ messenger })}
+          >
+            {link.isPending && <Spinner />}
+            Новая ссылка
+          </Button>
+          <Button variant="ghost" onClick={() => setWaiting(null)}>
+            Отмена
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (waiting) {
     const label = MESSENGER_LABELS[waiting.messenger];
@@ -179,7 +217,9 @@ function Connect({
               Похоже, бот остановлен или заблокирован — пока уведомления
               приходят на почту. Подключите мессенджер заново.
             </span>
-            <div className="flex flex-wrap gap-2">{buttons}</div>
+            {buttons.length > 0 && (
+              <div className="flex flex-wrap gap-2">{buttons}</div>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -206,13 +246,21 @@ export function MessengerSettings() {
       </p>
     );
   } else if (!status.data.available) {
-    content = status.data.owner ? (
-      <ProRequired feature="Уведомления в Telegram и MAX" />
-    ) : (
-      <p className="text-sm text-muted-foreground">
-        Уведомления в мессенджере появятся, когда ваш специалист подключит тариф
-        «Про». Пока всё приходит на почту.
-      </p>
+    // Without «Про» a linked chat waits; it can still be unlinked.
+    content = (
+      <div className="flex flex-col gap-4">
+        {status.data.chat && (
+          <Connect messengers={[]} chat={status.data.chat} />
+        )}
+        {status.data.owner ? (
+          <ProRequired feature="Уведомления в Telegram и MAX" />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Уведомления в мессенджере работают, когда у вашего специалиста тариф
+            «Про». Пока всё приходит на почту.
+          </p>
+        )}
+      </div>
     );
   } else {
     content = (
@@ -234,14 +282,15 @@ export function MessengerSettings() {
 }
 
 /**
- * The same in the client's cabinet, only where it works: a practice of
- * theirs is on «Про» and a bot is set up. Hidden otherwise.
+ * The same in the client's cabinet, where it works (a practice of theirs is
+ * on «Про» and a bot is set up) or a chat is linked and can be unlinked.
+ * Hidden otherwise.
  */
 export function MessengerCard() {
   const status = useQuery(orpc.messenger.status.queryOptions());
-  if (!status.data?.available || status.data.messengers.length === 0) {
-    return null;
-  }
+  const data = status.data;
+  const canLink = !!data?.available && data.messengers.length > 0;
+  if (!data || (!canLink && !data.chat)) return null;
   return (
     <Frame spacing="default">
       <FramePanel className="flex flex-col gap-3">
@@ -256,7 +305,7 @@ export function MessengerCard() {
             <span className="text-xs text-muted-foreground">{DESCRIPTION}</span>
           </div>
         </div>
-        <Connect messengers={status.data.messengers} chat={status.data.chat} />
+        <Connect messengers={canLink ? data.messengers : []} chat={data.chat} />
       </FramePanel>
     </Frame>
   );

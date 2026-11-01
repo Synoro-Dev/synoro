@@ -1,4 +1,4 @@
-import { index, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 
@@ -34,18 +34,16 @@ export const MessengerChat = pgTable("messenger_chats", (t) => ({
 
 /**
  * The one-time code in the bot link (`t.me/<bot>?start=<code>`): only its
- * SHA-256 is kept, it lives 15 minutes and is spent on first use.
+ * SHA-256 is kept, it lives 15 minutes and is spent on first use. One per
+ * user — a new link replaces the row, so an older link stops working.
  */
-export const MessengerLinkCode = pgTable(
-  "messenger_link_codes",
-  (t) => ({
-    codeHash: t.varchar({ length: 64 }).notNull().primaryKey(),
-    userId: t
-      .text()
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    messenger: messenger().notNull(),
-    expiresAt: t.timestamp({ withTimezone: true }).notNull(),
-  }),
-  (table) => [index("messenger_link_codes_user_idx").on(table.userId)],
-);
+export const MessengerLinkCode = pgTable("messenger_link_codes", (t) => ({
+  userId: t
+    .text()
+    .notNull()
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  codeHash: t.varchar({ length: 64 }).notNull().unique(),
+  messenger: messenger().notNull(),
+  expiresAt: t.timestamp({ withTimezone: true }).notNull(),
+}));

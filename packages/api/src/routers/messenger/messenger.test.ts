@@ -12,7 +12,7 @@ import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { eq, MessengerChat, PracticeMember, Subscription } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
-import { dispatchNotice } from "@synoro/jobs/messenger";
+import { deliverMessenger, dispatchNotice } from "@synoro/jobs/messenger";
 import type { Messenger } from "@synoro/validators";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -295,6 +295,19 @@ describe("linking a messenger", () => {
     expect((await chatOf(other.user.id))?.blockedAt).not.toBeNull();
   });
 
+  it("keeps only the newest link of a user working", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-two-links");
+    const client = await newClient(practiceId);
+    const first = await codeFor(client, "telegram");
+    const second = await codeFor(client, "max");
+
+    await startTelegram(1401, `/start ${first.code}`);
+    expect(await chatOf(client.user.id)).toBeUndefined();
+    await startMax(1402, second.code);
+    expect((await chatOf(client.user.id))?.chatId).toBe("1402");
+  });
+
   it("answers a start without a code with how to link", async () => {
     bots();
     await startTelegram(901, "/start");
@@ -413,6 +426,49 @@ describe("notices in the messenger", () => {
     await dispatchNotice(api.db, notice("Анна Иванова"), to, mail);
     expect(sent).toHaveLength(0);
     expect(mails).toHaveLength(4);
+  });
+
+  it("mails a queued notice whose chat was unlinked or replaced", async () => {
+    const { practiceId } = await newPractice("m-queued");
+    const client = await newClient(practiceId);
+    bots();
+    await startTelegram(
+      1501,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    sent = [];
+    const mails: TemplateEmail[] = [];
+    const send = {
+      userId: client.user.id,
+      messenger: "telegram" as const,
+      chatId: "1501",
+      message: { text: "Напоминание", buttons: [] },
+      email: notice("Анна Иванова"),
+    };
+    const options = {
+      lastAttempt: false,
+      sendEmail: async (email: TemplateEmail) => {
+        mails.push(email);
+      },
+    };
+
+    // Switched to MAX before the task ran.
+    await startMax(1502, (await codeFor(client, "max")).code);
+    sent = [];
+    await deliverMessenger(api.db, send, options);
+    expect(sent).toHaveLength(0);
+    expect(mails).toHaveLength(1);
+
+    await call(messengerRouter.unlink, undefined, {
+      context: api.context(client),
+    });
+    await deliverMessenger(
+      api.db,
+      { ...send, messenger: "max", chatId: "1502" },
+      options,
+    );
+    expect(sent).toHaveLength(0);
+    expect(mails).toHaveLength(2);
   });
 
   it("falls back to mail when the platform fails", async () => {

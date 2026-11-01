@@ -6,6 +6,7 @@ import {
   type Database,
   eq,
   gt,
+  lt,
   MessengerChat,
   MessengerLinkCode,
   Practice,
@@ -62,8 +63,8 @@ export async function messengerAvailable(db: Database, userId: string) {
 
 /**
  * A fresh start link for `userId`: 32 hex characters fit both platforms'
- * start parameter (Telegram 64 of `[A-Za-z0-9_-]`, MAX 128). Earlier codes
- * of the user, and everyone's expired ones, are dropped.
+ * start parameter (Telegram 64 of `[A-Za-z0-9_-]`, MAX 128). It replaces
+ * the user's earlier link; everyone's expired ones are dropped.
  */
 export async function createLink(
   db: Database,
@@ -71,17 +72,20 @@ export async function createLink(
   messenger: Messenger,
 ) {
   const code = randomBytes(16).toString("hex");
-  await db
-    .delete(MessengerLinkCode)
-    .where(
-      sql`${MessengerLinkCode.userId} = ${userId} or ${MessengerLinkCode.expiresAt} < now()`,
-    );
-  await db.insert(MessengerLinkCode).values({
+  const fresh = {
     codeHash: hashCode(code),
-    userId,
     messenger,
     expiresAt: new Date(Date.now() + CODE_TTL_MS),
-  });
+  };
+  // One row per user, replaced in one statement: two tabs asking at once
+  // leave one working link, never two.
+  await db
+    .insert(MessengerLinkCode)
+    .values({ userId, ...fresh })
+    .onConflictDoUpdate({ target: MessengerLinkCode.userId, set: fresh });
+  await db
+    .delete(MessengerLinkCode)
+    .where(lt(MessengerLinkCode.expiresAt, new Date()));
   return botLink(messenger, code);
 }
 
@@ -95,18 +99,6 @@ async function linkChat(
   code: string,
   chat: { chatId: string; username: string | null },
 ) {
-  const [spent] = await db
-    .delete(MessengerLinkCode)
-    .where(
-      and(
-        eq(MessengerLinkCode.codeHash, hashCode(code)),
-        eq(MessengerLinkCode.messenger, messenger),
-        gt(MessengerLinkCode.expiresAt, new Date()),
-      ),
-    )
-    .returning({ userId: MessengerLinkCode.userId });
-  if (!spent) return false;
-
   const linked = {
     messenger,
     chatId: chat.chatId,
@@ -114,11 +106,28 @@ async function linkChat(
     linkedAt: new Date(),
     blockedAt: null,
   };
-  await db
-    .insert(MessengerChat)
-    .values({ userId: spent.userId, ...linked })
-    .onConflictDoUpdate({ target: MessengerChat.userId, set: linked });
-  track("messenger_linked", spent.userId, { messenger });
+  // Spending the code and saving the chat succeed or fail together: a
+  // failure in between must not burn the code, the platform retries.
+  const userId = await db.transaction(async (tx) => {
+    const [spent] = await tx
+      .delete(MessengerLinkCode)
+      .where(
+        and(
+          eq(MessengerLinkCode.codeHash, hashCode(code)),
+          eq(MessengerLinkCode.messenger, messenger),
+          gt(MessengerLinkCode.expiresAt, new Date()),
+        ),
+      )
+      .returning({ userId: MessengerLinkCode.userId });
+    if (!spent) return null;
+    await tx
+      .insert(MessengerChat)
+      .values({ userId: spent.userId, ...linked })
+      .onConflictDoUpdate({ target: MessengerChat.userId, set: linked });
+    return spent.userId;
+  });
+  if (!userId) return false;
+  track("messenger_linked", userId, { messenger });
   return true;
 }
 

@@ -12,6 +12,7 @@ export {
 } from "./bots";
 export {
   type Deliver,
+  deliverMessenger,
   dispatchNotice,
   noticeSender,
   type Recipient,

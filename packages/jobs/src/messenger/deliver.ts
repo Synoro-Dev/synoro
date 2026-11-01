@@ -81,10 +81,28 @@ async function chatFor(db: Database, to: Recipient) {
   return (await ownerHasPro(db, to.practiceId)) ? chat : null;
 }
 
+/** `send`'s chat is still the user's, linked and not blocked. */
+async function stillLinked(db: Database, send: MessengerSend) {
+  const [chat] = await db
+    .select({ userId: MessengerChat.userId })
+    .from(MessengerChat)
+    .where(
+      and(
+        eq(MessengerChat.userId, send.userId),
+        eq(MessengerChat.messenger, send.messenger),
+        eq(MessengerChat.chatId, send.chatId),
+        isNull(MessengerChat.blockedAt),
+      ),
+    );
+  return chat !== undefined;
+}
+
 /**
- * Sends one messenger notice. When the bot can't write there any more the
- * chat is marked blocked and the mail goes instead; any other failure is
- * thrown for a retry, or — on the last attempt — also turns into the mail.
+ * Sends one messenger notice. A task may wait for its run or a retry: if the
+ * user unlinked or switched the chat meanwhile, the mail goes instead. When
+ * the bot can't write there any more the chat is marked blocked and the mail
+ * goes too; any other failure is thrown for a retry, or — on the last
+ * attempt — also turns into the mail.
  */
 export async function deliverMessenger(
   db: Database,
@@ -94,6 +112,11 @@ export async function deliverMessenger(
     sendEmail?: (email: TemplateEmail) => Promise<void>;
   },
 ) {
+  const sendEmail = options.sendEmail ?? dispatchEmail;
+  if (!(await stillLinked(db, send))) {
+    await sendEmail(send.email);
+    return;
+  }
   try {
     await sendToChat(send.messenger, send.chatId, send.message);
     return;
@@ -118,7 +141,7 @@ export async function deliverMessenger(
         );
     }
   }
-  await (options.sendEmail ?? dispatchEmail)(send.email);
+  await sendEmail(send.email);
 }
 
 /**
