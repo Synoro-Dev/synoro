@@ -251,19 +251,19 @@ export function Bento() {
 
       <div className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t px-4 py-6 text-sm">
         <span className="flex items-center gap-2">
-          <IconTile icon={ShieldCheckIcon} tone="emerald" />
+          <IconTile icon={ShieldCheckIcon} />
           Приглашения с подтверждением email
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UndoIcon} tone="amber" />
+          <IconTile icon={UndoIcon} />
           Возвраты и ручные корректировки
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UsersIcon} tone="sky" />
+          <IconTile icon={UsersIcon} />
           Список клиентов с балансами
         </span>
         <span className="flex items-center gap-2">
-          <IconTile icon={UserRoundIcon} tone="violet" />
+          <IconTile icon={UserRoundIcon} />
           Вход по коду из письма
         </span>
       </div>

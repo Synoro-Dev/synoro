@@ -187,7 +187,7 @@ export function BookingDemo() {
             onClick={() => setBooked(true)}
             className="bg-foreground text-background focus-visible:ring-ring/50 disabled:bg-muted disabled:text-muted-foreground mt-auto flex h-9 items-center justify-center rounded-lg text-sm font-medium outline-none transition-colors focus-visible:ring-3 sm:mt-3"
           >
-            {time ? `Записаться на ${time}` : "Выберите время"}
+            {time ? "Записаться" : "Выберите время"}
           </button>
         </div>
       </div>
@@ -195,7 +195,7 @@ export function BookingDemo() {
       {booked && time && (
         <div
           role="status"
-          className="bg-background/85 animate-in fade-in absolute inset-x-0 top-9 bottom-0 flex items-center justify-center p-6 backdrop-blur-sm duration-200"
+          className="bg-background animate-in fade-in absolute inset-x-0 top-9 bottom-0 flex items-center justify-center p-6 duration-200"
         >
           <div className="animate-in zoom-in-95 slide-in-from-bottom-2 flex max-w-xs flex-col items-center text-center duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
             <span className="flex size-11 items-center justify-center rounded-full bg-emerald-600 text-white">
@@ -208,8 +208,8 @@ export function BookingDemo() {
               {dayLabel}, {time}–{endOf(time)}
             </p>
             <p className="text-muted-foreground mt-3 text-sm text-pretty">
-              Из пакета списано 1 занятие, осталось 6. Ссылка на запись пришла
-              на почту, её можно отменить за 24 часа.
+              Из пакета списано 1 занятие, осталось 6. Подтверждение пришло на
+              почту, отменить запись можно за 24 часа до начала.
             </p>
             <button
               type="button"

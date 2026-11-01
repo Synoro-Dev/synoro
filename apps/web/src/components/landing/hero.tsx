@@ -35,7 +35,8 @@ export function Hero({ links }: { links: SiteLinks }) {
               "text-[2.75rem] leading-[0.98] tracking-[-0.045em] sm:text-6xl xl:text-[4.25rem]",
             )}
           >
-            Клиенты записываются сами. Вы работаете с&nbsp;людьми.
+            <span className="block">Клиенты записываются сами.</span>
+            <span className="block">Вы работаете с&nbsp;людьми.</span>
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-[34rem] text-lg text-pretty">
