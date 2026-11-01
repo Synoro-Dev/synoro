@@ -36,6 +36,7 @@ import { usePathname } from "next/navigation";
 import type * as React from "react";
 
 import { DemoSwitcher } from "./demo-switcher";
+import { NavPlan } from "./nav-plan";
 import { NavUser } from "./nav-user";
 import { PracticeSwitcher } from "./practice-switcher";
 import type { SidebarPractice } from "./types";
@@ -97,6 +98,8 @@ export function AppSidebar({
   const current =
     staffPractices.find((p) => p.practiceId === fromPath) ?? staffPractices[0];
   const isClient = practices.some((p) => p.role === "client");
+  // «Про» is the owner's plan: admins and clients don't pay for it.
+  const isOwner = practices.some((p) => p.role === "owner");
 
   const practiceItems: NavItem[] = current
     ? [
@@ -199,6 +202,7 @@ export function AppSidebar({
         )}
       </SidebarContent>
       <SidebarFooter>
+        {isOwner && <NavPlan />}
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton

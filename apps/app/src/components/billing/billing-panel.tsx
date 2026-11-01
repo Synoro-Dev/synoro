@@ -13,8 +13,12 @@ import {
   toast,
 } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
-import { Badge } from "@synoro/ui/reui/badge";
-import { type BillingPeriodId, TRIAL_DAYS } from "@synoro/validators";
+import { Badge, type BadgeProps } from "@synoro/ui/reui/badge";
+import {
+  type BillingPeriodId,
+  PRO_PRICES,
+  TRIAL_DAYS,
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckIcon,
@@ -30,72 +34,159 @@ import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
 import { LegalLink } from "../legal-links";
 import { formatRub } from "../payment/format";
+import {
+  daysLeft,
+  ENDING_SOON_DAYS,
+  FREE_FEATURES,
+  formatDate,
+  formatDays,
+  PRO_FEATURES,
+  planName,
+} from "./plan";
+import { TrialDays } from "./trial-days";
 
 type Billing = RouterOutputs["billing"]["get"];
-type Plan = Billing["plan"];
-
-const PRO_FEATURES = [
-  "Оплата пакетов онлайн через ЮKassa или Т-Банк",
-  "Пакет начисляется клиенту сразу после оплаты",
-  "Свой домен для страницы записи",
-  "Администратор в команде",
-  "Анкета для клиента перед записью",
-  "Напоминания и уведомления в Telegram и MAX",
-];
-
-const dateFormat = new Intl.DateTimeFormat("ru-RU", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
-const formatDate = (at: Date) => dateFormat.format(at);
 
 /** ~2 minutes of checks, then the webhook takes it from there. */
 const MAX_CHECKS = 48;
 
-function PlanStatus({ plan }: { plan: Plan }) {
-  if (plan.status === "active" && plan.activeUntil) {
-    return (
-      <>
-        <Badge variant="success-light">Оплачен</Badge>
-        <p className="text-sm text-muted-foreground">
-          «Про» работает до {formatDate(plan.activeUntil)}. Продлить можно в
-          любой момент — новый период начнётся, когда закончится текущий.
-        </p>
-      </>
-    );
-  }
+/** What the user is on right now, how long it lasts and what happens next. */
+function CurrentPlan({ billing }: { billing: Billing }) {
+  const { plan, autorenew } = billing;
+  const until = plan.status === "trial" ? plan.trialEndsAt : plan.activeUntil;
+  const left = plan.pro && until ? daysLeft(until) : 0;
+  const endingSoon = plan.pro && !autorenew && left <= ENDING_SOON_DAYS;
+
+  let badge: { label: string; variant: BadgeProps["variant"] } | null = null;
+  let note: string;
   if (plan.status === "trial" && plan.trialEndsAt) {
-    return (
-      <>
-        <Badge variant="info-light">Пробный период</Badge>
-        <p className="text-sm text-muted-foreground">
-          Все возможности «Про» бесплатно до {formatDate(plan.trialEndsAt)}.
-          Оплатите заранее — оплаченный период начнётся после пробного.
-        </p>
-      </>
-    );
+    badge = {
+      label: `Осталось ${formatDays(left)}`,
+      variant: endingSoon ? "warning-light" : "info-light",
+    };
+    note = `Все возможности «Про» бесплатно до ${formatDate(plan.trialEndsAt)}. Потом включится бесплатный тариф: записи и клиенты останутся, а онлайн-оплата, свой домен и анкета выключатся. Оплатите сейчас — оплаченный период начнётся после пробного.`;
+  } else if (plan.status === "active" && plan.activeUntil) {
+    badge = endingSoon
+      ? { label: `Осталось ${formatDays(left)}`, variant: "warning-light" }
+      : { label: "Оплачен", variant: "success-light" };
+    note = `${autorenew ? "Продлится автоматически" : "Оплачен до"} ${formatDate(plan.activeUntil)}. Продлить можно в любой момент — новый период начнётся, когда закончится текущий.`;
+  } else if (plan.status === "expired") {
+    badge = plan.activeUntil
+      ? {
+          label: `«Про» закончился ${formatDate(plan.activeUntil)}`,
+          variant: "warning-light",
+        }
+      : null;
+    note =
+      "Записи, клиенты и расписание работают как прежде. Онлайн-оплата, свой домен, анкета и администраторы включатся снова сразу после оплаты.";
+  } else {
+    note = `Создайте практику — ${TRIAL_DAYS} дней «Про» бесплатно, без карты.`;
   }
-  if (plan.status === "expired") {
-    return (
-      <>
-        <Badge variant="warning-light">Бесплатный тариф</Badge>
-        <p className="text-sm text-muted-foreground">
-          Срок «Про» закончился
-          {plan.activeUntil && ` ${formatDate(plan.activeUntil)}`}. Записи,
-          клиенты и расписание работают как прежде; онлайн-оплата, свой домен и
-          администраторы включатся снова после оплаты.
-        </p>
-      </>
-    );
-  }
+
   return (
-    <>
-      <Badge variant="secondary">Бесплатный тариф</Badge>
-      <p className="text-sm text-muted-foreground">
-        Создайте практику — {TRIAL_DAYS} дней «Про» бесплатно, без карты.
-      </p>
-    </>
+    <section
+      aria-labelledby="current-plan"
+      className={cn(
+        "flex flex-col gap-4 rounded-xl border p-5",
+        plan.pro ? "border-info/30" : "border-border",
+      )}
+    >
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-muted-foreground">Сейчас у вас</span>
+          <h3
+            id="current-plan"
+            className="text-2xl leading-none font-semibold tracking-tight"
+          >
+            {planName(plan)}
+          </h3>
+        </div>
+        {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
+      </div>
+      {plan.status === "trial" && (
+        <TrialDays
+          left={left}
+          endingSoon={endingSoon}
+          className="[&>span]:h-2"
+        />
+      )}
+      <p className="max-w-prose text-sm text-muted-foreground">{note}</p>
+    </section>
+  );
+}
+
+/** Free and «Про» side by side, the user's own plan marked. */
+function PlanComparison({ plan }: { plan: Billing["plan"] }) {
+  const columns = [
+    {
+      id: "free",
+      name: "Бесплатный",
+      price: "0 ₽ навсегда",
+      lead: null,
+      features: FREE_FEATURES,
+      current: !plan.pro,
+    },
+    {
+      id: "pro",
+      name: "«Про»",
+      price: `${formatRub(PRO_PRICES.month.amount)} в месяц или ${formatRub(PRO_PRICES.year.amount)} за год`,
+      lead: "Всё из бесплатного, и ещё:",
+      features: PRO_FEATURES,
+      current: plan.pro,
+    },
+  ];
+
+  return (
+    <section aria-labelledby="plan-comparison" className="flex flex-col gap-3">
+      <h3 id="plan-comparison" className="text-sm font-medium">
+        Что входит в тарифы
+      </h3>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {columns.map((column) => (
+          <div
+            key={column.id}
+            className={cn(
+              "flex flex-col gap-3 rounded-lg border p-4",
+              column.current && "border-primary ring-1 ring-primary",
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">{column.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {column.price}
+                </span>
+              </div>
+              {column.current && (
+                <Badge variant="primary-light">
+                  {plan.status === "trial" ? "Пробный период" : "Ваш тариф"}
+                </Badge>
+              )}
+            </div>
+            {column.lead && (
+              <span className="text-sm text-muted-foreground">
+                {column.lead}
+              </span>
+            )}
+            <ul className="flex flex-col gap-2 text-sm">
+              {column.features.map((feature) => (
+                <li key={feature} className="flex items-start gap-2">
+                  <CheckIcon
+                    className={cn(
+                      "mt-0.5 size-4 shrink-0",
+                      column.id === "pro"
+                        ? "text-info"
+                        : "text-muted-foreground",
+                    )}
+                  />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -293,7 +384,7 @@ function AutorenewOn({
   plan,
 }: {
   autorenew: NonNullable<Billing["autorenew"]>;
-  plan: Plan;
+  plan: Billing["plan"];
 }) {
   const queryClient = useQueryClient();
   const cancel = useMutation({
@@ -357,9 +448,10 @@ export function BillingPanel() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold tracking-tight">Тариф «Про»</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Тариф</h2>
         <p className="text-sm text-muted-foreground">
-          Для тех, кто принимает оплату онлайн и работает с помощником.
+          Бесплатный тариф — навсегда. «Про» — когда клиенты платят онлайн и с
+          вами работает помощник.
         </p>
       </div>
 
@@ -369,7 +461,7 @@ export function BillingPanel() {
         <ErrorState onRetry={() => billing.refetch()} />
       ) : billing.isPending ? (
         <div className="flex flex-col gap-4">
-          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-36 w-full rounded-xl" />
           <div className="grid gap-4 sm:grid-cols-2">
             <Skeleton className="h-44 rounded-lg" />
             <Skeleton className="h-44 rounded-lg" />
@@ -377,18 +469,7 @@ export function BillingPanel() {
         </div>
       ) : (
         <>
-          <div className="flex flex-col items-start gap-2">
-            <PlanStatus plan={billing.data.plan} />
-          </div>
-
-          <ul className="flex flex-col gap-2 text-sm">
-            {PRO_FEATURES.map((feature) => (
-              <li key={feature} className="flex items-start gap-2">
-                <CheckIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-                {feature}
-              </li>
-            ))}
-          </ul>
+          <CurrentPlan billing={billing.data} />
 
           {billing.data.sandbox && (
             <Alert variant="info">
@@ -411,6 +492,13 @@ export function BillingPanel() {
             </Alert>
           )}
 
+          <h3 className="-mb-2 text-sm font-medium">
+            {billing.data.plan.status === "active"
+              ? "Продлить «Про»"
+              : billing.data.plan.status === "expired"
+                ? "Вернуть «Про»"
+                : "Перейти на «Про»"}
+          </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             {(["month", "year"] as const).map((period) => (
               <PeriodOption
@@ -458,6 +546,8 @@ export function BillingPanel() {
             Оплата картой или через СБП на странице Точка Банка (с
             автопродлением — только картой). Чек придёт на почту.
           </p>
+
+          <PlanComparison plan={billing.data.plan} />
 
           {billing.data.payments.length > 0 && (
             <div className="flex flex-col gap-2">
