@@ -1,0 +1,101 @@
+/*
+ * Looks of the public booking page («Про», `BookingTheme` in
+ * @synoro/validators). Each preset only re-tints the theme tokens, so every
+ * component keeps its own styles: set the `data-booking-*` attributes from
+ * `bookingThemeAttributes` on the page (and on its preview).
+ *
+ * Accents: white text on the light value and dark text on the dark value
+ * keep 4.5:1 or better.
+ */
+
+[data-booking-accent="emerald"] {
+  --primary: oklch(0.508 0.118 165.612);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="teal"] {
+  --primary: oklch(0.511 0.096 186.391);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="blue"] {
+  --primary: oklch(0.546 0.245 262.881);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="violet"] {
+  --primary: oklch(0.541 0.281 293.009);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="rose"] {
+  --primary: oklch(0.586 0.253 17.585);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="terracotta"] {
+  --primary: oklch(0.553 0.195 38.402);
+  --primary-foreground: oklch(0.985 0 0);
+}
+[data-booking-accent="ochre"] {
+  --primary: oklch(0.555 0.163 48.998);
+  --primary-foreground: oklch(0.985 0 0);
+}
+
+:is(.dark [data-booking-accent="emerald"], .dark[data-booking-accent="emerald"]) {
+  --primary: oklch(0.765 0.177 163.223);
+  --primary-foreground: oklch(0.262 0.051 172.552);
+}
+:is(.dark [data-booking-accent="teal"], .dark[data-booking-accent="teal"]) {
+  --primary: oklch(0.777 0.152 181.912);
+  --primary-foreground: oklch(0.277 0.046 192.524);
+}
+:is(.dark [data-booking-accent="blue"], .dark[data-booking-accent="blue"]) {
+  --primary: oklch(0.707 0.165 254.624);
+  --primary-foreground: oklch(0.282 0.091 267.935);
+}
+:is(.dark [data-booking-accent="violet"], .dark[data-booking-accent="violet"]) {
+  --primary: oklch(0.702 0.183 293.541);
+  --primary-foreground: oklch(0.283 0.141 291.089);
+}
+:is(.dark [data-booking-accent="rose"], .dark[data-booking-accent="rose"]) {
+  --primary: oklch(0.712 0.194 13.428);
+  --primary-foreground: oklch(0.271 0.105 12.094);
+}
+:is(.dark [data-booking-accent="terracotta"], .dark[data-booking-accent="terracotta"]) {
+  --primary: oklch(0.75 0.183 55.934);
+  --primary-foreground: oklch(0.266 0.079 36.259);
+}
+:is(.dark [data-booking-accent="ochre"], .dark[data-booking-accent="ochre"]) {
+  --primary: oklch(0.828 0.189 84.429);
+  --primary-foreground: oklch(0.279 0.077 45.635);
+}
+
+/* Focus rings follow the accent too. */
+[data-booking-accent]:not([data-booking-accent="graphite"]) {
+  --ring: color-mix(in oklch, var(--primary) 70%, transparent);
+}
+
+/* Corners: controls follow `--radius`, the big panels `--radius-2xl`. */
+[data-booking-radius="sharp"] {
+  --radius: 0.25rem;
+  --radius-2xl: 0.5rem;
+}
+[data-booking-radius="round"] {
+  --radius: 1rem;
+  --radius-2xl: 1.75rem;
+}
+
+/* The backdrop washed with the accent; panels stay on `--card`. */
+[data-booking-backdrop="tint"] {
+  --background: color-mix(in oklch, var(--primary) 7%, oklch(1 0 0));
+}
+.dark [data-booking-backdrop="tint"] {
+  --background: color-mix(in oklch, var(--primary) 10%, oklch(0.145 0 0));
+}
+
+/* The headings' face; the variables come from `displayFonts`. */
+[data-booking-font="playfair"] {
+  --booking-font: var(--font-playfair);
+}
+[data-booking-font="manrope"] {
+  --booking-font: var(--font-manrope);
+}
+[data-booking-font="geist"] {
+  --booking-font: var(--font-geist-sans);
+}

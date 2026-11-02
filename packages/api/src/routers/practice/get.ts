@@ -24,9 +24,16 @@ export const get = practiceProcedure
       member && (await findPractice(context.db, member.practiceId));
     if (!member || !practice) throw errors.FORBIDDEN();
 
-    // The questionnaire is the owner's setting (`question.list`); clients
-    // get the questions they're asked from `practice.bySlug`.
-    const { image, videoUrl, bookingQuestions: _, ...info } = practice;
+    // The questionnaire and the page's look are settings of their own
+    // (`question.list`, `practice.theme`); clients get what they're shown
+    // from `practice.bySlug`.
+    const {
+      image,
+      videoUrl,
+      bookingQuestions: _questions,
+      bookingTheme: _theme,
+      ...info
+    } = practice;
     return {
       ...info,
       /** The permanent video room: staff only, clients get it per booking. */

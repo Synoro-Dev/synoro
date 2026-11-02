@@ -1,5 +1,5 @@
 {
-  "id": "aa98545e-086d-45ad-a320-3dc4e1e8af39",
+  "id": "0fa2df3f-e5dd-4939-b8a9-a43e1098a330",
   "prevId": "c1b5d570-6322-45ba-b7ae-35f20e59025f",
   "version": "7",
   "dialect": "postgresql",
@@ -626,23 +626,6 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "number": {
-          "name": "number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "identity": {
-            "type": "byDefault",
-            "name": "subscription_payments_number_seq",
-            "schema": "public",
-            "increment": "1",
-            "startWith": "1001",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "cache": "1",
-            "cycle": false
-          }
-        },
         "user_id": {
           "name": "user_id",
           "type": "text",
@@ -818,13 +801,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "subscription_payments_number_unique": {
-          "name": "subscription_payments_number_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "number"
-          ]
-        },
         "subscription_payments_externalId_unique": {
           "name": "subscription_payments_externalId_unique",
           "nullsNotDistinct": false,
@@ -1797,6 +1773,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "booking_theme": {
+          "name": "booking_theme",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         },
         "owner_id": {
           "name": "owner_id",

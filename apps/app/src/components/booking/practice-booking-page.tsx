@@ -1,14 +1,7 @@
 "use client";
 
 import { paths } from "@synoro/config";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-  Button,
-  Input,
-  toast,
-} from "@synoro/ui";
+import { Button, Input, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import {
   Frame,
@@ -18,8 +11,13 @@ import {
   FrameTitle,
 } from "@synoro/ui/reui/frame";
 import {
+  type BookingTheme,
+  capitalize,
+  DEFAULT_BOOKING_THEME,
+} from "@synoro/validators";
+import { useQuery } from "@tanstack/react-query";
+import {
   ChevronRightIcon,
-  Clock3Icon,
   CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
@@ -29,15 +27,23 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 
+import { orpc } from "~/orpc/react";
+
 import { PracticeAvatar } from "./practice-avatar";
 import { PracticeBookingQuestions } from "./practice-booking-questions";
+import {
+  BookingThemePreview,
+  PracticeBookingTheme,
+} from "./practice-booking-theme";
 import { PracticeFreeBooking } from "./practice-free-booking";
 import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
  * Where the practice's public page is edited: photo, link, free intro,
- * video room and the questionnaire clients fill in when booking.
+ * video room, the questionnaire clients fill in when booking and the page's
+ * look, previewed beside the settings. Administrators share the link and
+ * design the page; the rest is the owner's.
  */
 export function PracticeBookingPage({
   practice,
@@ -55,6 +61,16 @@ export function PracticeBookingPage({
   const terms = useTerms();
   const isOwner = practice.membership.role === "owner";
   const [imageUrl, setImageUrl] = useState(practice.imageUrl);
+  const saved = useQuery(
+    orpc.practice.theme.queryOptions({ input: { practiceId: practice.id } }),
+  );
+  /** The look being edited, until it is saved or the page is left. */
+  const [draft, setDraft] = useState<BookingTheme | null>(null);
+  // Without the owner's «Про» clients see the default look.
+  const theme =
+    draft ??
+    (saved.data?.pro ? saved.data.theme : null) ??
+    DEFAULT_BOOKING_THEME;
   const publicUrl = practice.bookingUrl;
 
   async function copy(text: string, done: string) {
@@ -78,7 +94,7 @@ export function PracticeBookingPage({
             <AlertTitle>Страницу записи настраивает владелец</AlertTitle>
             <AlertDescription>
               Фото, бесплатную запись, видеовстречу и анкету меняет владелец
-              практики. Ссылкой можно делиться.
+              практики. Ссылкой можно делиться, оформление — менять.
             </AlertDescription>
           </Alert>
         )}
@@ -148,6 +164,15 @@ export function PracticeBookingPage({
           </FramePanel>
         </Frame>
 
+        <Frame spacing="default" className="min-w-0">
+          <PracticeBookingTheme
+            practiceId={practice.id}
+            name={practice.name}
+            draft={draft}
+            setDraft={setDraft}
+          />
+        </Frame>
+
         {isOwner && (
           <Frame spacing="default" className="min-w-0">
             <PracticeFreeBooking
@@ -191,28 +216,16 @@ export function PracticeBookingPage({
 
       <aside className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20 lg:self-start">
         <span className="text-sm font-medium">Так видят клиенты</span>
-        <div className="flex flex-col gap-5 rounded-xl border bg-card p-6">
-          <Avatar className="size-16">
-            {imageUrl && <AvatarImage src={imageUrl} alt={practice.name} />}
-            <AvatarFallback className="text-lg font-medium">
-              {practice.name.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">
-              {practice.name}
-            </span>
-            <span className="text-xl font-semibold tracking-tight">
-              {terms.credit[0].charAt(0).toUpperCase() +
-                terms.credit[0].slice(1)}
-            </span>
-          </div>
-          <span className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock3Icon className="size-4" />1 час
-          </span>
-        </div>
+        <BookingThemePreview
+          theme={theme}
+          name={practice.name}
+          imageUrl={imageUrl}
+          what={capitalize(terms.credit[0])}
+        />
         <p className="text-xs text-muted-foreground">
-          Фото сохраняется сразу после загрузки.
+          {draft && JSON.stringify(draft) !== JSON.stringify(saved.data?.theme)
+            ? "Это ещё не сохранено: клиенты видят прежнее оформление."
+            : "Фото сохраняется сразу после загрузки."}
         </p>
       </aside>
     </div>

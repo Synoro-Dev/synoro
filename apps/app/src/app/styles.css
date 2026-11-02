@@ -1,12 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@synoro/tailwind-config/theme";
+@import "./booking-theme.css";
 
 @source "../../../../packages/ui/src/**/*.{ts,tsx}";
 
 @theme inline {
-  /* Public booking pages only (`displayFont` sets the variable there). */
-  --font-display: var(--font-literata), ui-serif, Georgia, serif;
+  /*
+   * Public booking pages only (`displayFonts` sets the variables there);
+   * `--booking-font` is the owner's choice, see booking-theme.css.
+   */
+  --font-display:
+    var(--booking-font, var(--font-literata)), ui-serif, Georgia, serif;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
