@@ -13,9 +13,12 @@ export function publicBookingUrl(slug: string) {
 /**
  * Path of a practice's photo, or `null` without one. The `v` query is the
  * stored key's own timestamp, so a new upload busts the long-lived cache.
+ * A key starting with `/` is a file the app serves itself (the demo seed's
+ * `/demo/klyuev.jpg`) and is used as is.
  */
 export function practiceImageUrl(slug: string, key: string | null) {
   if (!key) return null;
+  if (key.startsWith("/")) return key;
   const version = /-(\d+)\.jpg$/.exec(key)?.[1] ?? "0";
   return `${paths.booking.avatar(slug)}?v=${version}`;
 }
