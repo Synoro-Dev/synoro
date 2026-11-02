@@ -6,6 +6,7 @@ import {
   Practice,
   PracticeMember,
 } from "@synoro/db";
+import { DEFAULT_BOOKING_THEME, readBookingTheme } from "@synoro/validators";
 
 import { protectedProcedure } from "../orpc";
 import { hasPro } from "./billing";
@@ -64,6 +65,7 @@ export async function findOwnerMembership(
  * membership (role, balance) when signed in. `showBadge` — the «Онлайн-запись
  * — Synoro» line at the bottom, shown while the owner has no «Про»;
  * `questions` — the booking questionnaire, asked only on «Про»;
+ * `theme` — the page's look, the owner's own only on «Про»;
  * `freeBooking` — visitors may book the free intro themselves.
  */
 export async function publicPractice(
@@ -81,6 +83,7 @@ export async function publicPractice(
       image: true,
       ownerId: true,
       bookingQuestions: true,
+      bookingTheme: true,
       freeBookingEnabled: true,
     },
   });
@@ -96,6 +99,7 @@ export async function publicPractice(
     image,
     ownerId: _ownerId,
     bookingQuestions: questions,
+    bookingTheme: theme,
     freeBookingEnabled: freeBooking,
     ...info
   } = practice;
@@ -106,6 +110,8 @@ export async function publicPractice(
     freeBooking,
     /** The questionnaire to fill in when booking; empty without «Про». */
     questions: pro ? questions : [],
+    /** How the page looks; the default look without «Про». */
+    theme: pro ? readBookingTheme(theme) : DEFAULT_BOOKING_THEME,
     membership: member
       ? { id: member.id, role: member.role, credits: member.credits }
       : null,

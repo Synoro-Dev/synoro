@@ -43,15 +43,16 @@ import {
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { LegalFooter } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { BookingQuestionFields } from "./booking-question-fields";
+import { bookingThemeAttributes } from "./booking-theme";
 import { BookingTicket } from "./booking-ticket";
-import { displayFont } from "./display-font";
+import { displayFonts } from "./display-font";
 import { GuestBookingForm } from "./guest-booking-form";
 import { IntroBookingForm } from "./intro-booking-form";
 import { SeriesDialog } from "./series-dialog";
@@ -197,6 +198,19 @@ export function PublicBooking({
       (offer.isSuccess && !canPay && !canBook ? "free" : "consultation"));
   const intro = kind === "free";
 
+  // Dialogs and popovers render outside <main>: the whole document takes the
+  // page's accent and corners while it is open.
+  const { accent, radius } = info.theme;
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.bookingAccent = accent;
+    root.dataset.bookingRadius = radius;
+    return () => {
+      delete root.dataset.bookingAccent;
+      delete root.dataset.bookingRadius;
+    };
+  }, [accent, radius]);
+
   /** The questionnaire is filled in; otherwise its errors are shown. */
   function answered() {
     const { errors } = checkBookingAnswers(questions, answers);
@@ -331,9 +345,10 @@ export function PublicBooking({
 
   return (
     <main
+      {...bookingThemeAttributes(info.theme)}
       className={cn(
-        displayFont.variable,
-        "flex min-h-svh flex-col items-center px-4 py-8 md:py-14",
+        displayFonts,
+        "flex min-h-svh flex-col items-center bg-background px-4 py-8 md:py-14",
       )}
     >
       <div className="flex w-full max-w-4xl flex-1 flex-col gap-8">
@@ -352,6 +367,11 @@ export function PublicBooking({
               <h1 className="font-display text-3xl leading-tight font-medium tracking-tight text-balance sm:text-4xl">
                 {practice.name}
               </h1>
+              {info.theme.about && (
+                <p className="max-w-prose text-pretty whitespace-pre-line">
+                  {info.theme.about}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">
                 Запись на {terms.creditAccusative}, 1 час
                 {info.freeBooking &&
@@ -636,7 +656,7 @@ export function PublicBooking({
                       modifiersClassNames={{
                         // A dot under each day with free time.
                         available:
-                          "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground data-[selected=true]:after:bg-primary-foreground",
+                          "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary data-[selected=true]:after:bg-primary-foreground",
                       }}
                       className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
                     />
