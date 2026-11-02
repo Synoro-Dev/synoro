@@ -1,5 +1,6 @@
 import { legal } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
+import { MailIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
 import { paidPlan, signupGoal } from "~/lib/pricing";
@@ -52,6 +53,15 @@ export function FinalCta({ links }: { links: SiteLinks }) {
             </a>
           )}
         </div>
+        <p className="mt-8 text-sm text-zinc-400">
+          Есть вопросы? Напишите нам:{" "}
+          <a
+            href={`mailto:${legal.operator.email}`}
+            className="font-medium text-white underline underline-offset-4 transition-colors hover:text-zinc-300"
+          >
+            {legal.operator.email}
+          </a>
+        </p>
       </div>
     </Section>
   );
@@ -94,6 +104,13 @@ export async function Footer({ links }: { links: SiteLinks }) {
             Онлайн-запись, расписание и пакеты с предоплатой для частной
             практики.
           </p>
+          <a
+            href={`mailto:${legal.operator.email}`}
+            className="flex w-fit items-center gap-2 text-base font-medium transition-opacity hover:opacity-70"
+          >
+            <MailIcon className="size-4" aria-hidden />
+            {legal.operator.email}
+          </a>
         </div>
         {columns.map((column) => (
           <div key={column.title} className="flex flex-col gap-3 text-sm">
