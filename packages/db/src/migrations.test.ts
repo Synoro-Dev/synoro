@@ -180,6 +180,69 @@ describe("appliedMigrationCount", () => {
   });
 });
 
+describe("subscription payment numbers", () => {
+  // Hand-edited: the generated migration would number old rows in physical
+  // order. `createTestDb()` migrates an empty table, so the backfill needs a
+  // database that already holds payments.
+  const numbering = migrations.findIndex((migration) =>
+    migration.sql.join("").includes("subscription_payments_number_seq"),
+  );
+
+  it("numbers existing payments by created_at from 1001 and continues after them", async () => {
+    expect(numbering).toBeGreaterThan(0);
+    const { client } = await pushedDb(numbering);
+    await client.exec(
+      `insert into users (id, name, email) values ('u1', 'U', 'u1@example.com')`,
+    );
+    // Inserted out of order; the last two share created_at, so `id` breaks the tie.
+    await client.exec(`
+      insert into subscription_payments (id, user_id, period, amount, created_at) values
+        ('00000000-0000-4000-8000-000000000003', 'u1', 'month', 14900, '2026-03-01T00:00:00Z'),
+        ('00000000-0000-4000-8000-000000000002', 'u1', 'month', 14900, '2026-02-01T00:00:00Z'),
+        ('00000000-0000-4000-8000-000000000001', 'u1', 'month', 14900, '2026-01-01T00:00:00Z'),
+        ('00000000-0000-4000-8000-000000000004', 'u1', 'year', 149000, '2026-03-01T00:00:00Z')
+    `);
+
+    for (const statement of migrations[numbering]?.sql ?? []) {
+      await client.exec(statement);
+    }
+
+    const { rows } = await client.query<{ id: string; number: number }>(
+      `select id, number from subscription_payments order by number`,
+    );
+    expect(rows.map((row) => [row.number, row.id.slice(-1)])).toEqual([
+      [1001, "1"],
+      [1002, "2"],
+      [1003, "3"],
+      [1004, "4"],
+    ]);
+
+    const { rows: next } = await client.query<{ number: number }>(
+      `insert into subscription_payments (user_id, period, amount)
+       values ('u1', 'month', 14900) returning number`,
+    );
+    expect(next[0]?.number).toBe(1005);
+    await client.close();
+  });
+
+  it("starts at 1001 on an empty table", async () => {
+    const { client } = await pushedDb(numbering);
+    await client.exec(
+      `insert into users (id, name, email) values ('u1', 'U', 'u1@example.com')`,
+    );
+    for (const statement of migrations[numbering]?.sql ?? []) {
+      await client.exec(statement);
+    }
+
+    const { rows } = await client.query<{ number: number }>(
+      `insert into subscription_payments (user_id, period, amount)
+       values ('u1', 'month', 14900) returning number`,
+    );
+    expect(rows[0]?.number).toBe(1001);
+    await client.close();
+  });
+});
+
 describe("hand-written constraints", () => {
   // drizzle-kit can't express EXCLUDE, so squashing the migrations has
   // dropped it twice; double bookings depend on it.

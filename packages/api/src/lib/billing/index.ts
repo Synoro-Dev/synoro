@@ -179,8 +179,8 @@ export async function startSubscriptionPayment(
       orderId: payment.id,
       amount: price.amount,
       purpose: input.autorenew
-        ? `Тариф «Про» Synoro на ${term}, автопродление`
-        : `Оплата тарифа «Про» в Synoro на ${term}`,
+        ? `Заказ ${payment.number}. Тариф «Про» Synoro на ${term}, автопродление`
+        : `Заказ ${payment.number}. Оплата тарифа «Про» в Synoro на ${term}`,
       itemName: `Тариф «Про» Synoro, ${term}`,
       email: input.user.email,
       returnUrl: billingReturnUrl(payment.id),

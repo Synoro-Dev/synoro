@@ -242,6 +242,7 @@ describe("paying for «Про» through Точка", () => {
         amount: 149,
         paymentMode: ["card", "sbp"],
         paymentLinkId: started.paymentId,
+        purpose: expect.stringMatching(/^Заказ \d{4,}\. Оплата тарифа/),
         redirectUrl: `http://localhost:3000/settings/billing?payment=${started.paymentId}`,
         taxSystemCode: "usn_income",
         Client: { email: session.user.email },

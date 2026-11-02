@@ -48,6 +48,15 @@ export const SubscriptionPayment = pgTable(
   "subscription_payments",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    /**
+     * The order number people read out: in the payment's purpose at Точка and
+     * in the receipt. The bank's own «номер заказа» is `id` (`paymentLinkId`).
+     */
+    number: t
+      .integer()
+      .notNull()
+      .unique()
+      .generatedByDefaultAsIdentity({ startWith: 1001 }),
     userId: t
       .text()
       .notNull()
