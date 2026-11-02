@@ -447,7 +447,11 @@ function EntryForm({
                 size="xs"
                 variant="outline"
                 onClick={() => {
+                  // Search by their phone: the list shows them, chosen,
+                  // whatever was searched for before.
+                  setSearch(knownCaller.phone ?? knownCaller.name);
                   setMemberId(knownCaller.id);
+                  setRepeat(null);
                   setMode("consultation");
                 }}
               >
