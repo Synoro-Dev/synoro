@@ -21,6 +21,7 @@
     "dev:email": "bun --env-file=../../.env run email dev -p 3002",
     "build": "tsdown && tsc --tsBuildInfoFile dist/.tsbuildinfo",
     "export": "email export",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
