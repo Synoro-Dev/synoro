@@ -17,6 +17,7 @@ import {
 import {
   CalendarCheckIcon,
   CalendarDaysIcon,
+  CalendarSearchIcon,
   ChartNoAxesColumnIcon,
   Clock3Icon,
   ExternalLinkIcon,
@@ -114,6 +115,12 @@ export function AppSidebar({
           href: paths.booking.calendar(current.practiceId),
           icon: CalendarDaysIcon,
           active: pathname === paths.booking.calendar(current.practiceId),
+        },
+        {
+          title: "Свободные окна",
+          href: paths.booking.windows(current.practiceId),
+          icon: CalendarSearchIcon,
+          active: pathname === paths.booking.windows(current.practiceId),
         },
         {
           title: "Клиенты",

@@ -37,13 +37,21 @@ const DAY_HOURS = { from: 9, until: 22 };
 
 type Notice = BookingNotice;
 
+/** Kinds of bookings a client is told about (blocks have no client). */
+const CLIENT_KINDS = ["consultation", "free"] as const;
+
 export type { Deliver } from "./messenger/deliver";
 
-/** Paid bookings of clients who can be mailed. */
+/**
+ * Bookings of clients who can be mailed: paid ones, and free intros a client
+ * booked themselves (`booking.bookIntro`; a guest staff booked by phone has
+ * no account and is left out by the join).
+ */
 function confirmedBookings(db: Database) {
   return db
     .select({
       id: Booking.id,
+      kind: Booking.kind,
       practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
@@ -96,6 +104,7 @@ async function send(
         cabinetUrl: cabinetUrl(),
         cancelledBy: cancellation?.by ?? null,
         refunded: cancellation?.refunded ?? false,
+        free: row.kind === "free",
       },
     },
     { userId: row.clientId, practiceId: row.practiceId },
@@ -129,7 +138,9 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
 
 /**
  * After payment (or a credit) confirmed a booking, or staff booked a guest:
- * tell the client (a paid booking only) and the practice's staff.
+ * tell the client (a paid booking only) and the practice's staff. A free
+ * intro the client booked themselves gets its mail from `booking.bookIntro`
+ * (the link, with the video room), which then calls `markRemindersCovered`.
  */
 export async function notifyBookingConfirmed(
   db: Database,
@@ -157,6 +168,28 @@ export async function notifyBookingConfirmed(
 }
 
 /**
+ * A mail with the time and the video link reached the client of `bookingId`
+ * by another way (the link of a free intro): the reminders already due are
+ * covered, so none follows right after. Call it only once that mail went out —
+ * otherwise the reminders are the client's only notice.
+ */
+export async function markRemindersCovered(db: Database, bookingId: string) {
+  try {
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.status, "active"),
+        isNull(Booking.holdUntil),
+      ),
+    );
+    if (row) await markDueReminders(db, row);
+  } catch (error) {
+    settled(bookingId, "confirmed", error);
+  }
+}
+
+/**
  * After the client or staff cancelled a booking: tell the client and the
  * practice's staff (but not the one who cancelled). A no-show mark and an
  * unpaid hold that lapsed are nobody's news.
@@ -178,7 +211,7 @@ export async function notifyBookingCancelled(
     const [row] = await confirmedBookings(db).where(
       and(
         eq(Booking.id, bookingId),
-        eq(Booking.kind, "consultation"),
+        inArray(Booking.kind, CLIENT_KINDS),
         isNull(Booking.holdUntil),
         gt(Booking.startsAt, new Date()),
       ),
@@ -295,7 +328,7 @@ export async function notifyVideoLinkChanged(
 ) {
   try {
     const upcoming = and(
-      eq(Booking.kind, "consultation"),
+      inArray(Booking.kind, CLIENT_KINDS),
       eq(Booking.status, "active"),
       isNull(Booking.holdUntil),
       gt(Booking.startsAt, new Date()),
@@ -388,7 +421,7 @@ export async function sendBookingReminders(
       const due = await confirmedBookings(db)
         .where(
           and(
-            eq(Booking.kind, "consultation"),
+            inArray(Booking.kind, CLIENT_KINDS),
             eq(Booking.status, "active"),
             isNull(Booking.holdUntil),
             window.pending,

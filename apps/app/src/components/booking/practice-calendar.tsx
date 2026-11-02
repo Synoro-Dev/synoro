@@ -1,5 +1,6 @@
 "use client";
 
+import { paths } from "@synoro/config";
 import { Button, Skeleton } from "@synoro/ui";
 import { EventCalendar } from "@synoro/ui/reui/event-calendar/event-calendar";
 import { EventCalendarContent } from "@synoro/ui/reui/event-calendar/event-calendar-content";
@@ -9,7 +10,8 @@ import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, startOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
-import { PlusIcon } from "lucide-react";
+import { CalendarSearchIcon, PlusIcon } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
@@ -172,20 +174,31 @@ export function PracticeCalendar({
             Выделите время мышью, чтобы добавить запись
           </span>
         </div>
-        <Button
-          size="sm"
-          onClick={() => {
-            const start = nextHalfHour();
-            setDraft({
-              mode: "free",
-              start,
-              end: new Date(start.getTime() + 60 * 60_000),
-            });
-          }}
-        >
-          <PlusIcon />
-          Новая запись
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            nativeButton={false}
+            render={<Link href={paths.booking.windows(practiceId)} />}
+          >
+            <CalendarSearchIcon />
+            Свободные окна
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              const start = nextHalfHour();
+              setDraft({
+                mode: "free",
+                start,
+                end: new Date(start.getTime() + 60 * 60_000),
+              });
+            }}
+          >
+            <PlusIcon />
+            Новая запись
+          </Button>
+        </div>
       </div>
 
       <Frame className="min-h-0 flex-1" spacing="sm">

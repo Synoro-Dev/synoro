@@ -9,7 +9,6 @@ import {
   isNotNull,
   PaymentPackage,
 } from "@synoro/db";
-import { dispatchEmail } from "@synoro/jobs";
 import {
   bookingAnswersInput,
   guestBookingFormSchema,
@@ -24,6 +23,7 @@ import {
   findOrCreateGuestMember,
   hashGuestToken,
   newGuestToken,
+  sendBookingLink,
 } from "../../lib/guests";
 import {
   guestReturnUrl,
@@ -34,63 +34,10 @@ import {
 } from "../../lib/payments";
 import { findPractice } from "../../lib/practice-access";
 import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
-import { cabinetUrl, guestBookingUrl } from "../../lib/urls";
 import { publicProcedure } from "../../orpc";
 
 /** One visitor cannot hold more unpaid times than this at once. */
 const MAX_OPEN_HOLDS = 2;
-
-const formatIn = (
-  at: Date,
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-) => new Intl.DateTimeFormat("ru-RU", { timeZone, ...options }).format(at);
-
-/**
- * Mail the visitor the link that opens their booking without signing in. A
- * mail failure must not undo the booking — the payment page they land on
- * leads back to the same link — so it is only logged.
- */
-async function sendBookingLink(input: {
-  email: string;
-  name: string;
-  practiceName: string;
-  timeZone: string;
-  startsAt: Date;
-  holdUntil: Date | null;
-  token: string;
-}) {
-  try {
-    await dispatchEmail({
-      template: "booking-link",
-      to: [input.email],
-      subject: `Ваша запись: ${input.practiceName}`,
-      props: {
-        name: input.name,
-        practiceName: input.practiceName,
-        when: formatIn(input.startsAt, input.timeZone, {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        holdUntil: input.holdUntil
-          ? formatIn(input.holdUntil, input.timeZone, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "",
-        bookingUrl: guestBookingUrl(input.token),
-        cabinetUrl: cabinetUrl(),
-      },
-    });
-  } catch (error) {
-    logger.warn("booking.link_email_failed", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-}
 
 /**
  * Book an hour as a visitor, without signing in: reserve the time and open

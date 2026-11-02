@@ -1,6 +1,7 @@
 import { block } from "./block";
 import { book } from "./book";
 import { bookFree } from "./book-free";
+import { bookIntro } from "./book-intro";
 import { bookSeries } from "./book-series";
 import { calendar } from "./calendar";
 import { cancel } from "./cancel";
@@ -12,6 +13,7 @@ import { reserve } from "./reserve";
 import { seriesPreview } from "./series-preview";
 import { setMeetingUrl } from "./set-meeting-url";
 import { slots } from "./slots";
+import { windows } from "./windows";
 
 export const bookingRouter = {
   slots,
@@ -20,6 +22,7 @@ export const bookingRouter = {
   bookSeries,
   cancelSeries,
   reserve,
+  bookIntro,
   guest,
   cancelGuest,
   bookFree,
@@ -27,6 +30,7 @@ export const bookingRouter = {
   cancel,
   markNoShow,
   calendar,
+  windows,
   mine,
   setMeetingUrl,
 };

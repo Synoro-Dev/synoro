@@ -31,12 +31,13 @@ import { useState } from "react";
 
 import { PracticeAvatar } from "./practice-avatar";
 import { PracticeBookingQuestions } from "./practice-booking-questions";
+import { PracticeFreeBooking } from "./practice-free-booking";
 import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
- * Where the practice's public page is edited: photo, link, video room and
- * the questionnaire clients fill in when booking.
+ * Where the practice's public page is edited: photo, link, free intro,
+ * video room and the questionnaire clients fill in when booking.
  */
 export function PracticeBookingPage({
   practice,
@@ -47,6 +48,7 @@ export function PracticeBookingPage({
     imageUrl: string | null;
     bookingUrl: string;
     videoUrl: string | null;
+    freeBookingEnabled: boolean;
     membership: { role: string };
   };
 }) {
@@ -75,8 +77,8 @@ export function PracticeBookingPage({
             <ImageUpIcon />
             <AlertTitle>Страницу записи настраивает владелец</AlertTitle>
             <AlertDescription>
-              Фото, видеовстречу и анкету меняет владелец практики. Ссылкой
-              можно делиться.
+              Фото, бесплатную запись, видеовстречу и анкету меняет владелец
+              практики. Ссылкой можно делиться.
             </AlertDescription>
           </Alert>
         )}
@@ -145,6 +147,15 @@ export function PracticeBookingPage({
             </Button>
           </FramePanel>
         </Frame>
+
+        {isOwner && (
+          <Frame spacing="default" className="min-w-0">
+            <PracticeFreeBooking
+              practiceId={practice.id}
+              enabled={practice.freeBookingEnabled}
+            />
+          </Frame>
+        )}
 
         {isOwner && (
           <Frame spacing="default" className="min-w-0">

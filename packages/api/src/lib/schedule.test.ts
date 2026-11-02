@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   addDays,
   computeSlots,
+  freeWindows,
   isoWeekday,
   isScheduledSlot,
   subtractRanges,
@@ -201,5 +202,60 @@ describe("subtractRanges", () => {
     expect(
       subtractRanges([r("10:00", "11:00"), r("09:00", "10:30")], []),
     ).toEqual([r("09:00", "11:00")]);
+  });
+});
+
+describe("freeWindows", () => {
+  const t = (hhmm: string) => new Date(`${MONDAY}T${hhmm}:00Z`);
+  const r = (a: string, b: string) => ({ startsAt: t(a), endsAt: t(b) });
+  const rules = [
+    { weekday: 1, startMinute: 600, endMinute: 780 }, // 10:00–13:00 MSK
+    { weekday: 1, startMinute: 900, endMinute: 1020 }, // 15:00–17:00 MSK
+  ];
+
+  it("splits working hours around bookings, with starts of both kinds", () => {
+    const [monday, tuesday] = freeWindows({
+      rules,
+      // 10:30–11:00 MSK is taken by a free intro.
+      busy: [r("07:30", "08:00")],
+      from: MONDAY,
+      days: 2,
+      timeZone: MSK,
+      now: LONG_AGO,
+    });
+    expect(monday?.date).toBe(MONDAY);
+    expect(monday?.working).toEqual([r("07:00", "10:00"), r("12:00", "14:00")]);
+    expect(monday?.free).toEqual([
+      r("07:00", "07:30"),
+      r("08:00", "10:00"),
+      r("12:00", "14:00"),
+    ]);
+    expect(monday?.slots.consultation).toEqual([
+      t("08:00"),
+      t("09:00"),
+      t("12:00"),
+      t("13:00"),
+    ]);
+    expect(monday?.slots.free).toHaveLength(9);
+    // No rules on Tuesday: a day off.
+    expect(tuesday).toMatchObject({
+      date: addDays(MONDAY, 1),
+      working: [],
+      free: [],
+      slots: { consultation: [], free: [] },
+    });
+  });
+
+  it("leaves out time already gone", () => {
+    const [monday] = freeWindows({
+      rules,
+      busy: [],
+      from: MONDAY,
+      days: 1,
+      timeZone: MSK,
+      now: t("08:10"),
+    });
+    expect(monday?.free).toEqual([r("08:10", "10:00"), r("12:00", "14:00")]);
+    expect(monday?.slots.free[0]).toEqual(t("08:30"));
   });
 });

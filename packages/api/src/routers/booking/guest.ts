@@ -4,6 +4,7 @@ import {
   type Database,
   desc,
   eq,
+  inArray,
   Payment,
   Practice,
   PracticeMember,
@@ -14,7 +15,7 @@ import { z } from "zod";
 import { cancelActiveBooking } from "../../lib/bookings";
 import { hashGuestToken } from "../../lib/guests";
 import { syncPayment } from "../../lib/payments";
-import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
+import { clientMayCancel } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
 
 const tokenInput = z.object({ token: z.string().min(16).max(64) });
@@ -29,6 +30,7 @@ function findByToken(db: Database, token: string) {
   return db
     .select({
       id: Booking.id,
+      kind: Booking.kind,
       status: Booking.status,
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
@@ -50,7 +52,7 @@ function findByToken(db: Database, token: string) {
     .where(
       and(
         eq(Booking.accessTokenHash, hashGuestToken(token)),
-        eq(Booking.kind, "consultation"),
+        inArray(Booking.kind, ["consultation", "free"]),
       ),
     )
     .then((rows) => rows[0]);
@@ -68,6 +70,10 @@ function findByToken(db: Database, token: string) {
  * - cancelled        — cancelled after payment: the paid consultation is on
  *                      the visitor's balance (also when the hold ran out
  *                      before the money arrived).
+ *
+ * `kind` is `free` for a free intro (`bookIntro`): confirmed from the
+ * start, no payment and no balance involved — only `confirmed` or
+ * `cancelled`.
  *
  * @example client.booking.guest({ token })
  */
@@ -99,7 +105,7 @@ export const guest = publicProcedure
     const held = found.holdUntil !== null;
     const state =
       found.status === "cancelled"
-        ? paid
+        ? paid || found.kind === "free"
           ? ("cancelled" as const)
           : ("expired" as const)
         : !held
@@ -110,12 +116,11 @@ export const guest = publicProcedure
 
     return {
       state,
+      kind: found.kind,
       startsAt: found.startsAt,
       endsAt: found.endsAt,
       holdUntil: found.holdUntil,
-      canCancel:
-        state === "confirmed" &&
-        found.startsAt.getTime() - now >= CLIENT_CANCEL_WINDOW_MS,
+      canCancel: state === "confirmed" && clientMayCancel(found, now),
       /** The video room, only once the booking is confirmed. */
       videoUrl:
         state === "confirmed"
@@ -141,7 +146,8 @@ export const guest = publicProcedure
 /**
  * Cancel a visitor's confirmed booking by the secret in their link, at the
  * same terms as a signed-in client: up to 24 h before the start, and the
- * consultation goes back to their balance.
+ * consultation goes back to their balance. A free intro may be cancelled
+ * until it starts.
  *
  * @example client.booking.cancelGuest({ token })
  */
@@ -159,9 +165,7 @@ export const cancelGuest = publicProcedure
     if (!found || found.status !== "active" || found.holdUntil !== null) {
       throw errors.NOT_FOUND();
     }
-    if (found.startsAt.getTime() - Date.now() < CLIENT_CANCEL_WINDOW_MS) {
-      throw errors.TOO_LATE();
-    }
+    if (!clientMayCancel(found, Date.now())) throw errors.TOO_LATE();
 
     const result = await cancelActiveBooking(context.db, found.id, {
       cancelledById: null,

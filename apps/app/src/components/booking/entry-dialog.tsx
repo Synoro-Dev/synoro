@@ -3,6 +3,7 @@
 import { isDefinedError } from "@orpc/client";
 import {
   Button,
+  cn,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,11 +12,6 @@ import {
   DialogTitle,
   Input,
   Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -28,10 +24,18 @@ import {
   freeBookingFormSchema,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarCheckIcon, LockIcon, UserRoundPlusIcon } from "lucide-react";
+import {
+  CalendarCheckIcon,
+  CheckIcon,
+  LockIcon,
+  SearchIcon,
+  UserRoundCheckIcon,
+  UserRoundPlusIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { matchClients, phoneDigits } from "./client-search";
 import {
   type Repeat,
   RepeatSelect,
@@ -107,14 +111,22 @@ function EntryForm({
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [repeat, setRepeat] = useState<Repeat | null>(null);
   const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
   const members = useQuery({
     ...orpc.practice.members.queryOptions({ input: { practiceId } }),
-    enabled: mode === "consultation",
+    // The intro form recognises a caller who is already a client.
+    enabled: mode !== "block",
   });
   const clients = (members.data ?? []).filter((m) => m.role === "client");
   const client = clients.find((c) => c.id === memberId);
+  const found = matchClients(clients, search);
+  const guestDigits = phoneDigits(guestPhone);
+  const knownCaller =
+    mode === "free" && guestDigits.length >= 11
+      ? clients.find((c) => c.phone && phoneDigits(c.phone) === guestDigits)
+      : undefined;
   const series = mode === "consultation" && client ? repeat : null;
   const preview = useSeriesPreview({
     practiceId,
@@ -123,12 +135,6 @@ function EntryForm({
     memberId: client?.id,
   });
   const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
-  const clientLabels = Object.fromEntries(
-    clients.map((c) => [
-      c.id,
-      `${c.name} · ${formatCredits(c.credits, terms)}`,
-    ]),
-  );
 
   const onSuccess = async (message: string) => {
     toast.success(message);
@@ -296,30 +302,84 @@ function EntryForm({
               onRetry={() => members.refetch()}
             />
           ) : (
-            <Select
-              items={clientLabels}
-              value={memberId}
-              onValueChange={(value) => setMemberId(value as string | null)}
-            >
-              <SelectTrigger id="entry-client" className="w-full">
-                <SelectValue
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="entry-client"
+                  autoFocus
+                  autoComplete="off"
                   placeholder={
-                    members.isPending ? "Загрузка…" : "Выберите клиента"
+                    members.isPending ? "Загрузка…" : "Имя или телефон клиента"
                   }
+                  className="pl-8"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    // A new search may hide the chosen client: never book
+                    // someone no longer on screen.
+                    setMemberId(null);
+                    setRepeat(null);
+                  }}
                 />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {clientLabels[c.id]}
-                  </SelectItem>
+              </div>
+              <div className="flex max-h-48 flex-col overflow-y-auto rounded-md border">
+                {found.slice(0, 50).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={c.id === memberId}
+                    onClick={() => setMemberId(c.id)}
+                    className={cn(
+                      "flex items-center gap-2 border-b px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-muted/60",
+                      c.id === memberId && "bg-primary/5 dark:bg-primary/10",
+                    )}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium">{c.name}</span>
+                      <span className="truncate text-xs text-muted-foreground tabular-nums">
+                        {c.phone ?? c.email}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 text-xs tabular-nums",
+                        c.credits > 0
+                          ? "text-muted-foreground"
+                          : "text-destructive",
+                      )}
+                    >
+                      {formatCredits(c.credits, terms)}
+                    </span>
+                    {c.id === memberId && (
+                      <CheckIcon className="size-4 shrink-0 text-primary" />
+                    )}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
+                {members.isSuccess && found.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    {clients.length === 0
+                      ? "В практике пока нет клиентов."
+                      : "Никого не нашли."}{" "}
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-4 hover:underline"
+                      onClick={() => {
+                        setMode("free");
+                        if (/\d{3}/.test(search)) setGuestPhone(search);
+                        else if (search.trim()) setGuestName(search.trim());
+                      }}
+                    >
+                      Записать как нового: {terms.free.toLowerCase()}
+                    </button>
+                  </p>
+                )}
+              </div>
+            </div>
           )}
           <p className="text-sm text-muted-foreground">
-            {members.isSuccess && clients.length === 0
-              ? "В практике пока нет клиентов — пригласите их на странице клиентов."
+            {client && client.credits === 0
+              ? `У ${client.name} нет оплаченных — начислите оплату на странице клиентов.`
               : `Спишется ${formatCredits(1, terms)} с баланса клиента за каждую дату, только целые часы в рабочее время.`}
           </p>
           {client && (
@@ -375,6 +435,30 @@ function EntryForm({
               onChange={(e) => setGuestPhone(e.target.value)}
             />
           </div>
+          {knownCaller && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-info/30 bg-info/4 px-3 py-2 text-sm sm:col-span-2">
+              <UserRoundCheckIcon className="size-4 shrink-0 text-info" />
+              <span className="min-w-0 flex-1">
+                Это клиент {knownCaller.name},{" "}
+                {formatCredits(knownCaller.credits, terms)} на балансе
+              </span>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  // Search by their phone: the list shows them, chosen,
+                  // whatever was searched for before.
+                  setSearch(knownCaller.phone ?? knownCaller.name);
+                  setMemberId(knownCaller.id);
+                  setRepeat(null);
+                  setMode("consultation");
+                }}
+              >
+                Записать как клиента
+              </Button>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5 sm:col-span-2">
             <Label htmlFor="entry-contact">Почта или Telegram</Label>
             <Input

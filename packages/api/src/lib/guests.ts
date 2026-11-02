@@ -1,8 +1,74 @@
 import { createHash, randomBytes } from "node:crypto";
 
+import { logger } from "@synoro/config";
 import { type Database, eq, PracticeMember, sql, user } from "@synoro/db";
+import { dispatchEmail } from "@synoro/jobs";
 
 import { findMembership } from "./practice-access";
+import { cabinetUrl, guestBookingUrl } from "./urls";
+
+const formatIn = (
+  at: Date,
+  timeZone: string,
+  options: Intl.DateTimeFormatOptions,
+) => new Intl.DateTimeFormat("ru-RU", { timeZone, ...options }).format(at);
+
+/**
+ * Mail the visitor the link that opens their booking without signing in:
+ * a paid one held until `holdUntil`, or a free intro (`intro` — its name,
+ * «Знакомство»), confirmed at once. A mail failure must not undo the
+ * booking — the page they land on leads to the same link — so it is only
+ * logged. Returns whether the mail went out (was sent or queued).
+ */
+export async function sendBookingLink(input: {
+  email: string;
+  name: string;
+  practiceName: string;
+  timeZone: string;
+  startsAt: Date;
+  holdUntil: Date | null;
+  intro?: string;
+  /** The video room, for an intro (a paid booking gets it once paid). */
+  videoUrl?: string | null;
+  token: string;
+}) {
+  try {
+    await dispatchEmail({
+      template: "booking-link",
+      to: [input.email],
+      subject: input.intro
+        ? `${input.intro}: ${input.practiceName}`
+        : `Ваша запись: ${input.practiceName}`,
+      props: {
+        name: input.name,
+        practiceName: input.practiceName,
+        when: formatIn(input.startsAt, input.timeZone, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        holdUntil: input.holdUntil
+          ? formatIn(input.holdUntil, input.timeZone, {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+        intro: input.intro ?? null,
+        videoUrl: input.videoUrl ?? null,
+        bookingUrl: guestBookingUrl(input.token),
+        cabinetUrl: cabinetUrl(),
+      },
+    });
+    return true;
+  } catch (error) {
+    logger.warn("booking.link_email_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
 
 /** A fresh secret for a visitor's `/b/<token>` link. */
 export function newGuestToken() {

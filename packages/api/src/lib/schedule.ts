@@ -17,6 +17,19 @@ export const SLOT_MINUTES: Record<SlotKind, number> = {
 /** A client may cancel (and get the credit back) up to 24 h before start. */
 export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Whether a client may still cancel their booking themselves at `now` (ms):
+ * a paid one up to 24 h before the start, a free intro — nothing to give
+ * back — until it starts.
+ */
+export function clientMayCancel(
+  booking: { kind: string; startsAt: Date },
+  now: number,
+) {
+  const left = booking.startsAt.getTime() - now;
+  return booking.kind === "free" ? left > 0 : left >= CLIENT_CANCEL_WINDOW_MS;
+}
+
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 
@@ -245,6 +258,51 @@ export function computeSlots(opts: {
   return [...slots.values()].sort(
     (a, b) => a.startsAt.getTime() - b.startsAt.getTime(),
   );
+}
+
+/**
+ * Free time of each local day from `from`, for staff answering the phone:
+ * working hours (`working`) minus `busy` and the past, merged into
+ * continuous windows (`free`, «10:00–13:00»), plus the bookable starts of
+ * either kind inside them.
+ */
+export function freeWindows(opts: {
+  rules: Rule[];
+  busy: TimeRange[];
+  from: string;
+  days: number;
+  timeZone: string;
+  now: Date;
+}) {
+  const nowCut = { startsAt: new Date(0), endsAt: opts.now };
+  const slotsOf = (kind: SlotKind) =>
+    computeSlots({ ...opts, kind }).map((slot) => slot.startsAt);
+  const consultation = slotsOf("consultation");
+  const free = slotsOf("free");
+
+  return Array.from({ length: opts.days }, (_, i) => {
+    const date = addDays(opts.from, i);
+    const weekday = isoWeekday(date);
+    const working = subtractRanges(
+      opts.rules
+        .filter((rule) => rule.weekday === weekday)
+        .map((rule) => ({
+          startsAt: zonedTimeToUtc(date, rule.startMinute, opts.timeZone),
+          endsAt: zonedTimeToUtc(date, rule.endMinute, opts.timeZone),
+        })),
+      [],
+    );
+    const onDay = (at: Date) => toZonedDate(at, opts.timeZone) === date;
+    return {
+      date,
+      working,
+      free: subtractRanges(working, [...opts.busy, nowCut]),
+      slots: {
+        consultation: consultation.filter(onDay),
+        free: free.filter(onDay),
+      },
+    };
+  });
 }
 
 /**

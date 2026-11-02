@@ -5,21 +5,23 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNull,
   or,
   Practice,
   PracticeMember,
 } from "@synoro/db";
 
-import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
+import { clientMayCancel } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
 
 const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * The caller's paid bookings in every practice: upcoming ones and those of
- * the last 30 days, including cancelled and those awaiting payment. `canCancel` tells whether the
- * client may still cancel it themselves (24 h rule).
+ * The caller's bookings in every practice — paid ones and free intros
+ * (`kind`): upcoming ones and those of the last 30 days, including cancelled
+ * and those awaiting payment. `canCancel` tells whether the client may still
+ * cancel it themselves (24 h rule; an intro until it starts).
  *
  * @example client.booking.mine()
  */
@@ -28,6 +30,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
   const rows = await context.db
     .select({
       id: Booking.id,
+      kind: Booking.kind,
       status: Booking.status,
       cancelReason: Booking.cancelReason,
       startsAt: Booking.startsAt,
@@ -49,7 +52,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     .where(
       and(
         eq(PracticeMember.userId, context.session.user.id),
-        eq(Booking.kind, "consultation"),
+        inArray(Booking.kind, ["consultation", "free"]),
         gte(Booking.startsAt, new Date(now - RECENT_MS)),
         // Unpaid holds that ran out never were bookings.
         or(isNull(Booking.holdUntil), gt(Booking.holdUntil, new Date(now))),
@@ -69,6 +72,6 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     canCancel:
       row.status === "active" &&
       holdUntil === null &&
-      row.startsAt.getTime() - now >= CLIENT_CANCEL_WINDOW_MS,
+      clientMayCancel(row, now),
   }));
 });

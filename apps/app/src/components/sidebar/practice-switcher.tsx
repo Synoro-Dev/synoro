@@ -17,12 +17,24 @@ import {
 import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { ChevronsUpDownIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { ROLE_LABELS, type SidebarPractice } from "./types";
 
 function initial(name: string) {
   return name.trim().charAt(0).toUpperCase() || "?";
 }
+
+/**
+ * Sections kept when switching practices: an administrator of several
+ * specialists stays on the free windows (or calendar…) of the next one.
+ */
+const KEPT_SECTIONS = [
+  paths.booking.windows,
+  paths.booking.calendar,
+  paths.booking.clients,
+  paths.booking.schedule,
+] as const;
 
 /** Workspace switcher (cal.com / dub.co style) for the practices one runs. */
 export function PracticeSwitcher({
@@ -33,6 +45,10 @@ export function PracticeSwitcher({
   current: SidebarPractice | undefined;
 }) {
   const { isMobile } = useSidebar();
+  const pathname = usePathname();
+  const section = current
+    ? KEPT_SECTIONS.find((page) => page(current.practiceId) === pathname)
+    : undefined;
 
   return (
     <SidebarMenu>
@@ -75,7 +91,7 @@ export function PracticeSwitcher({
                       href={
                         p.role === "client"
                           ? paths.booking.public(p.slug)
-                          : paths.booking.practice(p.practiceId)
+                          : (section ?? paths.booking.practice)(p.practiceId)
                       }
                     />
                   }

@@ -1,0 +1,2 @@
+# Compiler output next to the sources (tsc run without outDir) — never commit.
+src/**/*.js

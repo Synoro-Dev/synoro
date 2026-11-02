@@ -3,14 +3,15 @@ import { z } from "zod";
 
 import { cancelActiveBooking } from "../../lib/bookings";
 import { findMembership, isStaff } from "../../lib/practice-access";
-import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
+import { clientMayCancel } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Cancel a booking.
  *
  * - A client cancels their own consultation no later than 24 h before it
- *   starts and gets the credit back; later → TOO_LATE.
+ *   starts and gets the credit back; later → TOO_LATE. Their free intro
+ *   (`bookIntro`) — any time before it starts.
  * - Staff cancel anything at any time; a consultation's credit is returned
  *   unless `refund: false` (a late cancellation). A client who didn't come
  *   is marked with `markNoShow` instead.
@@ -45,14 +46,11 @@ export const cancel = protectedProcedure
     const staff = caller !== undefined && isStaff(caller.role);
     const own =
       caller !== undefined &&
-      booking.kind === "consultation" &&
+      booking.kind !== "blocked" &&
       booking.memberId === caller.id;
     if (!staff && !own) throw errors.NOT_FOUND();
 
-    if (
-      !staff &&
-      booking.startsAt.getTime() - Date.now() < CLIENT_CANCEL_WINDOW_MS
-    ) {
+    if (!staff && !clientMayCancel(booking, Date.now())) {
       throw errors.TOO_LATE();
     }
 
