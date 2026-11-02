@@ -5,7 +5,7 @@
  * Freemium: a solo practice runs on the free plan for good; people pay once
  * they take money online (ЮKassa). «Про» starts with a free trial, then
  * 149 ₽ a month or 1490 ₽ a year, paid in the app through Точка Банк. Large
- * teams talk to us: Enterprise is priced per agreement and includes custom
+ * teams talk to us: «Бизнес» is priced per agreement and includes custom
  * development. See docs/pricing-strategy.md. The app charges
  * `PRO_PRICES` (@synoro/validators): keep both in sync.
  */
@@ -68,7 +68,7 @@ export const plans: Plan[] = [
   },
   {
     id: "enterprise",
-    name: "Enterprise",
+    name: "Бизнес",
     description: "Для центров и команд: подстроим Synoro под ваши процессы.",
     monthly: null,
     custom: true,
@@ -111,11 +111,11 @@ export function planSignupUrl(signupUrl: string, id: SignupPlanId) {
 /** Yandex Metrika goal names fired by sign-up CTAs (`data-goal`). */
 export const signupGoal = (id: SignupPlanId) => `signup_${id}`;
 
-/** Goal for the Enterprise "contact us" CTA. */
+/** Goal for the «Бизнес» "contact us" CTA (id kept for Metrika history). */
 export const enterpriseGoal = "contact_enterprise";
 
-/** `mailto:` link for an Enterprise enquiry. */
+/** `mailto:` link for a «Бизнес» enquiry. */
 export function enterpriseContactUrl(email: string) {
-  const subject = encodeURIComponent("Synoro Enterprise");
+  const subject = encodeURIComponent("Synoro Бизнес");
   return `mailto:${email}?subject=${subject}`;
 }
