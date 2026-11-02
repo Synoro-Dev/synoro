@@ -25,6 +25,8 @@ const securityHeaders = [
 export default async function createNextConfig(): Promise<NextConfig> {
   const config: NextConfig = {
     output: "standalone",
+    /** No `X-Powered-By: Next.js` on responses. */
+    poweredByHeader: false,
     /**
      * synoro.ru/_next/ is routed to the app (infra/synoro/app.yaml), so the
      * landing serves its chunks from its own prefix. Next strips it itself;

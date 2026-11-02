@@ -13,7 +13,7 @@ describe("proxy matcher", () => {
   it("runs for pages and the auth API only", () => {
     expect(matches("/")).toBe(true);
     expect(matches("/practices")).toBe(true);
-    expect(matches("/api/auth/get-session")).toBe(true);
+    expect(matches("/api/account/get-session")).toBe(true);
   });
 
   it("skips the rest of the API and static files", () => {
@@ -53,10 +53,10 @@ async function withDemoLogin(
 describe("proxy on a practice host", () => {
   it("sends the auth API to the app host", async () => {
     const response = await proxy(
-      request("/api/auth/get-session?x=1", "zapis.anna-ivanova.ru"),
+      request("/api/account/get-session?x=1", "zapis.anna-ivanova.ru"),
     );
     expect(redirectTarget(response)).toBe(
-      new URL("/api/auth/get-session?x=1", appUrl).href,
+      new URL("/api/account/get-session?x=1", appUrl).href,
     );
   });
 
@@ -70,7 +70,9 @@ describe("proxy on a practice host", () => {
 
 describe("proxy on the app host", () => {
   it("lets the auth API through without a session", async () => {
-    const response = await proxy(request("/api/auth/get-session", "localhost"));
+    const response = await proxy(
+      request("/api/account/get-session", "localhost"),
+    );
     expect(redirectTarget(response)).toBeNull();
   });
 

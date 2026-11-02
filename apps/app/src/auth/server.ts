@@ -1,7 +1,7 @@
 import "server-only";
 
 import { initAuth } from "@synoro/auth";
-import { env, logger } from "@synoro/config";
+import { env, logger, paths } from "@synoro/config";
 import { dispatchEmail } from "@synoro/jobs";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
@@ -16,6 +16,7 @@ export const auth = initAuth({
   secret: env.AUTH_SECRET,
   cookieDomain: env.AUTH_COOKIE_DOMAIN,
   cookiePrefix: env.AUTH_COOKIE_PREFIX,
+  basePath: paths.api.auth,
   trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),

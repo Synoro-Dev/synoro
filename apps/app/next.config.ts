@@ -74,6 +74,8 @@ const embeddableHeaders = [
 export default async function createNextConfig(): Promise<NextConfig> {
   const config: NextConfig = {
     output: "standalone",
+    /** No `X-Powered-By: Next.js` on responses. */
+    poweredByHeader: false,
     /**
      * Workspace packages consumed as TypeScript source (`exports` → src/).
      * Packages that ship a built `dist/` (@synoro/config, @synoro/emails,

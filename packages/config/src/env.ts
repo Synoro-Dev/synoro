@@ -64,13 +64,14 @@ export const env = createEnv({
     // Share the session cookie across subdomains, e.g. ".synoro.ru" for
     // app.synoro.ru + synoro.ru. Unset: the cookie stays on the app host.
     AUTH_COOKIE_DOMAIN: z.string().optional(),
-    // Prefix of the auth cookie names (Better Auth default: "better-auth").
-    // Set it when another deployment shares cookies with this host, e.g.
+    // Prefix of the auth cookie names. The library's own default
+    // ("better-auth") would name it in every visitor's DevTools. Set another
+    // value when a deployment shares cookies with this host, e.g.
     // demo.synoro.ru receives production's `.synoro.ru` session cookie.
     AUTH_COOKIE_PREFIX: z
       .string()
       .regex(/^[a-z0-9-]+$/i, "Letters, digits and dashes only")
-      .optional(),
+      .default("synoro"),
     // Demo stand only (demo.synoro.ru): every visitor is signed in as this
     // seeded `@example.com` account, and the sign-in pages are skipped. Never
     // set it on a deployment with real users.

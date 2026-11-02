@@ -37,6 +37,11 @@ export function initAuth<
    */
   cookiePrefix?: string;
   /**
+   * Where the handler is mounted instead of Better Auth's `/api/auth`, so the
+   * URL doesn't name the library. The client needs the same value.
+   */
+  basePath?: string;
+  /**
    * Origins besides `baseUrl` allowed to call the auth API and to be used in
    * `callbackURL` (Better Auth rejects any other cross-origin request).
    */
@@ -55,6 +60,7 @@ export function initAuth<
       provider: "pg",
     }),
     baseURL: options.baseUrl,
+    ...(options.basePath && { basePath: options.basePath }),
     secret: options.secret,
     // `baseUrl` is always trusted; these are the other hosts serving the app.
     ...(options.trustedOrigins?.length && {
@@ -136,7 +142,7 @@ export function initAuth<
         },
       }),
       /**
-       * Roles, bans and impersonation; endpoints under /api/auth/admin/*
+       * Roles, bans and impersonation; endpoints under <basePath>/admin/*
        * (`authClient.admin.*`). `adminProcedure` checks the same role.
        * @see https://www.better-auth.com/docs/plugins/admin
        */
