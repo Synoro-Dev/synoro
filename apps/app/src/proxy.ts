@@ -82,6 +82,7 @@ export const config = {
   matcher: [
     // A literal (Next reads it statically): same as `paths.api.auth`.
     "/api/account/:path*",
-    "/((?!api|ingest|_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png).*)",
+    // `demo/`: the demo practice's photo, shown on its public booking page.
+    "/((?!api|ingest|_next/static|_next/image|demo/|favicon.ico|icon.svg|apple-touch-icon.png).*)",
   ],
 };

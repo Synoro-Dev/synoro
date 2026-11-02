@@ -12,4 +12,10 @@ describe("practiceImageUrl", () => {
       practiceImageUrl("anna", "practices/p1/avatar-1730000000000.jpg"),
     ).toBe("/p/anna/avatar.jpg?v=1730000000000");
   });
+
+  test("a static app path is used as is", () => {
+    expect(practiceImageUrl("klyuev", "/demo/klyuev.jpg")).toBe(
+      "/demo/klyuev.jpg",
+    );
+  });
 });
