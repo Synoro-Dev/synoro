@@ -31,7 +31,8 @@ const MAX_CHECKS = 48;
  * A visitor's booking, opened by the secret in their link — no account
  * needed. This is where the payment form sends them back: the page checks the
  * payment until it settles, then shows the booking, lets them cancel it (24 h
- * rule) and leads to the cabinet, which opens with a code sent by email.
+ * rule) and leads to the cabinet, which opens with a code sent by email. A
+ * free intro is confirmed from the start and may be cancelled until it begins.
  */
 export function GuestBooking({ token }: { token: string }) {
   const queryClient = useQueryClient();
@@ -48,8 +49,12 @@ export function GuestBooking({ token }: { token: string }) {
 
   const cancel = useMutation({
     ...orpc.booking.cancelGuest.mutationOptions(),
-    onSuccess: async () => {
-      toast.success("Запись отменена, занятие осталось на вашем балансе");
+    onSuccess: async ({ refunded }) => {
+      toast.success(
+        refunded
+          ? "Запись отменена, занятие осталось на вашем балансе"
+          : "Запись отменена",
+      );
       await queryClient.invalidateQueries({ queryKey: options.queryKey });
     },
     onError: (error) => toast.error(error.message),
@@ -57,6 +62,7 @@ export function GuestBooking({ token }: { token: string }) {
 
   const data = booking.data;
   const terms = professionTerms(data?.practice.profession ?? "other");
+  const intro = data?.kind === "free";
 
   return (
     <main className="flex min-h-svh items-start justify-center bg-muted/40 px-4 py-8 md:items-center md:py-12 dark:bg-background">
@@ -89,6 +95,7 @@ export function GuestBooking({ token }: { token: string }) {
               <Status
                 icon={<CircleCheckIcon className="text-success" />}
                 title="Вы записаны"
+                text={intro ? `${terms.free} — бесплатно.` : undefined}
               />
             )}
             {data.state === "expired" && (
@@ -102,7 +109,11 @@ export function GuestBooking({ token }: { token: string }) {
               <Status
                 icon={<CalendarXIcon />}
                 title="Запись отменена"
-                text={`Оплаченное занятие осталось на вашем балансе: ${formatCredits(data.balance, terms)}.`}
+                text={
+                  intro
+                    ? "Время освободилось. Если передумаете — запишитесь снова или выберите платную запись."
+                    : `Оплаченное занятие осталось на вашем балансе: ${formatCredits(data.balance, terms)}.`
+                }
               />
             )}
 
@@ -180,7 +191,11 @@ export function GuestBooking({ token }: { token: string }) {
               {data.state === "confirmed" && data.canCancel && (
                 <ConfirmButton
                   title="Отменить запись?"
-                  description={`${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`}
+                  description={
+                    intro
+                      ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
+                      : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
+                  }
                   confirmLabel="Отменить запись"
                   disabled={cancel.isPending}
                   onConfirm={() => cancel.mutate({ token })}
@@ -198,7 +213,7 @@ export function GuestBooking({ token }: { token: string }) {
               </Button>
             </div>
 
-            {data.state === "confirmed" && !data.canCancel && (
+            {data.state === "confirmed" && !data.canCancel && !intro && (
               <p className="flex items-center gap-2 text-xs text-muted-foreground">
                 <CalendarClockIcon className="size-3.5 shrink-0" />
                 Отменить самостоятельно можно не позднее чем за 24 часа до

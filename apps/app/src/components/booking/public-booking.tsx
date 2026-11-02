@@ -14,6 +14,9 @@ import {
   Label,
   Skeleton,
   Spinner,
+  Tabs,
+  TabsList,
+  TabsTrigger,
   toast,
 } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
@@ -32,6 +35,7 @@ import { ru } from "date-fns/locale";
 import {
   CalendarCheckIcon,
   CircleCheckIcon,
+  GiftIcon,
   GlobeIcon,
   LogInIcon,
   RepeatIcon,
@@ -49,6 +53,7 @@ import { BookingQuestionFields } from "./booking-question-fields";
 import { BookingTicket } from "./booking-ticket";
 import { displayFont } from "./display-font";
 import { GuestBookingForm } from "./guest-booking-form";
+import { IntroBookingForm } from "./intro-booking-form";
 import { SeriesDialog } from "./series-dialog";
 import { ErrorState } from "./states";
 import { SynoroBadge } from "./synoro-badge";
@@ -61,6 +66,7 @@ import {
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
+type Kind = "consultation" | "free";
 
 /** From today (or the 1st) to month end, with a day of padding on each side. */
 function monthWindow(month: Date, today: string) {
@@ -120,7 +126,9 @@ function initials(name: string) {
  *
  * A visitor needs no account: with online payment connected they pick a time,
  * leave name, phone and email and pay (`GuestBookingForm`). A signed-in client
- * books from their balance, one paid credit per hour.
+ * books from their balance, one paid credit per hour. When the owner allows
+ * it (`freeBooking`), a tab switches to the free 30-minute intro, booked by
+ * anyone once, without payment (`IntroBookingForm`).
  */
 export function PublicBooking({
   practice,
@@ -143,6 +151,12 @@ export function PublicBooking({
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
+  /** The free intro just booked: its time and the link to it. */
+  const [bookedIntro, setBookedIntro] = useState<{
+    token: string;
+    startsAt: Date;
+  } | null>(null);
+  const [chosenKind, setChosenKind] = useState<Kind | null>(null);
   /** How many bookings the last booking made: more than one for a series. */
   const [bookedCount, setBookedCount] = useState(1);
   const [seriesFrom, setSeriesFrom] = useState<Date | null>(null);
@@ -176,6 +190,12 @@ export function PublicBooking({
   });
   const needsPhone = !!me.data && !me.data.phone;
   const { questions } = info;
+  // Paid hours first; the intro when nothing else can be booked here.
+  const kind: Kind = !info.freeBooking
+    ? "consultation"
+    : (chosenKind ??
+      (offer.isSuccess && !canPay && !canBook ? "free" : "consultation"));
+  const intro = kind === "free";
 
   /** The questionnaire is filled in; otherwise its errors are shown. */
   function answered() {
@@ -201,7 +221,12 @@ export function PublicBooking({
   const range = monthWindow(month, today);
   const slots = useQuery({
     ...orpc.booking.slots.queryOptions({
-      input: { practiceId: practice.id, from: range.from, days: range.days },
+      input: {
+        practiceId: practice.id,
+        from: range.from,
+        days: range.days,
+        kind,
+      },
     }),
     placeholderData: (previous) => previous,
   });
@@ -299,7 +324,10 @@ export function PublicBooking({
     (byDay.get(dateKey(picked.startsAt)) ?? []).some(
       (slot) => slot.startsAt.getTime() === picked.startsAt.getTime(),
     );
-  const checkout = picked && pickedFree && (guestFlow ? !!offer.data : canBook);
+  const checkout =
+    picked &&
+    pickedFree &&
+    (intro ? !isStaff : guestFlow ? !!offer.data : canBook);
 
   return (
     <main
@@ -326,6 +354,8 @@ export function PublicBooking({
               </h1>
               <p className="text-sm text-muted-foreground">
                 Запись на {terms.creditAccusative}, 1 час
+                {info.freeBooking &&
+                  ` · ${terms.free.toLowerCase()} бесплатно, 30 минут`}
               </p>
             </div>
           </div>
@@ -382,7 +412,48 @@ export function PublicBooking({
           tabIndex={-1}
           className="scroll-mt-4 overflow-hidden rounded-2xl border bg-card shadow-xs outline-none"
         >
-          {booked ? (
+          {bookedIntro ? (
+            <section className="flex flex-col items-center gap-6 px-6 py-14 text-center">
+              <IconTile variant="soft" size="xl" className="text-success">
+                <CircleCheckIcon />
+              </IconTile>
+              <div className="flex flex-col gap-2">
+                <h2 className="font-display text-3xl font-medium tracking-tight">
+                  Вы записаны
+                </h2>
+                <p className="first-letter:uppercase">
+                  {formatDateTime(bookedIntro.startsAt)},{" "}
+                  {terms.free.toLowerCase()}, 30 минут
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Бесплатно. Ссылку на запись мы отправили на почту — по ней её
+                  можно отменить.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  nativeButton={false}
+                  render={
+                    <Link
+                      href={paths.booking.guest(bookedIntro.token)}
+                      target="_top"
+                    />
+                  }
+                >
+                  Открыть запись
+                </Button>
+                {signedIn && (
+                  <Button
+                    variant="outline"
+                    nativeButton={false}
+                    render={<Link href={paths.booking.mine} target="_top" />}
+                  >
+                    Мои записи
+                  </Button>
+                )}
+              </div>
+            </section>
+          ) : booked ? (
             <section className="flex flex-col items-center gap-6 px-6 py-14 text-center">
               <IconTile variant="soft" size="xl" className="text-success">
                 <CircleCheckIcon />
@@ -419,11 +490,28 @@ export function PublicBooking({
               <BookingTicket
                 startsAt={picked.startsAt}
                 endsAt={picked.endsAt}
-                what={what}
+                what={intro ? terms.free : what}
                 onBack={() => choose(null)}
               />
               <section className="p-6 md:p-8 [&>*]:max-w-lg">
-                {guestFlow && offer.data ? (
+                {intro ? (
+                  <IntroBookingForm
+                    practiceId={practice.id}
+                    intro={terms.free}
+                    startsAt={picked.startsAt}
+                    signedIn={signedIn}
+                    needsPhone={needsPhone}
+                    questions={questions}
+                    onBooked={async (booking) => {
+                      setBookedIntro(booking);
+                      setPicked(null);
+                      await refresh();
+                    }}
+                    onTaken={async () => {
+                      await refresh();
+                    }}
+                  />
+                ) : guestFlow && offer.data ? (
                   <GuestBookingForm
                     practice={practice}
                     startsAt={picked.startsAt}
@@ -486,189 +574,223 @@ export function PublicBooking({
               </section>
             </div>
           ) : (
-            <div className="grid md:grid-cols-[auto_1fr]">
-              {/* Month */}
-              <section className="border-b p-6 md:border-r md:border-b-0">
-                {slots.isError ? (
-                  <ErrorState onRetry={() => slots.refetch()} />
-                ) : (
-                  <Calendar
-                    mode="single"
-                    locale={ru}
-                    weekStartsOn={1}
-                    month={month}
-                    onMonthChange={(next) => {
-                      setMonth(next);
+            <>
+              {info.freeBooking && (
+                <div className="flex flex-col gap-2 border-b px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <Tabs
+                    value={kind}
+                    onValueChange={(value) => {
+                      setChosenKind(value as Kind);
                       setPicked(null);
                     }}
-                    startMonth={keyToDate(today)}
-                    selected={selectedDay ? keyToDate(selectedDay) : undefined}
-                    onSelect={(date) => {
-                      if (date) setDay(dateKey(date));
-                      setPicked(null);
-                    }}
-                    disabled={(date) => !byDay.has(dateKey(date))}
-                    formatters={{
-                      formatCaption: (date) =>
-                        capitalize(format(date, "LLLL yyyy", { locale: ru })),
-                    }}
-                    modifiers={{
-                      available: (date) => byDay.has(dateKey(date)),
-                    }}
-                    modifiersClassNames={{
-                      // A dot under each day with free time.
-                      available:
-                        "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground data-[selected=true]:after:bg-primary-foreground",
-                    }}
-                    className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
-                  />
-                )}
-              </section>
-
-              {/* Times */}
-              <section className="flex min-h-80 flex-col gap-5 p-6">
-                <h2 className="font-display text-2xl font-medium tracking-tight first-letter:uppercase">
-                  {selectedDay
-                    ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "long",
-                      })
-                    : "Свободное время"}
-                </h2>
-
-                {picked && !pickedFree && (
-                  <Alert variant="warning">
-                    <AlertTitle>
-                      Время {formatTime(picked.startsAt)} уже заняли
-                    </AlertTitle>
-                    <AlertDescription>Выберите другое.</AlertDescription>
-                  </Alert>
-                )}
-
-                {isStaff ? (
-                  <Alert variant="info">
-                    <AlertTitle>Предпросмотр</AlertTitle>
-                    <AlertDescription>
-                      Так страницу видят ваши клиенты.
-                    </AlertDescription>
-                  </Alert>
-                ) : guestFlow ? null : !signedIn ? (
-                  <Alert variant="info">
-                    <AlertTitle>Войдите, чтобы записаться</AlertTitle>
-                    <AlertDescription className="flex flex-col items-start gap-2">
-                      <span>Свободное время видно и без входа.</span>
-                      <Button size="sm" nativeButton={false} render={cabinet}>
-                        {bookingUrl ? "Войти и записаться" : "Войти"}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                ) : !membership ? (
-                  <Alert variant="info">
-                    <AlertTitle>Станьте клиентом</AlertTitle>
-                    <AlertDescription className="flex flex-col items-start gap-2">
-                      <span>
-                        {canPay
-                          ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
-                          : "Затем администратор добавит оплату."}
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {canPay && (
-                          <Button size="sm" onClick={() => setTopUp(true)}>
-                            <WalletIcon />
-                            Оплатить {terms.credits}
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant={canPay ? "outline" : "default"}
-                          disabled={join.isPending}
-                          onClick={() =>
-                            join.mutate({ practiceId: practice.id })
-                          }
-                        >
-                          Стать клиентом
-                        </Button>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                ) : credits === 0 ? (
-                  <Alert variant="warning">
-                    <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
-                    <AlertDescription className="flex flex-col items-start gap-2">
-                      {canPay ? (
-                        <>
-                          <span>Пополните баланс, чтобы записаться.</span>
-                          <Button size="sm" onClick={() => setTopUp(true)}>
-                            <WalletIcon />
-                            Пополнить баланс
-                          </Button>
-                        </>
-                      ) : (
-                        "Обратитесь к администратору, чтобы оплатить."
-                      )}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-
-                {slots.isPending && !slots.data ? (
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
-                    {["a", "b", "c", "d", "e", "f"].map((k) => (
-                      <Skeleton key={k} className="h-10" />
-                    ))}
-                  </div>
-                ) : daySlots.length === 0 ? (
-                  <div className="flex flex-col items-start gap-3">
+                  >
+                    <TabsList>
+                      <TabsTrigger value="consultation">
+                        <CalendarCheckIcon />
+                        {what} · 1 час
+                      </TabsTrigger>
+                      <TabsTrigger value="free">
+                        <GiftIcon />
+                        {terms.free} · бесплатно
+                      </TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  {intro && (
                     <p className="text-sm text-muted-foreground">
-                      В этом месяце свободного времени нет.
+                      30 минут, чтобы познакомиться. Один раз, без оплаты.
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setMonth(
-                          new Date(month.getFullYear(), month.getMonth() + 1),
-                        );
+                  )}
+                </div>
+              )}
+              <div className="grid md:grid-cols-[auto_1fr]">
+                {/* Month */}
+                <section className="border-b p-6 md:border-r md:border-b-0">
+                  {slots.isError ? (
+                    <ErrorState onRetry={() => slots.refetch()} />
+                  ) : (
+                    <Calendar
+                      mode="single"
+                      locale={ru}
+                      weekStartsOn={1}
+                      month={month}
+                      onMonthChange={(next) => {
+                        setMonth(next);
                         setPicked(null);
                       }}
-                    >
-                      Следующий месяц
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-5">
-                    {byDayPart(daySlots).map((part) => (
-                      <div key={part.label} className="flex flex-col gap-2">
-                        <h3 className="text-sm text-muted-foreground">
-                          {part.label}
-                        </h3>
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
-                          {part.slots.map((slot) => (
-                            <Button
-                              key={slot.startsAt.toISOString()}
-                              variant="outline"
-                              size="lg"
-                              disabled={!canBook && !guestFlow}
-                              onClick={() => choose(slot)}
-                              className="text-base tabular-nums"
-                            >
-                              {formatTime(slot.startsAt)}
+                      startMonth={keyToDate(today)}
+                      selected={
+                        selectedDay ? keyToDate(selectedDay) : undefined
+                      }
+                      onSelect={(date) => {
+                        if (date) setDay(dateKey(date));
+                        setPicked(null);
+                      }}
+                      disabled={(date) => !byDay.has(dateKey(date))}
+                      formatters={{
+                        formatCaption: (date) =>
+                          capitalize(format(date, "LLLL yyyy", { locale: ru })),
+                      }}
+                      modifiers={{
+                        available: (date) => byDay.has(dateKey(date)),
+                      }}
+                      modifiersClassNames={{
+                        // A dot under each day with free time.
+                        available:
+                          "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-foreground data-[selected=true]:after:bg-primary-foreground",
+                      }}
+                      className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
+                    />
+                  )}
+                </section>
+
+                {/* Times */}
+                <section className="flex min-h-80 flex-col gap-5 p-6">
+                  <h2 className="font-display text-2xl font-medium tracking-tight first-letter:uppercase">
+                    {selectedDay
+                      ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        })
+                      : "Свободное время"}
+                  </h2>
+
+                  {picked && !pickedFree && (
+                    <Alert variant="warning">
+                      <AlertTitle>
+                        Время {formatTime(picked.startsAt)} уже заняли
+                      </AlertTitle>
+                      <AlertDescription>Выберите другое.</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {isStaff ? (
+                    <Alert variant="info">
+                      <AlertTitle>Предпросмотр</AlertTitle>
+                      <AlertDescription>
+                        Так страницу видят ваши клиенты.
+                      </AlertDescription>
+                    </Alert>
+                  ) : guestFlow || intro ? null : !signedIn ? (
+                    <Alert variant="info">
+                      <AlertTitle>Войдите, чтобы записаться</AlertTitle>
+                      <AlertDescription className="flex flex-col items-start gap-2">
+                        <span>Свободное время видно и без входа.</span>
+                        <Button size="sm" nativeButton={false} render={cabinet}>
+                          {bookingUrl ? "Войти и записаться" : "Войти"}
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  ) : !membership ? (
+                    <Alert variant="info">
+                      <AlertTitle>Станьте клиентом</AlertTitle>
+                      <AlertDescription className="flex flex-col items-start gap-2">
+                        <span>
+                          {canPay
+                            ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
+                            : "Затем администратор добавит оплату."}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {canPay && (
+                            <Button size="sm" onClick={() => setTopUp(true)}>
+                              <WalletIcon />
+                              Оплатить {terms.credits}
                             </Button>
-                          ))}
+                          )}
+                          <Button
+                            size="sm"
+                            variant={canPay ? "outline" : "default"}
+                            disabled={join.isPending}
+                            onClick={() =>
+                              join.mutate({ practiceId: practice.id })
+                            }
+                          >
+                            Стать клиентом
+                          </Button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+                      </AlertDescription>
+                    </Alert>
+                  ) : credits === 0 ? (
+                    <Alert variant="warning">
+                      <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
+                      <AlertDescription className="flex flex-col items-start gap-2">
+                        {canPay ? (
+                          <>
+                            <span>Пополните баланс, чтобы записаться.</span>
+                            <Button size="sm" onClick={() => setTopUp(true)}>
+                              <WalletIcon />
+                              Пополнить баланс
+                            </Button>
+                          </>
+                        ) : (
+                          "Обратитесь к администратору, чтобы оплатить."
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {slots.isPending && !slots.data ? (
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                      {["a", "b", "c", "d", "e", "f"].map((k) => (
+                        <Skeleton key={k} className="h-10" />
+                      ))}
+                    </div>
+                  ) : daySlots.length === 0 ? (
+                    <div className="flex flex-col items-start gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        В этом месяце свободного времени нет.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setMonth(
+                            new Date(month.getFullYear(), month.getMonth() + 1),
+                          );
+                          setPicked(null);
+                        }}
+                      >
+                        Следующий месяц
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-5">
+                      {byDayPart(daySlots).map((part) => (
+                        <div key={part.label} className="flex flex-col gap-2">
+                          <h3 className="text-sm text-muted-foreground">
+                            {part.label}
+                          </h3>
+                          <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                            {part.slots.map((slot) => (
+                              <Button
+                                key={slot.startsAt.toISOString()}
+                                variant="outline"
+                                size="lg"
+                                disabled={
+                                  intro ? isStaff : !canBook && !guestFlow
+                                }
+                                onClick={() => choose(slot)}
+                                className="text-base tabular-nums"
+                              >
+                                {formatTime(slot.startsAt)}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </div>
+            </>
           )}
 
           <footer className="flex flex-col gap-2 border-t bg-muted/40 px-6 py-4 text-xs text-muted-foreground sm:flex-row sm:gap-6 dark:bg-muted/20">
             <p className="flex items-start gap-2">
               <UndoDotIcon className="mt-px size-3.5 shrink-0" />
-              Отменить запись и вернуть {terms.creditAccusative} на баланс можно
-              не позднее чем за 24 часа до начала.
+              {intro
+                ? "Бесплатную запись можно отменить до её начала по ссылке из письма."
+                : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем за 24 часа до начала.`}
             </p>
             <p className="flex shrink-0 items-start gap-2">
               <GlobeIcon className="mt-px size-3.5 shrink-0" />

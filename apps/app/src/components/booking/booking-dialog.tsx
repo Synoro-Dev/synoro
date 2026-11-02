@@ -133,6 +133,7 @@ function MeetingLink({
             ? "Используется комната практики. Укажите ссылку, чтобы заменить её для этой встречи."
             : "Ссылка не задана — клиент её не увидит. Комнату для всех встреч можно задать на странице обзора."}
         {booking.kind === "free" &&
+          !booking.memberId &&
           " Гостю ссылку нужно отправить самостоятельно."}
       </p>
     </div>
@@ -246,7 +247,7 @@ export function BookingDialog({
                     </a>
                   </Fact>
                 )}
-              {booking.kind === "consultation" && booking.clientEmail && (
+              {booking.kind !== "blocked" && booking.clientEmail && (
                 <Fact icon={<MailIcon />}>{booking.clientEmail}</Fact>
               )}
               {booking.kind === "free" && booking.guestContact && (

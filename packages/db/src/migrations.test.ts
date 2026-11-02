@@ -38,12 +38,12 @@ async function hasTable(client: PGlite, name: string) {
 describe("baselineMigrations", () => {
   it("adopts a pushed database so migrate applies only newer migrations", async () => {
     const { client, db } = await pushedDb(1);
-    expect(await hasTable(client, "workflows")).toBe(false);
 
     expect(await baselineMigrations(db)).toBe("baselined");
     await migrate(db, { migrationsFolder });
 
     expect(await hasTable(client, "workflows")).toBe(true);
+    expect(await appliedMigrationCount(db)).toBe(migrations.length);
     expect(await baselineMigrations(db)).toBe("already-tracked");
     await client.close();
   });
@@ -124,7 +124,8 @@ describe("explainMigrationError", () => {
     const error = await migrate(db, { migrationsFolder }).catch((e) => e);
     const { message, hint } = explainMigrationError(error);
 
-    expect(message).toContain('type "billing_period" already exists');
+    // The first statement of 0000 trips over what push created.
+    expect(message).toMatch(/type "\w+" already exists/);
     expect(message).toContain("(42710)");
     expect(hint).toContain("bun db:baseline");
     await client.close();

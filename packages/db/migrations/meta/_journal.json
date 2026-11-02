@@ -8,6 +8,20 @@
       "when": 1793558696357,
       "tag": "0000_nosy_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793565026184,
+      "tag": "0001_free_booking",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793566694172,
+      "tag": "0002_booking_no_overlap",
+      "breakpoints": true
     }
   ]
 }

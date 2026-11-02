@@ -422,6 +422,8 @@ export async function seedDemoPractice(db: Database) {
       timezone: TIME_ZONE,
       profession: "psychologist",
       bookingQuestions: QUESTIONS,
+      // Visitors book the free intro themselves on the demo page too.
+      freeBookingEnabled: true,
       ownerId,
       createdAt: longAgo,
     })

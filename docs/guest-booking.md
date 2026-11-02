@@ -35,6 +35,9 @@ is required everywhere a person is booked or signs up for the cabinet.
 `booking.cancelGuest` cancels a confirmed booking by the token under the same
 24-hour rule as a signed-in client and returns the credit to the balance.
 
+The free intro needs no payment: `booking.bookIntro` confirms it at once
+and mails the same `/b/<token>` link — see `docs/free-booking.md`.
+
 ## The visitor's cabinet
 
 `/bookings` (the existing client cabinet): contact card with the **required

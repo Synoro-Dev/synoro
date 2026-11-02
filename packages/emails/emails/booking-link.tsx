@@ -18,13 +18,16 @@ import { emailTailwindConfig } from "../tailwind";
 
 /**
  * Sent to a visitor who booked without an account: the link that opens their
- * booking (status, cancel) with no sign-in, and how to reach the cabinet.
+ * booking (status, cancel) with no sign-in, and how to reach the cabinet. A
+ * paid booking waits for the payment until `holdUntil`; a free intro
+ * (`intro` — its name, «Знакомство») is confirmed at once.
  */
 export default function BookingLinkEmail({
   name = "Иван",
   practiceName = "Анна Иванова",
   when = "понедельник, 7 января, 10:00",
   holdUntil = "10:15",
+  intro = null,
   bookingUrl = "https://synoro.ru/b/token",
   cabinetUrl = "https://synoro.ru/bookings",
 }: {
@@ -34,6 +37,8 @@ export default function BookingLinkEmail({
   when: string;
   /** Until when the time is held for payment, same zone. */
   holdUntil: string;
+  /** Name of the free intro booked, or null for a paid booking. */
+  intro?: string | null;
   bookingUrl: string;
   cabinetUrl: string;
 }) {
@@ -52,8 +57,10 @@ export default function BookingLinkEmail({
             </Text>
             <Text className="text-[14px] leading-[24px] text-black">
               Вы записались к <strong>{practiceName}</strong> на{" "}
-              <strong>{when}</strong>. Время удержано до {holdUntil} — за это
-              время нужно оплатить запись, после этого она подтвердится.
+              <strong>{when}</strong>.{" "}
+              {intro
+                ? `${intro} — бесплатно, запись подтверждена. Если планы изменятся, отмените её по ссылке ниже.`
+                : `Время удержано до ${holdUntil} — за это время нужно оплатить запись, после этого она подтвердится.`}
             </Text>
             <Section className="mb-[32px] mt-[32px] text-center">
               <Button
@@ -76,8 +83,10 @@ export default function BookingLinkEmail({
             </Text>
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-[12px] leading-[24px] text-[#666666]">
-              Если вы не записывались, просто проигнорируйте письмо — без оплаты
-              запись не подтвердится. {APP_CONFIG.shortName}
+              {intro
+                ? "Если вы не записывались, откройте запись по ссылке и отмените её."
+                : "Если вы не записывались, просто проигнорируйте письмо — без оплаты запись не подтвердится."}{" "}
+              {APP_CONFIG.shortName}
             </Text>
           </Container>
         </Body>

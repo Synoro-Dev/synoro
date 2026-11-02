@@ -70,6 +70,7 @@ export default function BookingNoticeEmail({
   cabinetUrl = "https://synoro.ru/bookings",
   cancelledBy = null,
   refunded = false,
+  free = false,
   dates = [],
 }: {
   notice: BookingNotice;
@@ -84,6 +85,8 @@ export default function BookingNoticeEmail({
   cancelledBy?: "client" | "specialist" | null;
   /** The consultation went back to the balance, for `cancelled`. */
   refunded?: boolean;
+  /** A free intro: nothing was paid, so nothing is said of the balance. */
+  free?: boolean;
   /**
    * Every date of a recurring booking, formatted like `when`; `when` then
    * sums them up («8 встреч, первая — …»).
@@ -119,7 +122,7 @@ export default function BookingNoticeEmail({
           ))}
         </EmailText>
       ) : null}
-      {cancelled ? (
+      {cancelled && !free ? (
         <EmailText>
           {refunded
             ? `${series ? "Занятия вернулись" : "Занятие вернулось"} на баланс — запишитесь на другое время, когда будет удобно.`

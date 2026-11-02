@@ -59,6 +59,11 @@ export const Practice = pgTable("practices", (t) => ({
     .$type<PracticeBookingQuestion[]>()
     .notNull()
     .default([]),
+  /**
+   * Visitors may book the free intro (`bookings.kind = 'free'`) themselves on
+   * the booking page, once per person. Off: only staff book it.
+   */
+  freeBookingEnabled: t.boolean().notNull().default(false),
   ownerId: t
     .text()
     .notNull()

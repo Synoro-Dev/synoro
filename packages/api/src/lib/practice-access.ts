@@ -63,7 +63,8 @@ export async function findOwnerMembership(
  * What a public booking page shows: practice info plus the caller's
  * membership (role, balance) when signed in. `showBadge` — the «Онлайн-запись
  * — Synoro» line at the bottom, shown while the owner has no «Про»;
- * `questions` — the booking questionnaire, asked only on «Про».
+ * `questions` — the booking questionnaire, asked only on «Про»;
+ * `freeBooking` — visitors may book the free intro themselves.
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -80,6 +81,7 @@ export async function publicPractice(
       image: true,
       ownerId: true,
       bookingQuestions: true,
+      freeBookingEnabled: true,
     },
   });
   if (!practice) return undefined;
@@ -94,12 +96,14 @@ export async function publicPractice(
     image,
     ownerId: _ownerId,
     bookingQuestions: questions,
+    freeBookingEnabled: freeBooking,
     ...info
   } = practice;
   return {
     ...info,
     imageUrl: practiceImageUrl(practice.slug, image),
     showBadge: !pro,
+    freeBooking,
     /** The questionnaire to fill in when booking; empty without «Про». */
     questions: pro ? questions : [],
     membership: member

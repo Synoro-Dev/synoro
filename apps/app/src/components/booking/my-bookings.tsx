@@ -494,6 +494,8 @@ export function MyBookings() {
                             />
                           )}
                           {b.practiceName}
+                          {b.kind === "free" &&
+                            ` · ${professionTerms(b.profession).free}, бесплатно`}
                         </span>
                       </div>
                       {b.seriesId && seriesHeads.has(b.id) && (
@@ -518,9 +520,13 @@ export function MyBookings() {
                           {b.videoUrl && <VideoLinkButton url={b.videoUrl} />}
                           <ConfirmButton
                             title="Отменить запись?"
-                            description={`${capitalize(
-                              professionTerms(b.profession).credit[0],
-                            )} вернётся на ваш баланс.`}
+                            description={
+                              b.kind === "free"
+                                ? "Время освободится для других."
+                                : `${capitalize(
+                                    professionTerms(b.profession).credit[0],
+                                  )} вернётся на ваш баланс.`
+                            }
                             confirmLabel="Отменить запись"
                             disabled={cancel.isPending}
                             onConfirm={() => cancel.mutate({ bookingId: b.id })}
@@ -561,6 +567,8 @@ export function MyBookings() {
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
                           {b.practiceName}
+                          {b.kind === "free" &&
+                            ` · ${professionTerms(b.profession).free}`}
                         </span>
                       </div>
                       <Badge

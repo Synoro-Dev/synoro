@@ -26,10 +26,14 @@ function bookingNotice(p: Props<"booking-notice">): MessengerMessage {
   if (p.notice === "cancelled") {
     lines.push(
       `${p.cancelledBy === "specialist" ? "Специалист отменил" : "Вы отменили"} запись: ${p.practiceName}, ${p.when}.`,
-      p.refunded
-        ? `${series ? "Занятия вернулись" : "Занятие вернулось"} на баланс.`
-        : `${series ? "Занятия не вернулись" : "Занятие не вернулось"} на баланс. Если это ошибка, свяжитесь со специалистом.`,
     );
+    if (!p.free) {
+      lines.push(
+        p.refunded
+          ? `${series ? "Занятия вернулись" : "Занятие вернулось"} на баланс.`
+          : `${series ? "Занятия не вернулись" : "Занятие не вернулось"} на баланс. Если это ошибка, свяжитесь со специалистом.`,
+      );
+    }
   } else {
     lines.push(`${p.practiceName} — ${p.when}.`);
   }

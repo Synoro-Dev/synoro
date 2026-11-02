@@ -37,13 +37,21 @@ const DAY_HOURS = { from: 9, until: 22 };
 
 type Notice = BookingNotice;
 
+/** Kinds of bookings a client is told about (blocks have no client). */
+const CLIENT_KINDS = ["consultation", "free"] as const;
+
 export type { Deliver } from "./messenger/deliver";
 
-/** Paid bookings of clients who can be mailed. */
+/**
+ * Bookings of clients who can be mailed: paid ones, and free intros a client
+ * booked themselves (`booking.bookIntro`; a guest staff booked by phone has
+ * no account and is left out by the join).
+ */
 function confirmedBookings(db: Database) {
   return db
     .select({
       id: Booking.id,
+      kind: Booking.kind,
       practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
@@ -96,6 +104,7 @@ async function send(
         cabinetUrl: cabinetUrl(),
         cancelledBy: cancellation?.by ?? null,
         refunded: cancellation?.refunded ?? false,
+        free: row.kind === "free",
       },
     },
     { userId: row.clientId, practiceId: row.practiceId },
@@ -178,7 +187,7 @@ export async function notifyBookingCancelled(
     const [row] = await confirmedBookings(db).where(
       and(
         eq(Booking.id, bookingId),
-        eq(Booking.kind, "consultation"),
+        inArray(Booking.kind, CLIENT_KINDS),
         isNull(Booking.holdUntil),
         gt(Booking.startsAt, new Date()),
       ),
@@ -295,7 +304,7 @@ export async function notifyVideoLinkChanged(
 ) {
   try {
     const upcoming = and(
-      eq(Booking.kind, "consultation"),
+      inArray(Booking.kind, CLIENT_KINDS),
       eq(Booking.status, "active"),
       isNull(Booking.holdUntil),
       gt(Booking.startsAt, new Date()),
@@ -388,7 +397,7 @@ export async function sendBookingReminders(
       const due = await confirmedBookings(db)
         .where(
           and(
-            eq(Booking.kind, "consultation"),
+            inArray(Booking.kind, CLIENT_KINDS),
             eq(Booking.status, "active"),
             isNull(Booking.holdUntil),
             window.pending,
