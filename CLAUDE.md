@@ -175,6 +175,12 @@ and run `tsc` by hand, build them first.
   `bookSeries` / `reserve` (`ANSWERS_INVALID` per question id); answers are
   kept with the question's wording in `bookings.answers` and shown to staff in
   `booking.calendar`. Not asked without `hasPro` (`askedQuestions`).
+- **Booking page look («Про»)** (`docs/booking-theme.md`): accent, headings'
+  font, corners, backdrop and an «about» line in `practices.booking_theme`
+  (owner and admins, `practice.theme` / `setTheme`; presets and
+  `readBookingTheme` in `@synoro/validators/booking-theme`). Presets only
+  re-tint theme tokens via `data-booking-*` (`apps/app/src/app/booking-theme.css`)
+  — never restyle components for a theme. Default look without `hasPro`.
 - **Practice analytics («Про»)** (`docs/analytics.md`): `analytics.overview`
   (owner only, `report: null` without «Про») — meetings, no-shows, online
   revenue, clients and busy hours for 30/90/365 days against the stretch before;

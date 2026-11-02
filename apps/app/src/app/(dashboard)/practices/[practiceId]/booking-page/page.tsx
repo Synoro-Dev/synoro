@@ -34,7 +34,7 @@ async function BookingPage({
       <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
         <PageHeading
           title="Страница записи"
-          description="Фото, ссылка, видеовстреча и анкета — то, что видят ваши клиенты"
+          description="Фото, оформление, ссылка, видеовстреча и анкета — то, что видят ваши клиенты"
         />
         <PracticeBookingPage practice={practice} />
       </main>

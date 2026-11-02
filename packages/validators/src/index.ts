@@ -5,6 +5,7 @@ export * from "./analytics";
 export * from "./billing";
 export * from "./booking";
 export * from "./booking-questions";
+export * from "./booking-theme";
 export * from "./login";
 export * from "./messenger";
 export * from "./otp";

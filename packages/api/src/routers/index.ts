@@ -17,6 +17,7 @@
  *
  *   Booking (multi-tenant: access is checked per practice membership)
  *   practice.*      – create a practice, join it, members      (protected / public bySlug, byHost)
+ *                     and the booking page's look on «Про» (theme, setTheme: staff)
  *   availability.*  – weekly working hours                     (public list, staff replace)
  *   booking.*       – slots, book, free consults, blocks, cancel, calendar
  *   credit.*        – paid consultation balance + history      (staff grant)

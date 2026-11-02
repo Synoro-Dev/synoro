@@ -26,6 +26,15 @@ export interface PracticeBookingQuestion {
   required: boolean;
 }
 
+/** Mirrors `BookingTheme` in `@synoro/validators`; every key may be missing. */
+export interface PracticeBookingTheme {
+  accent?: string;
+  font?: string;
+  radius?: string;
+  backdrop?: string;
+  about?: string;
+}
+
 /**
  * A practice is the SaaS tenant: one specialist's schedule, clients and
  * credit balances. Everything in the booking domain hangs off it.
@@ -64,6 +73,12 @@ export const Practice = pgTable("practices", (t) => ({
    * the booking page, once per person. Off: only staff book it.
    */
   freeBookingEnabled: t.boolean().notNull().default(false),
+  /**
+   * How the booking page looks («Про»): accent, typeface, corners, backdrop,
+   * «about» line. Read through `readBookingTheme` in `@synoro/validators`
+   * (missing keys are the default look); kept on the free plan, not shown.
+   */
+  bookingTheme: t.jsonb().$type<PracticeBookingTheme>().notNull().default({}),
   ownerId: t
     .text()
     .notNull()
