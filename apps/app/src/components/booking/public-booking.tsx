@@ -767,7 +767,10 @@ export function PublicBooking({
                                 variant="outline"
                                 size="lg"
                                 disabled={
-                                  intro ? isStaff : !canBook && !guestFlow
+                                  // Times of the other tab (or month) while
+                                  // these load: an hour is not a half hour.
+                                  slots.isPlaceholderData ||
+                                  (intro ? isStaff : !canBook && !guestFlow)
                                 }
                                 onClick={() => choose(slot)}
                                 className="text-base tabular-nums"

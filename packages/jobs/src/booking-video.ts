@@ -139,9 +139,8 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
 /**
  * After payment (or a credit) confirmed a booking, or staff booked a guest:
  * tell the client (a paid booking only) and the practice's staff. A free
- * intro the client booked themselves gets no mail here — `booking.bookIntro`
- * sends its link, with the video room — but the reminders already due are
- * marked all the same, so none follows right after.
+ * intro the client booked themselves gets its mail from `booking.bookIntro`
+ * (the link, with the video room), which then calls `markRemindersCovered`.
  */
 export async function notifyBookingConfirmed(
   db: Database,
@@ -152,13 +151,13 @@ export async function notifyBookingConfirmed(
     const [row] = await confirmedBookings(db).where(
       and(
         eq(Booking.id, bookingId),
-        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.kind, "consultation"),
         eq(Booking.status, "active"),
         isNull(Booking.holdUntil),
       ),
     );
     if (row) {
-      if (row.kind === "consultation") await send(deliver, row, "confirmed");
+      await send(deliver, row, "confirmed");
       // The confirmation names the time: reminders already due are covered.
       await markDueReminders(db, row);
     }
@@ -166,6 +165,28 @@ export async function notifyBookingConfirmed(
     settled(bookingId, "confirmed", error);
   }
   await notifyStaff(db, bookingId, "booked", {}, deliver);
+}
+
+/**
+ * A mail with the time and the video link reached the client of `bookingId`
+ * by another way (the link of a free intro): the reminders already due are
+ * covered, so none follows right after. Call it only once that mail went out —
+ * otherwise the reminders are the client's only notice.
+ */
+export async function markRemindersCovered(db: Database, bookingId: string) {
+  try {
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.status, "active"),
+        isNull(Booking.holdUntil),
+      ),
+    );
+    if (row) await markDueReminders(db, row);
+  } catch (error) {
+    settled(bookingId, "confirmed", error);
+  }
 }
 
 /**

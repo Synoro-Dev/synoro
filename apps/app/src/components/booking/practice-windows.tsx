@@ -28,12 +28,7 @@ import { orpc } from "~/orpc/react";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { ErrorState } from "./states";
 import { useTerms } from "./terms";
-import {
-  dateKey,
-  formatTime,
-  viewerTimeZone,
-  viewerTimeZoneName,
-} from "./time";
+import { dateKey, viewerTimeZone, viewerTimeZoneName } from "./time";
 
 type Kind = "consultation" | "free";
 
@@ -66,9 +61,16 @@ function dayLabel(key: string, options: Intl.DateTimeFormatOptions = {}) {
   });
 }
 
-/** «10:00–13:00» */
-function span(range: { startsAt: Date; endsAt: Date }) {
-  return `${formatTime(range.startsAt)}–${formatTime(range.endsAt)}`;
+/**
+ * «10:00» in the practice's zone: the days come from the practice's calendar,
+ * so the times on them do too — and that is the time a caller is told.
+ */
+function timeIn(at: Date, timeZone: string) {
+  return at.toLocaleTimeString("ru-RU", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /**
@@ -111,6 +113,9 @@ export function PracticeWindows({
     .flatMap((day) => day.slots[kind])
     .find((at) => at.getTime() > Date.now());
   const sameZone = viewerTimeZone() === timezone;
+  const time = (at: Date) => timeIn(at, timezone);
+  const span = (range: { startsAt: Date; endsAt: Date }) =>
+    `${time(range.startsAt)}–${time(range.endsAt)}`;
 
   function book(at: Date) {
     setDraft({
@@ -125,7 +130,7 @@ export function PracticeWindows({
       .filter((day) => day.slots[kind].length > 0)
       .map(
         (day) =>
-          `${dayLabel(day.date)}: ${day.slots[kind].map(formatTime).join(", ")}`,
+          `${dayLabel(day.date)}: ${day.slots[kind].map(time).join(", ")}`,
       );
     if (lines.length === 0) {
       toast.info("На этой неделе свободного времени нет");
@@ -203,10 +208,10 @@ export function PracticeWindows({
 
       {!sameZone && (
         <Alert variant="info">
-          <AlertTitle>Время по вашему часовому поясу</AlertTitle>
+          <AlertTitle>Время — по поясу специалиста ({timezone})</AlertTitle>
           <AlertDescription suppressHydrationWarning>
-            Вы в поясе «{viewerTimeZoneName()}», у специалиста — {timezone}.
-            Называйте клиенту время с поправкой.
+            Вы в поясе «{viewerTimeZoneName()}»: в окне записи то же время
+            показано по-вашему.
           </AlertDescription>
         </Alert>
       )}
@@ -216,7 +221,7 @@ export function PracticeWindows({
           <PhoneCallIcon />
           <AlertTitle>
             {next
-              ? `Ближайшее свободное: ${dayLabel(dateKey(next, timezone))}, ${formatTime(next)}`
+              ? `Ближайшее свободное: ${dayLabel(dateKey(next, timezone))}, ${time(next)}`
               : "На этой неделе свободного времени нет"}
           </AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-2">
@@ -224,7 +229,7 @@ export function PracticeWindows({
               <>
                 <span>{kindLabel}. Нажмите на время, чтобы записать.</span>
                 <Button size="sm" onClick={() => book(next)}>
-                  Записать на {formatTime(next)}
+                  Записать на {time(next)}
                 </Button>
               </>
             ) : (
@@ -285,7 +290,7 @@ export function PracticeWindows({
                           className="tabular-nums"
                           onClick={() => book(at)}
                         >
-                          {formatTime(at)}
+                          {time(at)}
                         </Button>
                       ))}
                     </div>

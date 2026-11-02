@@ -3,7 +3,10 @@ import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { Booking, eq, PracticeMember, user } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
-import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
+import {
+  markRemindersCovered,
+  notifyBookingConfirmed,
+} from "@synoro/jobs/booking-video";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { hashGuestToken } from "../../lib/guests";
@@ -254,7 +257,7 @@ describe("free intro booked by the visitor", () => {
 });
 
 describe("intro notices", () => {
-  it("sends no confirmation, but marks reminders already due", async () => {
+  it("sends no confirmation; due reminders wait for the link mail", async () => {
     const { token } = await bookIntro(at("07:00", "2030-02-04"), {
       guest: visitor("soon@visitor.test", "+79005550009"),
     });
@@ -278,11 +281,21 @@ describe("intro notices", () => {
       sent.push(message);
     });
 
-    // The client got the link from bookIntro; staff are told here.
+    // The client gets the link from bookIntro; staff are told here.
     expect(sent.map((m) => m.template)).toEqual(["staff-booking"]);
-    const after = await api.db.query.Booking.findFirst({
-      where: eq(Booking.id, id),
+    const reminders = () =>
+      api.db.query.Booking.findFirst({
+        where: eq(Booking.id, id),
+        columns: { reminderDaySentAt: true, reminderHourSentAt: true },
+      });
+    // Until the link mail is out, the reminder is still the client's notice.
+    expect(await reminders()).toEqual({
+      reminderDaySentAt: null,
+      reminderHourSentAt: null,
     });
+
+    await markRemindersCovered(api.db, id);
+    const after = await reminders();
     expect(after?.reminderDaySentAt).toBeInstanceOf(Date);
     expect(after?.reminderHourSentAt).toBeNull();
   });

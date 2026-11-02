@@ -18,7 +18,7 @@ const formatIn = (
  * a paid one held until `holdUntil`, or a free intro (`intro` — its name,
  * «Знакомство»), confirmed at once. A mail failure must not undo the
  * booking — the page they land on leads to the same link — so it is only
- * logged.
+ * logged. Returns whether the mail went out (was sent or queued).
  */
 export async function sendBookingLink(input: {
   email: string;
@@ -61,10 +61,12 @@ export async function sendBookingLink(input: {
         cabinetUrl: cabinetUrl(),
       },
     });
+    return true;
   } catch (error) {
     logger.warn("booking.link_email_failed", {
       error: error instanceof Error ? error.message : String(error),
     });
+    return false;
   }
 }
 

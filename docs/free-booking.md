@@ -35,7 +35,9 @@ the profession (`professionTerms(...).free`): «Знакомство», «Про
    The `bookings_no_overlap` constraint settles races with other bookings.
 5. Exports it to Google Calendar, tells staff (`staff-booking`, «бесплатная
    встреча»), and mails the visitor `booking-link` with `intro` set: confirmed,
-   free, the `/b/<token>` link.
+   free, the `/b/<token>` link and the practice's video room. Once that mail
+   went out, the reminders already due are marked sent
+   (`markRemindersCovered`); if it failed, they still go.
 
 Afterwards the intro behaves like a client booking: it is in `booking.mine`
 (`kind: "free"`) and on `/b/<token>` (`booking.guest`, states `confirmed` or
@@ -64,8 +66,9 @@ specialists moves between their windows directly.
 `booking.windows` (staff only) computes it with `freeWindows` in
 `lib/schedule.ts`: working hours minus active bookings and holds, blocks,
 Google busy time and the past. Unlike `booking.slots` it lists intro starts
-even when visitors can't book them. Times are shown in the viewer's zone, like
-the calendar; a note appears when it differs from the practice's.
+even when visitors can't book them. Days and times are in the practice's zone —
+what the caller is told; a note appears when the viewer's zone differs (the
+new-entry dialog shows the viewer's time, like the calendar).
 
 ## Not done
 

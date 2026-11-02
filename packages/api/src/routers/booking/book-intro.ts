@@ -8,7 +8,10 @@ import {
   sql,
   user,
 } from "@synoro/db";
-import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
+import {
+  markRemindersCovered,
+  notifyBookingConfirmed,
+} from "@synoro/jobs/booking-video";
 import {
   bookingAnswersInput,
   guestBookingFormSchema,
@@ -229,10 +232,10 @@ export const bookIntro = publicProcedure
     if (!booking) throw new Error("Failed to insert booking");
 
     await exportBooking(context.db, booking.id);
-    // Staff hear about it (and due reminders are marked); the client's mail
-    // is the link below, with the video room — the booking has none yet.
+    // Staff hear about it; the client's mail is the link below, with the
+    // video room — the booking has none of its own yet.
     await notifyBookingConfirmed(context.db, booking.id);
-    await sendBookingLink({
+    const mailed = await sendBookingLink({
       email: person.email,
       name: person.name,
       practiceName: practice.name,
@@ -243,6 +246,8 @@ export const bookIntro = publicProcedure
       videoUrl: practice.videoUrl,
       token,
     });
+    // That mail covers the reminders already due; without it they still go.
+    if (mailed) await markRemindersCovered(context.db, booking.id);
     track("intro_booked", person.userId, {
       bookingId: booking.id,
       practiceId: practice.id,
