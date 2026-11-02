@@ -1,3 +1,4 @@
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { render } from "@react-email/components";
 import { logger } from "@synoro/config";
 import nodemailer from "nodemailer";
@@ -10,21 +11,21 @@ export const resend = env.RESEND_API_KEY
   ? new Resend(env.RESEND_API_KEY)
   : null;
 
-// Yandex Cloud Postbox over SMTP: an API key of a service account with the
-// `postbox.sender` role, scope `yc.postbox.send` (login = key id, password =
-// secret). Short timeouts so an unreachable Postbox falls back to Resend
-// within the `send-email` task instead of hanging on nodemailer's defaults.
+// Yandex Cloud Postbox through its SES v2-compatible HTTP API: a static
+// access key of a service account with the `postbox.sender` role. One
+// attempt with a short timeout, so a failing Postbox falls back to Resend at
+// once; retries are the `send-email` task's job.
 const postbox =
-  env.POSTBOX_API_KEY_ID && env.POSTBOX_API_KEY
-    ? nodemailer.createTransport({
-        host: env.POSTBOX_SMTP_HOST,
-        port: 587,
-        secure: false,
-        requireTLS: true,
-        auth: { user: env.POSTBOX_API_KEY_ID, pass: env.POSTBOX_API_KEY },
-        connectionTimeout: 10_000,
-        greetingTimeout: 10_000,
-        socketTimeout: 30_000,
+  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY
+    ? new SESv2Client({
+        endpoint: env.POSTBOX_ENDPOINT,
+        region: "ru-central1",
+        credentials: {
+          accessKeyId: env.POSTBOX_ACCESS_KEY_ID,
+          secretAccessKey: env.POSTBOX_SECRET_ACCESS_KEY,
+        },
+        maxAttempts: 1,
+        requestHandler: { connectionTimeout: 10_000, requestTimeout: 30_000 },
       })
     : null;
 
@@ -49,7 +50,22 @@ type Provider = {
 
 const providers: Provider[] = [];
 if (postbox) {
-  providers.push({ name: "postbox", send: (email) => postbox.sendMail(email) });
+  providers.push({
+    name: "postbox",
+    send: (email) =>
+      postbox.send(
+        new SendEmailCommand({
+          FromEmailAddress: email.from,
+          Destination: { ToAddresses: email.to },
+          Content: {
+            Simple: {
+              Subject: { Data: email.subject, Charset: "UTF-8" },
+              Body: { Html: { Data: email.html, Charset: "UTF-8" } },
+            },
+          },
+        }),
+      ),
+  });
 }
 if (resend) {
   providers.push({
@@ -79,7 +95,7 @@ async function deliver(email: EmailHtml) {
   }
   if (providers.length === 0) {
     logger.warn("email.not_configured", {
-      hint: "Add POSTBOX_API_KEY_ID + POSTBOX_API_KEY or RESEND_API_KEY to .env",
+      hint: "Add the POSTBOX_* access key or RESEND_API_KEY to .env",
     });
     return;
   }

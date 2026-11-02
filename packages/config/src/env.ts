@@ -51,11 +51,12 @@ export const env = createEnv({
     CUSTOM_DOMAIN_CNAME: z.string().optional(),
     CUSTOM_DOMAIN_IP: z.ipv4().optional(),
 
-    // Email: Yandex Cloud Postbox (SMTP, API key with scope
-    // `yc.postbox.send`) first, Resend as the fallback. Neither: no mail.
-    POSTBOX_API_KEY_ID: z.string().optional(),
-    POSTBOX_API_KEY: z.string().optional(),
-    POSTBOX_SMTP_HOST: z.string().default("postbox.cloud.yandex.net"),
+    // Email: Yandex Cloud Postbox (HTTP API, static access key of a service
+    // account with `postbox.sender`) first, Resend as the fallback. Neither:
+    // no mail.
+    POSTBOX_ACCESS_KEY_ID: z.string().optional(),
+    POSTBOX_SECRET_ACCESS_KEY: z.string().optional(),
+    POSTBOX_ENDPOINT: z.url().default("https://postbox.cloud.yandex.net"),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
     EMAIL_SANDBOX_HOST: z.string().default("localhost"),
@@ -192,9 +193,9 @@ export const env = createEnv({
     PRACTICE_ROOT_DOMAIN: process.env.PRACTICE_ROOT_DOMAIN,
     CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
     CUSTOM_DOMAIN_IP: process.env.CUSTOM_DOMAIN_IP,
-    POSTBOX_API_KEY_ID: process.env.POSTBOX_API_KEY_ID,
-    POSTBOX_API_KEY: process.env.POSTBOX_API_KEY,
-    POSTBOX_SMTP_HOST: process.env.POSTBOX_SMTP_HOST,
+    POSTBOX_ACCESS_KEY_ID: process.env.POSTBOX_ACCESS_KEY_ID,
+    POSTBOX_SECRET_ACCESS_KEY: process.env.POSTBOX_SECRET_ACCESS_KEY,
+    POSTBOX_ENDPOINT: process.env.POSTBOX_ENDPOINT,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
     EMAIL_SANDBOX_ENABLED: process.env.EMAIL_SANDBOX_ENABLED === "true",
     EMAIL_SANDBOX_HOST: process.env.EMAIL_SANDBOX_HOST,
