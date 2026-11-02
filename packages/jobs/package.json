@@ -23,6 +23,10 @@
       "types": "./dist/booking-video.d.ts",
       "default": "./src/booking-video.ts"
     },
+    "./metrika": {
+      "types": "./dist/metrika.d.ts",
+      "default": "./src/metrika.ts"
+    },
     "./google-calendar": {
       "types": "./dist/google-calendar.d.ts",
       "default": "./src/google-calendar.ts"

@@ -4,11 +4,14 @@ import { legal } from "@synoro/config";
 import { Button } from "@synoro/ui";
 import {
   type CookieConsent,
+  clearCookies,
   readConsent,
   stopYandexMetrika,
   writeConsent,
 } from "@synoro/ui/cookie-consent";
 import { useEffect, useState } from "react";
+
+import { YCLID_COOKIE } from "./ad-click";
 
 /** Current analytics choice with a switch, for the cookie policy page. */
 export function CookieChoice({ counterId }: { counterId: number }) {
@@ -23,7 +26,10 @@ export function CookieChoice({ counterId }: { counterId: number }) {
 
   function choose(value: CookieConsent) {
     writeConsent(value, new URL(legal.siteUrl).hostname);
-    if (value === "declined") stopYandexMetrika(counterId);
+    if (value === "declined") {
+      stopYandexMetrika(counterId);
+      clearCookies(YCLID_COOKIE);
+    }
     setDeclined(value === "declined");
   }
 

@@ -88,6 +88,14 @@ export const SubscriptionPayment = pgTable(
      * The worker sends it, and sends it again after a failed delivery.
      */
     declineKind: declineKind(),
+    /**
+     * Where the specialist came from, read from their cookies when the
+     * payment started: the Yandex Direct click (`yclid`) and the Metrika
+     * visitor (`_ym_uid`). A paid first year goes back to Metrika as an
+     * offline conversion, so Direct can be paid per annual customer.
+     */
+    yclid: t.varchar({ length: 64 }),
+    ymClientId: t.varchar({ length: 32 }),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })

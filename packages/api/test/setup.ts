@@ -28,6 +28,9 @@ process.env.TOCHKA_API_TOKEN = "test-tochka-jwt";
 process.env.TOCHKA_CUSTOMER_CODE = "300000001";
 process.env.TOCHKA_TAX_SYSTEM = "usn_income";
 process.env.TOCHKA_API_URL = "https://tochka.test/uapi";
+// Metrika offline conversions are "configured"; tests stub fetch for it.
+process.env.METRIKA_COUNTER_ID = "12345678";
+process.env.METRIKA_OAUTH_TOKEN = "test-metrika-token";
 // Both messenger bots are "configured"; tests stub fetch for their APIs.
 process.env.TELEGRAM_BOT_TOKEN = "test-telegram-token";
 process.env.TELEGRAM_BOT_USERNAME = "synoro_test_bot";
