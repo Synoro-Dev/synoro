@@ -81,6 +81,7 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/auth/:path*",
-    "/((?!api|ingest|_next/static|_next/image|favicon.ico|icon.svg|apple-touch-icon.png).*)",
+    // `demo/`: the demo practice's photo, shown on its public booking page.
+    "/((?!api|ingest|_next/static|_next/image|demo/|favicon.ico|icon.svg|apple-touch-icon.png).*)",
   ],
 };

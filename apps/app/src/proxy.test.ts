@@ -21,6 +21,9 @@ describe("proxy matcher", () => {
     expect(matches("/api/domains/tls")).toBe(false);
     expect(matches("/_next/static/chunk.js")).toBe(false);
     expect(matches("/ingest/e/")).toBe(false);
+    // Public photos: a signed-out visitor of /p/<slug> must load them.
+    expect(matches("/demo/klyuev.jpg")).toBe(false);
+    expect(matches("/demonstration")).toBe(true);
   });
 });
 

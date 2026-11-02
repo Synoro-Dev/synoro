@@ -421,6 +421,8 @@ export async function seedDemoPractice(db: Database) {
       slug: "klyuev",
       timezone: TIME_ZONE,
       profession: "psychologist",
+      // The same photo on the booking page, from the app's public folder.
+      image: OWNER.image,
       bookingQuestions: QUESTIONS,
       // Visitors book the free intro themselves on the demo page too.
       freeBookingEnabled: true,

@@ -50,6 +50,7 @@ export const Practice = pgTable("practices", (t) => ({
   /**
    * Specialist's photo: the S3 key (`practices/<id>/avatar-<time>.jpg`), not a
    * URL. Served at `/p/<slug>/avatar.jpg`; see `practiceImageUrl` in `@synoro/api`.
+   * The demo seed stores a path from the app's `public/` instead (`/demo/…`).
    */
   image: t.text(),
   /**
