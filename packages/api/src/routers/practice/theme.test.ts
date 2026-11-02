@@ -140,7 +140,7 @@ describe("booking page theme", () => {
     const byAdmin = await setTheme(admin, practiceId, THEME).catch((e) => e);
     expect(isDefinedError(byAdmin) && byAdmin.code).toBe("PLAN_REQUIRED");
 
-    // Kept meanwhile, and the default look can always be saved.
+    // Kept meanwhile, and shown again once «Про» is paid — no saving anew.
     expect(
       await call(
         practiceRouter.theme,
@@ -148,14 +148,22 @@ describe("booking page theme", () => {
         { context: api.context(owner) },
       ),
     ).toEqual({ theme: THEME, pro: false });
-    await setTheme(owner, practiceId, DEFAULT_BOOKING_THEME);
 
     await api.db
       .update(Subscription)
       .set({ paidUntil: new Date(Date.now() + 86_400_000) })
       .where(eq(Subscription.userId, owner.user.id));
-    await setTheme(owner, practiceId, THEME);
     expect((await page("t-free")).theme).toEqual(THEME);
+  });
+
+  it("saves the default look without «Про»", async () => {
+    const { owner, practiceId } = await newPractice("t-reset");
+    await setTheme(owner, practiceId, THEME);
+    await endPro(owner);
+
+    const reset = await setTheme(owner, practiceId, DEFAULT_BOOKING_THEME);
+    expect(reset.theme).toEqual(DEFAULT_BOOKING_THEME);
+    expect((await page("t-reset")).theme).toEqual(DEFAULT_BOOKING_THEME);
   });
 
   it("shows a preset dropped since saving as its default", async () => {
