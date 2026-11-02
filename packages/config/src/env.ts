@@ -116,6 +116,13 @@ export const env = createEnv({
       .enum(["osn", "usn_income", "usn_income_outcome", "esn", "patent"])
       .optional(),
 
+    // Yandex Direct pays per annual customer (docs/direct.md): the first paid
+    // year goes to Metrika as the offline conversion `paid_year`. The counter
+    // and an OAuth token of the counter's owner (scope metrika:write). Unset
+    // either: nothing is sent.
+    METRIKA_COUNTER_ID: z.coerce.number().int().positive().optional(),
+    METRIKA_OAUTH_TOKEN: z.string().optional(),
+
     // Google Calendar sync: OAuth client (type "Web application") with the
     // redirect URI <APP_URL>/api/google-calendar/callback and the Calendar
     // API enabled. Tokens are encrypted with PAYMENTS_SECRET_KEY. Unset:
@@ -198,6 +205,8 @@ export const env = createEnv({
     TOCHKA_API_URL: process.env.TOCHKA_API_URL,
     TOCHKA_SANDBOX: process.env.TOCHKA_SANDBOX === "true",
     TOCHKA_TAX_SYSTEM: process.env.TOCHKA_TAX_SYSTEM,
+    METRIKA_COUNTER_ID: process.env.METRIKA_COUNTER_ID,
+    METRIKA_OAUTH_TOKEN: process.env.METRIKA_OAUTH_TOKEN,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
     TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,

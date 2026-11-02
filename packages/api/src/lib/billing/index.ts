@@ -17,6 +17,7 @@ import {
 import { PRO_PRICES, TRIAL_DAYS } from "@synoro/validators";
 
 import { ProviderError } from "../payments/types";
+import type { AdAttribution } from "./attribution";
 import {
   createTochkaPayment,
   fetchTochkaPayment,
@@ -140,6 +141,8 @@ export async function startSubscriptionPayment(
     user: { id: string; email: string };
     period: BillingPeriod;
     autorenew?: boolean;
+    /** The ad click and Metrika visitor, see `adAttribution`. */
+    attribution?: AdAttribution;
   },
 ) {
   const price = PRO_PRICES[input.period];
@@ -151,6 +154,9 @@ export async function startSubscriptionPayment(
       period: input.period,
       amount: price.amount,
       autorenewConsentAt: input.autorenew ? new Date() : null,
+      yclid: input.attribution?.yclid,
+      yclidAt: input.attribution?.yclidAt,
+      ymClientId: input.attribution?.ymClientId,
     })
     .returning();
   if (!payment) throw new Error("Failed to insert subscription payment");
