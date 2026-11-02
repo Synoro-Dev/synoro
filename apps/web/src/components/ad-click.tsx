@@ -30,7 +30,10 @@ export function AdClick() {
         ? `; domain=.${shared}`
         : "";
     const secure = location.protocol === "https:" ? "; secure" : "";
-    document.cookie = `${YCLID_COOKIE}=${yclid}; max-age=${DAYS * 24 * 60 * 60}; path=/; samesite=lax${domain}${secure}`;
+    const attributes = `; max-age=${DAYS * 24 * 60 * 60}; path=/; samesite=lax${domain}${secure}`;
+    document.cookie = `${YCLID_COOKIE}=${yclid}${attributes}`;
+    // Metrika matches a click for 21 days only: keep when it happened.
+    document.cookie = `${YCLID_COOKIE}_at=${Math.floor(Date.now() / 1000)}${attributes}`;
   }, []);
 
   return null;

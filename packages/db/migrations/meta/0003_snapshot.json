@@ -1,5 +1,5 @@
 {
-  "id": "468a49b1-d3b8-4252-a82b-ba9978f56ec0",
+  "id": "c1b5d570-6322-45ba-b7ae-35f20e59025f",
   "prevId": "62759629-1487-487e-b46c-e394526874a1",
   "version": "7",
   "dialect": "postgresql",
@@ -711,6 +711,12 @@
         "yclid": {
           "name": "yclid",
           "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "yclid_at": {
+          "name": "yclid_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

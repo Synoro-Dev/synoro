@@ -95,6 +95,8 @@ export const SubscriptionPayment = pgTable(
      * offline conversion, so Direct can be paid per annual customer.
      */
     yclid: t.varchar({ length: 64 }),
+    /** When that click happened: Metrika matches a `yclid` for 21 days. */
+    yclidAt: t.timestamp({ withTimezone: true }),
     ymClientId: t.varchar({ length: 32 }),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t

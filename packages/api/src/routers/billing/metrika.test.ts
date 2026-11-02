@@ -100,22 +100,45 @@ describe("adAttribution", () => {
     });
     expect(adAttribution(headers)).toEqual({
       yclid: "98765_abc-D",
+      yclidAt: null,
       ymClientId: "1700000000123456789",
     });
+  });
+
+  it("reads when the click happened, unless that is not plausible", () => {
+    const now = new Date("2026-11-02T12:00:00Z");
+    const read = (at: string) =>
+      adAttribution(
+        new Headers({ cookie: `ad_yclid=42; ad_yclid_at=${at}` }),
+        now,
+      );
+    expect(read("1793000000").yclidAt).toEqual(new Date(1793000000 * 1000));
+    expect(read("1793620801").yclidAt).toBeNull();
+    expect(read("0").yclidAt).toBeNull();
+    expect(read("soon").yclidAt).toBeNull();
+    // A time without a click means nothing.
+    expect(
+      adAttribution(new Headers({ cookie: "ad_yclid_at=1793000000" }), now),
+    ).toEqual({ yclid: null, yclidAt: null, ymClientId: null });
   });
 
   it("ignores missing cookies and values of the wrong shape", () => {
     expect(adAttribution(new Headers())).toEqual({
       yclid: null,
+      yclidAt: null,
       ymClientId: null,
     });
     const headers = new Headers({
       cookie: `ad_yclid=${"1".repeat(65)}; _ym_uid=12ab`,
     });
-    expect(adAttribution(headers)).toEqual({ yclid: null, ymClientId: null });
+    expect(adAttribution(headers)).toEqual({
+      yclid: null,
+      yclidAt: null,
+      ymClientId: null,
+    });
     expect(
       adAttribution(new Headers({ cookie: "ad_yclid=a b; _ym_uid=" })),
-    ).toEqual({ yclid: null, ymClientId: null });
+    ).toEqual({ yclid: null, yclidAt: null, ymClientId: null });
   });
 });
 
@@ -126,7 +149,8 @@ describe("checkout", () => {
     const context = {
       ...api.context(session),
       headers: new Headers({
-        cookie: "_ym_uid=1700000000123456789; ad_yclid=555111",
+        cookie:
+          "_ym_uid=1700000000123456789; ad_yclid=555111; ad_yclid_at=1793000000",
       }),
     };
     const started = await call(
@@ -139,6 +163,7 @@ describe("checkout", () => {
     });
     expect(payment).toMatchObject({
       yclid: "555111",
+      yclidAt: new Date(1793000000 * 1000),
       ymClientId: "1700000000123456789",
     });
   });
@@ -149,7 +174,10 @@ describe("conversionCsv", () => {
     target: "paid_year",
     paidAt: new Date("2026-11-02T12:00:00Z"),
     amount: 1490_00,
+    yclidAt: null,
   };
+  const now = new Date("2026-11-02T13:00:00Z");
+  const DAY_MS = 24 * 60 * 60 * 1000;
 
   it("identifies the visit by the click, else by the visitor", () => {
     expect(conversionCsv({ ...base, yclid: "42", ymClientId: "7" })).toBe(
@@ -157,6 +185,21 @@ describe("conversionCsv", () => {
     );
     expect(conversionCsv({ ...base, yclid: null, ymClientId: "7" })).toBe(
       "ClientId,Target,DateTime,Price,Currency\n7,paid_year,1793620800,1490.00,RUB\n",
+    );
+  });
+
+  it("drops a click Metrika no longer matches for the visitor", () => {
+    const click = (days: number) => ({
+      ...base,
+      yclid: "42",
+      yclidAt: new Date(now.getTime() - days * DAY_MS),
+      ymClientId: "7",
+    });
+    expect(conversionCsv(click(20), now)).toStartWith("Yclid,");
+    expect(conversionCsv(click(22), now)).toStartWith("ClientId,");
+    // Nothing else to match by: the click is still the best try.
+    expect(conversionCsv({ ...click(30), ymClientId: null }, now)).toStartWith(
+      "Yclid,",
     );
   });
 
@@ -176,7 +219,7 @@ describe("reportPaidYears", () => {
     expect(await reportPaidYears(api.db)).toEqual({ sent: 1 });
     expect(uploads).toHaveLength(1);
     expect(uploads[0]).toMatchObject({
-      url: "https://api-metrika.yandex.net/management/v1/counter/12345678/offline_conversions/upload?comment=paid_year",
+      url: "https://api-metrika.yandex.net/management/v1/counter/12345678/offline_conversions/upload",
       authorization: "OAuth test-metrika-token",
     });
     expect(uploads[0]?.csv).toStartWith(
@@ -240,6 +283,19 @@ describe("reportPaidYears", () => {
     await reportPaidYears(api.db);
     expect(uploads).toHaveLength(1);
     expect(uploads[0]?.csv).toContain("second-click");
+  });
+
+  it("does not let the sent ones crowd out the later payments", async () => {
+    stubFetch();
+    const buyers = await Promise.all(Array.from({ length: 55 }, specialist));
+    for (const [index, userId] of buyers.entries()) {
+      await paid(userId, { yclid: `batch-${index}` });
+    }
+
+    expect(await reportPaidYears(api.db)).toEqual({ sent: 50 });
+    expect(await reportPaidYears(api.db)).toEqual({ sent: 5 });
+    expect(await reportPaidYears(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(55);
   });
 
   it("tries again after a failed upload", async () => {

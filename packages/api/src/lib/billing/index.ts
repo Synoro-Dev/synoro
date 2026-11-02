@@ -155,6 +155,7 @@ export async function startSubscriptionPayment(
       amount: price.amount,
       autorenewConsentAt: input.autorenew ? new Date() : null,
       yclid: input.attribution?.yclid,
+      yclidAt: input.attribution?.yclidAt,
       ymClientId: input.attribution?.ymClientId,
     })
     .returning();
