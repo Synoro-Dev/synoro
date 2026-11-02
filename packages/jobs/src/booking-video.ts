@@ -138,7 +138,10 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
 
 /**
  * After payment (or a credit) confirmed a booking, or staff booked a guest:
- * tell the client (a paid booking only) and the practice's staff.
+ * tell the client (a paid booking only) and the practice's staff. A free
+ * intro the client booked themselves gets no mail here — `booking.bookIntro`
+ * sends its link, with the video room — but the reminders already due are
+ * marked all the same, so none follows right after.
  */
 export async function notifyBookingConfirmed(
   db: Database,
@@ -149,13 +152,13 @@ export async function notifyBookingConfirmed(
     const [row] = await confirmedBookings(db).where(
       and(
         eq(Booking.id, bookingId),
-        eq(Booking.kind, "consultation"),
+        inArray(Booking.kind, CLIENT_KINDS),
         eq(Booking.status, "active"),
         isNull(Booking.holdUntil),
       ),
     );
     if (row) {
-      await send(deliver, row, "confirmed");
+      if (row.kind === "consultation") await send(deliver, row, "confirmed");
       // The confirmation names the time: reminders already due are covered.
       await markDueReminders(db, row);
     }

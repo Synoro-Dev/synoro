@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { Booking, eq, PracticeMember, user } from "@synoro/db";
+import type { TemplateEmail } from "@synoro/emails";
+import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { hashGuestToken } from "../../lib/guests";
@@ -248,6 +250,41 @@ describe("free intro booked by the visitor", () => {
         guest: visitor(owner.user.email, "+79005550006"),
       }),
     ).rejects.toMatchObject({ code: "SIGN_IN_REQUIRED" });
+  });
+});
+
+describe("intro notices", () => {
+  it("sends no confirmation, but marks reminders already due", async () => {
+    const { token } = await bookIntro(at("07:00", "2030-02-04"), {
+      guest: visitor("soon@visitor.test", "+79005550009"),
+    });
+    const booking = await api.db.query.Booking.findFirst({
+      where: eq(Booking.accessTokenHash, hashGuestToken(token)),
+    });
+    const id = booking?.id ?? "";
+    // As if it were booked for two hours from now.
+    const soon = Date.now() + 2 * 60 * 60 * 1000;
+    await api.db
+      .update(Booking)
+      .set({
+        startsAt: new Date(soon),
+        endsAt: new Date(soon + 30 * 60_000),
+        reminderDaySentAt: null,
+      })
+      .where(eq(Booking.id, id));
+
+    const sent: TemplateEmail[] = [];
+    await notifyBookingConfirmed(api.db, id, async (message) => {
+      sent.push(message);
+    });
+
+    // The client got the link from bookIntro; staff are told here.
+    expect(sent.map((m) => m.template)).toEqual(["staff-booking"]);
+    const after = await api.db.query.Booking.findFirst({
+      where: eq(Booking.id, id),
+    });
+    expect(after?.reminderDaySentAt).toBeInstanceOf(Date);
+    expect(after?.reminderHourSentAt).toBeNull();
   });
 });
 

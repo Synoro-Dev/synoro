@@ -20,6 +20,8 @@ import { BookingLegalNotice } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { BookingQuestionFields } from "./booking-question-fields";
 
+const SUBMIT = "Записаться бесплатно";
+
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
   return (
@@ -137,7 +139,7 @@ export function IntroBookingForm({
     <>
       <Button type="submit" size="lg" disabled={pending}>
         {pending && <Spinner />}
-        Записаться бесплатно
+        {SUBMIT}
       </Button>
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <GiftIcon className="mt-0.5 size-3 shrink-0" />
@@ -146,7 +148,7 @@ export function IntroBookingForm({
           почту: по ней её можно отменить.
         </span>
       </p>
-      <BookingLegalNotice />
+      <BookingLegalNotice action={SUBMIT} />
     </>
   );
 

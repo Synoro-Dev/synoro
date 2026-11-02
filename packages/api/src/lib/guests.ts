@@ -28,6 +28,8 @@ export async function sendBookingLink(input: {
   startsAt: Date;
   holdUntil: Date | null;
   intro?: string;
+  /** The video room, for an intro (a paid booking gets it once paid). */
+  videoUrl?: string | null;
   token: string;
 }) {
   try {
@@ -54,6 +56,7 @@ export async function sendBookingLink(input: {
             })
           : "",
         intro: input.intro ?? null,
+        videoUrl: input.videoUrl ?? null,
         bookingUrl: guestBookingUrl(input.token),
         cabinetUrl: cabinetUrl(),
       },

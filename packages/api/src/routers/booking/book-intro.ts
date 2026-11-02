@@ -229,7 +229,8 @@ export const bookIntro = publicProcedure
     if (!booking) throw new Error("Failed to insert booking");
 
     await exportBooking(context.db, booking.id);
-    // Staff hear about it; the client's mail is the link below.
+    // Staff hear about it (and due reminders are marked); the client's mail
+    // is the link below, with the video room — the booking has none yet.
     await notifyBookingConfirmed(context.db, booking.id);
     await sendBookingLink({
       email: person.email,
@@ -239,6 +240,7 @@ export const bookIntro = publicProcedure
       startsAt: booking.startsAt,
       holdUntil: null,
       intro: professionTerms(practice.profession).free,
+      videoUrl: practice.videoUrl,
       token,
     });
     track("intro_booked", person.userId, {

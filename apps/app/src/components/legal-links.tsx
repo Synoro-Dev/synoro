@@ -42,11 +42,20 @@ export function SignupLegalNotice({ className }: { className?: string }) {
   );
 }
 
-/** What a client agrees to by paying for a booking. */
-export function BookingLegalNotice({ className }: { className?: string }) {
+/**
+ * What a client agrees to by booking: `action` is the label of the button
+ * that books («Оплатить», «Записаться бесплатно»).
+ */
+export function BookingLegalNotice({
+  action = "Оплатить",
+  className,
+}: {
+  action?: string;
+  className?: string;
+}) {
   return (
     <p className={cn("text-xs text-muted-foreground", className)}>
-      Нажимая «Оплатить», вы принимаете{" "}
+      Нажимая «{action}», вы принимаете{" "}
       <LegalLink doc="bookingTerms">условия для клиентов</LegalLink> и даёте{" "}
       <LegalLink doc="consent">
         согласие на обработку персональных данных

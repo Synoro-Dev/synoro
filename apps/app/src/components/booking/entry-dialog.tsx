@@ -35,6 +35,7 @@ import {
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { matchClients, phoneDigits } from "./client-search";
 import {
   type Repeat,
   RepeatSelect,
@@ -56,31 +57,6 @@ export interface EntryDraft {
 }
 
 const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
-
-/** Digits only, a leading 8 read as 7: «8 (900) 123» → «7900123». */
-function phoneDigits(value: string) {
-  return value.replace(/\D/g, "").replace(/^8(?=\d{10}$)/, "7");
-}
-
-/**
- * Clients whose name contains `query`, or whose phone contains its digits
- * (three or more) — what a caller says first.
- */
-function matchClients<T extends { name: string; phone: string | null }>(
-  clients: T[],
-  query: string,
-) {
-  const text = query.trim().toLowerCase();
-  if (!text) return clients;
-  const digits = phoneDigits(query);
-  return clients.filter(
-    (c) =>
-      c.name.toLowerCase().includes(text) ||
-      (digits.length >= 3 &&
-        !!c.phone &&
-        phoneDigits(c.phone).includes(digits)),
-  );
-}
 
 function atMinute(date: string, minute: number) {
   const [y = 0, m = 1, d = 1] = date.split("-").map(Number);

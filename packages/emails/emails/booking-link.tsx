@@ -28,6 +28,7 @@ export default function BookingLinkEmail({
   when = "понедельник, 7 января, 10:00",
   holdUntil = "10:15",
   intro = null,
+  videoUrl = null,
   bookingUrl = "https://synoro.ru/b/token",
   cabinetUrl = "https://synoro.ru/bookings",
 }: {
@@ -39,6 +40,8 @@ export default function BookingLinkEmail({
   holdUntil: string;
   /** Name of the free intro booked, or null for a paid booking. */
   intro?: string | null;
+  /** The video room of a confirmed intro; null otherwise. */
+  videoUrl?: string | null;
   bookingUrl: string;
   cabinetUrl: string;
 }) {
@@ -62,6 +65,14 @@ export default function BookingLinkEmail({
                 ? `${intro} — бесплатно, запись подтверждена. Если планы изменятся, отмените её по ссылке ниже.`
                 : `Время удержано до ${holdUntil} — за это время нужно оплатить запись, после этого она подтвердится.`}
             </Text>
+            {videoUrl ? (
+              <Text className="text-[14px] leading-[24px] text-black">
+                Встреча пройдёт по видеосвязи: в назначенное время откройте{" "}
+                <Link href={videoUrl} className="text-black">
+                  {videoUrl}
+                </Link>
+              </Text>
+            ) : null}
             <Section className="mb-[32px] mt-[32px] text-center">
               <Button
                 className="rounded bg-[#000000] px-5 py-3 text-center text-[14px] font-semibold text-white no-underline"
