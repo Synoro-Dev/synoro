@@ -61,6 +61,21 @@ function dayLabel(key: string, options: Intl.DateTimeFormatOptions = {}) {
   });
 }
 
+/** «Москва» for Europe/Moscow — the zone named in words; the id if unknown. */
+function zoneName(timeZone: string) {
+  try {
+    const part = new Intl.DateTimeFormat("ru-RU", {
+      timeZone,
+      timeZoneName: "shortGeneric",
+    })
+      .formatToParts(new Date())
+      .find((p) => p.type === "timeZoneName");
+    return part?.value ?? timeZone;
+  } catch {
+    return timeZone;
+  }
+}
+
 /**
  * «10:00» in the practice's zone: the days come from the practice's calendar,
  * so the times on them do too — and that is the time a caller is told.
@@ -137,7 +152,8 @@ export function PracticeWindows({
       return;
     }
     const text = [
-      `Свободное время — ${practiceName} (${kindLabel}):`,
+      `Свободное время — ${practiceName} (${kindLabel}).`,
+      `Время — ${zoneName(timezone)}:`,
       ...lines,
     ].join("\n");
     try {
