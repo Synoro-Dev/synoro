@@ -314,7 +314,13 @@ function EntryForm({
                   }
                   className="pl-8"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    // A new search may hide the chosen client: never book
+                    // someone no longer on screen.
+                    setMemberId(null);
+                    setRepeat(null);
+                  }}
                 />
               </div>
               <div className="flex max-h-48 flex-col overflow-y-auto rounded-md border">
