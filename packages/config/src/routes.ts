@@ -6,6 +6,14 @@ const ROOTS = {
 } as const;
 
 export const paths = {
+  api: {
+    /**
+     * Where the auth handler lives. Not the library's default `/api/auth`, so
+     * the URL doesn't name it. Keep `proxy.ts`'s matcher (a literal) and the
+     * probes in `infra/synoro/*.yaml` in step.
+     */
+    auth: "/api/account",
+  },
   dashboard: {
     root: ROOTS.DASHBOARD,
   },

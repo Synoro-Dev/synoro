@@ -50,7 +50,7 @@ CI fails if `src/schema` has changes with no committed migration.
 
 ```
 apps/app            Next.js 16 App Router (RSC). Serves the API itself.
-  src/app/api/orpc  oRPC HTTP handler    src/app/api/auth  Better Auth handler
+  src/app/api/orpc  oRPC HTTP handler    src/app/api/account  Better Auth handler
   src/orpc/server.ts  RSC caller `api` (server-only)
   src/orpc/react.tsx  browser client + `orpc` TanStack Query utils
   src/proxy.ts      optimistic auth redirect (Next 16 "proxy", ex-middleware)
@@ -127,7 +127,7 @@ and run `tsc` by hand, build them first.
   PGlite tests (`createTestDb`) run the migrations, not the schema.
 - **Admin access**: the `admin` role from Better Auth's admin plugin
   (`authClient.admin.setRole`, bans, impersonation under
-  `/api/auth/admin/*`). `ADMIN_EMAILS` is the bootstrap list: those accounts
+  `/api/account/admin/*`). `ADMIN_EMAILS` is the bootstrap list: those accounts
   get the role on sign-up / sign-in and always pass `adminProcedure`. Role
   checks live in `@synoro/auth/roles` (no better-auth import — usable from
   `@synoro/api`).
