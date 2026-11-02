@@ -2,6 +2,7 @@ import { logger } from "@synoro/config";
 import { billingCheckoutSchema } from "@synoro/validators";
 
 import { billingAvailable, startSubscriptionPayment } from "../../lib/billing";
+import { adAttribution } from "../../lib/billing/attribution";
 import { ProviderError } from "../../lib/payments";
 import { protectedProcedure } from "../../orpc";
 
@@ -31,6 +32,7 @@ export const checkout = protectedProcedure
         user,
         period: input.period,
         autorenew: input.autorenew,
+        attribution: adAttribution(context.headers),
       });
     } catch (error) {
       if (!(error instanceof ProviderError)) throw error;

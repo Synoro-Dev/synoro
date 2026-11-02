@@ -10,6 +10,7 @@ export { hatchet } from "./client";
 export { googleCalendarCleanupWorkflow } from "./google-calendar-cleanup";
 export type { HelloWorldInput } from "./hello-world";
 export { helloWorldTask } from "./hello-world";
+export { metrikaConversionsWorkflow } from "./metrika-conversions";
 export type { ProcessDocumentInput } from "./multi-step";
 export { processDocumentWorkflow } from "./multi-step";
 export { proNoticesWorkflow } from "./pro-notices";
