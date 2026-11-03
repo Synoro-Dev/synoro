@@ -70,6 +70,10 @@ const getSession = cache(async () =>
 export async function requireAdmin() {
   const session = await getSession();
   if (!session) redirect("/login");
-  if (!isAdmin(session.user)) redirect("/forbidden");
+  // Verified, as in `adminProcedure`: a password sign-up on the app doesn't
+  // confirm the address, a code sign-in here does.
+  if (!session.user.emailVerified || !isAdmin(session.user)) {
+    redirect("/forbidden");
+  }
   return session;
 }

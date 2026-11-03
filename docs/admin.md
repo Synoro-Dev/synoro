@@ -6,7 +6,10 @@ platform, users, practices and «Про» payments. Read-only for now.
 ## Access
 
 - Admins are `ADMIN_EMAILS` and accounts with the `admin` role (`isAdmin` in
-  `@synoro/auth/roles`), the same rule as `adminProcedure`.
+  `@synoro/auth/roles`), the same rule as `adminProcedure`, and only with a
+  verified address: a password sign-up on the app doesn't confirm it (an
+  unregistered `ADMIN_EMAILS` address could be claimed that way), a code
+  sign-in does.
 - Sign-in is by a code from the mail only. The admin's Better Auth handler
   (`/api/account` on the admin host) mails codes to admins only; anyone else
   gets the same "code sent" answer and no mail, so the admin host doesn't

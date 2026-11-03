@@ -131,7 +131,8 @@ and run `tsc` by hand, build them first.
 - **Admin access**: the `admin` role from Better Auth's admin plugin
   (`authClient.admin.setRole`, bans, impersonation under
   `/api/account/admin/*`). `ADMIN_EMAILS` is the bootstrap list: those accounts
-  get the role on sign-up / sign-in and always pass `adminProcedure`. Role
+  get the role on sign-up / sign-in and pass `adminProcedure` once the
+  address is verified (a code sign-in verifies it). Role
   checks live in `@synoro/auth/roles` (no better-auth import — usable from
   `@synoro/api`).
   The admin site is its own app (`docs/admin.md`): `apps/admin`, procedures in

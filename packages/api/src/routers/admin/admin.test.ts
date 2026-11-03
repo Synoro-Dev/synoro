@@ -7,7 +7,11 @@ import {
   SubscriptionPayment,
 } from "@synoro/db";
 
-import { createSession, setupTestApi } from "../../../test/helpers";
+import {
+  ADMIN_EMAIL,
+  createSession,
+  setupTestApi,
+} from "../../../test/helpers";
 import { adminRouter } from ".";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
@@ -20,9 +24,14 @@ beforeAll(async () => {
 afterAll(() => api.close());
 
 describe("admin", () => {
-  it("refuses anyone but an admin", async () => {
+  it("refuses anyone but an admin with a verified address", async () => {
     const someone = await createSession(api.db);
-    for (const session of [null, someone]) {
+    // An ADMIN_EMAILS address claimed by a password sign-up, never confirmed.
+    const unverified = await createSession(api.db, {
+      email: ADMIN_EMAIL,
+      role: "admin",
+    });
+    for (const session of [null, someone, unverified]) {
       const promise = call(adminRouter.stats.overview, undefined, {
         context: api.context(session),
       });
@@ -33,7 +42,10 @@ describe("admin", () => {
   });
 
   it("lists users, practices and payments with the owner's plan", async () => {
-    const admin = await createSession(api.db, { role: "admin" });
+    const admin = await createSession(api.db, {
+      role: "admin",
+      emailVerified: true,
+    });
     const owner = await createSession(api.db, {
       name: "Анна 100%_Иванова",
       email: "anna-owner@test.local",
@@ -148,7 +160,10 @@ describe("admin", () => {
   });
 
   it("reports an unknown user as NOT_FOUND", async () => {
-    const admin = await createSession(api.db, { role: "admin" });
+    const admin = await createSession(api.db, {
+      role: "admin",
+      emailVerified: true,
+    });
     const promise = call(
       adminRouter.users.byId,
       { id: "missing" },

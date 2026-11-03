@@ -92,7 +92,10 @@ describe("post.delete", () => {
   });
 
   it("lets users with the admin role delete, without ADMIN_EMAILS", async () => {
-    const admin = await createSession(api.db, { role: "admin" });
+    const admin = await createSession(api.db, {
+      role: "admin",
+      emailVerified: true,
+    });
     const post = await call(
       postRouter.create,
       { title: "By role", content: "Post" },
@@ -108,7 +111,10 @@ describe("post.delete", () => {
   });
 
   it("lets ADMIN_EMAILS accounts delete a post", async () => {
-    const admin = await createSession(api.db, { email: ADMIN_EMAIL });
+    const admin = await createSession(api.db, {
+      email: ADMIN_EMAIL,
+      emailVerified: true,
+    });
     const post = await call(
       postRouter.create,
       { title: "Doomed", content: "Post" },

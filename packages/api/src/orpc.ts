@@ -111,13 +111,18 @@ export const protectedProcedure = publicProcedure
  * bootstrap list. Listed accounts are also given the role on sign-up and on
  * sign-in (see `initAuth`), which is what the plugin's own /api/auth/admin/*
  * endpoints check; the email fallback covers sessions started before that.
+ *
+ * The address must be verified too: password sign-up doesn't confirm it, so
+ * an ADMIN_EMAILS address nobody registered yet could otherwise be claimed
+ * with a password. A sign-in by emailed code verifies it.
  */
 export const adminProcedure = protectedProcedure
   .errors({
     FORBIDDEN: { message: "Требуются права администратора" },
   })
   .use(({ context, next, errors }) => {
-    if (!isAdmin(context.session.user)) {
+    const { user } = context.session;
+    if (!user.emailVerified || !isAdmin(user)) {
       throw errors.FORBIDDEN();
     }
 
