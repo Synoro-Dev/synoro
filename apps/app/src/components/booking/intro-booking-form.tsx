@@ -58,7 +58,7 @@ export function IntroBookingForm({
   signedIn: boolean;
   needsPhone: boolean;
   questions: BookingQuestion[];
-  onBooked: (booking: { token: string; startsAt: Date }) => void;
+  onBooked: (booking: { token: string; startsAt: Date; endsAt: Date }) => void;
   onTaken: () => void;
 }) {
   const queryClient = useQueryClient();

@@ -157,6 +157,7 @@ export function PublicBooking({
   const [bookedIntro, setBookedIntro] = useState<{
     token: string;
     startsAt: Date;
+    endsAt: Date;
   } | null>(null);
   const [chosenKind, setChosenKind] = useState<Kind | null>(null);
   /** How many bookings the last booking made: more than one for a series. */
@@ -445,7 +446,13 @@ export function PublicBooking({
                 </h2>
                 <p className="first-letter:uppercase">
                   {formatDateTime(bookedIntro.startsAt)},{" "}
-                  {terms.free.toLowerCase()}, {introLength}
+                  {terms.free.toLowerCase()},{" "}
+                  {/* Its own length: the setting may change meanwhile. */}
+                  {formatMinutes(
+                    (bookedIntro.endsAt.getTime() -
+                      bookedIntro.startsAt.getTime()) /
+                      60_000,
+                  )}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Бесплатно. Ссылку на запись мы отправили на почту — по ней её

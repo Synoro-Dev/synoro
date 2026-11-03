@@ -32,9 +32,12 @@ export function PracticeFreeBooking({
   const queryClient = useQueryClient();
   const [on, setOn] = useState(enabled);
   const [minutes, setMinutes] = useState(introMinutes);
+  /** The length last saved, to go back to when a change fails. */
+  const [savedMinutes, setSavedMinutes] = useState(introMinutes);
   const save = useMutation({
     ...orpc.practice.setFreeBooking.mutationOptions(),
     onSuccess: async (result, input) => {
+      setSavedMinutes(result.introMinutes);
       toast.success(
         input.introMinutes !== undefined
           ? `«${terms.free}» длится ${formatMinutes(result.introMinutes)}`
@@ -46,7 +49,7 @@ export function PracticeFreeBooking({
     },
     onError: (error, input) => {
       if (input.enabled !== undefined) setOn(!input.enabled);
-      if (input.introMinutes !== undefined) setMinutes(introMinutes);
+      if (input.introMinutes !== undefined) setMinutes(savedMinutes);
       toast.error(error.message);
     },
   });
