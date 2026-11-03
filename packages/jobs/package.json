@@ -57,7 +57,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@hatchet-dev/typescript-sdk": "1.44.2",
+    "@hatchet-dev/typescript-sdk": "1.46.0",
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",
     "@synoro/emails": "workspace:*",

@@ -21,13 +21,13 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@orpc/server": "2.0.0-beta.47",
+    "@orpc/server": "2.0.0-beta.48",
     "@synoro/auth": "workspace:*",
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",
     "@synoro/jobs": "workspace:*",
     "@synoro/validators": "workspace:*",
-    "posthog-node": "^5.58.0",
+    "posthog-node": "^5.61.2",
     "zod": "4.6.7"
   },
   "devDependencies": {

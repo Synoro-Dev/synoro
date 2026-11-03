@@ -82,7 +82,7 @@ export const env = createEnv({
     // Demo stand only (demo.synoro.ru): every visitor is signed in as this
     // seeded `@example.com` account, and the sign-in pages are skipped. Never
     // set it on a deployment with real users.
-    DEMO_LOGIN_EMAIL: z.string().email().optional(),
+    DEMO_LOGIN_EMAIL: z.email().optional(),
     // Comma-separated extra origins allowed to call the auth API and to be
     // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
     AUTH_TRUSTED_ORIGINS: z
