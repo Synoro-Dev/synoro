@@ -16,18 +16,18 @@ import { professionPages, professionPath } from "~/lib/professions";
 
 import { Section } from "./primitives";
 
-/** `page` — the profession page (`/dlya/<slug>`) the chip leads to. */
+/** `page` — the profession page (`/solutions/<slug>`) the chip leads to. */
 const audience = [
-  { icon: BrainIcon, label: "Психологи", page: "psihologov" },
-  { icon: SparklesIcon, label: "Коучи", page: "kouchey" },
-  { icon: GraduationCapIcon, label: "Репетиторы", page: "repetitorov" },
-  { icon: ScaleIcon, label: "Юристы", page: "yuristov" },
-  { icon: AppleIcon, label: "Нутрициологи", page: "vrachey" },
-  { icon: MessageCircleIcon, label: "Логопеды", page: "vrachey" },
-  { icon: WalletIcon, label: "Финансовые консультанты", page: "yuristov" },
-  { icon: DumbbellIcon, label: "Тренеры", page: "trenerov" },
-  { icon: StethoscopeIcon, label: "Врачи частной практики", page: "vrachey" },
-  { icon: LanguagesIcon, label: "Преподаватели языков", page: "repetitorov" },
+  { icon: BrainIcon, label: "Психологи", page: "psychologists" },
+  { icon: SparklesIcon, label: "Коучи", page: "coaches" },
+  { icon: GraduationCapIcon, label: "Репетиторы", page: "tutors" },
+  { icon: ScaleIcon, label: "Юристы", page: "lawyers" },
+  { icon: AppleIcon, label: "Нутрициологи", page: "health" },
+  { icon: MessageCircleIcon, label: "Логопеды", page: "health" },
+  { icon: WalletIcon, label: "Финансовые консультанты", page: "lawyers" },
+  { icon: DumbbellIcon, label: "Тренеры", page: "trainers" },
+  { icon: StethoscopeIcon, label: "Врачи частной практики", page: "health" },
+  { icon: LanguagesIcon, label: "Преподаватели языков", page: "tutors" },
 ];
 
 const chip =

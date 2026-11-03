@@ -1,5 +1,5 @@
 /**
- * Landing pages for one profession each (`/dlya/<slug>`): the pages Yandex
+ * Landing pages for one profession each (`/solutions/<slug>`): the pages Yandex
  * Direct campaigns lead to (docs/direct-campaigns.md). The words follow the
  * profession profiles of the app (`PROFESSION_TERMS` in `@synoro/validators`):
  * the landing stays free of that dependency, so keep them in sync by hand.
@@ -9,7 +9,7 @@
  */
 
 export type ProfessionPage = {
-  /** `/dlya/<slug>`; also `utm_campaign` of the Direct campaign. */
+  /** `/solutions/<slug>`; also `utm_campaign` of the Direct campaign. */
   slug: string;
   /** The `Profession` of the app this page speaks for. */
   profile: "psychologist" | "coach" | "legal" | "tutor" | "trainer" | "health";
@@ -38,7 +38,7 @@ export type ProfessionPage = {
 
 export const professionPages: readonly ProfessionPage[] = [
   {
-    slug: "psihologov",
+    slug: "psychologists",
     profile: "psychologist",
     audience: "Психологи",
     title: "Онлайн-запись для психолога — бесплатно",
@@ -73,7 +73,7 @@ export const professionPages: readonly ProfessionPage[] = [
     },
   },
   {
-    slug: "kouchey",
+    slug: "coaches",
     profile: "coach",
     audience: "Коучи",
     title: "Онлайн-запись для коуча — бесплатно",
@@ -108,7 +108,7 @@ export const professionPages: readonly ProfessionPage[] = [
     },
   },
   {
-    slug: "yuristov",
+    slug: "lawyers",
     profile: "legal",
     audience: "Юристы и финансовые консультанты",
     title: "Онлайн-запись для юриста — бесплатно",
@@ -143,7 +143,7 @@ export const professionPages: readonly ProfessionPage[] = [
     },
   },
   {
-    slug: "repetitorov",
+    slug: "tutors",
     profile: "tutor",
     audience: "Репетиторы и преподаватели",
     title: "Онлайн-запись для репетитора — бесплатно",
@@ -178,7 +178,7 @@ export const professionPages: readonly ProfessionPage[] = [
     },
   },
   {
-    slug: "trenerov",
+    slug: "trainers",
     profile: "trainer",
     audience: "Тренеры",
     title: "Онлайн-запись для тренера — бесплатно",
@@ -213,7 +213,7 @@ export const professionPages: readonly ProfessionPage[] = [
     },
   },
   {
-    slug: "vrachey",
+    slug: "health",
     profile: "health",
     audience: "Врачи, логопеды и нутрициологи",
     title: "Онлайн-запись для врача, логопеда и нутрициолога",
@@ -255,4 +255,4 @@ export function professionPage(slug: string) {
 
 /** Path of the page on the landing, for links and the sitemap. */
 export const professionPath = (page: ProfessionPage) =>
-  `/dlya/${page.slug}` as const;
+  `/solutions/${page.slug}` as const;

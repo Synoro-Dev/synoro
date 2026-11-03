@@ -25,7 +25,7 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata(
-  props: PageProps<"/dlya/[profession]">,
+  props: PageProps<"/solutions/[profession]">,
 ): Promise<Metadata> {
   const page = professionPage((await props.params).profession);
   if (!page) return {};
@@ -50,7 +50,7 @@ export async function generateMetadata(
  * Yandex Direct campaign leads (docs/direct-campaigns.md).
  */
 export default async function ProfessionLandingPage(
-  props: PageProps<"/dlya/[profession]">,
+  props: PageProps<"/solutions/[profession]">,
 ) {
   const page = professionPage((await props.params).profession);
   if (!page) notFound();

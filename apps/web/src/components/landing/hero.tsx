@@ -7,7 +7,7 @@ import type { SiteLinks } from "~/lib/site";
 import { BookingDemo } from "./booking-demo";
 import { Container, display } from "./primitives";
 
-/** The home page's hero, or the one of a profession's page (`/dlya/<slug>`). */
+/** The home page's hero, or the one of a profession's page (`/solutions/<slug>`). */
 export function Hero({
   links,
   page,

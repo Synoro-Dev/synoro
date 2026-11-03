@@ -42,26 +42,26 @@
 | Показы              | Весь день, все устройства                                                                                   |
 | Мониторинг сайта    | Включить                                                                                                    |
 
-Каждая кампания ведёт на свою страницу лендинга `/dlya/<slug>`: заголовок,
+Каждая кампания ведёт на свою страницу лендинга `/solutions/<slug>`: заголовок,
 демо страницы записи, три пункта «как это работает» и первый вопрос FAQ
 написаны словами профессии (`apps/web/src/lib/professions.ts`). Ссылка
 объявления (`utm_campaign` — профиль кампании):
 
 ```text
-https://synoro.ru/dlya/<slug>?utm_source=yandex&utm_medium=cpc&utm_campaign=<профиль>&utm_content={ad_id}&utm_term={keyword}
+https://synoro.ru/solutions/<slug>?utm_source=yandex&utm_medium=cpc&utm_campaign=<профиль>&utm_content={ad_id}&utm_term={keyword}
 ```
 
-| Кампания              | Страница            | Отображаемая ссылка (до 20) |
-| --------------------- | ------------------- | --------------------------- |
-| `search-psychologist` | `/dlya/psihologov`  | `synoro.ru/psihologam`      |
-| `search-coach`        | `/dlya/kouchey`     | `synoro.ru/kouchey`         |
-| `search-legal`        | `/dlya/yuristov`    | `synoro.ru/yuristam`        |
-| `search-tutor`        | `/dlya/repetitorov` | `synoro.ru/repetitoram`     |
-| `search-trainer`      | `/dlya/trenerov`    | `synoro.ru/treneram`        |
-| `search-health`       | `/dlya/vrachey`     | `synoro.ru/vracham`         |
+| Кампания              | Страница                   | Отображаемая ссылка (до 20 знаков) |
+| --------------------- | -------------------------- | ---------------------------------- |
+| `search-psychologist` | `/solutions/psychologists` | `psychologists`                    |
+| `search-coach`        | `/solutions/coaches`       | `coaches`                          |
+| `search-legal`        | `/solutions/lawyers`       | `lawyers`                          |
+| `search-tutor`        | `/solutions/tutors`        | `tutors`                           |
+| `search-trainer`      | `/solutions/trainers`      | `trainers`                         |
+| `search-health`       | `/solutions/health`        | `health`                           |
 
-Отображаемая ссылка в Директе — просто подпись и может отличаться от
-адреса. Страница `vrachey` обслуживает и врачей, и логопедов, и нутрициологов;
+Отображаемая ссылка в Директе — подпись после домена (`synoro.ru/…`), она
+может отличаться от адреса. Страница `health` обслуживает и врачей, и логопедов, и нутрициологов;
 в ней нет обещаний про длительность приёма меньше часа — их добавим вместе с
 шагами «Услуги» и «Шаг сетки». Ссылки из списка профессий на главной ведут на
 те же страницы, а `/sitemap.xml` перечисляет их все.
