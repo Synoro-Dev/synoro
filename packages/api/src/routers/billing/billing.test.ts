@@ -432,7 +432,10 @@ describe("paying for «Про» through Точка", () => {
 describe("refunds", () => {
   let admin: Session;
   beforeAll(async () => {
-    admin = await createSession(api.db, { email: ADMIN_EMAIL });
+    admin = await createSession(api.db, {
+      email: ADMIN_EMAIL,
+      emailVerified: true,
+    });
   });
 
   /** Pays and settles a payment through the bank, as the webhook does. */

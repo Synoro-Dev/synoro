@@ -620,7 +620,10 @@ describe("switching auto-renewal off", () => {
 
   it("happens with a refund, which a subscription payment makes in the bank", async () => {
     tochka();
-    const admin = await createSession(api.db, { email: ADMIN_EMAIL });
+    const admin = await createSession(api.db, {
+      email: ADMIN_EMAIL,
+      emailVerified: true,
+    });
     const now = new Date();
     const session = await renewing(
       "refund-sub@test.local",

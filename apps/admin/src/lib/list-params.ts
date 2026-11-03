@@ -9,7 +9,8 @@ const first = (value: string | string[] | undefined) =>
 
 /** Within `pageInput` (`query` up to 200 chars), so a hand-edited URL can't fail it. */
 const MAX_QUERY = 200;
-const MAX_PAGE = 10_000;
+/** The last page whose offset is still a safe integer. */
+const MAX_PAGE = Math.floor(Number.MAX_SAFE_INTEGER / PAGE_SIZE) + 1;
 
 /** `?q=` and `?page=` (1-based) of an admin list, as API input. */
 export async function listParams(searchParams: SearchParams) {

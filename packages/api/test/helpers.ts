@@ -14,6 +14,7 @@ export async function createSession(
     name?: string;
     role?: string;
     phone?: string | null;
+    emailVerified?: boolean;
   } = {},
 ): Promise<Session> {
   const now = new Date();
@@ -24,6 +25,7 @@ export async function createSession(
       name: overrides.name ?? "Test User",
       email: overrides.email ?? `${crypto.randomUUID()}@test.local`,
       role: overrides.role ?? "user",
+      emailVerified: overrides.emailVerified ?? false,
       phone: overrides.phone === undefined ? "+79001234567" : overrides.phone,
     })
     .returning();
