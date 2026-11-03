@@ -56,6 +56,7 @@ function confirmedBookings(db: Database) {
       practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
+      seriesId: Booking.seriesId,
       reminderDaySentAt: Booking.reminderDaySentAt,
       reminderHourSentAt: Booking.reminderHourSentAt,
       videoUrl: Practice.videoUrl,
@@ -111,10 +112,12 @@ async function send(
     {
       userId: row.clientId,
       practiceId: row.practiceId,
-      // A series is cancelled as a whole, from the cabinet.
+      // A series is cancelled as a whole, from the cabinet — also when one
+      // of its meetings is the notice's subject (a new link, a reminder).
       cancelBookingId:
         notice !== "cancelled" &&
         series === undefined &&
+        row.seriesId === null &&
         clientMayCancel(row, Date.now())
           ? row.id
           : undefined,

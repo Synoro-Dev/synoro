@@ -748,6 +748,34 @@ describe("buttons under notices", () => {
     expect(await statusOf(booking.id)).toBe("active");
   });
 
+  it("offers no cancel for a meeting of a series", async () => {
+    bots();
+    const { owner, practiceId } = await newPractice("m-series");
+    const client = await newClient(practiceId, 2);
+    await startTelegram(
+      2101,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    await call(
+      bookingRouter.bookSeries,
+      { practiceId, startsAt: monday(5), intervalWeeks: 1, count: 2 },
+      { context: api.context(client) },
+    );
+    sent = [];
+
+    // A new room: one message per meeting, none of them with the button.
+    await call(
+      practiceRouter.setVideoUrl,
+      { practiceId, videoUrl: "https://meet.test/room" },
+      { context: api.context(owner) },
+    );
+    const links = sent.filter((s) => s.to === "2101");
+    expect(links.map((s) => s.buttons)).toEqual([
+      ["Войти на встречу"],
+      ["Войти на встречу"],
+    ]);
+  });
+
   it("cancels from MAX the same way", async () => {
     bots();
     const { practiceId } = await newPractice("m-max-press");
