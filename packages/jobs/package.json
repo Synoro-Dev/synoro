@@ -39,6 +39,10 @@
       "types": "./dist/messenger/index.d.ts",
       "default": "./src/messenger/index.ts"
     },
+    "./staff-agenda": {
+      "types": "./dist/staff-agenda.d.ts",
+      "default": "./src/staff-agenda.ts"
+    },
     "./workflow-messages": {
       "types": "./dist/workflow-messages.d.ts",
       "default": "./src/workflow-messages.ts"

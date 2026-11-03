@@ -9,6 +9,7 @@ import { join } from "./join";
 import { members } from "./members";
 import { mine } from "./mine";
 import { setFreeBooking } from "./set-free-booking";
+import { setNotifications } from "./set-notifications";
 import { setTheme } from "./set-theme";
 import { setVideoUrl } from "./set-video-url";
 import { theme } from "./theme";
@@ -26,6 +27,7 @@ export const practiceRouter = {
   acceptInvitation,
   setVideoUrl,
   setFreeBooking,
+  setNotifications,
   theme,
   setTheme,
 };

@@ -3,6 +3,7 @@ import { PostHog } from "posthog-node";
 
 /** Events the server reports; the browser's own come from posthog-js. */
 type ServerEvent =
+  | "booking_cancelled_from_messenger"
   | "booking_reserved"
   | "intro_booked"
   | "messenger_linked"

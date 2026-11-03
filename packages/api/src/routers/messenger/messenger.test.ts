@@ -10,8 +10,15 @@ import {
 } from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { eq, MessengerChat, PracticeMember, Subscription } from "@synoro/db";
+import {
+  Booking,
+  eq,
+  MessengerChat,
+  PracticeMember,
+  Subscription,
+} from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
+import { sendBookingReminders } from "@synoro/jobs/booking-video";
 import { deliverMessenger, dispatchNotice } from "@synoro/jobs/messenger";
 import type { Messenger } from "@synoro/validators";
 
@@ -31,6 +38,16 @@ let sent: {
   to: string;
   text: string;
   buttons: string[];
+  /** The action strings of the action buttons. */
+  actions: string[];
+}[] = [];
+
+/** Answers to button presses: the call and what it carried. */
+let answers: {
+  messenger: Messenger;
+  method: string;
+  notice?: string;
+  text?: string;
 }[] = [];
 
 /** Mondays, 10:00–13:00 MSK. */
@@ -46,13 +63,28 @@ function bots(status = 200) {
     const url = new URL(String(input));
     const body = JSON.parse(String(init?.body ?? "{}"));
     if (url.host === "telegram.test") {
+      const method = url.pathname.split("/").at(-1) ?? "";
+      if (method !== "sendMessage") {
+        answers.push({
+          messenger: "telegram",
+          method,
+          notice:
+            body.text && method === "answerCallbackQuery"
+              ? body.text
+              : undefined,
+          text: method === "editMessageText" ? body.text : undefined,
+        });
+        return Response.json({ ok: true, result: true });
+      }
+      const keyboard: { text: string; callback_data?: string }[] = (
+        body.reply_markup?.inline_keyboard ?? []
+      ).flat();
       sent.push({
         messenger: "telegram",
         to: String(body.chat_id),
         text: body.text,
-        buttons: (body.reply_markup?.inline_keyboard ?? [])
-          .flat()
-          .map((b: { text: string }) => b.text),
+        buttons: keyboard.map((b) => b.text),
+        actions: keyboard.flatMap((b) => b.callback_data ?? []),
       });
       return status === 200
         ? Response.json({ ok: true, result: {} })
@@ -65,13 +97,24 @@ function bots(status = 200) {
           );
     }
     if (url.host === "max.test") {
+      if (url.pathname === "/answers") {
+        answers.push({
+          messenger: "max",
+          method: "answers",
+          notice: body.notification,
+          text: body.message?.text,
+        });
+        return Response.json({ success: true });
+      }
+      const keyboard: { text: string; payload?: string }[] = (
+        body.attachments?.[0]?.payload.buttons ?? []
+      ).flat();
       sent.push({
         messenger: "max",
         to: url.searchParams.get("user_id") ?? "",
         text: body.text,
-        buttons: (body.attachments?.[0]?.payload.buttons ?? [])
-          .flat()
-          .map((b: { text: string }) => b.text),
+        buttons: keyboard.map((b) => b.text),
+        actions: keyboard.flatMap((b) => b.payload ?? []),
       });
       return Response.json({}, { status });
     }
@@ -194,6 +237,7 @@ beforeAll(async () => {
 afterEach(() => {
   fetchMock.mockReset();
   sent = [];
+  answers = [];
 });
 afterAll(async () => {
   fetchMock.mockRestore();
@@ -373,7 +417,7 @@ describe("notices in the messenger", () => {
     await startMax(1102, (await codeFor(owner, "max")).code);
     sent = [];
 
-    await call(
+    const booking = await call(
       bookingRouter.book,
       { practiceId, startsAt: monday(0) },
       { context: api.context(client) },
@@ -384,13 +428,15 @@ describe("notices in the messenger", () => {
         to: "1101",
         text: expect.stringContaining("Вы записаны\nАнна Иванова —"),
         // APP_URL is http://localhost in tests: the link goes into the text.
-        buttons: [],
+        buttons: ["Отменить запись"],
+        actions: [`cancel:${booking.id}`],
       },
       {
         messenger: "max",
         to: "1102",
         text: expect.stringContaining("Новая запись: Иван —"),
         buttons: [],
+        actions: [],
       },
     ]);
     expect(sent[0]?.text).toContain("Мои записи: http://");
@@ -514,5 +560,226 @@ describe("notices in the messenger", () => {
     expect(mails).toHaveLength(1);
     // Not the user's doing: the chat stays linked.
     expect((await chatOf(client.user.id))?.blockedAt).toBeNull();
+  });
+});
+
+describe("buttons under notices", () => {
+  /** A press in the Telegram chat `chatId`, on message `messageId`. */
+  const pressTelegram = (chatId: number, data: string, messageId = 10) =>
+    telegram({
+      callback_query: {
+        id: `cb-${messageId}`,
+        from: { id: chatId },
+        message: {
+          message_id: messageId,
+          chat: { id: chatId, type: "private" },
+        },
+        data,
+      },
+    });
+
+  const pressMax = (userId: number, payload: string) =>
+    max({
+      update_type: "message_callback",
+      callback: {
+        callback_id: `max-${payload}`,
+        payload,
+        user: { user_id: userId },
+      },
+    });
+
+  const creditsOf = async (session: Session) => {
+    const member = await api.db.query.PracticeMember.findFirst({
+      where: eq(PracticeMember.userId, session.user.id),
+    });
+    return member?.credits;
+  };
+
+  const statusOf = async (bookingId: string) =>
+    (
+      await api.db.query.Booking.findFirst({
+        where: eq(Booking.id, bookingId),
+      })
+    )?.status;
+
+  it("cancels from Telegram after «Да», with the credit back", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-press");
+    const client = await newClient(practiceId, 1);
+    await startTelegram(
+      1701,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: monday(0) },
+      { context: api.context(client) },
+    );
+    expect(await creditsOf(client)).toBe(0);
+    sent = [];
+
+    expect((await pressTelegram(1701, `cancel:${booking.id}`)).status).toBe(
+      200,
+    );
+    // The question comes as a new message; the notice stays as it was.
+    expect(sent).toEqual([
+      {
+        messenger: "telegram",
+        to: "1701",
+        text: expect.stringMatching(
+          /^Отменить запись\?\nАнна Иванова — .+\nЗанятие вернётся на баланс\.$/,
+        ),
+        buttons: ["Да, отменить", "Нет, оставить"],
+        actions: [`cancel!:${booking.id}`, "keep"],
+      },
+    ]);
+    expect(answers).toEqual([
+      { messenger: "telegram", method: "answerCallbackQuery" },
+    ]);
+    expect(await statusOf(booking.id)).toBe("active");
+
+    answers = [];
+    sent = [];
+    await pressTelegram(1701, `cancel!:${booking.id}`, 11);
+    expect(
+      await api.db.query.Booking.findFirst({
+        where: eq(Booking.id, booking.id),
+      }),
+    ).toMatchObject({
+      status: "cancelled",
+      cancelReason: "client",
+      cancelledById: client.user.id,
+    });
+    expect(await creditsOf(client)).toBe(1);
+    expect(answers.map((a) => a.text ?? a.method)).toEqual([
+      "answerCallbackQuery",
+      "Запись отменена.",
+    ]);
+    // And the usual cancellation notice.
+    expect(sent.map((s) => s.text)).toEqual([
+      expect.stringContaining("Запись отменена\nВы отменили запись"),
+    ]);
+
+    // Pressed again: nothing left to cancel.
+    answers = [];
+    await pressTelegram(1701, `cancel!:${booking.id}`, 11);
+    expect(answers.at(-1)?.text).toBe("Запись уже отменена или не найдена.");
+    expect(await creditsOf(client)).toBe(1);
+  });
+
+  it("keeps the booking on «Нет» and refuses other people's bookings", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-keep");
+    const client = await newClient(practiceId, 1);
+    const other = await newClient(practiceId);
+    await startTelegram(
+      1801,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    await startTelegram(
+      1802,
+      `/start ${(await codeFor(other, "telegram")).code}`,
+    );
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: monday(1) },
+      { context: api.context(client) },
+    );
+    answers = [];
+
+    await pressTelegram(1801, "keep", 20);
+    expect(answers.at(-1)?.text).toBe("Хорошо, запись остаётся.");
+
+    answers = [];
+    sent = [];
+    await pressTelegram(1802, `cancel:${booking.id}`);
+    await pressTelegram(1802, `cancel!:${booking.id}`);
+    expect(sent).toHaveLength(0);
+    expect(answers[0]?.notice).toBe("Запись уже отменена или не найдена.");
+    expect(await statusOf(booking.id)).toBe("active");
+
+    // A chat nobody linked, and a button nobody made.
+    answers = [];
+    await pressTelegram(1899, `cancel:${booking.id}`);
+    await pressTelegram(1801, "drop table");
+    expect(answers.map((a) => a.notice)).toEqual([
+      expect.stringContaining("больше не подключён"),
+      expect.stringContaining("больше не работает"),
+    ]);
+  });
+
+  it("offers no cancel within 24 hours and refuses a late press", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-late");
+    const client = await newClient(practiceId);
+    await startTelegram(
+      1901,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    const member = await api.db.query.PracticeMember.findFirst({
+      where: eq(PracticeMember.userId, client.user.id),
+    });
+    const startsAt = new Date(Date.now() + 30 * 60 * 1000);
+    const [booking] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "consultation",
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),
+        memberId: member?.id,
+        createdById: client.user.id,
+      })
+      .returning();
+    if (!booking) throw new Error("no booking");
+    sent = [];
+
+    await sendBookingReminders(api.db);
+    const reminder = sent.find((s) => s.to === "1901");
+    expect(reminder?.text).toStartWith("Напоминание: встреча через час");
+    expect(reminder?.actions).toEqual([]);
+
+    // An old button from the confirmation, pressed too late.
+    answers = [];
+    await pressTelegram(1901, `cancel:${booking.id}`);
+    expect(answers[0]?.notice).toStartWith(
+      "Отменить запись можно не позднее чем за 24 часа",
+    );
+    expect(await statusOf(booking.id)).toBe("active");
+  });
+
+  it("cancels from MAX the same way", async () => {
+    bots();
+    const { practiceId } = await newPractice("m-max-press");
+    const client = await newClient(practiceId, 1);
+    await startMax(2001, (await codeFor(client, "max")).code);
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: monday(2) },
+      { context: api.context(client) },
+    );
+    expect(sent.at(-1)?.actions).toEqual([`cancel:${booking.id}`]);
+    sent = [];
+    answers = [];
+
+    await pressMax(2001, `cancel:${booking.id}`);
+    expect(sent[0]).toMatchObject({
+      messenger: "max",
+      to: "2001",
+      buttons: ["Да, отменить", "Нет, оставить"],
+    });
+    // MAX needs no answer when there is nothing to say.
+    expect(answers).toEqual([]);
+
+    await pressMax(2001, `cancel!:${booking.id}`);
+    expect(answers).toEqual([
+      {
+        messenger: "max",
+        method: "answers",
+        notice: undefined,
+        text: "Запись отменена.",
+      },
+    ]);
+    expect(await creditsOf(client)).toBe(1);
   });
 });

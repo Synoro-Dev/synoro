@@ -50,6 +50,13 @@
       "when": 1793682201821,
       "tag": "0006_intro_minutes",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793718244709,
+      "tag": "0007_notification_settings",
+      "breakpoints": true
     }
   ]
 }

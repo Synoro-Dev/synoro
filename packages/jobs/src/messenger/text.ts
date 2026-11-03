@@ -1,5 +1,7 @@
 import type { TemplateEmail } from "@synoro/emails";
 
+import { describeDates } from "../when";
+import { actionData } from "./actions";
 import type { MessengerMessage } from "./bots";
 
 /**
@@ -13,7 +15,10 @@ type Props<T extends TemplateEmail["template"]> = Extract<
   { template: T }
 >["props"];
 
-function bookingNotice(p: Props<"booking-notice">): MessengerMessage {
+function bookingNotice(
+  p: Props<"booking-notice">,
+  cancelBookingId: string | undefined,
+): MessengerMessage {
   const series = (p.dates?.length ?? 0) > 1;
   const titles = {
     confirmed: "Вы записаны",
@@ -41,6 +46,12 @@ function bookingNotice(p: Props<"booking-notice">): MessengerMessage {
   const buttons: MessengerMessage["buttons"] = [];
   if (p.videoUrl && p.notice !== "cancelled") {
     buttons.push({ text: "Войти на встречу", url: p.videoUrl });
+  }
+  if (cancelBookingId && p.notice !== "cancelled" && !series) {
+    buttons.push({
+      text: "Отменить запись",
+      action: actionData({ kind: "cancel", bookingId: cancelBookingId }),
+    });
   }
   buttons.push({ text: "Мои записи", url: p.cabinetUrl });
   return { text: lines.join("\n"), buttons };
@@ -77,6 +88,46 @@ function staffBooking(p: Props<"staff-booking">): MessengerMessage {
   };
 }
 
+/**
+ * «Точно отменить?» after «Отменить запись»: the booking named again, what
+ * happens to the consultation, and the two answers.
+ */
+export function cancelPrompt(booking: {
+  id: string;
+  kind: string;
+  startsAt: Date;
+  practiceName: string;
+  timezone: string;
+}): MessengerMessage {
+  const { when } = describeDates([booking.startsAt], booking.timezone);
+  const lines = ["Отменить запись?", `${booking.practiceName} — ${when}.`];
+  if (booking.kind !== "free") lines.push("Занятие вернётся на баланс.");
+  return {
+    text: lines.join("\n"),
+    buttons: [
+      {
+        text: "Да, отменить",
+        action: actionData({ kind: "cancel-confirmed", bookingId: booking.id }),
+      },
+      { text: "Нет, оставить", action: actionData({ kind: "keep" }) },
+    ],
+  };
+}
+
+function staffAgenda(p: Props<"staff-agenda">): MessengerMessage {
+  const lines = p.meetings.map((m) =>
+    [
+      `${m.time} — ${m.clientName}`,
+      m.free ? " (бесплатная встреча)" : "",
+      m.clientPhone ? `, ${m.clientPhone}` : "",
+    ].join(""),
+  );
+  return {
+    text: `Расписание на завтра, ${p.date}\nПрактика «${p.practiceName}»\n\n${lines.join("\n")}`,
+    buttons: [{ text: "Открыть календарь", url: p.calendarUrl }],
+  };
+}
+
 function workflowMessage(p: Props<"workflow-message">): MessengerMessage {
   // One bot writes for every practice: say whose message it is.
   return {
@@ -87,14 +138,18 @@ function workflowMessage(p: Props<"workflow-message">): MessengerMessage {
 
 /**
  * The messenger version of `email`, or null for mails that only go by mail
- * (sign-in codes, «Про» notices and the like).
+ * (sign-in codes, «Про» notices and the like). A client's notice about a
+ * booking they may still cancel (`cancelBookingId`) gets «Отменить запись».
  */
 export function messengerMessage(
   email: TemplateEmail,
+  options: { cancelBookingId?: string } = {},
 ): MessengerMessage | null {
   switch (email.template) {
     case "booking-notice":
-      return bookingNotice(email.props);
+      return bookingNotice(email.props, options.cancelBookingId);
+    case "staff-agenda":
+      return staffAgenda(email.props);
     case "staff-booking":
       return staffBooking(email.props);
     case "workflow-message":
