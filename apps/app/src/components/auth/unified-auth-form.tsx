@@ -11,6 +11,7 @@ import {
   CardTitle,
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -402,9 +403,9 @@ export function UnifiedAuthForm({
                         />
                       </FormControl>
                       {signup && (
-                        <p className="text-xs text-muted-foreground">
+                        <FormDescription className="text-xs">
                           Не короче 8 символов
-                        </p>
+                        </FormDescription>
                       )}
                       <FormMessage />
                     </FormItem>

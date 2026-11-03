@@ -31,7 +31,7 @@ const questions = [
   },
   {
     q: "Нужно ли клиенту регистрироваться?",
-    a: "Нет. Чтобы записаться, клиенту достаточно оставить имя, телефон и почту — аккаунт и пароль не нужны, ссылка на запись придёт на почту. А если клиент захочет видеть все свои записи и сколько занятий осталось, он войдёт в кабинет по коду из письма.",
+    a: "Не всегда. Если у вас включена онлайн-оплата («Про»), клиент записывается и платит без аккаунта: достаточно имени, телефона и почты, ссылка на запись придёт на почту. Без онлайн-оплаты клиент входит по коду из письма — пароль не нужен. На бесплатную первую встречу, если вы её включили, клиент тоже записывается сам и без входа. Все свои записи и сколько занятий осталось клиент видит в кабинете.",
   },
   {
     q: "Как работают пакеты?",
@@ -55,7 +55,9 @@ const questions = [
   },
 ];
 
-export function Faq() {
+/** `first` replaces the generic opening question on a profession's page. */
+export function Faq({ first }: { first?: (typeof questions)[number] }) {
+  const items = first ? [first, ...questions.slice(1)] : questions;
   return (
     <Section
       id="faq"
@@ -69,7 +71,7 @@ export function Faq() {
         </Lead>
       </div>
       <Accordion className="border-t">
-        {questions.map((item) => (
+        {items.map((item) => (
           <AccordionItem key={item.q} value={item.q}>
             <AccordionTrigger className="py-5 text-base hover:no-underline">
               {item.q}
