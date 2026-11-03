@@ -205,8 +205,8 @@ and run `tsc` by hand, build them first.
 - **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
   cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
   in `apps/app` and `apps/web`, events via the `/ingest` rewrite in
-  `next.config.ts` (excluded from `proxy.ts`). Session replay is on in both apps, inputs masked; the app also masks all
-  text except on `demo.*` (clients' names and phones). Identify
+  `next.config.ts` (excluded from `proxy.ts`). Session replay is on in both apps, inputs masked, text
+  readable (also in the app and on `demo.*`). Identify
   by user id only (`~/lib/analytics`), never email/name/phone. Server events:
   `track()` in `packages/api/src/lib/analytics.ts` (add the name to
   `ServerEvent`). The key is a build arg (Dockerfiles, deploy.yml) _and_ must

@@ -3,8 +3,8 @@
  *
  * Events go to our own `/ingest` (rewritten to PostHog in next.config.ts), so
  * ad blockers don't drop them and the CSP needs no PostHog host. Session
- * replay is on, with inputs masked and, outside the demo stand, all text too:
- * the cabinet shows clients' names and phone numbers. Unset NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN — nothing is initialised.
+ * replay is on, with inputs masked and text left readable. Unset
+ * NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN — nothing is initialised.
  */
 import posthog from "posthog-js";
 
@@ -17,14 +17,7 @@ if (env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
     defaults: "2026-05-30",
     // Visitors get a profile only after `identify` (signed-in specialists).
     person_profiles: "identified_only",
-    session_recording: {
-      maskAllInputs: true,
-      // The cabinet shows clients' names and phones; the demo stand only
-      // has made-up data, so its text stays readable.
-      maskTextSelector: window.location.hostname.startsWith("demo.")
-        ? undefined
-        : "*",
-    },
+    session_recording: { maskAllInputs: true },
     respect_dnt: true,
   });
 }
