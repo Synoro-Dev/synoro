@@ -20,7 +20,7 @@ export const seriesInput = z.object({
 /**
  * The dates a recurring booking would take, each with whether it can be
  * booked (`free`) or why not, and the client's balance. `booking.slots`
- * covers 33 days at most; a series of 12 every other week spans almost six
+ * covers 35 days at most; a series of 12 every other week spans almost six
  * months.
  *
  * @example client.booking.seriesPreview({ practiceId, startsAt, intervalWeeks: 1, count: 8 })

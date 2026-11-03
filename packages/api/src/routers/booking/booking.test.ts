@@ -404,10 +404,10 @@ describe("practice", () => {
 });
 
 describe("booking.slots", () => {
-  it("accepts a month padded on both sides and rejects longer windows", async () => {
+  it("accepts a month padded two days on both sides and rejects longer windows", async () => {
     const { slots } = await call(
       bookingRouter.slots,
-      { practiceId, from: MONDAY, days: 33 },
+      { practiceId, from: MONDAY, days: 35 },
       { context: api.context() },
     );
     expect(slots).toHaveLength(15);
@@ -419,7 +419,7 @@ describe("booking.slots", () => {
     await expect(
       call(
         bookingRouter.slots,
-        { practiceId, from: MONDAY, days: 34 },
+        { practiceId, from: MONDAY, days: 36 },
         { context: api.context() },
       ),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });

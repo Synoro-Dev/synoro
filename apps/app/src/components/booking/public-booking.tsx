@@ -91,12 +91,12 @@ type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
 type Kind = "consultation" | "free";
 
-/** From today (or the 1st) to month end, with a day of padding on each side. */
+/** From today (or the 1st) to month end, with two days of padding each side. */
 function monthWindow(month: Date, today: string) {
   const first = dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
   const last = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
   const from = new Date(
-    Date.parse(`${first < today ? today : first}T00:00:00Z`) - 86_400_000,
+    Date.parse(`${first < today ? today : first}T00:00:00Z`) - 2 * 86_400_000,
   )
     .toISOString()
     .slice(0, 10);
@@ -104,8 +104,8 @@ function monthWindow(month: Date, today: string) {
     Math.round(
       (Date.parse(`${last}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
         86_400_000,
-    ) + 2;
-  return { from, days: Math.max(1, Math.min(33, days)) };
+    ) + 3;
+  return { from, days: Math.max(1, Math.min(35, days)) };
 }
 
 const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
@@ -1070,11 +1070,16 @@ export function PublicBooking({
             <div className="flex flex-col gap-1.5 sm:ml-auto sm:items-end">
               <div className="flex items-center gap-2">
                 <span>Время в поясе</span>
-                <TimeZoneSelect
-                  value={zone}
-                  onChange={changeZone}
-                  extra={[practice.timezone, browserZone]}
-                />
+                {/* The zone is the browser's: the server doesn't know it. */}
+                {hydrated ? (
+                  <TimeZoneSelect
+                    value={zone}
+                    onChange={changeZone}
+                    extra={[practice.timezone, browserZone]}
+                  />
+                ) : (
+                  <Skeleton className="h-8 w-40" />
+                )}
               </div>
               {hydrated && zone !== practice.timezone && (
                 <p suppressHydrationWarning>

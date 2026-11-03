@@ -128,6 +128,25 @@ describe("the zone a client books from", () => {
     expect(await clientTimezoneOf(token)).toBe("Asia/Novosibirsk");
   });
 
+  it("is given back on the visitor's booking page", async () => {
+    const { token } = await bookIntro(4, "Asia/Vladivostok");
+    const page = await call(
+      bookingRouter.guest,
+      { token },
+      { context: api.context() },
+    );
+    expect(page.clientTimezone).toBe("Asia/Vladivostok");
+  });
+
+  it("lets the slots be asked for 35 days, for the zone padding", async () => {
+    const { slots } = await call(
+      bookingRouter.slots,
+      { practiceId, from: "2030-01-05", days: 35 },
+      { context: api.context() },
+    );
+    expect(slots.length).toBeGreaterThan(0);
+  });
+
   it("is written canonically, and left out when unknown", async () => {
     const { token: lower } = await bookIntro(1, "europe/berlin");
     expect(await clientTimezoneOf(lower)).toBe("Europe/Berlin");

@@ -26,17 +26,24 @@ const snapshot = () => (picked === undefined ? readStored() : picked);
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  window.addEventListener("storage", listener);
+  // Another tab picked a zone: what it stored is the pick now.
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== STORAGE_KEY) return;
+    picked = undefined;
+    listener();
+  };
+  window.addEventListener("storage", onStorage);
   return () => {
     listeners.delete(listener);
-    window.removeEventListener("storage", listener);
+    window.removeEventListener("storage", onStorage);
   };
 }
 
 /**
  * The zone times are shown in: the one the visitor picked, else their
- * browser's. `setZone(null)` goes back to the browser's. The server knows no
- * pick, so the browser's zone is what the first render has.
+ * browser's. `picked` is the visitor's own pick (null: none on this origin).
+ * `setZone(null)` goes back to the browser's. The server knows no pick, so
+ * the browser's zone is what the first render has.
  */
 export function useDisplayZone() {
   const stored = useSyncExternalStore(subscribe, snapshot, () => null);
@@ -54,5 +61,5 @@ export function useDisplayZone() {
     for (const listener of listeners) listener();
   }
 
-  return { zone: stored ?? browserZone, browserZone, setZone };
+  return { zone: stored ?? browserZone, picked: stored, browserZone, setZone };
 }

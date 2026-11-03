@@ -31,19 +31,19 @@ describe("booking views", () => {
     expect(addDays("2026-03-28", 2)).toBe("2026-03-30");
   });
 
-  test("the slots window pads a day each side and skips past days", () => {
+  test("the slots window pads two days each side and skips past days", () => {
     expect(weekWindow("2026-11-09", "2026-11-03")).toEqual({
-      from: "2026-11-08",
-      days: 9,
+      from: "2026-11-07",
+      days: 11,
     });
     // This week, from Tuesday: Monday is gone.
     expect(weekWindow("2026-11-02", "2026-11-03")).toEqual({
-      from: "2026-11-02",
-      days: 8,
+      from: "2026-11-01",
+      days: 10,
     });
     expect(weekWindow("2026-11-02", "2026-11-08")).toEqual({
-      from: "2026-11-07",
-      days: 3,
+      from: "2026-11-06",
+      days: 5,
     });
   });
 

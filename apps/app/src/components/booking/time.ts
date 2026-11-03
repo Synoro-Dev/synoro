@@ -36,12 +36,30 @@ export function viewerTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * A formatter of zone names (`timeZoneName`) in `locale`, kept per zone: the
+ * zone list asks for hundreds, and building a formatter is the slow part.
+ * Only the formatter is kept; names and offsets are read for a date each time.
+ */
+function zoneFormatter(
+  locale: string,
+  timeZone: string | undefined,
+  timeZoneName: "shortGeneric" | "shortOffset",
+) {
+  const cacheKey = `${locale}|${timeZone ?? ""}|${timeZoneName}`;
+  let formatter = zoneFormatters.get(cacheKey);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, { timeZone, timeZoneName });
+    zoneFormatters.set(cacheKey, formatter);
+  }
+  return formatter;
+}
+
 /** A zone in words: «Москва» for Europe/Moscow (the viewer's when omitted). */
 export function viewerTimeZoneName(timeZone?: string) {
-  const part = new Intl.DateTimeFormat("ru-RU", {
-    timeZone,
-    timeZoneName: "shortGeneric",
-  })
+  const part = zoneFormatter("ru-RU", timeZone, "shortGeneric")
     .formatToParts(new Date())
     .find((p) => p.type === "timeZoneName");
   return part?.value ?? timeZone ?? viewerTimeZone();
@@ -49,10 +67,7 @@ export function viewerTimeZoneName(timeZone?: string) {
 
 /** «UTC+7» for Asia/Novosibirsk, «UTC» for UTC, «UTC+5:30». */
 function utcOffset(timeZone: string, at: Date) {
-  const part = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    timeZoneName: "shortOffset",
-  })
+  const part = zoneFormatter("en-US", timeZone, "shortOffset")
     .formatToParts(at)
     .find((p) => p.type === "timeZoneName");
   return (part?.value ?? "GMT").replace("GMT", "UTC").replace("−", "-");

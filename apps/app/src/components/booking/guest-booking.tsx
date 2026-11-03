@@ -37,8 +37,7 @@ const MAX_CHECKS = 48;
  */
 export function GuestBooking({ token }: { token: string }) {
   const queryClient = useQueryClient();
-  // The zone the visitor picked when booking, else their browser's.
-  const { zone } = useDisplayZone();
+  const { picked, browserZone } = useDisplayZone();
   const options = orpc.booking.guest.queryOptions({ input: { token } });
   const booking = useQuery({
     ...options,
@@ -64,6 +63,9 @@ export function GuestBooking({ token }: { token: string }) {
   });
 
   const data = booking.data;
+  // The pick made on this origin; else the zone the booking was made from (the
+  // visitor may have picked it on the practice's own domain), else the browser's.
+  const zone = picked ?? data?.clientTimezone ?? browserZone;
   const terms = professionTerms(data?.practice.profession ?? "other");
   const intro = data?.kind === "free";
 

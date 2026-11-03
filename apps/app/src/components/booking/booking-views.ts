@@ -37,12 +37,13 @@ export const weekDays = (start: string) =>
 
 /**
  * What `booking.slots` is asked for a week: from today (in the practice's
- * zone) or the Monday, to the Sunday, with a day of padding on each side —
- * the viewer's days may straddle the practice's.
+ * zone) or the Monday, to the Sunday, with two days of padding on each side —
+ * zones differ by up to 26 hours, so a slot of the practice's day D can fall
+ * on the viewer's D-2 or D+2.
  */
 export function weekWindow(start: string, today: string) {
-  const from = addDays(start < today ? today : start, -1);
-  return { from, days: Math.max(1, daysBetween(from, addDays(start, 6)) + 2) };
+  const from = addDays(start < today ? today : start, -2);
+  return { from, days: Math.max(1, daysBetween(from, addDays(start, 6)) + 3) };
 }
 
 /** «3–9 ноября», «27 октября – 2 ноября», across a new year with years. */

@@ -68,7 +68,7 @@ google_busy | past`, и баланс клиента (`previewSeries` в
 `packages/api/src/lib/series.ts`). Одним запросом: правила, записи практики в диапазоне
 всей серии (`activeBookingOverlaps`), занятость Google (`googleBusy`) —
 те же источники, что у `booking.slots`, только по выбранным датам, а не по
-всей сетке. `booking.slots` ограничен 33 днями, серия на 12 недель в него не
+всей сетке. `booking.slots` ограничен 35 днями, серия на 12 недель в него не
 помещается.
 
 ### `booking.bookSeries`
