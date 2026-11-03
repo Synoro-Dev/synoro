@@ -12,7 +12,9 @@ export const sendEmailTask = hatchet.task({
   name: "send-email",
   retries: 5,
   backoff: { factor: 2, maxSeconds: 300 },
-  executionTimeout: "30s",
+  // Room for a timed-out Postbox attempt (~15 s) and the Resend fallback
+  // (40 s), see packages/emails/send.ts.
+  executionTimeout: "60s",
   fn: async (rawInput) => {
     // Hatchet passes all inputs as JsonObject — cast to the expected shape.
     const input = rawInput as unknown as TemplateEmail;

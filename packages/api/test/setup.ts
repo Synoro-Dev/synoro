@@ -14,6 +14,8 @@ process.env.CUSTOM_DOMAIN_CNAME = "domains.pages.test";
 process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
 // Emails (the visitor's booking link) go nowhere in tests.
 process.env.EMAIL_SANDBOX_ENABLED = "false";
+process.env.POSTBOX_ACCESS_KEY_ID = "";
+process.env.POSTBOX_SECRET_ACCESS_KEY = "";
 process.env.RESEND_API_KEY = "";
 process.env.PAYMENTS_SECRET_KEY = "test-payments-secret-key-0123456789abcdef";
 // A local .env with a PostHog key must not make tests send events.

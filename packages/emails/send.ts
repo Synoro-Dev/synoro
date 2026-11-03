@@ -1,15 +1,43 @@
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
 import { render } from "@react-email/components";
 import { logger } from "@synoro/config";
 import nodemailer from "nodemailer";
-import type Mail from "nodemailer/lib/mailer";
 import type { ReactNode } from "react";
 import { Resend } from "resend";
 
 import { env } from "./env";
+import { type Provider, sendWithFallback } from "./fallback";
 
-export const resend = env.RESEND_API_KEY
-  ? new Resend(env.RESEND_API_KEY)
-  : null;
+const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
+
+// A half-configured Postbox fails every send instead of being left out: with
+// no Resend behind it the mail would otherwise be dropped without a retry.
+const postboxHalfConfigured =
+  !env.POSTBOX_ACCESS_KEY_ID !== !env.POSTBOX_SECRET_ACCESS_KEY;
+
+// Yandex Cloud Postbox through its SES v2-compatible HTTP API: a static
+// access key of a service account with the `postbox.sender` role. One
+// attempt, aborted after 15 s of the `send-email` task's 60 s, leaving
+// Resend time to send; retries are the task's job.
+const postbox =
+  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY
+    ? new SESv2Client({
+        endpoint: env.POSTBOX_ENDPOINT,
+        region: "ru-central1",
+        credentials: {
+          accessKeyId: env.POSTBOX_ACCESS_KEY_ID,
+          secretAccessKey: env.POSTBOX_SECRET_ACCESS_KEY,
+        },
+        maxAttempts: 1,
+        requestHandler: {
+          connectionTimeout: 5_000,
+          requestTimeout: 10_000,
+          // Without it a stalled request only logs a warning and never fails
+          // over to Resend.
+          throwOnRequestTimeout: true,
+        },
+      })
+    : null;
 
 export interface Emails {
   react: ReactNode;
@@ -24,50 +52,90 @@ export type EmailHtml = {
   to: string[];
   from?: string;
 };
-export const sendEmail = async (email: Emails) => {
+
+const providers: Provider<Required<EmailHtml>>[] = [];
+if (postboxHalfConfigured) {
+  providers.push({
+    name: "postbox",
+    send: () =>
+      Promise.reject(
+        new Error(
+          "postbox: set both POSTBOX_ACCESS_KEY_ID and POSTBOX_SECRET_ACCESS_KEY",
+        ),
+      ),
+  });
+}
+if (postbox) {
+  providers.push({
+    name: "postbox",
+    send: async (email) => {
+      // Postbox rejects senders it hasn't verified; Resend's onboarding
+      // address (the default EMAIL_FROM) never is.
+      if (email.from.includes("@resend.dev")) {
+        throw new Error("postbox: send from an address verified in Postbox");
+      }
+      // The signal covers the whole call, the response body included;
+      // requestTimeout only waits for the headers.
+      await postbox.send(
+        new SendEmailCommand({
+          FromEmailAddress: email.from,
+          Destination: { ToAddresses: email.to },
+          Content: {
+            Simple: {
+              Subject: { Data: email.subject, Charset: "UTF-8" },
+              Body: { Html: { Data: email.html, Charset: "UTF-8" } },
+            },
+          },
+        }),
+        { abortSignal: AbortSignal.timeout(15_000) },
+      );
+    },
+  });
+}
+if (resend) {
+  providers.push({
+    name: "resend",
+    send: async (email) => {
+      // With Postbox's ~15 s, inside the `send-email` task's 60 s.
+      const { error } = await resend.emails.send(email, {
+        signal: AbortSignal.timeout(40_000),
+      });
+      // Resend reports a refusal in `error` instead of throwing.
+      if (error) throw new Error(`${error.name}: ${error.message}`);
+    },
+  });
+}
+
+/** Postbox first, Resend if it fails (see `sendWithFallback`). */
+async function deliver(email: EmailHtml) {
+  const message = { ...email, from: email.from ?? env.EMAIL_FROM };
   if (env.EMAIL_SANDBOX_ENABLED) {
-    const mailOptions: Mail.Options = {
-      from: email.from ?? env.EMAIL_FROM,
-      to: email.to,
-      html: await render(email.react),
-      subject: email.subject,
-    };
     const transporter = nodemailer.createTransport({
       host: env.EMAIL_SANDBOX_HOST,
       secure: false,
       port: 2500,
     });
-    return transporter.sendMail(mailOptions);
+    await transporter.sendMail(message);
+    return;
   }
-  if (!resend) {
-    logger.warn("email.resend_not_configured", {
-      hint: "Add RESEND_API_KEY to .env for emails to work",
+  if (providers.length === 0) {
+    logger.warn("email.not_configured", {
+      hint: "Add the POSTBOX_* access key or RESEND_API_KEY to .env",
     });
-    return Promise.resolve();
+    return;
   }
-  const { error } = await resend.emails.send({
-    to: email.to,
-    from: email.from ?? env.EMAIL_FROM,
-    subject: email.subject,
-    react: email.react,
-  });
-  // Resend reports a refusal in `error` instead of throwing: raise it, so
-  // `send-email` fails and retries.
-  if (error) throw new Error(`resend: ${error.name}: ${error.message}`);
+  await sendWithFallback(providers, message, (provider, fallback, error) =>
+    logger.warn("email.provider_failed", {
+      provider,
+      fallback,
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  );
+}
+
+export const sendEmail = async (email: Emails) => {
+  const { react, ...rest } = email;
+  await deliver({ ...rest, html: await render(react) });
 };
 
-export const sendEmailHtml = async (email: EmailHtml) => {
-  if (!resend) {
-    logger.warn("email.resend_not_configured", {
-      hint: "Add RESEND_API_KEY to .env for emails to work",
-    });
-    return Promise.resolve();
-  }
-  const { error } = await resend.emails.send({
-    to: email.to,
-    from: email.from ?? env.EMAIL_FROM,
-    subject: email.subject,
-    html: email.html,
-  });
-  if (error) throw new Error(`resend: ${error.name}: ${error.message}`);
-};
+export const sendEmailHtml = (email: EmailHtml) => deliver(email);

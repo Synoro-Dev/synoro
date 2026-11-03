@@ -21,9 +21,11 @@
     "dev:email": "bun --env-file=../../.env run email dev -p 3002",
     "build": "tsdown && tsc --tsBuildInfoFile dist/.tsbuildinfo",
     "export": "email export",
+    "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1158.0",
     "@react-email/components": "1.0.12",
     "@synoro/config": "workspace:*",
     "nodemailer": "^10.2.1",
