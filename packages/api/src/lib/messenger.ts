@@ -15,14 +15,20 @@ import {
   sql,
 } from "@synoro/db";
 import {
+  answerPress,
   botLink,
+  cancelPrompt,
+  type MessengerMessage,
+  type MessengerPress,
   messengerConfigured,
+  parseAction,
   sendToChat,
   webhookSecret,
 } from "@synoro/jobs/messenger";
 import { MESSENGERS, type Messenger } from "@synoro/validators";
 
 import { track } from "./analytics";
+import { type CancelRefusal, cancelBookingAs, checkCancel } from "./bookings";
 
 /**
  * Linking a user to the Synoro bot in Telegram or MAX («Про»,
@@ -192,6 +198,120 @@ async function start(
   );
 }
 
+const PRESS_REPLIES = {
+  unknown: "Эта кнопка больше не работает. Откройте «Мои записи» в Synoro.",
+  unlinked:
+    "Этот чат больше не подключён к Synoro. Отменить запись можно в кабинете.",
+  cancelled: "Запись отменена.",
+  kept: "Хорошо, запись остаётся.",
+} as const;
+
+const REFUSALS: Record<CancelRefusal, string> = {
+  NOT_FOUND: "Запись уже отменена или не найдена.",
+  TOO_LATE:
+    "Отменить запись можно не позднее чем за 24 часа до начала — напишите специалисту.",
+};
+
+/** A plain text in place of the pressed message, its buttons gone. */
+const replaced = (text: string): MessengerMessage => ({ text, buttons: [] });
+
+/**
+ * Answers a press; a failure is only logged — what the press did (a
+ * cancellation) stands, and a retry of the update must not repeat it.
+ */
+async function answer(
+  messenger: Messenger,
+  press: MessengerPress,
+  reply: Parameters<typeof answerPress>[2],
+) {
+  try {
+    await answerPress(messenger, press, reply);
+  } catch (error) {
+    logger.warn("messenger.answer_failed", {
+      messenger,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * A press of an action button under a notice (`@synoro/jobs/messenger`
+ * actions). The chat stands for its linked user, who must be allowed the
+ * action like in the cabinet: «Отменить запись» asks «Точно?» in a new
+ * message, «Да, отменить» cancels by `cancelBookingAs` and «Нет» keeps it;
+ * either answer replaces the question.
+ */
+async function press(
+  db: Database,
+  messenger: Messenger,
+  pressed: MessengerPress,
+  data: string,
+) {
+  const action = parseAction(data);
+  if (!action) {
+    await answer(messenger, pressed, { notice: PRESS_REPLIES.unknown });
+    return;
+  }
+  const [chat] = await db
+    .select({ userId: MessengerChat.userId })
+    .from(MessengerChat)
+    .where(
+      and(
+        eq(MessengerChat.messenger, messenger),
+        eq(MessengerChat.chatId, pressed.chatId),
+      ),
+    );
+  if (!chat) {
+    await answer(messenger, pressed, { notice: PRESS_REPLIES.unlinked });
+    return;
+  }
+
+  switch (action.kind) {
+    case "keep":
+      await answer(messenger, pressed, {
+        replace: replaced(PRESS_REPLIES.kept),
+      });
+      return;
+    case "cancel": {
+      const check = await checkCancel(db, action.bookingId, chat.userId);
+      if ("refusal" in check) {
+        await answer(messenger, pressed, { notice: REFUSALS[check.refusal] });
+        return;
+      }
+      const practice = await db.query.Practice.findFirst({
+        where: eq(Practice.id, check.booking.practiceId),
+        columns: { name: true, timezone: true },
+      });
+      if (!practice) return;
+      await answer(messenger, pressed, {});
+      await sendToChat(
+        messenger,
+        pressed.chatId,
+        cancelPrompt({
+          ...check.booking,
+          practiceName: practice.name,
+          timezone: practice.timezone,
+        }),
+      );
+      return;
+    }
+    case "cancel-confirmed": {
+      const result = await cancelBookingAs(db, action.bookingId, chat.userId);
+      if ("refusal" in result) {
+        await answer(messenger, pressed, {
+          replace: replaced(REFUSALS[result.refusal]),
+        });
+        return;
+      }
+      track("booking_cancelled_from_messenger", chat.userId, { messenger });
+      await answer(messenger, pressed, {
+        replace: replaced(PRESS_REPLIES.cancelled),
+      });
+      return;
+    }
+  }
+}
+
 /** The platform's secret header matches ours (constant time). */
 function trusted(request: Request, header: string, messenger: Messenger) {
   const expected = webhookSecret(messenger);
@@ -243,12 +363,19 @@ interface TelegramUpdate {
     chat: TelegramChat;
     new_chat_member: { status: string };
   };
+  callback_query?: {
+    id: string;
+    from: { id: number };
+    message?: { message_id: number; chat: TelegramChat };
+    data?: string;
+  };
 }
 
 /**
  * Updates of the Telegram bot (`/api/telegram`, `setWebhook` with
  * `secret_token`): `/start <code>` links the chat, blocking the bot marks
- * it, restarting it clears the mark. Group chats are ignored.
+ * it, restarting it clears the mark, a button press runs its action. Group
+ * chats are ignored.
  */
 export function handleTelegramWebhook(
   request: Request,
@@ -260,6 +387,25 @@ export function handleTelegramWebhook(
     "x-telegram-bot-api-secret-token",
     async (raw) => {
       const update = (raw ?? {}) as TelegramUpdate;
+      const callback = update.callback_query;
+      if (callback) {
+        // The bot writes only in private chats, where the chat is the user.
+        const chat = callback.message?.chat;
+        if (chat && chat.type !== "private") return;
+        await press(
+          db,
+          "telegram",
+          {
+            callbackId: callback.id,
+            chatId: String(chat?.id ?? callback.from.id),
+            messageId: callback.message
+              ? String(callback.message.message_id)
+              : null,
+          },
+          callback.data ?? "",
+        );
+        return;
+      }
       const member = update.my_chat_member;
       if (member?.chat.type === "private") {
         const status = member.new_chat_member.status;
@@ -299,13 +445,18 @@ interface MaxUpdate {
     sender?: { user_id: number };
     recipient?: { chat_type?: string };
   };
+  callback?: {
+    callback_id: string;
+    payload?: string;
+    user: { user_id: number };
+  };
 }
 
 /**
  * Updates of the MAX bot (`/api/max`, `POST /subscriptions` with `secret`):
  * `bot_started` with the link's payload links the user, `bot_stopped`
- * marks them, a message in the dialog gets the how-to. The bot writes to
- * the MAX user id.
+ * marks them, a message in the dialog gets the how-to, a button press
+ * (`message_callback`) runs its action. The bot writes to the MAX user id.
  */
 export function handleMaxWebhook(
   request: Request,
@@ -338,6 +489,21 @@ export function handleMaxWebhook(
         if (sender && update.message?.recipient?.chat_type === "dialog") {
           await reply("max", String(sender.user_id), REPLIES.hello);
         }
+        return;
+      }
+      case "message_callback": {
+        const callback = update.callback;
+        if (!callback) return;
+        await press(
+          db,
+          "max",
+          {
+            callbackId: callback.callback_id,
+            chatId: String(callback.user.user_id),
+            messageId: null,
+          },
+          callback.payload ?? "",
+        );
         return;
       }
     }

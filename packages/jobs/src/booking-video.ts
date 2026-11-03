@@ -14,6 +14,7 @@ import {
   user,
 } from "@synoro/db";
 import type { BookingNotice } from "@synoro/emails";
+import { clientMayCancel } from "@synoro/validators";
 
 import { type Deliver, noticeSender } from "./messenger/deliver";
 import { notifyStaff } from "./staff-notices";
@@ -55,6 +56,7 @@ function confirmedBookings(db: Database) {
       practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
+      seriesId: Booking.seriesId,
       reminderDaySentAt: Booking.reminderDaySentAt,
       reminderHourSentAt: Booking.reminderHourSentAt,
       videoUrl: Practice.videoUrl,
@@ -107,7 +109,19 @@ async function send(
         free: row.kind === "free",
       },
     },
-    { userId: row.clientId, practiceId: row.practiceId },
+    {
+      userId: row.clientId,
+      practiceId: row.practiceId,
+      // A series is cancelled as a whole, from the cabinet — also when one
+      // of its meetings is the notice's subject (a new link, a reminder).
+      cancelBookingId:
+        notice !== "cancelled" &&
+        series === undefined &&
+        row.seriesId === null &&
+        clientMayCancel(row, Date.now())
+          ? row.id
+          : undefined,
+    },
   );
 }
 
@@ -378,7 +392,8 @@ export async function notifyVideoLinkChanged(
 
 /**
  * Reminders, with the video link when there is one: once when the meeting is
- * within a day, once when it is within the hour. The day reminder waits for
+ * within a day, once when it is within the hour — unless the practice turned
+ * them off (`practices.remind_clients`). The day reminder waits for
  * the practice's daytime (9:00–22:00); the hour reminder goes at once. A
  * reminder is claimed in the database before it is sent, so two workers (or
  * a retry) never send it twice; a failed send gives the claim back.
@@ -424,6 +439,7 @@ export async function sendBookingReminders(
             inArray(Booking.kind, CLIENT_KINDS),
             eq(Booking.status, "active"),
             isNull(Booking.holdUntil),
+            eq(Practice.remindClients, true),
             window.pending,
             gt(Booking.startsAt, window.from),
             lte(Booking.startsAt, window.until),

@@ -18,7 +18,8 @@ import { describeDates } from "./when";
 
 /**
  * Telling the specialist and the administrators of a practice that a booking
- * was made or cancelled. The one who did it is not told. Event-driven: the
+ * was made or cancelled, unless the practice turned it off
+ * (`practices.notify_staff`). The one who did it is not told. Event-driven: the
  * callers act once per booking (a conditional insert or update), so nothing
  * here needs deduplicating. Best effort — a mail failure is logged and never
  * undoes the booking.
@@ -52,6 +53,7 @@ export async function notifyStaff(
         holdUntil: Booking.holdUntil,
         practiceName: Practice.name,
         timezone: Practice.timezone,
+        notifyStaff: Practice.notifyStaff,
         clientName: client.name,
         clientPhone: client.phone,
       })
@@ -63,6 +65,7 @@ export async function notifyStaff(
     // An unpaid hold is not a booking yet, and its lapse is nobody's news.
     if (!row || row.kind === "blocked" || row.holdUntil !== null) return;
     if (notice === "booked" && row.status !== "active") return;
+    if (!row.notifyStaff) return;
 
     const actorId = notice === "booked" ? row.createdById : row.cancelledById;
     const staff = await db

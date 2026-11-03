@@ -1,11 +1,14 @@
 /**
  * Telegram and MAX notices («Про», docs/reminders.md): the bots
- * (`./bots`), the messenger text of each mail (`./text`) and picking the
- * channel of a notice (`./deliver`).
+ * (`./bots`), the messenger text of each mail (`./text`), the action
+ * buttons (`./actions`) and picking the channel of a notice (`./deliver`).
  */
+export { type MessengerAction, parseAction } from "./actions";
 export {
+  answerPress,
   botLink,
   type MessengerMessage,
+  type MessengerPress,
   messengerConfigured,
   sendToChat,
   webhookSecret,
@@ -17,3 +20,4 @@ export {
   noticeSender,
   type Recipient,
 } from "./deliver";
+export { cancelPrompt } from "./text";

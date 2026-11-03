@@ -31,6 +31,11 @@ import { messengerMessage } from "./text";
 export interface Recipient {
   userId: string;
   practiceId: string;
+  /**
+   * The booking the notice is about, when its client may still cancel it:
+   * the messenger message gets «Отменить запись» (the mail doesn't).
+   */
+  cancelBookingId?: string;
 }
 
 /**
@@ -184,7 +189,7 @@ export async function dispatchNotice(
   to?: Recipient,
   sendEmail: (email: TemplateEmail) => Promise<void> = dispatchEmail,
 ) {
-  const message = to ? messengerMessage(email) : null;
+  const message = to ? messengerMessage(email, to) : null;
   const chat = to && message ? await chatFor(db, to) : null;
   if (!to || !message || !chat) {
     await sendEmail(email);

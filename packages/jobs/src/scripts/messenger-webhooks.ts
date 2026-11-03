@@ -23,7 +23,7 @@ async function telegram(url: string) {
       body: JSON.stringify({
         url,
         secret_token: env.TELEGRAM_WEBHOOK_SECRET,
-        allowed_updates: ["message", "my_chat_member"],
+        allowed_updates: ["message", "my_chat_member", "callback_query"],
       }),
     },
   );
@@ -46,6 +46,7 @@ async function max(url: string) {
         "bot_stopped",
         "dialog_removed",
         "message_created",
+        "message_callback",
       ],
       secret: env.MAX_WEBHOOK_SECRET,
     }),

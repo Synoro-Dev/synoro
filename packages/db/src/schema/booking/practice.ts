@@ -86,6 +86,12 @@ export const Practice = pgTable("practices", (t) => ({
    * (missing keys are the default look); kept on the free plan, not shown.
    */
   bookingTheme: t.jsonb().$type<PracticeBookingTheme>().notNull().default({}),
+  /** Clients get reminders 24 h and 1 h before a meeting. */
+  remindClients: t.boolean().notNull().default(true),
+  /** Owner and administrators hear of bookings made and cancelled. */
+  notifyStaff: t.boolean().notNull().default(true),
+  /** Owner and administrators get tomorrow's bookings at 20:00, practice time. */
+  dailyAgenda: t.boolean().notNull().default(true),
   ownerId: t
     .text()
     .notNull()
