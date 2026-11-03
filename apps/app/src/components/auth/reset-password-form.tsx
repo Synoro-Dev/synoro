@@ -25,9 +25,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "~/auth/client";
 
+/** Better Auth's default `maxPasswordLength`. */
+const MAX_PASSWORD = 128;
+
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Пароль — не короче 8 символов"),
+    password: z
+      .string()
+      .min(8, "Пароль — не короче 8 символов")
+      .max(MAX_PASSWORD, `Пароль — не длиннее ${MAX_PASSWORD} символов`),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -53,6 +59,18 @@ export function ResetPasswordForm({
     },
   });
 
+  // The toast fades away, so it carries the way to a fresh link.
+  const showLinkError = () =>
+    toast.error(
+      "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
+      {
+        action: {
+          label: "Запросить новую ссылку",
+          onClick: () => router.push(paths.auth.forgotPassword),
+        },
+      },
+    );
+
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
       toast.error("Ссылка больше не работает. Запросите новую.");
@@ -66,17 +84,19 @@ export function ResetPasswordForm({
         token,
       });
       if (error) {
-        toast.error(
-          "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
-        );
+        if (error.code === "PASSWORD_TOO_LONG") {
+          toast.error(
+            `Пароль слишком длинный — не больше ${MAX_PASSWORD} символов.`,
+          );
+        } else {
+          showLinkError();
+        }
         return;
       }
       toast.success("Новый пароль сохранён. Теперь войдите.");
       router.push(paths.auth.login);
     } catch (_error) {
-      toast.error(
-        "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
-      );
+      showLinkError();
     } finally {
       setLoading(false);
     }
