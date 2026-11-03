@@ -75,6 +75,12 @@ export const Practice = pgTable("practices", (t) => ({
    */
   freeBookingEnabled: t.boolean().notNull().default(false),
   /**
+   * How long the free intro lasts, in minutes — one of `INTRO_MINUTES` in
+   * `@synoro/validators`. It starts on the half-hour grid whatever its
+   * length; intros already booked keep theirs.
+   */
+  introMinutes: t.integer().notNull().default(30),
+  /**
    * How the booking page looks («Про»): accent, typeface, corners, backdrop,
    * «about» line. Read through `readBookingTheme` in `@synoro/validators`
    * (missing keys are the default look); kept on the free plan, not shown.

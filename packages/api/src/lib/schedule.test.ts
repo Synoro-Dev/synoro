@@ -85,6 +85,27 @@ describe("computeSlots", () => {
     expect(slots[1]?.startsAt.toISOString()).toBe("2026-11-02T07:30:00.000Z");
   });
 
+  it("starts longer intros on the half hour and fits them in the rule", () => {
+    const slots = computeSlots({
+      rules,
+      busy: [],
+      from: MONDAY,
+      days: 1,
+      timeZone: MSK,
+      kind: "free",
+      introMinutes: 90,
+      now: LONG_AGO,
+    });
+    // 10:00–13:00 MSK: 90 minutes from 10:00, 10:30, 11:00, 11:30.
+    expect(iso(slots)).toEqual([
+      "2026-11-02T07:00:00.000Z",
+      "2026-11-02T07:30:00.000Z",
+      "2026-11-02T08:00:00.000Z",
+      "2026-11-02T08:30:00.000Z",
+    ]);
+    expect(slots[0]?.endsAt.toISOString()).toBe("2026-11-02T08:30:00.000Z");
+  });
+
   it("keeps paid slots on the hour when a rule starts at :30", () => {
     const slots = computeSlots({
       rules: [{ weekday: 1, startMinute: 630, endMinute: 780 }], // 10:30–13:00

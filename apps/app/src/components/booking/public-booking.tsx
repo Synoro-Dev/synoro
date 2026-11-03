@@ -29,6 +29,7 @@ import {
   capitalize,
   checkBookingAnswers,
   formatCredits,
+  formatMinutes,
   normalizePhone,
   professionTerms,
 } from "@synoro/validators";
@@ -184,6 +185,7 @@ export function PublicBooking({
   const [bookedIntro, setBookedIntro] = useState<{
     token: string;
     startsAt: Date;
+    endsAt: Date;
   } | null>(null);
   const [chosenKind, setChosenKind] = useState<Kind | null>(null);
   /** How many bookings the last booking made: more than one for a series. */
@@ -219,6 +221,7 @@ export function PublicBooking({
   });
   const needsPhone = !!me.data && !me.data.phone;
   const { questions } = info;
+  const introLength = formatMinutes(info.introMinutes);
   // Paid hours first; the intro when nothing else can be booked here.
   const kind: Kind = !info.freeBooking
     ? "consultation"
@@ -519,7 +522,7 @@ export function PublicBooking({
               <p className="text-sm text-muted-foreground">
                 Запись на {terms.creditAccusative}, 1 час
                 {info.freeBooking &&
-                  ` · ${terms.free.toLowerCase()} бесплатно, 30 минут`}
+                  ` · ${terms.free.toLowerCase()} бесплатно, ${introLength}`}
               </p>
             </div>
           </div>
@@ -587,7 +590,13 @@ export function PublicBooking({
                 </h2>
                 <p className="first-letter:uppercase">
                   {formatDateTime(bookedIntro.startsAt)},{" "}
-                  {terms.free.toLowerCase()}, 30 минут
+                  {terms.free.toLowerCase()},{" "}
+                  {/* Its own length: the setting may change meanwhile. */}
+                  {formatMinutes(
+                    (bookedIntro.endsAt.getTime() -
+                      bookedIntro.startsAt.getTime()) /
+                      60_000,
+                  )}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Бесплатно. Ссылку на запись мы отправили на почту — по ней её
@@ -662,6 +671,7 @@ export function PublicBooking({
                   <IntroBookingForm
                     practiceId={practice.id}
                     intro={terms.free}
+                    length={introLength}
                     startsAt={picked.startsAt}
                     signedIn={signedIn}
                     needsPhone={needsPhone}
@@ -781,7 +791,8 @@ export function PublicBooking({
                     {intro && (
                       // Under the tabs and the layout switch, a row of its own.
                       <p className="order-last w-full text-sm text-muted-foreground">
-                        30 минут, чтобы познакомиться. Один раз, без оплаты.
+                        {capitalize(introLength)}, чтобы познакомиться. Один
+                        раз, без оплаты.
                       </p>
                     )}
                   </>

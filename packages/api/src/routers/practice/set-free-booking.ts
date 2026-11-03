@@ -1,4 +1,5 @@
 import { eq, Practice } from "@synoro/db";
+import { introMinutesSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import {
@@ -7,17 +8,26 @@ import {
 } from "../../lib/practice-access";
 
 /**
- * Let visitors book the free intro themselves on the booking page
- * (`booking.bookIntro`), or stop it — owner only. Intros already booked stay;
- * staff book intros in the calendar either way.
+ * The free intro's settings — owner only. `enabled`: visitors book it
+ * themselves on the booking page (`booking.bookIntro`), or not; staff book
+ * intros in the calendar either way. `introMinutes`: how long new intros
+ * last (`INTRO_MINUTES`). Either may be left out; intros already booked stay
+ * as they are.
  *
  * @example client.practice.setFreeBooking({ practiceId, enabled: true })
+ * @example client.practice.setFreeBooking({ practiceId, introMinutes: 60 })
  */
 export const setFreeBooking = practiceProcedure
   .errors({
     FORBIDDEN: { message: "Бесплатную запись настраивает владелец практики" },
   })
-  .input(z.object({ practiceId: z.uuid(), enabled: z.boolean() }))
+  .input(
+    z.object({
+      practiceId: z.uuid(),
+      enabled: z.boolean().optional(),
+      introMinutes: introMinutesSchema.optional(),
+    }),
+  )
   .handler(async ({ context, input, errors }) => {
     const owner = await findOwnerMembership(
       context.db,
@@ -26,9 +36,17 @@ export const setFreeBooking = practiceProcedure
     );
     if (!owner) throw errors.FORBIDDEN();
 
-    await context.db
+    const [practice] = await context.db
       .update(Practice)
-      .set({ freeBookingEnabled: input.enabled })
-      .where(eq(Practice.id, owner.practiceId));
-    return { enabled: input.enabled };
+      .set({
+        freeBookingEnabled: input.enabled,
+        introMinutes: input.introMinutes,
+      })
+      .where(eq(Practice.id, owner.practiceId))
+      .returning({
+        enabled: Practice.freeBookingEnabled,
+        introMinutes: Practice.introMinutes,
+      });
+    if (!practice) throw errors.FORBIDDEN();
+    return practice;
   });

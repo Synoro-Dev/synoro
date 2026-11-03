@@ -6,9 +6,15 @@ phone.
 
 ## Free intro (`bookings.kind = 'free'`)
 
-The intro is 30 minutes on the half-hour grid, no payment. Its name follows
-the profession (`professionTerms(...).free`): «Знакомство», «Пробная
-тренировка», «Первичная консультация»…
+The intro starts on the half-hour grid (:00 or :30), no payment. It lasts
+`practices.intro_minutes` — 30 by default; the owner picks 30, 45, 60 or 90
+minutes (`INTRO_MINUTES` in `@synoro/validators`) next to the switch below,
+via `practice.setFreeBooking { introMinutes }`. A new length applies to new
+intros only: booked ones keep their `ends_at`. `computeSlots` takes it as
+`introMinutes`, separate from the half-hour step, so a 90-minute trial
+workout can still start at 10:30. Its name follows the profession
+(`professionTerms(...).free`): «Знакомство», «Пробная тренировка»,
+«Первичная консультация»…
 
 - **Staff** book it in the calendar or on «Свободные окна» for a guest with a
   name and a phone (`booking.bookFree`, no account). Always available.
@@ -72,8 +78,5 @@ new-entry dialog shows the viewer's time, like the calendar).
 
 ## Not done
 
-- The intro length is fixed at 30 minutes (`SLOT_MINUTES.free`); a
-  per-practice length (e.g. 60 minutes for a trial workout) would need a step
-  separate from the length in `computeSlots`.
 - No limit of intros per day, and no minimum notice before the start.
 - Once-per-person trusts the phone and email typed in; neither is verified.

@@ -22,14 +22,14 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1158.0",
-    "@aws-sdk/s3-request-presigner": "3.1158.0",
+    "@aws-sdk/client-s3": "3.1161.0",
+    "@aws-sdk/s3-request-presigner": "3.1161.0",
     "@synoro/config": "workspace:*"
   },
   "devDependencies": {
     "@synoro/tsconfig": "workspace:*",
     "@types/node": "26.6.6",
-    "tsdown": "0.23.3",
+    "tsdown": "0.23.4",
     "typescript": "7.0.2"
   }
 }

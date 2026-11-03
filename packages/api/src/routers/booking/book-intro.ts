@@ -34,7 +34,7 @@ import {
   findPractice,
   isStaff,
 } from "../../lib/practice-access";
-import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
+import { isScheduledSlot } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
 
 /**
@@ -109,11 +109,12 @@ export const bookIntro = publicProcedure
       startsAt: input.startsAt,
       timeZone: practice.timezone,
       kind: "free",
+      introMinutes: practice.introMinutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
     const endsAt = new Date(
-      input.startsAt.getTime() + SLOT_MINUTES.free * 60_000,
+      input.startsAt.getTime() + practice.introMinutes * 60_000,
     );
     if (
       await isBusyInGoogle(context.db, practice.id, {

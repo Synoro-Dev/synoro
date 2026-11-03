@@ -35,6 +35,7 @@ async function Windows({
           practiceId={practice.id}
           practiceName={practice.name}
           timezone={practice.timezone}
+          introMinutes={practice.introMinutes}
         />
       </main>
     </TermsProvider>
