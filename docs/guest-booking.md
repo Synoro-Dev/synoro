@@ -38,6 +38,14 @@ is required everywhere a person is booked or signs up for the cabinet.
 The free intro needs no payment: `booking.bookIntro` confirms it at once
 and mails the same `/b/<token>` link — see `docs/free-booking.md`.
 
+The page lays the free time out three ways, switched by the visitor
+(`components/booking/booking-views.ts`, `booking-week.tsx`): **Месяц** (a
+month of days, the hours of one), **Неделя** (a timetable of hours × seven
+days, half-hour times in the lower half of their hour) and **Столбцы**
+(seven day columns of times). The choice is remembered per browser
+(`localStorage` `synoro:booking-view`); a phone always gets the month. The
+week views ask `booking.slots` for one week with a day of padding.
+
 ## The visitor's cabinet
 
 `/bookings` (the existing client cabinet): contact card with the **required

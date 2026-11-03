@@ -17,8 +17,11 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
+  ToggleGroup,
+  ToggleGroupItem,
   toast,
 } from "@synoro/ui";
+import { useIsMobile } from "@synoro/ui/hooks";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
@@ -35,7 +38,12 @@ import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import {
   CalendarCheckIcon,
+  CalendarDaysIcon,
+  CalendarRangeIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CircleCheckIcon,
+  Columns3Icon,
   GiftIcon,
   GlobeIcon,
   LogInIcon,
@@ -44,7 +52,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
 import { LegalFooter } from "~/components/legal-links";
@@ -53,6 +61,16 @@ import { TopUpDialog } from "../payment/top-up-dialog";
 import { BookingQuestionFields } from "./booking-question-fields";
 import { bookingThemeAttributes } from "./booking-theme";
 import { BookingTicket } from "./booking-ticket";
+import {
+  addDays,
+  type BookingView,
+  formatWeekRange,
+  isBookingView,
+  weekDays,
+  weekStart,
+  weekWindow,
+} from "./booking-views";
+import { WeekColumns, WeekGrid, WeekSkeleton } from "./booking-week";
 import { displayFonts } from "./display-font";
 import { GuestBookingForm } from "./guest-booking-form";
 import { IntroBookingForm } from "./intro-booking-form";
@@ -88,6 +106,24 @@ function monthWindow(month: Date, today: string) {
 }
 
 const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
+
+/** Where the visitor's chosen view is remembered, per browser. */
+const VIEW_STORAGE_KEY = "synoro:booking-view";
+
+function readStoredView(): BookingView {
+  try {
+    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (isBookingView(stored)) return stored;
+  } catch {
+    // Storage is blocked (private mode, an iframe): the month it is.
+  }
+  return "month";
+}
+const monthView = (): BookingView => "month";
+// Read once per render: the choice is changed on this page only.
+const noStore = () => () => {};
+const yes = () => true;
+const no = () => false;
 
 /** Parts of the day the free times are grouped by, in the viewer's zone. */
 const DAY_PARTS = [
@@ -149,7 +185,21 @@ export function PublicBooking({
   const terms = professionTerms(practice.profession);
   const what = capitalize(terms.credit[0]);
   const today = dateKey(new Date(), practice.timezone);
+  const viewerToday = dateKey(new Date());
   const [month, setMonth] = useState(() => keyToDate(today));
+  /** The view picked on this visit; until then the one remembered. */
+  const [chosenView, setChosenView] = useState<BookingView | null>(null);
+  const storedView = useSyncExternalStore(noStore, readStoredView, monthView);
+  const view = chosenView ?? storedView;
+  // The server knows no stored view: slots wait for the browser's.
+  const hydrated = useSyncExternalStore(noStore, yes, no);
+  /** The Monday of the week shown by the week and column views. */
+  const [week, setWeek] = useState(() => weekStart(viewerToday));
+  // A week of seven columns doesn't fit a phone: there it is the month.
+  const isMobile = useIsMobile();
+  const shown: BookingView = isMobile ? "month" : view;
+  /** The layout `month` / `week` were last lined up for. */
+  const [laidOut, setLaidOut] = useState(shown);
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
@@ -235,7 +285,30 @@ export function PublicBooking({
     if (top < 0) panel.current?.scrollIntoView({ block: "start" });
   }
 
-  const range = monthWindow(month, today);
+  if (shown !== laidOut) {
+    // The width switched the layout (a turned phone, a narrowed window): keep
+    // the open booking form, or else the days that were in view, on screen.
+    setLaidOut(shown);
+    const anchor = picked
+      ? dateKey(picked.startsAt)
+      : shown === "month"
+        ? (weekDays(week).find((key) => key >= viewerToday) ?? week)
+        : (day ?? viewerToday);
+    setMonth(keyToDate(anchor));
+    setWeek(weekStart(anchor));
+    if (shown === "month") setDay(anchor);
+  }
+
+  const monthStart = dateKey(
+    new Date(month.getFullYear(), month.getMonth(), 1),
+  );
+  const monthEnd = dateKey(
+    new Date(month.getFullYear(), month.getMonth() + 1, 0),
+  );
+  const [rangeStart, rangeEnd] =
+    shown === "month" ? [monthStart, monthEnd] : [week, addDays(week, 6)];
+  const range =
+    shown === "month" ? monthWindow(month, today) : weekWindow(week, today);
   const slots = useQuery({
     ...orpc.booking.slots.queryOptions({
       input: {
@@ -246,25 +319,51 @@ export function PublicBooking({
       },
     }),
     placeholderData: (previous) => previous,
+    // Not the month's slots for a visitor who reads the week.
+    enabled: hydrated,
   });
 
   const byDay = new Map<string, Slot[]>();
-  const monthStart = dateKey(
-    new Date(month.getFullYear(), month.getMonth(), 1),
-  );
-  const monthEnd = dateKey(
-    new Date(month.getFullYear(), month.getMonth() + 1, 0),
-  );
-  const viewerToday = dateKey(new Date());
   for (const slot of slots.data?.slots ?? []) {
     const key = dateKey(slot.startsAt);
-    if (key < monthStart || key > monthEnd || key < viewerToday) continue;
+    if (key < rangeStart || key > rangeEnd || key < viewerToday) continue;
     byDay.set(key, [...(byDay.get(key) ?? []), slot]);
   }
   // Default to the first day with free time once slots arrive.
   const firstFree = [...byDay.keys()].sort()[0] ?? null;
   const selectedDay = day && byDay.has(day) ? day : firstFree;
   const daySlots = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+  const slotsDisabled =
+    // Times of the other tab (or range) while these load: an hour is not a
+    // half hour.
+    slots.isPlaceholderData || (intro ? isStaff : !canBook && !guestFlow);
+
+  /** Switches the layout, keeping the visitor on the same days. */
+  function changeView(next: BookingView) {
+    if (shown === "month" && next !== "month") {
+      setWeek(weekStart(selectedDay ?? viewerToday));
+    } else if (shown !== "month" && next === "month") {
+      setMonth(
+        keyToDate(
+          firstFree ?? weekDays(week).find((key) => key >= viewerToday) ?? week,
+        ),
+      );
+      setDay(firstFree);
+    }
+    setChosenView(next);
+    setLaidOut(next);
+    setPicked(null);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      // Not remembered: the next visit starts from the month.
+    }
+  }
+
+  function moveWeek(days: number) {
+    setWeek(addDays(week, days));
+    setPicked(null);
+  }
 
   const refresh = () =>
     Promise.all([
@@ -345,6 +444,81 @@ export function PublicBooking({
     picked &&
     pickedFree &&
     (intro ? !isStaff : guestFlow ? !!offer.data : canBook);
+
+  // What stands between the visitor and booking, over the times in any view.
+  const notices = (
+    <>
+      {picked && !pickedFree && (
+        <Alert variant="warning">
+          <AlertTitle>
+            Время {formatTime(picked.startsAt)} уже заняли
+          </AlertTitle>
+          <AlertDescription>Выберите другое.</AlertDescription>
+        </Alert>
+      )}
+
+      {isStaff ? (
+        <Alert variant="info">
+          <AlertTitle>Предпросмотр</AlertTitle>
+          <AlertDescription>Так страницу видят ваши клиенты.</AlertDescription>
+        </Alert>
+      ) : guestFlow || intro ? null : !signedIn ? (
+        <Alert variant="info">
+          <AlertTitle>Войдите, чтобы записаться</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            <span>Свободное время видно и без входа.</span>
+            <Button size="sm" nativeButton={false} render={cabinet}>
+              {bookingUrl ? "Войти и записаться" : "Войти"}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : !membership ? (
+        <Alert variant="info">
+          <AlertTitle>Станьте клиентом</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            <span>
+              {canPay
+                ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
+                : "Затем администратор добавит оплату."}
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {canPay && (
+                <Button size="sm" onClick={() => setTopUp(true)}>
+                  <WalletIcon />
+                  Оплатить {terms.credits}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant={canPay ? "outline" : "default"}
+                disabled={join.isPending}
+                onClick={() => join.mutate({ practiceId: practice.id })}
+              >
+                Стать клиентом
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ) : credits === 0 ? (
+        <Alert variant="warning">
+          <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            {canPay ? (
+              <>
+                <span>Пополните баланс, чтобы записаться.</span>
+                <Button size="sm" onClick={() => setTopUp(true)}>
+                  <WalletIcon />
+                  Пополнить баланс
+                </Button>
+              </>
+            ) : (
+              "Обратитесь к администратору, чтобы оплатить."
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+    </>
+  );
 
   return (
     <main
@@ -605,217 +779,261 @@ export function PublicBooking({
             </div>
           ) : (
             <>
-              {info.freeBooking && (
-                <div className="flex flex-col gap-2 border-b px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <Tabs
-                    value={kind}
-                    onValueChange={(value) => {
-                      setChosenKind(value as Kind);
-                      setPicked(null);
-                    }}
-                  >
-                    <TabsList>
-                      <TabsTrigger value="consultation">
-                        <CalendarCheckIcon />
-                        {what} · 1 час
-                      </TabsTrigger>
-                      <TabsTrigger value="free">
-                        <GiftIcon />
-                        {terms.free} · бесплатно
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  {intro && (
-                    <p className="text-sm text-muted-foreground">
-                      {capitalize(introLength)}, чтобы познакомиться. Один раз,
-                      без оплаты.
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="grid md:grid-cols-[auto_1fr]">
-                {/* Month */}
-                <section className="border-b p-6 md:border-r md:border-b-0">
+              {/* Kind of meeting and the layout; on a phone only the kind. */}
+              <div
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-4",
+                  !info.freeBooking && "max-md:hidden",
+                )}
+              >
+                {info.freeBooking ? (
+                  <>
+                    <Tabs
+                      className="max-sm:w-full"
+                      value={kind}
+                      onValueChange={(value) => {
+                        setChosenKind(value as Kind);
+                        setPicked(null);
+                      }}
+                    >
+                      {/* On a phone the tabs share the row and long names
+                          («Первичная консультация») wrap; the header above
+                          already says how long and what it costs. */}
+                      <TabsList className="max-sm:h-auto max-sm:w-full max-sm:items-stretch">
+                        <TabsTrigger
+                          value="consultation"
+                          className="max-sm:h-auto max-sm:min-w-0 max-sm:whitespace-normal"
+                        >
+                          <CalendarCheckIcon />
+                          {what}
+                          <span className="max-sm:hidden">· 1 час</span>
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="free"
+                          className="max-sm:h-auto max-sm:min-w-0 max-sm:whitespace-normal"
+                        >
+                          <GiftIcon />
+                          {terms.free}
+                          <span className="max-sm:hidden">· бесплатно</span>
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    {intro && (
+                      // Under the tabs and the layout switch, a row of its own.
+                      <p className="order-last w-full text-sm text-muted-foreground">
+                        {capitalize(introLength)}, чтобы познакомиться. Один
+                        раз, без оплаты.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Выберите удобное время
+                  </p>
+                )}
+                <ToggleGroup
+                  variant="outline"
+                  size="sm"
+                  value={[shown]}
+                  onValueChange={(value) => {
+                    const next = value[0];
+                    if (isBookingView(next)) changeView(next);
+                  }}
+                  aria-label="Вид расписания"
+                  className="hidden md:flex"
+                >
+                  <ToggleGroupItem value="month">
+                    <CalendarDaysIcon />
+                    Месяц
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="week">
+                    <CalendarRangeIcon />
+                    Неделя
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="columns">
+                    <Columns3Icon />
+                    Столбцы
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              {shown !== "month" ? (
+                <section className="flex min-h-80 flex-col gap-5 p-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <h2 className="font-display text-2xl font-medium tracking-tight">
+                      {formatWeekRange(week)}
+                    </h2>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Предыдущая неделя"
+                        disabled={week <= weekStart(viewerToday)}
+                        onClick={() => moveWeek(-7)}
+                      >
+                        <ChevronLeftIcon />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Следующая неделя"
+                        onClick={() => moveWeek(7)}
+                      >
+                        <ChevronRightIcon />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {notices}
+
                   {slots.isError ? (
                     <ErrorState onRetry={() => slots.refetch()} />
-                  ) : (
-                    <Calendar
-                      mode="single"
-                      locale={ru}
-                      weekStartsOn={1}
-                      month={month}
-                      onMonthChange={(next) => {
-                        setMonth(next);
-                        setPicked(null);
-                      }}
-                      startMonth={keyToDate(today)}
-                      selected={
-                        selectedDay ? keyToDate(selectedDay) : undefined
-                      }
-                      onSelect={(date) => {
-                        if (date) setDay(dateKey(date));
-                        setPicked(null);
-                      }}
-                      disabled={(date) => !byDay.has(dateKey(date))}
-                      formatters={{
-                        formatCaption: (date) =>
-                          capitalize(format(date, "LLLL yyyy", { locale: ru })),
-                      }}
-                      modifiers={{
-                        available: (date) => byDay.has(dateKey(date)),
-                      }}
-                      modifiersClassNames={{
-                        // A dot under each day with free time.
-                        available:
-                          "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary data-[selected=true]:after:bg-primary-foreground",
-                      }}
-                      className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
-                    />
-                  )}
-                </section>
-
-                {/* Times */}
-                <section className="flex min-h-80 flex-col gap-5 p-6">
-                  <h2 className="font-display text-2xl font-medium tracking-tight first-letter:uppercase">
-                    {selectedDay
-                      ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
-                          weekday: "long",
-                          day: "numeric",
-                          month: "long",
-                        })
-                      : "Свободное время"}
-                  </h2>
-
-                  {picked && !pickedFree && (
-                    <Alert variant="warning">
-                      <AlertTitle>
-                        Время {formatTime(picked.startsAt)} уже заняли
-                      </AlertTitle>
-                      <AlertDescription>Выберите другое.</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {isStaff ? (
-                    <Alert variant="info">
-                      <AlertTitle>Предпросмотр</AlertTitle>
-                      <AlertDescription>
-                        Так страницу видят ваши клиенты.
-                      </AlertDescription>
-                    </Alert>
-                  ) : guestFlow || intro ? null : !signedIn ? (
-                    <Alert variant="info">
-                      <AlertTitle>Войдите, чтобы записаться</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        <span>Свободное время видно и без входа.</span>
-                        <Button size="sm" nativeButton={false} render={cabinet}>
-                          {bookingUrl ? "Войти и записаться" : "Войти"}
-                        </Button>
-                      </AlertDescription>
-                    </Alert>
-                  ) : !membership ? (
-                    <Alert variant="info">
-                      <AlertTitle>Станьте клиентом</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        <span>
-                          {canPay
-                            ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
-                            : "Затем администратор добавит оплату."}
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {canPay && (
-                            <Button size="sm" onClick={() => setTopUp(true)}>
-                              <WalletIcon />
-                              Оплатить {terms.credits}
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant={canPay ? "outline" : "default"}
-                            disabled={join.isPending}
-                            onClick={() =>
-                              join.mutate({ practiceId: practice.id })
-                            }
-                          >
-                            Стать клиентом
-                          </Button>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  ) : credits === 0 ? (
-                    <Alert variant="warning">
-                      <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
-                      <AlertDescription className="flex flex-col items-start gap-2">
-                        {canPay ? (
-                          <>
-                            <span>Пополните баланс, чтобы записаться.</span>
-                            <Button size="sm" onClick={() => setTopUp(true)}>
-                              <WalletIcon />
-                              Пополнить баланс
-                            </Button>
-                          </>
-                        ) : (
-                          "Обратитесь к администратору, чтобы оплатить."
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  {slots.isPending && !slots.data ? (
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
-                      {["a", "b", "c", "d", "e", "f"].map((k) => (
-                        <Skeleton key={k} className="h-10" />
-                      ))}
-                    </div>
-                  ) : daySlots.length === 0 ? (
+                  ) : !slots.data || slots.isPlaceholderData ? (
+                    // The last range's times are not this week's.
+                    <WeekSkeleton />
+                  ) : byDay.size === 0 ? (
                     <div className="flex flex-col items-start gap-3">
                       <p className="text-sm text-muted-foreground">
-                        В этом месяце свободного времени нет.
+                        На этой неделе свободного времени нет.
                       </p>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {
-                          setMonth(
-                            new Date(month.getFullYear(), month.getMonth() + 1),
-                          );
-                          setPicked(null);
-                        }}
+                        onClick={() => moveWeek(7)}
                       >
-                        Следующий месяц
+                        Следующая неделя
                       </Button>
                     </div>
+                  ) : shown === "week" ? (
+                    <WeekGrid
+                      days={weekDays(week)}
+                      byDay={byDay}
+                      today={viewerToday}
+                      disabled={slotsDisabled}
+                      onPick={choose}
+                    />
                   ) : (
-                    <div className="flex flex-col gap-5">
-                      {byDayPart(daySlots).map((part) => (
-                        <div key={part.label} className="flex flex-col gap-2">
-                          <h3 className="text-sm text-muted-foreground">
-                            {part.label}
-                          </h3>
-                          <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
-                            {part.slots.map((slot) => (
-                              <Button
-                                key={slot.startsAt.toISOString()}
-                                variant="outline"
-                                size="lg"
-                                disabled={
-                                  // Times of the other tab (or month) while
-                                  // these load: an hour is not a half hour.
-                                  slots.isPlaceholderData ||
-                                  (intro ? isStaff : !canBook && !guestFlow)
-                                }
-                                onClick={() => choose(slot)}
-                                className="text-base tabular-nums"
-                              >
-                                {formatTime(slot.startsAt)}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <WeekColumns
+                      days={weekDays(week)}
+                      byDay={byDay}
+                      today={viewerToday}
+                      disabled={slotsDisabled}
+                      onPick={choose}
+                    />
                   )}
                 </section>
-              </div>
+              ) : (
+                <div className="grid md:grid-cols-[auto_1fr]">
+                  {/* Month */}
+                  <section className="border-b p-6 md:border-r md:border-b-0">
+                    {slots.isError ? (
+                      <ErrorState onRetry={() => slots.refetch()} />
+                    ) : (
+                      <Calendar
+                        mode="single"
+                        locale={ru}
+                        weekStartsOn={1}
+                        month={month}
+                        onMonthChange={(next) => {
+                          setMonth(next);
+                          setPicked(null);
+                        }}
+                        startMonth={keyToDate(today)}
+                        selected={
+                          selectedDay ? keyToDate(selectedDay) : undefined
+                        }
+                        onSelect={(date) => {
+                          if (date) setDay(dateKey(date));
+                          setPicked(null);
+                        }}
+                        disabled={(date) => !byDay.has(dateKey(date))}
+                        formatters={{
+                          formatCaption: (date) =>
+                            capitalize(
+                              format(date, "LLLL yyyy", { locale: ru }),
+                            ),
+                        }}
+                        modifiers={{
+                          available: (date) => byDay.has(dateKey(date)),
+                        }}
+                        modifiersClassNames={{
+                          // A dot under each day with free time.
+                          available:
+                            "[&>button]:font-semibold after:pointer-events-none after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary data-[selected=true]:after:bg-primary-foreground",
+                        }}
+                        className="mx-auto w-full bg-transparent p-0 [--cell-size:--spacing(10)] sm:[--cell-size:--spacing(11)]"
+                      />
+                    )}
+                  </section>
+
+                  {/* Times */}
+                  <section className="flex min-h-80 flex-col gap-5 p-6">
+                    <h2 className="font-display text-2xl font-medium tracking-tight first-letter:uppercase">
+                      {selectedDay
+                        ? keyToDate(selectedDay).toLocaleDateString("ru-RU", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          })
+                        : "Свободное время"}
+                    </h2>
+
+                    {notices}
+
+                    {slots.isPending && !slots.data ? (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                        {["a", "b", "c", "d", "e", "f"].map((k) => (
+                          <Skeleton key={k} className="h-10" />
+                        ))}
+                      </div>
+                    ) : daySlots.length === 0 ? (
+                      <div className="flex flex-col items-start gap-3">
+                        <p className="text-sm text-muted-foreground">
+                          В этом месяце свободного времени нет.
+                        </p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setMonth(
+                              new Date(
+                                month.getFullYear(),
+                                month.getMonth() + 1,
+                              ),
+                            );
+                            setPicked(null);
+                          }}
+                        >
+                          Следующий месяц
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-5">
+                        {byDayPart(daySlots).map((part) => (
+                          <div key={part.label} className="flex flex-col gap-2">
+                            <h3 className="text-sm text-muted-foreground">
+                              {part.label}
+                            </h3>
+                            <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+                              {part.slots.map((slot) => (
+                                <Button
+                                  key={slot.startsAt.toISOString()}
+                                  variant="outline"
+                                  size="lg"
+                                  disabled={slotsDisabled}
+                                  onClick={() => choose(slot)}
+                                  className="text-base tabular-nums"
+                                >
+                                  {formatTime(slot.startsAt)}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </div>
+              )}
             </>
           )}
 
