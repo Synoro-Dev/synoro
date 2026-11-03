@@ -87,6 +87,10 @@ describe("admin", () => {
       context,
     );
     expect(users.total).toBe(1);
+    for (const query of ["Анна%Иванова", "Анна 100__Иванова"]) {
+      const wildcard = await call(adminRouter.users.list, { query }, context);
+      expect(wildcard.total).toBe(0);
+    }
     const slashed = await call(
       adminRouter.users.list,
       { query: "k\\s" },
