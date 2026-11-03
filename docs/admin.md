@@ -9,8 +9,10 @@ platform, users, practices and «Про» payments. Read-only for now.
   `@synoro/auth/roles`), the same rule as `adminProcedure`.
 - Sign-in is by a code from the mail only. The admin's Better Auth handler
   (`/api/account` on the admin host) mails codes to admins only; anyone else
-  gets the same "code sent" answer and no mail, so the admin host creates no
-  accounts and doesn't reveal who is an admin. The handler serves only the
+  gets the same "code sent" answer and no mail, so the admin host doesn't
+  reveal who is an admin. Codes live in the shared database, so one mailed by
+  the app can still be redeemed here and sign up that address, as it would on
+  the app: the account gets no admin rights. The handler serves only the
   code sign-in, sign-out and health routes (`src/auth/paths.ts`): password
   sign-in and sign-up, which would skip the code, answer 404.
 - Users, sessions and the cookie are the app's: with `AUTH_COOKIE_DOMAIN`
