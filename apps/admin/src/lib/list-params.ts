@@ -7,11 +7,18 @@ export type SearchParams = Promise<
 const first = (value: string | string[] | undefined) =>
   Array.isArray(value) ? value[0] : value;
 
+/** Within `pageInput` (`query` up to 200 chars), so a hand-edited URL can't fail it. */
+const MAX_QUERY = 200;
+const MAX_PAGE = 10_000;
+
 /** `?q=` and `?page=` (1-based) of an admin list, as API input. */
 export async function listParams(searchParams: SearchParams) {
   const params = await searchParams;
-  const query = first(params.q)?.trim() || undefined;
-  const page = Math.max(1, Number.parseInt(first(params.page) ?? "", 10) || 1);
+  const query = first(params.q)?.trim().slice(0, MAX_QUERY) || undefined;
+  const page = Math.min(
+    MAX_PAGE,
+    Math.max(1, Number.parseInt(first(params.page) ?? "", 10) || 1),
+  );
   return {
     params,
     page,
