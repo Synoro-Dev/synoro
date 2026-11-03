@@ -7,7 +7,7 @@ export const profileFormSchema = z.object({
     .string()
     .min(2, "Имя пользователя должно содержать не менее 2 символов")
     .max(30, "Имя пользователя не должно быть длиннее 30 символов"),
-  email: z.string().email("Некорректный адрес электронной почты"),
+  email: z.string().email("Проверьте адрес почты — похоже, в нём опечатка"),
   phone: phoneSchema,
   bio: z.string().max(160, "О себе: не более 160 символов").optional(),
 });

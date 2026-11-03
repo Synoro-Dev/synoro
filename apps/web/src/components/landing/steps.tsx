@@ -9,7 +9,7 @@ const steps = [
   {
     icon: StoreIcon,
     title: "Создайте практику",
-    text: "Название, адрес страницы и часовой пояс. Это займёт пару минут.",
+    text: "Название, адрес страницы и часовой пояс. Это займёт несколько минут.",
     detail: `${brand.rootDomain}/p/anna`,
   },
   {
@@ -32,8 +32,7 @@ export function Steps() {
       <div className="flex flex-col gap-5 px-4 pt-16 pb-12 sm:px-10 sm:pt-24">
         <SectionHeading>Три шага до первой записи</SectionHeading>
         <Lead>
-          Без внедрения и обучения: всё настраивается за один вечер, а клиенты
-          разберутся с первого раза.
+          Без обучения и сложных настроек: клиенты разберутся с первого раза.
         </Lead>
       </div>
       <ol className="grid border-t md:grid-cols-3 md:divide-x">

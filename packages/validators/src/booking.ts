@@ -171,7 +171,7 @@ export const guestBookingFormSchema = z.object({
     .string()
     .trim()
     .min(1, "Укажите адрес электронной почты")
-    .email("Некорректный адрес электронной почты"),
+    .email("Проверьте адрес почты — похоже, в нём опечатка"),
   note: z.string().trim().max(500).optional(),
 });
 
@@ -179,7 +179,7 @@ export type GuestBookingFormInput = z.input<typeof guestBookingFormSchema>;
 export type GuestBookingFormValues = z.infer<typeof guestBookingFormSchema>;
 
 export const memberInviteFormSchema = z.object({
-  email: z.email("Некорректный адрес электронной почты"),
+  email: z.email("Проверьте адрес почты — похоже, в нём опечатка"),
   role: z.enum(["admin", "client"]),
 });
 

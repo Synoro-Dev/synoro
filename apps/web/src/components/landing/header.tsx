@@ -10,7 +10,7 @@ import { Logo } from "./logo";
 
 const nav = [
   { href: "#features", label: "Возможности" },
-  { href: "#domain", label: "Свой домен" },
+  { href: "#domain", label: "Свой адрес" },
   { href: "#how", label: "Как начать" },
   { href: "#pricing", label: "Тарифы" },
   { href: "#faq", label: "Вопросы" },
@@ -62,7 +62,7 @@ export function Header({ links }: { links: SiteLinks }) {
                 "rounded-full px-4",
               )}
             >
-              Демо
+              Посмотреть пример
             </a>
           )}
           <a
@@ -119,7 +119,7 @@ export function Header({ links }: { links: SiteLinks }) {
                   "col-span-2 rounded-full",
                 )}
               >
-                Открыть демо
+                Посмотреть пример
               </a>
             )}
             <a
@@ -135,7 +135,7 @@ export function Header({ links }: { links: SiteLinks }) {
               href={links.signup}
               className={cn(buttonVariants({ size: "lg" }), "rounded-full")}
             >
-              Начать
+              Начать бесплатно
             </a>
           </div>
         </div>

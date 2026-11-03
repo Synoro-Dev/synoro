@@ -144,7 +144,7 @@ export function BookingDemo() {
           </div>
           <p className="text-muted-foreground mt-4 flex items-center gap-1.5 text-xs">
             <GlobeIcon className="size-3.5" />
-            Время московское (UTC+3)
+            Время московское
           </p>
         </div>
 

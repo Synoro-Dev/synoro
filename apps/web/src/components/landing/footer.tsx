@@ -26,9 +26,10 @@ export function FinalCta({ links }: { links: SiteLinks }) {
           Начните принимать записи сегодня — бесплатно
         </SectionHeading>
         <p className="mx-auto mt-5 max-w-lg text-zinc-400 sm:text-lg">
-          Пять минут на настройку — и больше никаких «а есть окошко в четверг?».
-          А когда клиенты захотят платить онлайн, подключите ЮKassa — первые{" "}
-          {paidPlan.trialDays} дней «Про» бесплатно.
+          Настройка займёт несколько минут — и больше никаких «а есть окошко в
+          четверг?». А когда клиенты захотят платить онлайн, включите
+          онлайн-оплату в «{paidPlan.name}»: первые {paidPlan.trialDays} дней
+          бесплатно.
         </p>
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
           <a
@@ -49,7 +50,7 @@ export function FinalCta({ links }: { links: SiteLinks }) {
                 "h-11 rounded-full px-6 text-[15px] text-white ring-1 ring-white/15 hover:bg-white/10 hover:text-white",
               )}
             >
-              Демо-страница
+              Посмотреть пример
             </a>
           )}
         </div>
@@ -73,7 +74,7 @@ export async function Footer({ links }: { links: SiteLinks }) {
       title: "Продукт",
       items: [
         { href: "/#features", label: "Возможности" },
-        { href: "/#domain", label: "Свой домен" },
+        { href: "/#domain", label: "Свой адрес" },
         { href: "/#pricing", label: "Тарифы" },
         { href: "/#faq", label: "Вопросы" },
       ],
@@ -83,7 +84,9 @@ export async function Footer({ links }: { links: SiteLinks }) {
       items: [
         { href: links.login, label: "Войти" },
         { href: links.signup, label: "Регистрация" },
-        ...(links.demo ? [{ href: links.demo, label: "Демо-страница" }] : []),
+        ...(links.demo
+          ? [{ href: links.demo, label: "Посмотреть пример" }]
+          : []),
       ],
     },
     {

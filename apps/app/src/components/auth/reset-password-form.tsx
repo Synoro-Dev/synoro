@@ -27,7 +27,7 @@ import { authClient } from "~/auth/client";
 
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Пароль должен содержать не менее 8 символов"),
+    password: z.string().min(8, "Пароль — не короче 8 символов"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -55,7 +55,7 @@ export function ResetPasswordForm({
 
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
-      toast.error("Недействительная ссылка для сброса пароля");
+      toast.error("Ссылка больше не работает. Запросите новую.");
       return;
     }
 
@@ -65,11 +65,11 @@ export function ResetPasswordForm({
         newPassword: data.password,
         token,
       });
-      toast.success("Пароль успешно сброшен!");
+      toast.success("Новый пароль сохранён. Теперь войдите.");
       router.push(paths.auth.login);
     } catch (_error) {
       toast.error(
-        "Не удалось сбросить пароль. Возможно, срок действия ссылки истёк.",
+        "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
       );
     } finally {
       setLoading(false);
@@ -80,12 +80,10 @@ export function ResetPasswordForm({
     return (
       <Card {...props}>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">
-            Недействительная ссылка для сброса
-          </CardTitle>
+          <CardTitle className="text-xl">Ссылка больше не работает</CardTitle>
           <CardDescription>
-            Эта ссылка для сброса пароля недействительна или срок её действия
-            истёк.
+            Она устарела или уже использована. Запросите новую — это займёт
+            минуту.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,8 +101,10 @@ export function ResetPasswordForm({
   return (
     <Card {...props}>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">Сброс пароля</CardTitle>
-        <CardDescription>Введите новый пароль ниже.</CardDescription>
+        <CardTitle className="text-xl">Новый пароль</CardTitle>
+        <CardDescription>
+          Придумайте пароль — не короче 8 символов.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -131,7 +131,7 @@ export function ResetPasswordForm({
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Подтвердите пароль</FormLabel>
+                  <FormLabel>Повторите пароль</FormLabel>
                   <FormControl>
                     <PasswordInput
                       placeholder="••••••••"
@@ -144,7 +144,7 @@ export function ResetPasswordForm({
               )}
             />
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Сброс пароля…" : "Сбросить пароль"}
+              {loading ? "Сохранение…" : "Сохранить пароль"}
             </Button>
           </form>
         </Form>

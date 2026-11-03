@@ -40,9 +40,10 @@ export function Hero({ links }: { links: SiteLinks }) {
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-[34rem] text-lg text-pretty">
-            Онлайн-запись для частной практики: расписание, пакеты с
-            предоплатой, кабинет клиента и своя страница. Без таблиц и переписки
-            в мессенджерах — и бесплатно.
+            Онлайн-запись для психологов, репетиторов и других специалистов
+            частной практики: расписание, пакеты занятий с предоплатой, кабинет
+            клиента и своя страница. Без таблиц и переписки в мессенджерах — и
+            бесплатно.
           </p>
 
           <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -58,7 +59,7 @@ export function Hero({ links }: { links: SiteLinks }) {
             </a>
             {links.demo ? (
               <a href={links.demo} className={secondary}>
-                Открыть демо-страницу
+                Посмотреть пример
               </a>
             ) : (
               <a href="#pricing" className={secondary}>
@@ -67,12 +68,12 @@ export function Hero({ links }: { links: SiteLinks }) {
             )}
           </div>
           <p className="text-muted-foreground mt-5 text-sm">
-            Карта не нужна. Онлайн-оплата через ЮKassa —{" "}
+            Карта не нужна. Принимать оплату онлайн можно в «{paidPlan.name}»:{" "}
             <a
               href="#pricing"
               className="hover:text-foreground underline underline-offset-4 transition-colors"
             >
-              в «{paidPlan.name}», {paidPlan.trialDays} дней бесплатно
+              первые {paidPlan.trialDays} дней бесплатно
             </a>
           </p>
         </div>
