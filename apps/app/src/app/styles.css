@@ -52,6 +52,7 @@
   --sidebar: oklch(0.985 0.001 286);
   --sidebar-border: oklch(0.925 0.004 286);
   --sidebar-ring: var(--brand);
+  --sidebar-primary: var(--brand);
 }
 .dark {
   --brand: oklch(0.765 0.177 163.223);
@@ -59,6 +60,7 @@
   --brand-soft: oklch(0.262 0.051 172.552);
   --ring: var(--brand);
   --sidebar-ring: var(--brand);
+  --sidebar-primary: var(--brand);
 }
 
 @layer base {
@@ -67,6 +69,27 @@
   }
   body {
     letter-spacing: var(--tracking-normal);
+  }
+}
+
+/*
+ * Touch screens: every button and menu row in the consoles is at least
+ * 44px tall. The event calendar keeps its dense grid.
+ */
+@media (pointer: coarse) {
+  .touch-targets
+    :is(
+      [data-slot="button"],
+      [data-slot="sidebar-menu-button"],
+      [data-slot="tabs-trigger"]
+    ):not([data-slot="event-calendar"] *) {
+    min-height: 2.75rem;
+  }
+  .touch-targets
+    [data-slot="button"]:is([class*="size-6"], [class*="size-8"], [class*="size-9"]):not(
+      [data-slot="event-calendar"] *
+    ) {
+    min-width: 2.75rem;
   }
 }
 

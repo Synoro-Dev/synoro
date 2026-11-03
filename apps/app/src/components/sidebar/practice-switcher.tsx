@@ -15,7 +15,12 @@ import {
   useSidebar,
 } from "@synoro/ui";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
-import { ChevronsUpDownIcon, LayoutGridIcon, PlusIcon } from "lucide-react";
+import {
+  CalendarCheckIcon,
+  ChevronsUpDownIcon,
+  LayoutGridIcon,
+  PlusIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -36,13 +41,19 @@ const KEPT_SECTIONS = [
   paths.booking.schedule,
 ] as const;
 
-/** Workspace switcher (cal.com / dub.co style) for the practices one runs. */
+/**
+ * Workspace switcher (cal.com / dub.co style) for the practices one runs.
+ * Practices one is a client of are not workspaces: they live in «Мои записи».
+ */
 export function PracticeSwitcher({
   practices,
   current,
+  isClient,
 }: {
+  /** Practices the user runs (owner or administrator). */
   practices: SidebarPractice[];
   current: SidebarPractice | undefined;
+  isClient: boolean;
 }) {
   const { isMobile } = useSidebar();
   const pathname = usePathname();
@@ -88,11 +99,7 @@ export function PracticeSwitcher({
                   key={p.practiceId}
                   render={
                     <Link
-                      href={
-                        p.role === "client"
-                          ? paths.booking.public(p.slug)
-                          : (section ?? paths.booking.practice)(p.practiceId)
-                      }
+                      href={(section ?? paths.booking.practice)(p.practiceId)}
                     />
                   }
                   aria-current={
@@ -111,6 +118,12 @@ export function PracticeSwitcher({
             </DropdownMenuGroup>
             {practices.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuGroup>
+              {isClient && (
+                <DropdownMenuItem render={<Link href={paths.booking.mine} />}>
+                  <CalendarCheckIcon />
+                  Мои записи
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 render={<Link href={paths.booking.practices} />}
               >

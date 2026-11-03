@@ -26,7 +26,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <Suspense fallback={<SidebarSkeleton />}>
         <SessionSidebar />
       </Suspense>
-      <SidebarInset className="min-w-0">{children}</SidebarInset>
+      {/* Bottom padding clears the phone tab bar (MobileTabBar). */}
+      <SidebarInset className="touch-targets min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        {children}
+      </SidebarInset>
     </SidebarProvider>
   );
 }

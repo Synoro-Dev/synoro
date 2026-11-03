@@ -37,6 +37,7 @@ import { usePathname } from "next/navigation";
 import type * as React from "react";
 
 import { DemoSwitcher } from "./demo-switcher";
+import { MobileTabBar } from "./mobile-tab-bar";
 import { NavPlan } from "./nav-plan";
 import { NavUser } from "./nav-user";
 import { PracticeSwitcher } from "./practice-switcher";
@@ -82,6 +83,56 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
   );
 }
 
+/**
+ * The practice's sections for the viewer's role. Daily work first, the
+ * rarely touched setup below. Administrators see only what they may do —
+ * never a page that would just say «the owner sets this».
+ */
+function practiceNav(practice: SidebarPractice, pathname: string) {
+  const id = practice.practiceId;
+  const owner = practice.role === "owner";
+  const entry = (
+    title: string,
+    href: string,
+    icon: LucideIcon,
+    show = true,
+  ): NavItem[] =>
+    show ? [{ title, href, icon, active: pathname === href }] : [];
+
+  const work = [
+    ...entry("Сегодня", paths.booking.practice(id), LayoutDashboardIcon),
+    ...entry("Календарь", paths.booking.calendar(id), CalendarDaysIcon),
+    ...entry("Свободные окна", paths.booking.windows(id), CalendarSearchIcon),
+    ...entry("Клиенты", paths.booking.clients(id), UsersIcon),
+    ...entry("Оплаты", paths.booking.payments(id), WalletIcon),
+    ...entry(
+      "Аналитика",
+      paths.booking.analytics(id),
+      ChartNoAxesColumnIcon,
+      owner,
+    ),
+  ];
+  const setup = [
+    ...entry("Страница записи", paths.booking.page(id), PanelTopIcon),
+    ...entry("Рабочие часы", paths.booking.schedule(id), Clock3Icon),
+    ...entry(
+      "Сообщения клиентам",
+      paths.booking.messages(id),
+      MessageSquareTextIcon,
+      owner,
+    ),
+    ...entry("Свой домен", paths.booking.domain(id), GlobeIcon, owner),
+    {
+      title: "Открыть страницу записи",
+      href: paths.booking.public(practice.slug),
+      icon: ExternalLinkIcon,
+      active: false,
+      external: true,
+    },
+  ];
+  return { work, setup };
+}
+
 export function AppSidebar({
   user,
   practices,
@@ -101,130 +152,75 @@ export function AppSidebar({
   const isClient = practices.some((p) => p.role === "client");
   // «Про» is the owner's plan: admins and clients don't pay for it.
   const isOwner = practices.some((p) => p.role === "owner");
-
-  const practiceItems: NavItem[] = current
-    ? [
-        {
-          title: "Обзор",
-          href: paths.booking.practice(current.practiceId),
-          icon: LayoutDashboardIcon,
-          active: pathname === paths.booking.practice(current.practiceId),
-        },
-        {
-          title: "Календарь",
-          href: paths.booking.calendar(current.practiceId),
-          icon: CalendarDaysIcon,
-          active: pathname === paths.booking.calendar(current.practiceId),
-        },
-        {
-          title: "Свободные окна",
-          href: paths.booking.windows(current.practiceId),
-          icon: CalendarSearchIcon,
-          active: pathname === paths.booking.windows(current.practiceId),
-        },
-        {
-          title: "Клиенты",
-          href: paths.booking.clients(current.practiceId),
-          icon: UsersIcon,
-          active: pathname === paths.booking.clients(current.practiceId),
-        },
-        {
-          title: "Расписание",
-          href: paths.booking.schedule(current.practiceId),
-          icon: Clock3Icon,
-          active: pathname === paths.booking.schedule(current.practiceId),
-        },
-        {
-          title: "Оплата",
-          href: paths.booking.payments(current.practiceId),
-          icon: WalletIcon,
-          active: pathname === paths.booking.payments(current.practiceId),
-        },
-        {
-          title: "Аналитика",
-          href: paths.booking.analytics(current.practiceId),
-          icon: ChartNoAxesColumnIcon,
-          active: pathname === paths.booking.analytics(current.practiceId),
-        },
-        {
-          title: "Сообщения",
-          href: paths.booking.messages(current.practiceId),
-          icon: MessageSquareTextIcon,
-          active: pathname === paths.booking.messages(current.practiceId),
-        },
-        {
-          title: "Домен",
-          href: paths.booking.domain(current.practiceId),
-          icon: GlobeIcon,
-          active: pathname === paths.booking.domain(current.practiceId),
-        },
-        {
-          title: "Страница записи",
-          href: paths.booking.page(current.practiceId),
-          icon: PanelTopIcon,
-          active: pathname === paths.booking.page(current.practiceId),
-        },
-        {
-          title: "Открыть страницу",
-          href: paths.booking.public(current.slug),
-          icon: ExternalLinkIcon,
-          active: false,
-          external: true,
-        },
-      ]
-    : [
-        {
-          title: "Создать практику",
-          href: `${paths.booking.practices}?new=1`,
-          icon: PlusIcon,
-          active: false,
-        },
-      ];
+  const nav = current ? practiceNav(current, pathname) : null;
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <PracticeSwitcher practices={practices} current={current} />
-      </SidebarHeader>
-      <SidebarContent>
-        <NavGroup
-          label={current ? "Практика" : "Специалисту"}
-          items={practiceItems}
-        />
-        {(isClient || !current) && (
-          <NavGroup
-            label="Я клиент"
-            items={[
-              {
-                title: "Кабинет",
-                href: paths.booking.mine,
-                icon: CalendarCheckIcon,
-                active: pathname === paths.booking.mine,
-              },
-            ]}
+    <>
+      <Sidebar collapsible="icon" {...props}>
+        <SidebarHeader>
+          <PracticeSwitcher
+            practices={staffPractices}
+            current={current}
+            isClient={isClient}
           />
-        )}
-        {demoAccounts && (
-          <DemoSwitcher accounts={demoAccounts} email={user.email} />
-        )}
-      </SidebarContent>
-      <SidebarFooter>
-        {isOwner && <NavPlan />}
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Настройки"
-              isActive={pathname.startsWith(paths.settings.root)}
-              render={<Link href={paths.settings.root} />}
-            >
-              <SettingsIcon />
-              <span>Настройки</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <NavUser user={user} />
-      </SidebarFooter>
-      <SidebarRail />
-    </Sidebar>
+        </SidebarHeader>
+        <SidebarContent>
+          {nav ? (
+            <>
+              <NavGroup label="Работа" items={nav.work} />
+              <NavGroup label="Настройка практики" items={nav.setup} />
+            </>
+          ) : (
+            <NavGroup
+              label="Специалисту"
+              items={[
+                {
+                  title: "Создать практику",
+                  href: `${paths.booking.practices}?new=1`,
+                  icon: PlusIcon,
+                  active: false,
+                },
+              ]}
+            />
+          )}
+          {isClient && (
+            <NavGroup
+              label="Я клиент"
+              items={[
+                {
+                  title: "Мои записи",
+                  href: paths.booking.mine,
+                  icon: CalendarCheckIcon,
+                  active: pathname === paths.booking.mine,
+                },
+              ]}
+            />
+          )}
+          {demoAccounts && (
+            <DemoSwitcher accounts={demoAccounts} email={user.email} />
+          )}
+        </SidebarContent>
+        <SidebarFooter>
+          {isOwner && <NavPlan />}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                tooltip="Настройки"
+                isActive={pathname.startsWith(paths.settings.root)}
+                render={<Link href={paths.settings.root} />}
+              >
+                <SettingsIcon />
+                <span>Настройки</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <NavUser user={user} />
+        </SidebarFooter>
+        <SidebarRail />
+      </Sidebar>
+      {current && (
+        <MobileTabBar practiceId={current.practiceId} pathname={pathname} />
+      )}
+    </>
   );
 }
