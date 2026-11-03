@@ -392,4 +392,31 @@ describe("reportPaidMonths", () => {
     );
     expect(await reportPaidConversions(api.db)).toEqual({ sent: 0 });
   });
+
+  it("reports the months when the year pass fails, then throws", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await paid(userId, {
+      ...month,
+      yclid: "month-click",
+      paidAt: new Date(Date.now() - 3 * DAY),
+    });
+
+    // The first lookup (the years') fails, the next one (the months') works.
+    let lookups = 0;
+    const flaky = new Proxy(api.db, {
+      get(target, property, receiver) {
+        if (property === "select" && lookups++ === 0) {
+          throw new Error("database is down");
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    await expect(reportPaidConversions(flaky)).rejects.toThrow(
+      "database is down",
+    );
+    expect(uploads.map((upload) => upload.csv).join("")).toContain(
+      "month-click,paid_month",
+    );
+  });
 });

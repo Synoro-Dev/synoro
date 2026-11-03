@@ -228,9 +228,28 @@ export const reportPaidYears = (db: Database, now = new Date()) =>
 export const reportPaidMonths = (db: Database, now = new Date()) =>
   reportFirstPayments(db, now, "month", PAID_MONTH_GOAL);
 
-/** Both kinds, for the hourly cron. */
+/**
+ * Both kinds, for the hourly cron. One kind failing (the lookup or a claim
+ * threw) must not hold the other back, so both run; the first error is then
+ * thrown again, for the task's own retry.
+ */
 export async function reportPaidConversions(db: Database, now = new Date()) {
-  const years = await reportPaidYears(db, now);
-  const months = await reportPaidMonths(db, now);
-  return { sent: years.sent + months.sent };
+  let sent = 0;
+  let failure: { error: unknown } | undefined;
+  for (const [kind, report] of [
+    ["year", reportPaidYears],
+    ["month", reportPaidMonths],
+  ] as const) {
+    try {
+      sent += (await report(db, now)).sent;
+    } catch (error) {
+      failure ??= { error };
+      logger.warn("metrika.report_failed", {
+        kind,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  if (failure) throw failure.error;
+  return { sent };
 }
