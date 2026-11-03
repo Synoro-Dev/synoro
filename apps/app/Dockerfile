@@ -15,7 +15,7 @@
 # manifests (that layer is reused until a package.json or the lockfile
 # changes) and only then copies the sources.
 #
-# Versions: see apps/web/Dockerfile; keep the three Dockerfiles in sync.
+# Versions: see apps/web/Dockerfile; keep the four Dockerfiles in sync.
 
 ARG BUN_VERSION=1.4.4
 ARG NODE_VERSION=24.22.1

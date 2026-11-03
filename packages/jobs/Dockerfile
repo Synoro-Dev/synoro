@@ -14,7 +14,7 @@
 # (`packages/auth/script/demo-reset.ts`, a CronJob in infra/synoro/demo.yaml)
 # in auth. Calendar cleanup in jobs also uses db.
 #
-# Versions: see apps/web/Dockerfile; keep the three Dockerfiles in sync.
+# Versions: see apps/web/Dockerfile; keep the four Dockerfiles in sync.
 
 ARG BUN_VERSION=1.4.4
 ARG NODE_VERSION=24.22.1

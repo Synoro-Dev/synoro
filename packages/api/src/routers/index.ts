@@ -12,8 +12,7 @@
  *   post.byId       – single post by UUID                      (public)
  *   post.create     – create a post                            (protected)
  *   post.delete     – delete a post                            (admin)
- *   admin.users.*   – user management                          (admin)
- *   admin.stats.*   – system-wide statistics                   (admin)
+ *   admin.*         – users, practices, «Про» payments, stats  (admin; apps/admin)
  *
  *   Booking (multi-tenant: access is checked per practice membership)
  *   practice.*      – create a practice, join it, members      (protected / public bySlug, byHost)

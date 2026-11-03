@@ -21,6 +21,7 @@
     "dev:all": "turbo watch dev --continue",
     "dev:next": "turbo watch dev -F @synoro/app...",
     "dev:web": "turbo watch dev -F @synoro/web...",
+    "dev:admin": "turbo watch dev -F @synoro/admin...",
     "jobs:dev": "bun run --cwd packages/jobs worker",
     "messenger:webhooks": "bun run --cwd packages/jobs messenger:webhooks",
     "billing:webhook": "bun run --cwd packages/api webhook",

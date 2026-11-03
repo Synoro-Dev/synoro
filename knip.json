@@ -8,6 +8,9 @@
     ".": {
       "entry": [".claude/hooks/*.ts", "scripts/*.mjs"]
     },
+    "apps/admin": {
+      "ignoreDependencies": ["@tailwindcss/postcss"]
+    },
     "apps/app": {
       "ignoreDependencies": ["@tailwindcss/postcss"]
     },
