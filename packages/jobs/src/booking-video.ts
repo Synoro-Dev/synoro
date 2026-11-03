@@ -32,7 +32,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 /** Maximum number of bookings fetched per batch. */
 const MAX_NOTICES = 200;
-/** Day reminders reach clients from 9:00 to 22:00, practice time. */
+/** Day reminders reach clients from 9:00 to 22:00, their own time. */
 const DAY_HOURS = { from: 9, until: 22 };
 
 type Notice = BookingNotice;
@@ -60,6 +60,7 @@ function confirmedBookings(db: Database) {
       videoUrl: Practice.videoUrl,
       practiceName: Practice.name,
       timezone: Practice.timezone,
+      clientTimezone: Booking.clientTimezone,
       clientId: user.id,
       clientName: user.name,
       clientEmail: user.email,
@@ -72,6 +73,14 @@ function confirmedBookings(db: Database) {
 
 type Row = Awaited<ReturnType<typeof confirmedBookings>>[number];
 
+/**
+ * The zone a client reads times in: the one they booked from, else the
+ * practice's. Mails to them name it.
+ */
+function clientZone(row: Pick<Row, "clientTimezone" | "timezone">) {
+  return row.clientTimezone ?? row.timezone;
+}
+
 async function send(
   deliver: Deliver,
   row: Row,
@@ -79,7 +88,11 @@ async function send(
   cancellation?: { by: "client" | "specialist"; refunded: boolean },
   series?: Date[],
 ) {
-  const { when, dates } = describeDates(series ?? [row.startsAt], row.timezone);
+  const { when, dates } = describeDates(
+    series ?? [row.startsAt],
+    clientZone(row),
+    { named: true },
+  );
   const videoUrl =
     notice === "cancelled" ? null : (row.meetingUrl ?? row.videoUrl);
   const subjects: Record<Notice, string> = {
@@ -379,7 +392,8 @@ export async function notifyVideoLinkChanged(
 /**
  * Reminders, with the video link when there is one: once when the meeting is
  * within a day, once when it is within the hour. The day reminder waits for
- * the practice's daytime (9:00–22:00); the hour reminder goes at once. A
+ * the client's daytime (9:00–22:00 where they booked from, else the
+ * practice's); the hour reminder goes at once. A
  * reminder is claimed in the database before it is sent, so two workers (or
  * a retry) never send it twice; a failed send gives the claim back.
  */
@@ -438,7 +452,7 @@ export async function sendBookingReminders(
           // A practice with an unknown time zone must not stop the others.
           let daytime: boolean;
           try {
-            const hour = localHour(at, row.timezone);
+            const hour = localHour(at, clientZone(row));
             daytime = hour >= DAY_HOURS.from && hour < DAY_HOURS.until;
           } catch (error) {
             settled(row.id, window.notice, error);

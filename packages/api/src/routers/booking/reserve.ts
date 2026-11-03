@@ -11,6 +11,7 @@ import {
 } from "@synoro/db";
 import {
   bookingAnswersInput,
+  clientTimeZoneInput,
   guestBookingFormSchema,
 } from "@synoro/validators";
 import { z } from "zod";
@@ -76,6 +77,8 @@ export const reserve = publicProcedure
       packageId: z.uuid(),
       startsAt: z.date(),
       answers: bookingAnswersInput,
+      /** The visitor's browser zone: the mails write the time in it. */
+      timezone: clientTimeZoneInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -151,6 +154,7 @@ export const reserve = publicProcedure
           guestPhone: input.phone,
           note: input.note || null,
           answers: questionnaire.answers,
+          clientTimezone: input.timezone ?? null,
           holdUntil: new Date(Date.now() + HOLD_MS),
           accessTokenHash: hashGuestToken(token),
           createdById: guest.user.id,
@@ -178,7 +182,7 @@ export const reserve = publicProcedure
         email: guest.user.email,
         name: input.name,
         practiceName: practice.name,
-        timeZone: practice.timezone,
+        timeZone: input.timezone ?? practice.timezone,
         startsAt: input.startsAt,
         holdUntil: booking.holdUntil,
         token,

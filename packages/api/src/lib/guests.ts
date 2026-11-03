@@ -3,15 +3,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { logger } from "@synoro/config";
 import { type Database, eq, PracticeMember, sql, user } from "@synoro/db";
 import { dispatchEmail } from "@synoro/jobs";
+import { describeDates, formatClock } from "@synoro/jobs/when";
 
 import { findMembership } from "./practice-access";
 import { cabinetUrl, guestBookingUrl } from "./urls";
-
-const formatIn = (
-  at: Date,
-  timeZone: string,
-  options: Intl.DateTimeFormatOptions,
-) => new Intl.DateTimeFormat("ru-RU", { timeZone, ...options }).format(at);
 
 /**
  * Mail the visitor the link that opens their booking without signing in:
@@ -24,6 +19,7 @@ export async function sendBookingLink(input: {
   email: string;
   name: string;
   practiceName: string;
+  /** The zone the mail writes the time in: the client's, else the practice's. */
   timeZone: string;
   startsAt: Date;
   holdUntil: Date | null;
@@ -42,18 +38,10 @@ export async function sendBookingLink(input: {
       props: {
         name: input.name,
         practiceName: input.practiceName,
-        when: formatIn(input.startsAt, input.timeZone, {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
+        when: describeDates([input.startsAt], input.timeZone, { named: true })
+          .when,
         holdUntil: input.holdUntil
-          ? formatIn(input.holdUntil, input.timeZone, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
+          ? formatClock(input.holdUntil, input.timeZone)
           : "",
         intro: input.intro ?? null,
         videoUrl: input.videoUrl ?? null,

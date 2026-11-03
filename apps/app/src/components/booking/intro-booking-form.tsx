@@ -43,6 +43,7 @@ export function IntroBookingForm({
   intro,
   length,
   startsAt,
+  timeZone,
   signedIn,
   needsPhone,
   questions,
@@ -55,6 +56,8 @@ export function IntroBookingForm({
   /** How long it lasts: «30 минут», «1 час». */
   length: string;
   startsAt: Date;
+  /** The zone the client reads times in; their mails use it too. */
+  timeZone: string;
   signedIn: boolean;
   needsPhone: boolean;
   questions: BookingQuestion[];
@@ -112,6 +115,7 @@ export function IntroBookingForm({
       guest,
       note: note || undefined,
       answers,
+      timezone: timeZone,
     });
   }
 
@@ -126,7 +130,13 @@ export function IntroBookingForm({
       }
       await savePhone.mutateAsync({ phone: normalized });
     }
-    book.mutate({ practiceId, startsAt, note: note || undefined, answers });
+    book.mutate({
+      practiceId,
+      startsAt,
+      note: note || undefined,
+      answers,
+      timezone: timeZone,
+    });
   }
 
   const questionnaire = questions.length > 0 && (

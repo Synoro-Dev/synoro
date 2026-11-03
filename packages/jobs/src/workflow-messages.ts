@@ -81,6 +81,8 @@ interface Candidate {
   credits: number;
   /** The meeting the message is about. */
   startsAt: Date;
+  /** The zone the client booked it from; null: the practice's. */
+  clientTimezone: string | null;
 }
 
 type CandidateQuery = (
@@ -106,6 +108,7 @@ const afterEnd: CandidateQuery = async (db, rule, now, afterId) => {
     .select({
       id: Booking.id,
       startsAt: Booking.startsAt,
+      clientTimezone: Booking.clientTimezone,
       userId: user.id,
       name: user.name,
       email: user.email,
@@ -149,6 +152,7 @@ const lowBalance: CandidateQuery = async (db, rule, now, afterId) => {
       memberId: entry.memberId,
       createdAt: entry.createdAt,
       startsAt: Booking.startsAt,
+      clientTimezone: Booking.clientTimezone,
       userId: user.id,
       name: user.name,
       email: user.email,
@@ -213,11 +217,16 @@ const inactive: CandidateQuery = async (db, rule, now, afterId) => {
   const lastStart = sql<Date>`max(${Booking.startsAt})`.mapWith(
     Booking.startsAt,
   );
+  // The zone of the latest booking, which `lastStart` is the time of.
+  const lastZone = sql<
+    string | null
+  >`(array_agg(${Booking.clientTimezone} order by ${Booking.startsAt} desc))[1]`;
   const rows = await db
     .select({
       id: PracticeMember.id,
       lastEnd,
       startsAt: lastStart,
+      clientTimezone: lastZone,
       userId: user.id,
       name: user.name,
       email: user.email,
@@ -285,7 +294,7 @@ function activeRules(db: Database, now: Date): Promise<Rule[]> {
     .orderBy(asc(Workflow.id));
 }
 
-/** «3 ноября» and «19:00» in the practice's time zone. */
+/** «3 ноября» and «19:00» in the client's time zone, else the practice's. */
 function formatMeeting(at: Date, timeZone: string) {
   return {
     дата: new Intl.DateTimeFormat("ru-RU", {
@@ -305,7 +314,7 @@ function variablesOf(rule: Rule, client: Candidate) {
   return {
     имя: client.name.trim().split(/\s+/)[0] ?? client.name,
     практика: rule.practiceName,
-    ...formatMeeting(client.startsAt, rule.timezone),
+    ...formatMeeting(client.startsAt, client.clientTimezone ?? rule.timezone),
     баланс: String(client.credits),
     ссылка: practicePageUrl(rule.slug),
     кабинет: cabinetUrl(),

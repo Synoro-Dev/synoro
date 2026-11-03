@@ -195,6 +195,13 @@ and run `tsc` by hand, build them first.
   recipient (`userId`, `practiceId`); the default `noticeSender(db)` sends to
   the chat when the practice owner has «Про», else mail; a blocked bot or
   the last failed retry of `send-messenger` falls back to mail.
+- **Time zones** (`docs/time-zones.md`): bookings are UTC instants, hours in
+  `practices.timezone` (owner sets it, `practice.setTimezone`). A client reads
+  times in the zone they picked on the booking page (`useDisplayZone`) and
+  `booking.book` / `bookSeries` / `reserve` / `bookIntro` take it as `timezone`
+  (`bookings.client_timezone`, `clientTimeZoneInput`). Mails and reminders to a
+  client use it and name it (`describeDates(…, { named: true })` in
+  `@synoro/jobs/when`); staff mails stay in the practice's zone.
 - **Video meetings** (`docs/guest-booking.md`): `practices.video_url` (owner)
   and `bookings.meeting_url` (staff) — the link in force is
   `meeting_url ?? video_url`, `https` only (`normalizeVideoUrl`). Clients see

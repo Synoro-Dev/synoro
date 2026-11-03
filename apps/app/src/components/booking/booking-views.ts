@@ -4,6 +4,8 @@
  * math on YYYY-MM-DD keys, unit tested in `booking-views.test.ts`.
  */
 
+import { clockIn } from "./time";
+
 const BOOKING_VIEWS = ["month", "week", "columns"] as const;
 
 export type BookingView = (typeof BOOKING_VIEWS)[number];
@@ -59,10 +61,13 @@ export function formatWeekRange(start: string) {
   return `${dayMonth(a)} – ${dayMonth(b)}`;
 }
 
-/** Every hour from the earliest to the latest one a slot starts in. */
-export function hourSpan(starts: readonly Date[]) {
+/**
+ * Every hour from the earliest to the latest one a slot starts in, on the wall
+ * clock of `timeZone` (the browser's when omitted).
+ */
+export function hourSpan(starts: readonly Date[], timeZone?: string) {
   if (starts.length === 0) return [];
-  const hours = starts.map((at) => at.getHours());
+  const hours = starts.map((at) => clockIn(at, timeZone).hour);
   const first = Math.min(...hours);
   return Array.from(
     { length: Math.max(...hours) - first + 1 },

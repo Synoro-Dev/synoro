@@ -72,17 +72,20 @@ import {
 } from "./booking-views";
 import { WeekColumns, WeekGrid, WeekSkeleton } from "./booking-week";
 import { displayFonts } from "./display-font";
+import { useDisplayZone } from "./display-zone";
 import { GuestBookingForm } from "./guest-booking-form";
 import { IntroBookingForm } from "./intro-booking-form";
 import { SeriesDialog } from "./series-dialog";
 import { ErrorState } from "./states";
 import { SynoroBadge } from "./synoro-badge";
 import {
+  clockIn,
   dateKey,
   formatDateTime,
   formatTime,
   viewerTimeZoneName,
 } from "./time";
+import { TimeZoneSelect } from "./time-zone-select";
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
@@ -132,11 +135,11 @@ const DAY_PARTS = [
   { label: "Вечер", until: 24 },
 ] as const;
 
-function byDayPart(slots: Slot[]) {
+function byDayPart(slots: Slot[], timeZone: string) {
   return DAY_PARTS.map((part, index) => ({
     label: part.label,
     slots: slots.filter((slot) => {
-      const hour = slot.startsAt.getHours();
+      const { hour } = clockIn(slot.startsAt, timeZone);
       const from = DAY_PARTS[index - 1]?.until ?? 0;
       return hour >= from && hour < part.until;
     }),
@@ -185,7 +188,9 @@ export function PublicBooking({
   const terms = professionTerms(practice.profession);
   const what = capitalize(terms.credit[0]);
   const today = dateKey(new Date(), practice.timezone);
-  const viewerToday = dateKey(new Date());
+  // Times are shown in the zone the visitor picked, else their browser's.
+  const { zone, browserZone, setZone } = useDisplayZone();
+  const viewerToday = dateKey(new Date(), zone);
   const [month, setMonth] = useState(() => keyToDate(today));
   /** The view picked on this visit; until then the one remembered. */
   const [chosenView, setChosenView] = useState<BookingView | null>(null);
@@ -290,7 +295,7 @@ export function PublicBooking({
     // the open booking form, or else the days that were in view, on screen.
     setLaidOut(shown);
     const anchor = picked
-      ? dateKey(picked.startsAt)
+      ? dateKey(picked.startsAt, zone)
       : shown === "month"
         ? (weekDays(week).find((key) => key >= viewerToday) ?? week)
         : (day ?? viewerToday);
@@ -325,7 +330,7 @@ export function PublicBooking({
 
   const byDay = new Map<string, Slot[]>();
   for (const slot of slots.data?.slots ?? []) {
-    const key = dateKey(slot.startsAt);
+    const key = dateKey(slot.startsAt, zone);
     if (key < rangeStart || key > rangeEnd || key < viewerToday) continue;
     byDay.set(key, [...(byDay.get(key) ?? []), slot]);
   }
@@ -358,6 +363,14 @@ export function PublicBooking({
     } catch {
       // Not remembered: the next visit starts from the month.
     }
+  }
+
+  /** The same hours, read in another zone: the days shift, so start over. */
+  function changeZone(next: string) {
+    setZone(next);
+    setWeek(weekStart(dateKey(new Date(), next)));
+    setDay(null);
+    setPicked(null);
   }
 
   function moveWeek(days: number) {
@@ -422,7 +435,12 @@ export function PublicBooking({
       }
       await savePhone.mutateAsync({ phone: normalized });
     }
-    book.mutate({ practiceId: practice.id, startsAt: slot.startsAt, answers });
+    book.mutate({
+      practiceId: practice.id,
+      startsAt: slot.startsAt,
+      answers,
+      timezone: zone,
+    });
   }
 
   // The client's own cabinet; on the practice's host it lives on the app host.
@@ -437,7 +455,7 @@ export function PublicBooking({
   // list no longer has it, the form closes and says so.
   const pickedFree =
     !!picked &&
-    (byDay.get(dateKey(picked.startsAt)) ?? []).some(
+    (byDay.get(dateKey(picked.startsAt, zone)) ?? []).some(
       (slot) => slot.startsAt.getTime() === picked.startsAt.getTime(),
     );
   const checkout =
@@ -451,7 +469,7 @@ export function PublicBooking({
       {picked && !pickedFree && (
         <Alert variant="warning">
           <AlertTitle>
-            Время {formatTime(picked.startsAt)} уже заняли
+            Время {formatTime(picked.startsAt, zone)} уже заняли
           </AlertTitle>
           <AlertDescription>Выберите другое.</AlertDescription>
         </Alert>
@@ -619,7 +637,7 @@ export function PublicBooking({
                   Вы записаны
                 </h2>
                 <p className="first-letter:uppercase">
-                  {formatDateTime(bookedIntro.startsAt)},{" "}
+                  {formatDateTime(bookedIntro.startsAt, zone)},{" "}
                   {terms.free.toLowerCase()},{" "}
                   {/* Its own length: the setting may change meanwhile. */}
                   {formatMinutes(
@@ -667,8 +685,8 @@ export function PublicBooking({
                 </h2>
                 <p className="first-letter:uppercase">
                   {bookedCount > 1
-                    ? `${formatCredits(bookedCount, terms)}, начиная с ${formatDateTime(booked)}`
-                    : `${formatDateTime(booked)}, 1 час`}
+                    ? `${formatCredits(bookedCount, terms)}, начиная с ${formatDateTime(booked, zone)}`
+                    : `${formatDateTime(booked, zone)}, 1 час`}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Осталось оплаченных: {formatCredits(credits, terms)}
@@ -693,6 +711,7 @@ export function PublicBooking({
               <BookingTicket
                 startsAt={picked.startsAt}
                 endsAt={picked.endsAt}
+                timeZone={zone}
                 what={intro ? terms.free : what}
                 onBack={() => choose(null)}
               />
@@ -703,6 +722,7 @@ export function PublicBooking({
                     intro={terms.free}
                     length={introLength}
                     startsAt={picked.startsAt}
+                    timeZone={zone}
                     signedIn={signedIn}
                     needsPhone={needsPhone}
                     questions={questions}
@@ -719,6 +739,7 @@ export function PublicBooking({
                   <GuestBookingForm
                     practice={practice}
                     startsAt={picked.startsAt}
+                    timeZone={zone}
                     offer={offer.data}
                     questions={questions}
                   />
@@ -908,6 +929,7 @@ export function PublicBooking({
                       days={weekDays(week)}
                       byDay={byDay}
                       today={viewerToday}
+                      timeZone={zone}
                       disabled={slotsDisabled}
                       onPick={choose}
                     />
@@ -916,6 +938,7 @@ export function PublicBooking({
                       days={weekDays(week)}
                       byDay={byDay}
                       today={viewerToday}
+                      timeZone={zone}
                       disabled={slotsDisabled}
                       onPick={choose}
                     />
@@ -1008,7 +1031,7 @@ export function PublicBooking({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-5">
-                        {byDayPart(daySlots).map((part) => (
+                        {byDayPart(daySlots, zone).map((part) => (
                           <div key={part.label} className="flex flex-col gap-2">
                             <h3 className="text-sm text-muted-foreground">
                               {part.label}
@@ -1023,7 +1046,7 @@ export function PublicBooking({
                                   onClick={() => choose(slot)}
                                   className="text-base tabular-nums"
                                 >
-                                  {formatTime(slot.startsAt)}
+                                  {formatTime(slot.startsAt, zone)}
                                 </Button>
                               ))}
                             </div>
@@ -1044,12 +1067,23 @@ export function PublicBooking({
                 ? "Бесплатную запись можно отменить до её начала по ссылке из письма."
                 : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем за 24 часа до начала.`}
             </p>
-            <p className="flex shrink-0 items-start gap-2">
-              <GlobeIcon className="mt-px size-3.5 shrink-0" />
-              <span suppressHydrationWarning>
-                Время по часовому поясу: {viewerTimeZoneName()}
-              </span>
-            </p>
+            <div className="flex flex-col gap-1.5 sm:ml-auto sm:items-end">
+              <div className="flex items-center gap-2">
+                <span>Время в поясе</span>
+                <TimeZoneSelect
+                  value={zone}
+                  onChange={changeZone}
+                  extra={[practice.timezone, browserZone]}
+                />
+              </div>
+              {hydrated && zone !== practice.timezone && (
+                <p suppressHydrationWarning>
+                  У специалиста сейчас{" "}
+                  {formatTime(new Date(), practice.timezone)} (
+                  {viewerTimeZoneName(practice.timezone)})
+                </p>
+              )}
+            </div>
           </footer>
         </div>
       </div>
@@ -1059,6 +1093,7 @@ export function PublicBooking({
       <SeriesDialog
         practiceId={practice.id}
         startsAt={seriesFrom}
+        timeZone={zone}
         credits={credits}
         terms={terms}
         answers={answers}

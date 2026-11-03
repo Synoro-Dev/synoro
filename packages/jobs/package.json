@@ -23,6 +23,10 @@
       "types": "./dist/booking-video.d.ts",
       "default": "./src/booking-video.ts"
     },
+    "./when": {
+      "types": "./dist/when.d.ts",
+      "default": "./src/when.ts"
+    },
     "./metrika": {
       "types": "./dist/metrika.d.ts",
       "default": "./src/metrika.ts"

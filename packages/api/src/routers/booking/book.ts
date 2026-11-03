@@ -7,7 +7,7 @@ import {
   user,
 } from "@synoro/db";
 import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
-import { bookingAnswersInput } from "@synoro/validators";
+import { bookingAnswersInput, clientTimeZoneInput } from "@synoro/validators";
 import { z } from "zod";
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import {
@@ -68,6 +68,8 @@ export const book = practiceProcedure
       /** Staff only: the client to book; defaults to the caller. */
       memberId: z.uuid().optional(),
       answers: bookingAnswersInput,
+      /** The client's browser zone, for mails; not used when staff book. */
+      timezone: clientTimeZoneInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -141,6 +143,8 @@ export const book = practiceProcedure
           memberId: member.id,
           note: input.note,
           answers: questionnaire.answers,
+          // Staff's browser says nothing about the client's zone.
+          clientTimezone: forOther ? null : (input.timezone ?? null),
           createdById: userId,
         })
         .returning();

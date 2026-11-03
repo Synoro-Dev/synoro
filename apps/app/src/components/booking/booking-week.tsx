@@ -3,7 +3,7 @@
 import { Button, cn, Skeleton } from "@synoro/ui";
 
 import { hourSpan } from "./booking-views";
-import { formatTime, minutesToTime } from "./time";
+import { clockIn, formatTime, minutesToTime } from "./time";
 
 type Slot = { startsAt: Date; endsAt: Date };
 
@@ -13,6 +13,8 @@ interface WeekProps {
   byDay: ReadonlyMap<string, Slot[]>;
   /** The viewer's today: earlier days are dimmed. */
   today: string;
+  /** The zone the viewer reads times in. */
+  timeZone: string;
   disabled: boolean;
   onPick: (slot: Slot) => void;
 }
@@ -47,12 +49,14 @@ function DayHeading({ day, today }: { day: string; today: string }) {
 
 function SlotButton({
   slot,
+  timeZone,
   disabled,
   onPick,
   size,
   className,
 }: {
   slot: Slot;
+  timeZone: string;
   disabled: boolean;
   onPick: (slot: Slot) => void;
   size: "sm" | "default";
@@ -65,6 +69,7 @@ function SlotButton({
       disabled={disabled}
       onClick={() => onPick(slot)}
       aria-label={slot.startsAt.toLocaleString("ru-RU", {
+        timeZone,
         weekday: "long",
         day: "numeric",
         month: "long",
@@ -73,7 +78,7 @@ function SlotButton({
       })}
       className={cn("w-full tabular-nums", className)}
     >
-      {formatTime(slot.startsAt)}
+      {formatTime(slot.startsAt, timeZone)}
     </Button>
   );
 }
@@ -84,16 +89,28 @@ function SlotButton({
  * earliest free hour of the week to the latest. With half-hour times (the
  * free intro) each cell has two halves, so a lone 15:30 sits low.
  */
-export function WeekGrid({ days, byDay, today, disabled, onPick }: WeekProps) {
+export function WeekGrid({
+  days,
+  byDay,
+  today,
+  timeZone,
+  disabled,
+  onPick,
+}: WeekProps) {
   const slots = days.flatMap((day) => byDay.get(day) ?? []);
-  const halves = slots.some((slot) => slot.startsAt.getMinutes() !== 0);
+  const halves = slots.some(
+    (slot) => clockIn(slot.startsAt, timeZone).minute !== 0,
+  );
   return (
     <div className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))]">
       <div />
       {days.map((day) => (
         <DayHeading key={day} day={day} today={today} />
       ))}
-      {hourSpan(slots.map((slot) => slot.startsAt)).map((hour) => (
+      {hourSpan(
+        slots.map((slot) => slot.startsAt),
+        timeZone,
+      ).map((hour) => (
         <HourRow
           key={hour}
           hour={hour}
@@ -101,6 +118,7 @@ export function WeekGrid({ days, byDay, today, disabled, onPick }: WeekProps) {
           days={days}
           byDay={byDay}
           today={today}
+          timeZone={timeZone}
           disabled={disabled}
           onPick={onPick}
         />
@@ -115,6 +133,7 @@ function HourRow({
   days,
   byDay,
   today,
+  timeZone,
   disabled,
   onPick,
 }: WeekProps & { hour: number; halves: boolean }) {
@@ -133,16 +152,19 @@ function HourRow({
           )}
         >
           {(byDay.get(day) ?? [])
-            .filter((slot) => slot.startsAt.getHours() === hour)
+            .filter((slot) => clockIn(slot.startsAt, timeZone).hour === hour)
             .map((slot) => (
               <SlotButton
                 key={slot.startsAt.toISOString()}
                 slot={slot}
+                timeZone={timeZone}
                 disabled={disabled}
                 onPick={onPick}
                 size="sm"
                 className={cn(
-                  halves && slot.startsAt.getMinutes() >= 30 && "row-start-2",
+                  halves &&
+                    clockIn(slot.startsAt, timeZone).minute >= 30 &&
+                    "row-start-2",
                 )}
               />
             ))}
@@ -157,6 +179,7 @@ export function WeekColumns({
   days,
   byDay,
   today,
+  timeZone,
   disabled,
   onPick,
 }: WeekProps) {
@@ -172,6 +195,7 @@ export function WeekColumns({
                 <SlotButton
                   key={slot.startsAt.toISOString()}
                   slot={slot}
+                  timeZone={timeZone}
                   disabled={disabled}
                   onPick={onPick}
                   size="default"

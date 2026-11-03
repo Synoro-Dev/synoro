@@ -66,6 +66,12 @@ export const Booking = pgTable(
     guestContact: t.varchar({ length: 120 }),
     note: t.varchar({ length: 500 }),
     /**
+     * IANA zone of the browser the client booked from. Mails and reminders to
+     * the client write the time in it; staff and the schedule use
+     * `practices.timezone`. Null: not known (older rows, staff bookings).
+     */
+    clientTimezone: t.text(),
+    /**
      * The client's answers to the practice's questionnaire, with each
      * question's wording at booking time (`BookingAnswer` in
      * `@synoro/validators`). Null when nothing was asked or answered.

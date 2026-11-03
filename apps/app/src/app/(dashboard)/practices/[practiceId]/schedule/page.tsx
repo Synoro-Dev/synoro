@@ -36,6 +36,7 @@ async function Schedule({
           practiceId={practice.id}
           timezone={practice.timezone}
           introMinutes={practice.introMinutes}
+          isOwner={practice.membership.role === "owner"}
         />
         <GoogleCalendarSync practiceId={practice.id} />
       </main>
