@@ -1,12 +1,20 @@
 import { buttonVariants, cn } from "@synoro/ui";
 
 import { paidPlan, signupGoal } from "~/lib/pricing";
+import type { ProfessionPage } from "~/lib/professions";
 import type { SiteLinks } from "~/lib/site";
 
 import { BookingDemo } from "./booking-demo";
 import { Container, display } from "./primitives";
 
-export function Hero({ links }: { links: SiteLinks }) {
+/** The home page's hero, or the one of a profession's page (`/dlya/<slug>`). */
+export function Hero({
+  links,
+  page,
+}: {
+  links: SiteLinks;
+  page?: ProfessionPage;
+}) {
   const secondary = cn(
     buttonVariants({ variant: "outline", size: "lg" }),
     "h-11 rounded-full px-6 text-[15px]",
@@ -35,15 +43,23 @@ export function Hero({ links }: { links: SiteLinks }) {
               "text-[2.75rem] leading-[0.98] tracking-[-0.045em] sm:text-6xl xl:text-[4.25rem]",
             )}
           >
-            <span className="block">Клиенты записываются сами.</span>
-            <span className="block">Вы работаете с&nbsp;людьми.</span>
+            {page ? (
+              <>
+                <span className="block">{page.heading[0]}</span>
+                <span className="block">{page.heading[1]}</span>
+              </>
+            ) : (
+              <>
+                <span className="block">Клиенты записываются сами.</span>
+                <span className="block">Вы работаете с&nbsp;людьми.</span>
+              </>
+            )}
           </h1>
 
           <p className="text-muted-foreground mt-6 max-w-[34rem] text-lg text-pretty">
-            Онлайн-запись для психологов, репетиторов и других специалистов
-            частной практики: расписание, пакеты занятий с предоплатой, кабинет
-            клиента и своя страница. Без таблиц и переписки в мессенджерах — и
-            бесплатно.
+            {page
+              ? page.lead
+              : "Онлайн-запись для психологов, репетиторов и других специалистов частной практики: расписание, пакеты занятий с предоплатой, кабинет клиента и своя страница. Без таблиц и переписки в мессенджерах — и бесплатно."}
           </p>
 
           <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
@@ -79,7 +95,7 @@ export function Hero({ links }: { links: SiteLinks }) {
         </div>
 
         <figure className="flex flex-col gap-3">
-          <BookingDemo />
+          <BookingDemo demo={page?.demo} />
           <figcaption className="text-muted-foreground text-center text-sm">
             Так вашу страницу видит клиент. Выберите день и время.
           </figcaption>

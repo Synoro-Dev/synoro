@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import type { ProfessionPage } from "~/lib/professions";
+
 import { Initials } from "./primitives";
 
 const weekdays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -52,7 +54,7 @@ const freeLabel = (count: number) =>
  * A practice's public booking page that the visitor can actually click
  * through: pick a day, pick a time, book. Nothing is sent anywhere.
  */
-export function BookingDemo() {
+export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
   const [day, setDay] = useState(12);
   const [time, setTime] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
@@ -64,14 +66,21 @@ export function BookingDemo() {
     <div className="bg-background relative overflow-hidden rounded-2xl shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_2px_4px_rgb(0_0_0/0.03),0_32px_64px_-24px_rgb(0_0_0/0.22)]">
       <div className="text-muted-foreground flex h-9 items-center justify-center gap-1.5 border-b text-xs">
         <LockIcon className="size-3" />
-        zapis.anna-ivanova.ru
+        {demo?.host ?? "zapis.anna-ivanova.ru"}
       </div>
 
       <div className="flex items-center gap-3 border-b p-4 sm:px-5">
-        <Initials name="Анна Смирнова" className="size-10 text-sm" />
+        <Initials
+          name={demo?.name ?? "Анна Смирнова"}
+          className="size-10 text-sm"
+        />
         <div className="min-w-0 flex-1">
-          <p className="text-muted-foreground text-xs">Анна Смирнова</p>
-          <p className="truncate font-medium">Индивидуальное занятие</p>
+          <p className="text-muted-foreground text-xs">
+            {demo?.name ?? "Анна Смирнова"}
+          </p>
+          <p className="truncate font-medium">
+            {demo?.service ?? "Индивидуальное занятие"}
+          </p>
         </div>
         <ul className="text-muted-foreground hidden flex-col items-end gap-1 text-xs sm:flex">
           <li className="flex items-center gap-1.5">
@@ -208,8 +217,11 @@ export function BookingDemo() {
               {dayLabel}, {time}–{endOf(time)}
             </p>
             <p className="text-muted-foreground mt-3 text-sm text-pretty">
-              Из пакета списано 1 занятие, осталось 6. Подтверждение пришло на
-              почту, отменить запись можно за 24 часа до начала.
+              {demo
+                ? `В пакете осталось 6 ${demo.many}.`
+                : "Из пакета списано 1 занятие, осталось 6."}{" "}
+              Подтверждение пришло на почту, отменить запись можно за 24 часа до
+              начала.
             </p>
             <button
               type="button"
