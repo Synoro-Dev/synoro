@@ -55,6 +55,7 @@ import {
 } from "react";
 
 import { orpc } from "~/orpc/react";
+import { PracticeTimeZone } from "./practice-timezone";
 import {
   type Cell,
   type CellRect,
@@ -77,7 +78,7 @@ import {
   toggleRect,
 } from "./slot-grid";
 import { ErrorState, PageHeading } from "./states";
-import { minutesToTime, WEEKDAY_NAMES } from "./time";
+import { minutesToTime, viewerTimeZoneName, WEEKDAY_NAMES } from "./time";
 
 const DAY_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const WEEKDAYS = [0, 1, 2, 3, 4];
@@ -198,11 +199,14 @@ export function AvailabilityEditor({
   practiceId,
   timezone,
   introMinutes,
+  isOwner,
 }: {
   practiceId: string;
   timezone: string;
   /** How long the practice's free intro lasts. */
   introMinutes: number;
+  /** Only the owner changes the practice's time zone. */
+  isOwner: boolean;
 }) {
   const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
@@ -212,7 +216,12 @@ export function AvailabilityEditor({
     <div className="flex flex-col gap-6">
       <PageHeading
         title="Расписание"
-        description={`Часы приёма по времени ${timezone}`}
+        description={`Часы приёма по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
+        actions={
+          isOwner && (
+            <PracticeTimeZone practiceId={practiceId} timezone={timezone} />
+          )
+        }
       />
       {rules.isError ? (
         <ErrorState onRetry={() => rules.refetch()} />

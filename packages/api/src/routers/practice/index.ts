@@ -11,6 +11,7 @@ import { mine } from "./mine";
 import { setFreeBooking } from "./set-free-booking";
 import { setNotifications } from "./set-notifications";
 import { setTheme } from "./set-theme";
+import { setTimezone } from "./set-timezone";
 import { setVideoUrl } from "./set-video-url";
 import { theme } from "./theme";
 
@@ -28,6 +29,7 @@ export const practiceRouter = {
   setVideoUrl,
   setFreeBooking,
   setNotifications,
+  setTimezone,
   theme,
   setTheme,
 };

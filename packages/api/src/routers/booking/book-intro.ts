@@ -14,6 +14,7 @@ import {
 } from "@synoro/jobs/booking-video";
 import {
   bookingAnswersInput,
+  clientTimeZoneInput,
   guestBookingFormSchema,
   professionTerms,
 } from "@synoro/validators";
@@ -87,6 +88,8 @@ export const bookIntro = publicProcedure
       guest: guestBookingFormSchema.omit({ note: true }).optional(),
       note: z.string().trim().max(500).optional(),
       answers: bookingAnswersInput,
+      /** The client's browser zone: the mails write the time in it. */
+      timezone: clientTimeZoneInput,
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -218,6 +221,7 @@ export const bookIntro = publicProcedure
             guestPhone: person.phone,
             note: input.note || null,
             answers: questionnaire.answers,
+            clientTimezone: input.timezone ?? null,
             accessTokenHash: hashGuestToken(token),
             createdById: person.userId,
           })
@@ -240,7 +244,7 @@ export const bookIntro = publicProcedure
       email: person.email,
       name: person.name,
       practiceName: practice.name,
-      timeZone: practice.timezone,
+      timeZone: input.timezone ?? practice.timezone,
       startsAt: booking.startsAt,
       holdUntil: null,
       intro: professionTerms(practice.profession).free,

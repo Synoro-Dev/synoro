@@ -32,6 +32,7 @@ import { formatDateTime } from "./time";
 export function SeriesDialog({
   practiceId,
   startsAt,
+  timeZone,
   credits,
   terms,
   answers,
@@ -42,6 +43,8 @@ export function SeriesDialog({
   practiceId: string;
   /** The picked slot; null while the dialog is closed. */
   startsAt: Date | null;
+  /** The zone the client reads times in; their mails use it too. */
+  timeZone: string;
   credits: number;
   terms: ProfessionTerms;
   /** The questionnaire, already filled in on the booking page. */
@@ -61,6 +64,7 @@ export function SeriesDialog({
           <SeriesForm
             practiceId={practiceId}
             startsAt={startsAt}
+            timeZone={timeZone}
             credits={credits}
             terms={terms}
             answers={answers}
@@ -77,6 +81,7 @@ export function SeriesDialog({
 function SeriesForm({
   practiceId,
   startsAt,
+  timeZone,
   credits,
   terms,
   answers,
@@ -86,6 +91,7 @@ function SeriesForm({
 }: {
   practiceId: string;
   startsAt: Date;
+  timeZone: string;
   credits: number;
   terms: ProfessionTerms;
   answers: Record<string, string>;
@@ -122,14 +128,21 @@ function SeriesForm({
       onSubmit={(event) => {
         event.preventDefault();
         if (!repeat) return;
-        book.mutate({ practiceId, startsAt, ...repeat, skip, answers });
+        book.mutate({
+          practiceId,
+          startsAt,
+          ...repeat,
+          skip,
+          answers,
+          timezone: timeZone,
+        });
       }}
     >
       <DialogHeader>
         <DialogTitle>Повторять запись</DialogTitle>
         <DialogDescription>
-          {formatDateTime(startsAt)} — и дальше в то же время. За каждую дату
-          спишется {formatCredits(1, terms)}, на балансе{" "}
+          {formatDateTime(startsAt, timeZone)} — и дальше в то же время. За
+          каждую дату спишется {formatCredits(1, terms)}, на балансе{" "}
           {formatCredits(credits, terms)}.
         </DialogDescription>
       </DialogHeader>
@@ -148,6 +161,7 @@ function SeriesForm({
         <SeriesDateList
           query={preview}
           unchecked={unchecked}
+          timeZone={timeZone}
           idPrefix="series"
           onToggle={(at, checked) => {
             const next = new Set(unchecked);

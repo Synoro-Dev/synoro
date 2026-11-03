@@ -37,6 +37,7 @@ function findByToken(db: Database, token: string) {
       practiceVideoUrl: Practice.videoUrl,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
+      clientTimezone: Booking.clientTimezone,
       practiceName: Practice.name,
       practiceSlug: Practice.slug,
       timezone: Practice.timezone,
@@ -119,6 +120,8 @@ export const guest = publicProcedure
       kind: found.kind,
       startsAt: found.startsAt,
       endsAt: found.endsAt,
+      /** The zone the visitor booked from: the page reads times in it. */
+      clientTimezone: found.clientTimezone,
       holdUntil: found.holdUntil,
       canCancel: state === "confirmed" && clientMayCancel(found, now),
       /** The video room, only once the booking is confirmed. */

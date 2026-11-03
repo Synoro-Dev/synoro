@@ -172,11 +172,14 @@ export function SeriesDateList({
   unchecked,
   onToggle,
   idPrefix,
+  timeZone,
 }: {
   query: ReturnType<typeof useSeriesPreview>;
   unchecked: Set<number>;
   onToggle: (at: Date, checked: boolean) => void;
   idPrefix: string;
+  /** The zone the dates are shown in; the browser's when omitted. */
+  timeZone?: string;
 }) {
   if (query.isError) {
     return (
@@ -217,7 +220,7 @@ export function SeriesDateList({
                   : "text-muted-foreground tabular-nums line-through"
               }
             >
-              {formatDateTime(d.startsAt)}
+              {formatDateTime(d.startsAt, timeZone)}
             </label>
             {d.status !== "free" && (
               <span className="text-xs text-muted-foreground">

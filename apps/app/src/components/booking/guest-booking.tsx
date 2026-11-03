@@ -20,8 +20,9 @@ import Link from "next/link";
 
 import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "./confirm-button";
+import { useDisplayZone } from "./display-zone";
 import { ErrorState } from "./states";
-import { formatDateTime, formatTime } from "./time";
+import { formatDateTime, formatTime, viewerTimeZoneName } from "./time";
 import { VideoLinkButton, VideoServiceName } from "./video-link";
 
 /** ~2 minutes of checks, then the webhook (and a page reload) take over. */
@@ -36,6 +37,7 @@ const MAX_CHECKS = 48;
  */
 export function GuestBooking({ token }: { token: string }) {
   const queryClient = useQueryClient();
+  const { picked, browserZone } = useDisplayZone();
   const options = orpc.booking.guest.queryOptions({ input: { token } });
   const booking = useQuery({
     ...options,
@@ -61,6 +63,9 @@ export function GuestBooking({ token }: { token: string }) {
   });
 
   const data = booking.data;
+  // The pick made on this origin; else the zone the booking was made from (the
+  // visitor may have picked it on the practice's own domain), else the browser's.
+  const zone = picked ?? data?.clientTimezone ?? browserZone;
   const terms = professionTerms(data?.practice.profession ?? "other");
   const intro = data?.kind === "free";
 
@@ -86,7 +91,7 @@ export function GuestBooking({ token }: { token: string }) {
                 title="Ждём подтверждения оплаты"
                 text={
                   data.holdUntil
-                    ? `Время держится за вами до ${formatTime(data.holdUntil)}.`
+                    ? `Время держится за вами до ${formatTime(data.holdUntil, zone)}.`
                     : undefined
                 }
               />
@@ -125,7 +130,8 @@ export function GuestBooking({ token }: { token: string }) {
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Когда</dt>
                 <dd className="text-right font-medium first-letter:uppercase">
-                  {formatDateTime(data.startsAt)}–{formatTime(data.endsAt)}
+                  {formatDateTime(data.startsAt, zone)}–
+                  {formatTime(data.endsAt, zone)} · {viewerTimeZoneName(zone)}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

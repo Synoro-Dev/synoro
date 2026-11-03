@@ -43,6 +43,7 @@ import { PaymentReturn } from "../payment/payment-return";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { MessengerCard } from "../settings/messenger-notifications";
 import { ConfirmButton } from "./confirm-button";
+import { useDisplayZone } from "./display-zone";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 import { formatDateTime, formatTime } from "./time";
 import { VideoLinkButton } from "./video-link";
@@ -50,13 +51,16 @@ import { VideoLinkButton } from "./video-link";
 type ClientPractice = RouterOutputs["practice"]["mine"][number];
 type MyBooking = RouterOutputs["booking"]["mine"][number];
 
-function DateChip({ at }: { at: Date }) {
+/** A day as a chip; in `timeZone`, the browser's when omitted (payments). */
+function DateChip({ at, timeZone }: { at: Date; timeZone?: string }) {
   return (
     <div className="flex w-12 shrink-0 flex-col items-center rounded-md border py-1 leading-none">
       <span className="text-[0.625rem] font-medium text-muted-foreground uppercase">
-        {at.toLocaleDateString("ru-RU", { month: "short" })}
+        {at.toLocaleDateString("ru-RU", { timeZone, month: "short" })}
       </span>
-      <span className="text-lg font-semibold tabular-nums">{at.getDate()}</span>
+      <span className="text-lg font-semibold tabular-nums">
+        {at.toLocaleDateString("ru-RU", { timeZone, day: "numeric" })}
+      </span>
     </div>
   );
 }
@@ -68,10 +72,12 @@ function DateChip({ at }: { at: Date }) {
 function BalanceCard({
   practice,
   next,
+  timeZone,
   onTopUp,
 }: {
   practice: ClientPractice;
   next: MyBooking | undefined;
+  timeZone: string;
   onTopUp: () => void;
 }) {
   const offer = useQuery(
@@ -112,7 +118,7 @@ function BalanceCard({
         <CalendarCheckIcon className="size-3.5" />
         {next ? (
           <span className="first-letter:uppercase">
-            Ближайшая: {formatDateTime(next.startsAt)}
+            Ближайшая: {formatDateTime(next.startsAt, timeZone)}
           </span>
         ) : (
           "Ближайших записей нет"
@@ -325,6 +331,8 @@ function PaymentHistory() {
  */
 export function MyBookings() {
   const queryClient = useQueryClient();
+  // The zone picked on a booking page, else the browser's.
+  const { zone } = useDisplayZone();
   const practices = useQuery(orpc.practice.mine.queryOptions());
   const bookings = useQuery(orpc.booking.mine.queryOptions());
   const [topUp, setTopUp] = useState<string | null>(null);
@@ -403,6 +411,7 @@ export function MyBookings() {
               key={p.practiceId}
               practice={p}
               next={upcoming.find((b) => b.practiceId === p.practiceId)}
+              timeZone={zone}
               onTopUp={() => setTopUp(p.practiceId)}
             />
           ))}
@@ -478,13 +487,15 @@ export function MyBookings() {
                 <Frame spacing="default" stacked>
                   {upcoming.map((b) => (
                     <FramePanel key={b.id} className="flex items-center gap-4">
-                      <DateChip at={b.startsAt} />
+                      <DateChip at={b.startsAt} timeZone={zone} />
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-sm font-medium first-letter:uppercase">
                           {b.startsAt.toLocaleDateString("ru-RU", {
+                            timeZone: zone,
                             weekday: "long",
                           })}
-                          , {formatTime(b.startsAt)}–{formatTime(b.endsAt)}
+                          , {formatTime(b.startsAt, zone)}–
+                          {formatTime(b.endsAt, zone)}
                         </span>
                         <span className="flex items-center gap-1 truncate text-xs text-muted-foreground">
                           {b.seriesId && (
@@ -560,10 +571,11 @@ export function MyBookings() {
                 <Frame spacing="default" stacked>
                   {past.map((b) => (
                     <FramePanel key={b.id} className="flex items-center gap-4">
-                      <DateChip at={b.startsAt} />
+                      <DateChip at={b.startsAt} timeZone={zone} />
                       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="text-sm font-medium tabular-nums">
-                          {formatTime(b.startsAt)}–{formatTime(b.endsAt)}
+                          {formatTime(b.startsAt, zone)}–
+                          {formatTime(b.endsAt, zone)}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">
                           {b.practiceName}

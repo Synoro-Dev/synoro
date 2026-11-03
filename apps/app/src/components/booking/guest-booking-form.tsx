@@ -60,11 +60,14 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function GuestBookingForm({
   practice,
   startsAt,
+  timeZone,
   offer,
   questions,
 }: {
   practice: { id: string; name: string; profession: Profession };
   startsAt: Date;
+  /** The zone the visitor reads times in; their mails use it too. */
+  timeZone: string;
   offer: Offer;
   /** The practice's questionnaire («Про»); empty when none is asked. */
   questions: BookingQuestion[];
@@ -116,6 +119,7 @@ export function GuestBookingForm({
       practiceId: practice.id,
       packageId: selected.id,
       startsAt,
+      timezone: timeZone,
     });
   }
 

@@ -4,6 +4,8 @@
  * math on YYYY-MM-DD keys, unit tested in `booking-views.test.ts`.
  */
 
+import { clockIn } from "./time";
+
 const BOOKING_VIEWS = ["month", "week", "columns"] as const;
 
 export type BookingView = (typeof BOOKING_VIEWS)[number];
@@ -35,12 +37,13 @@ export const weekDays = (start: string) =>
 
 /**
  * What `booking.slots` is asked for a week: from today (in the practice's
- * zone) or the Monday, to the Sunday, with a day of padding on each side —
- * the viewer's days may straddle the practice's.
+ * zone) or the Monday, to the Sunday, with two days of padding on each side —
+ * zones differ by up to 26 hours, so a slot of the practice's day D can fall
+ * on the viewer's D-2 or D+2.
  */
 export function weekWindow(start: string, today: string) {
-  const from = addDays(start < today ? today : start, -1);
-  return { from, days: Math.max(1, daysBetween(from, addDays(start, 6)) + 2) };
+  const from = addDays(start < today ? today : start, -2);
+  return { from, days: Math.max(1, daysBetween(from, addDays(start, 6)) + 3) };
 }
 
 /** «3–9 ноября», «27 октября – 2 ноября», across a new year with years. */
@@ -59,10 +62,13 @@ export function formatWeekRange(start: string) {
   return `${dayMonth(a)} – ${dayMonth(b)}`;
 }
 
-/** Every hour from the earliest to the latest one a slot starts in. */
-export function hourSpan(starts: readonly Date[]) {
+/**
+ * Every hour from the earliest to the latest one a slot starts in, on the wall
+ * clock of `timeZone` (the browser's when omitted).
+ */
+export function hourSpan(starts: readonly Date[], timeZone?: string) {
   if (starts.length === 0) return [];
-  const hours = starts.map((at) => at.getHours());
+  const hours = starts.map((at) => clockIn(at, timeZone).hour);
   const first = Math.min(...hours);
   return Array.from(
     { length: Math.max(...hours) - first + 1 },

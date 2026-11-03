@@ -28,6 +28,7 @@ import {
   professionTerms,
 } from "./profession";
 import { profileFormSchema } from "./profile";
+import { canonicalTimeZone, clientTimeZoneInput } from "./timezone";
 import { normalizeVideoUrl, videoServiceName, videoUrlSchema } from "./video";
 import {
   renderWorkflowText,
@@ -710,5 +711,29 @@ describe("intro length", () => {
     expect(formatMinutes(21)).toBe("21 минута");
     expect(formatMinutes(90, true)).toBe("1,5 ч");
     expect(formatMinutes(45, true)).toBe("45 мин");
+  });
+});
+
+describe("clientTimeZoneInput", () => {
+  test("keeps a known zone, in its canonical spelling", () => {
+    expect(clientTimeZoneInput.parse("Asia/Novosibirsk")).toBe(
+      "Asia/Novosibirsk",
+    );
+    expect(clientTimeZoneInput.parse("europe/moscow")).toBe("Europe/Moscow");
+  });
+
+  test("drops an unknown zone instead of failing", () => {
+    expect(clientTimeZoneInput.parse("Mars/Olympus")).toBeUndefined();
+    expect(clientTimeZoneInput.parse("")).toBeUndefined();
+    expect(clientTimeZoneInput.parse(undefined)).toBeUndefined();
+  });
+
+  test("refuses a name too long to be a zone", () => {
+    expect(clientTimeZoneInput.safeParse("x".repeat(65)).success).toBe(false);
+  });
+
+  test("canonicalTimeZone is undefined for garbage", () => {
+    expect(canonicalTimeZone("not a zone")).toBeUndefined();
+    expect(canonicalTimeZone("UTC")).toBe("UTC");
   });
 });

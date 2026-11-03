@@ -14,5 +14,6 @@ export * from "./payment";
 export * from "./phone";
 export * from "./profession";
 export * from "./profile";
+export * from "./timezone";
 export * from "./video";
 export * from "./workflow";
