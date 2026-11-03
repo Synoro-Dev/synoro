@@ -12,23 +12,15 @@ const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 // A half-configured Postbox fails every send instead of being left out: with
 // no Resend behind it the mail would otherwise be dropped without a retry.
-// Its default EMAIL_FROM (Resend's onboarding address) is never verified in
-// Postbox, which rejects such a sender.
-const postboxProblem =
-  !env.POSTBOX_ACCESS_KEY_ID && !env.POSTBOX_SECRET_ACCESS_KEY
-    ? null
-    : !env.POSTBOX_ACCESS_KEY_ID || !env.POSTBOX_SECRET_ACCESS_KEY
-      ? "set both POSTBOX_ACCESS_KEY_ID and POSTBOX_SECRET_ACCESS_KEY"
-      : env.EMAIL_FROM.includes("@resend.dev")
-        ? "set EMAIL_FROM to an address verified in Postbox"
-        : null;
+const postboxHalfConfigured =
+  !env.POSTBOX_ACCESS_KEY_ID !== !env.POSTBOX_SECRET_ACCESS_KEY;
 
 // Yandex Cloud Postbox through its SES v2-compatible HTTP API: a static
 // access key of a service account with the `postbox.sender` role. One
-// attempt with short timeouts — at most ~15 s of the `send-email` task's
-// 60 s, leaving Resend time to send; retries are the task's job.
+// attempt, aborted after 15 s of the `send-email` task's 60 s, leaving
+// Resend time to send; retries are the task's job.
 const postbox =
-  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY && !postboxProblem
+  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY
     ? new SESv2Client({
         endpoint: env.POSTBOX_ENDPOINT,
         region: "ru-central1",
@@ -62,17 +54,29 @@ export type EmailHtml = {
 };
 
 const providers: Provider<Required<EmailHtml>>[] = [];
-if (postboxProblem) {
+if (postboxHalfConfigured) {
   providers.push({
     name: "postbox",
-    send: () => Promise.reject(new Error(`postbox: ${postboxProblem}`)),
+    send: () =>
+      Promise.reject(
+        new Error(
+          "postbox: set both POSTBOX_ACCESS_KEY_ID and POSTBOX_SECRET_ACCESS_KEY",
+        ),
+      ),
   });
 }
 if (postbox) {
   providers.push({
     name: "postbox",
-    send: (email) =>
-      postbox.send(
+    send: async (email) => {
+      // Postbox rejects senders it hasn't verified; Resend's onboarding
+      // address (the default EMAIL_FROM) never is.
+      if (email.from.includes("@resend.dev")) {
+        throw new Error("postbox: send from an address verified in Postbox");
+      }
+      // The signal covers the whole call, the response body included;
+      // requestTimeout only waits for the headers.
+      await postbox.send(
         new SendEmailCommand({
           FromEmailAddress: email.from,
           Destination: { ToAddresses: email.to },
@@ -83,7 +87,9 @@ if (postbox) {
             },
           },
         }),
-      ),
+        { abortSignal: AbortSignal.timeout(15_000) },
+      );
+    },
   });
 }
 if (resend) {
