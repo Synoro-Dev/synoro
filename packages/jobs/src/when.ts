@@ -67,6 +67,35 @@ export function describeDates(
     : { when: first, dates: [] };
 }
 
+/** Local calendar date (YYYY-MM-DD) of `at` in `timeZone`. */
+export function localDate(at: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+}
+
+/** «среда, 4 ноября». */
+export function formatDay(at: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(at);
+}
+
+/** «10:00». */
+export function formatTime(at: Date, timeZone: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(at);
+}
+
 /** Hour of the day (0–23) at `at` in `timeZone`; throws on an unknown zone. */
 export function localHour(at: Date, timeZone: string) {
   return Number(

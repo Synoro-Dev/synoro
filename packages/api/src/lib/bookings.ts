@@ -19,7 +19,8 @@ import {
 import { notifyBookingCancelled } from "@synoro/jobs/booking-video";
 
 import { removeBookingEvent } from "./google-calendar";
-import { addDays, zonedTimeToUtc } from "./schedule";
+import { findMembership, isStaff } from "./practice-access";
+import { addDays, clientMayCancel, zonedTimeToUtc } from "./schedule";
 
 export function loadRules(db: Database, practiceId: string) {
   return db
@@ -113,6 +114,65 @@ export async function cancelActiveBooking(
     });
   }
   return result;
+}
+
+/** Why `userId` can't cancel a booking (`checkCancel`, `cancelBookingAs`). */
+export type CancelRefusal = "NOT_FOUND" | "TOO_LATE";
+
+type Refused = { refusal: CancelRefusal };
+type BookingRow = typeof Booking.$inferSelect;
+
+/**
+ * Whether `userId` may cancel `bookingId` now, and as whom. A client cancels
+ * their own booking — a consultation no later than 24 h before it, a free
+ * intro any time before it starts; staff cancel anything at any time.
+ * Bookings the user may not touch, and ones no longer active, are NOT_FOUND.
+ * `booking.cancel` and the messenger's «Отменить запись» share it.
+ */
+export async function checkCancel(
+  db: Database,
+  bookingId: string,
+  userId: string,
+): Promise<Refused | { booking: BookingRow; staff: boolean }> {
+  const booking = await db.query.Booking.findFirst({
+    where: and(eq(Booking.id, bookingId), eq(Booking.status, "active")),
+  });
+  if (!booking) return { refusal: "NOT_FOUND" };
+
+  const caller = await findMembership(db, booking.practiceId, userId);
+  const staff = caller !== undefined && isStaff(caller.role);
+  const own =
+    caller !== undefined &&
+    booking.kind !== "blocked" &&
+    booking.memberId === caller.id;
+  if (!staff && !own) return { refusal: "NOT_FOUND" };
+  if (!staff && !clientMayCancel(booking, Date.now())) {
+    return { refusal: "TOO_LATE" };
+  }
+  return { booking, staff };
+}
+
+/**
+ * Cancel `bookingId` for `userId` by the rules of `checkCancel`. A client
+ * always gets the consultation back; staff unless `refund` is false (a late
+ * cancellation). The client and staff are told as by `cancelActiveBooking`.
+ */
+export async function cancelBookingAs(
+  db: Database,
+  bookingId: string,
+  userId: string,
+  options: { refund?: boolean } = {},
+): Promise<Refused | { booking: BookingRow; refunded: boolean }> {
+  const check = await checkCancel(db, bookingId, userId);
+  if ("refusal" in check) return check;
+  const { booking, staff } = check;
+  const result = await cancelActiveBooking(db, booking.id, {
+    cancelledById: userId,
+    refund: (options.refund ?? true) || !staff,
+    reason: staff ? "staff" : "client",
+  });
+  if (!result) return { refusal: "NOT_FOUND" };
+  return { booking: result.booking, refunded: result.refunded };
 }
 
 /**

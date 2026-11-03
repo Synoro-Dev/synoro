@@ -54,8 +54,15 @@
     {
       "idx": 7,
       "version": "7",
-      "when": 1793725814075,
-      "tag": "0007_booking_client_timezone",
+      "when": 1793718244709,
+      "tag": "0007_notification_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793731502319,
+      "tag": "0008_booking_client_timezone",
       "breakpoints": true
     }
   ]

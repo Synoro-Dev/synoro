@@ -1,5 +1,5 @@
 {
-  "id": "4be8b837-8355-428d-a6a7-1e790b7fea82",
+  "id": "6716597d-4cda-4c5b-a958-bd7b58968ac8",
   "prevId": "2f25eef7-d000-4d44-80f2-d4a8009cd7de",
   "version": "7",
   "dialect": "postgresql",
@@ -1006,12 +1006,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "client_timezone": {
-          "name": "client_timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "answers": {
           "name": "answers",
           "type": "jsonb",
@@ -1817,6 +1811,27 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'::jsonb"
+        },
+        "remind_clients": {
+          "name": "remind_clients",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notify_staff": {
+          "name": "notify_staff",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "daily_agenda": {
+          "name": "daily_agenda",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "owner_id": {
           "name": "owner_id",

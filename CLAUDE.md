@@ -194,7 +194,12 @@ and run `tsc` by hand, build them first.
   start code. Notice senders in `packages/jobs` take a `Deliver` with a
   recipient (`userId`, `practiceId`); the default `noticeSender(db)` sends to
   the chat when the practice owner has «Про», else mail; a blocked bot or
-  the last failed retry of `send-messenger` falls back to mail.
+  the last failed retry of `send-messenger` falls back to mail. Clients
+  cancel from the notice's «Отменить запись» button (action strings in
+  `jobs/src/messenger/actions.ts`, checked by `cancelBookingAs` — the same
+  rules as `booking.cancel`). Staff get tomorrow's bookings at 20:00
+  (`staff-agenda` cron); the owner turns notices off per practice
+  (`remind_clients`, `notify_staff`, `daily_agenda`, `practice.setNotifications`).
 - **Time zones** (`docs/time-zones.md`): bookings are UTC instants, hours in
   `practices.timezone` (owner sets it, `practice.setTimezone`). A client reads
   times in the zone they picked on the booking page (`useDisplayZone`) and

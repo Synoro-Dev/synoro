@@ -4,6 +4,7 @@ import OtpSignInEmail from "./emails/otp-sign-in";
 import ProNoticeEmail from "./emails/pro-notice";
 import RenewalNoticeEmail from "./emails/renewal-notice";
 import ResetPasswordEmail from "./emails/reset-password";
+import StaffAgendaEmail from "./emails/staff-agenda";
 import StaffBookingEmail from "./emails/staff-booking";
 import WelcomeEmail from "./emails/welcome";
 import WorkflowMessageEmail from "./emails/workflow-message";
@@ -16,6 +17,7 @@ const templates = {
   "pro-notice": ProNoticeEmail,
   "renewal-notice": RenewalNoticeEmail,
   "reset-password": ResetPasswordEmail,
+  "staff-agenda": StaffAgendaEmail,
   "staff-booking": StaffBookingEmail,
   welcome: WelcomeEmail,
   "workflow-message": WorkflowMessageEmail,

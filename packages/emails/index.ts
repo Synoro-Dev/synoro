@@ -3,6 +3,7 @@ import OtpSignInEmail from "./emails/otp-sign-in";
 import type { ProNotice } from "./emails/pro-notice";
 import type { RenewalNotice } from "./emails/renewal-notice";
 import ResetPasswordEmail from "./emails/reset-password";
+import type { AgendaMeeting } from "./emails/staff-agenda";
 import type { StaffBookingNotice } from "./emails/staff-booking";
 import WelcomeEmail from "./emails/welcome";
 
@@ -12,5 +13,11 @@ export {
   sendTemplateEmail,
   type TemplateEmail,
 } from "./templates";
-export type { BookingNotice, ProNotice, RenewalNotice, StaffBookingNotice };
+export type {
+  AgendaMeeting,
+  BookingNotice,
+  ProNotice,
+  RenewalNotice,
+  StaffBookingNotice,
+};
 export { OtpSignInEmail, ResetPasswordEmail, WelcomeEmail };

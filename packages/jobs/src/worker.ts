@@ -32,6 +32,7 @@ async function main() {
     scheduledWorkflow,
     sendEmailTask,
     sendMessengerTask,
+    staffAgendaWorkflow,
     workflowMessagesWorkflow,
   } = await import("./workflows");
 
@@ -45,6 +46,7 @@ async function main() {
       billingRenewalsWorkflow,
       metrikaConversionsWorkflow,
       workflowMessagesWorkflow,
+      staffAgendaWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

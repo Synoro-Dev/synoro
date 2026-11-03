@@ -43,6 +43,23 @@ export function formatMinutes(minutes: number, short = false) {
   return `${number} ${pluralize(hours, ["час", "часа", "часов"])}`;
 }
 
+/** A client may cancel (and get the credit back) up to 24 h before start. */
+export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a client may still cancel their booking themselves at `now` (ms):
+ * a paid one up to 24 h before the start, a free intro — nothing to give
+ * back — until it starts. `booking.cancel` and the worker, which offers the
+ * cancel button in messengers, share it.
+ */
+export function clientMayCancel(
+  booking: { kind: string; startsAt: Date },
+  now: number,
+) {
+  const left = booking.startsAt.getTime() - now;
+  return booking.kind === "free" ? left > 0 : left >= CLIENT_CANCEL_WINDOW_MS;
+}
+
 /**
  * Slugs double as platform subdomains (`<slug>.<root>`), so names the
  * platform itself may need as hosts are off limits.

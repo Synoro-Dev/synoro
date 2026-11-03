@@ -30,21 +30,8 @@ function slotMinutes(kind: SlotKind, introMinutes?: number) {
     : SLOT_MINUTES.consultation;
 }
 
-/** A client may cancel (and get the credit back) up to 24 h before start. */
-export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Whether a client may still cancel their booking themselves at `now` (ms):
- * a paid one up to 24 h before the start, a free intro — nothing to give
- * back — until it starts.
- */
-export function clientMayCancel(
-  booking: { kind: string; startsAt: Date },
-  now: number,
-) {
-  const left = booking.startsAt.getTime() - now;
-  return booking.kind === "free" ? left > 0 : left >= CLIENT_CANCEL_WINDOW_MS;
-}
+/** The worker needs the same rule for the messenger cancel button. */
+export { CLIENT_CANCEL_WINDOW_MS, clientMayCancel } from "@synoro/validators";
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;

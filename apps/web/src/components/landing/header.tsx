@@ -37,7 +37,7 @@ export function Header({ links }: { links: SiteLinks }) {
       )}
     >
       <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-8 px-4 sm:px-6">
-        <a href="#top" aria-label="На главную">
+        <a href="/" aria-label="На главную">
           <Logo />
         </a>
 
