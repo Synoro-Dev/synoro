@@ -74,4 +74,14 @@ describe("slot grid", () => {
     ]);
     expect(gridStats(grid)).toEqual({ minutes: 150, paid: 2, free: 5 });
   });
+
+  test("counts longer intros by the starts that fit them", () => {
+    // 10:30–13:00: an hour fits from 10:30…12:00 (4), 45 minutes too.
+    const grid = gridFromRules([
+      { weekday: 1, startMinute: 630, endMinute: 780 },
+    ]);
+    expect(gridStats(grid, 60).free).toBe(4);
+    expect(gridStats(grid, 45).free).toBe(4);
+    expect(gridStats(grid, 90).free).toBe(3);
+  });
 });

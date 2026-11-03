@@ -12,7 +12,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { Frame, FramePanel } from "@synoro/ui/reui/frame";
-import { capitalize } from "@synoro/validators";
+import { capitalize, formatMinutes } from "@synoro/validators";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarCheckIcon,
@@ -31,11 +31,6 @@ import { useTerms } from "./terms";
 import { dateKey, viewerTimeZone, viewerTimeZoneName } from "./time";
 
 type Kind = "consultation" | "free";
-
-const LENGTH_MS: Record<Kind, number> = {
-  consultation: 60 * 60_000,
-  free: 30 * 60_000,
-};
 
 /** YYYY-MM-DD plus `days`, on the calendar (no time zone involved). */
 function shiftKey(key: string, days: number) {
@@ -99,10 +94,13 @@ export function PracticeWindows({
   practiceId,
   practiceName,
   timezone,
+  introMinutes,
 }: {
   practiceId: string;
   practiceName: string;
   timezone: string;
+  /** How long the practice's free intro lasts. */
+  introMinutes: number;
 }) {
   const terms = useTerms();
   const today = dateKey(new Date(), timezone);
@@ -119,10 +117,11 @@ export function PracticeWindows({
     refetchInterval: 60_000,
   });
 
+  const lengthMinutes = kind === "consultation" ? 60 : introMinutes;
   const kindLabel =
     kind === "consultation"
       ? `${capitalize(terms.credit[0])}, 1 час`
-      : `${terms.free}, 30 минут, бесплатно`;
+      : `${terms.free}, ${formatMinutes(introMinutes)}, бесплатно`;
   const days = windows.data?.days ?? [];
   const next = days
     .flatMap((day) => day.slots[kind])
@@ -136,7 +135,7 @@ export function PracticeWindows({
     setDraft({
       mode: kind,
       start: at,
-      end: new Date(at.getTime() + LENGTH_MS[kind]),
+      end: new Date(at.getTime() + lengthMinutes * 60_000),
     });
   }
 
@@ -179,7 +178,7 @@ export function PracticeWindows({
             </TabsTrigger>
             <TabsTrigger value="free">
               <UserRoundPlusIcon />
-              {terms.free} · 30 мин
+              {terms.free} · {formatMinutes(introMinutes, true)}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -315,9 +314,9 @@ export function PracticeWindows({
                     !past &&
                     day.free.length > 0 && (
                       <p className="text-sm text-muted-foreground">
-                        Окна короче, чем{" "}
-                        {kind === "consultation" ? "час" : "30 минут"}, или не с
-                        начала часа.
+                        {kind === "consultation"
+                          ? "Окна короче часа или не с начала часа."
+                          : `Окна короче, чем ${terms.free.toLowerCase()} (${formatMinutes(introMinutes)}).`}
                       </p>
                     )
                   )}

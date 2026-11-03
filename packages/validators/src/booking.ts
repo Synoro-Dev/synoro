@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { phoneSchema } from "./phone";
-import { PROFESSIONS } from "./profession";
+import { PROFESSIONS, pluralize } from "./profession";
 
 /** Free slots sit on a 30-minute grid, so schedules do too. */
 const halfHourMinute = (max: number) =>
@@ -11,6 +11,37 @@ const halfHourMinute = (max: number) =>
     .min(0)
     .max(max)
     .refine((m) => m % 30 === 0, "Время должно быть кратно 30 минутам");
+
+/**
+ * Lengths an owner may give the free intro (`practices.intro_minutes`); it
+ * starts on the half-hour grid whatever its length.
+ */
+export const INTRO_MINUTES = [30, 45, 60, 90] as const;
+
+export const introMinutesSchema = z
+  .number()
+  .int()
+  .refine(
+    (m) => (INTRO_MINUTES as readonly number[]).includes(m),
+    "Выберите длительность из списка",
+  );
+
+/**
+ * A length in minutes for people: «30 минут», «1 час», «1,5 часа»;
+ * `short` — «30 мин», «1 ч», «1,5 ч».
+ */
+export function formatMinutes(minutes: number, short = false) {
+  if (minutes < 60 || minutes % 30 !== 0) {
+    if (short) return `${minutes} мин`;
+    return `${minutes} ${pluralize(minutes, ["минута", "минуты", "минут"])}`;
+  }
+  const hours = minutes / 60;
+  const number = String(hours).replace(".", ",");
+  if (short) return `${number} ч`;
+  // A fraction takes the genitive singular: «1,5 часа».
+  if (!Number.isInteger(hours)) return `${number} часа`;
+  return `${number} ${pluralize(hours, ["час", "часа", "часов"])}`;
+}
 
 /**
  * Slugs double as platform subdomains (`<slug>.<root>`), so names the

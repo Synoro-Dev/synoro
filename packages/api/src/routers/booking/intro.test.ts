@@ -340,3 +340,111 @@ describe("free windows for staff", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
+
+describe("intro length", () => {
+  // Another Monday, 10:00–13:00 MSK = 07:00–10:00Z, nothing booked yet.
+  const DAY = "2030-02-04";
+
+  const freeSlots = async () => {
+    const { slots } = await call(
+      bookingRouter.slots,
+      { practiceId, from: DAY, days: 1, kind: "free" },
+      { context: api.context() },
+    );
+    return slots;
+  };
+
+  it("is set by the owner to one of the offered lengths", async () => {
+    await expect(
+      call(
+        practiceRouter.setFreeBooking,
+        { practiceId, introMinutes: 50 },
+        { context: api.context(owner) },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    const client = await createSession(api.db);
+    await call(
+      practiceRouter.join,
+      { practiceId },
+      { context: api.context(client) },
+    );
+    await expect(
+      call(
+        practiceRouter.setFreeBooking,
+        { practiceId, introMinutes: 60 },
+        { context: api.context(client) },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const saved = await call(
+      practiceRouter.setFreeBooking,
+      { practiceId, introMinutes: 60 },
+      { context: api.context(owner) },
+    );
+    // The switch is left as it was.
+    expect(saved).toEqual({ enabled: true, introMinutes: 60 });
+    const page = await call(
+      practiceRouter.bySlug,
+      { slug: "anna-intro" },
+      { context: api.context() },
+    );
+    expect(page).toMatchObject({ freeBooking: true, introMinutes: 60 });
+  });
+
+  it("gives intros that length, still starting on the half hour", async () => {
+    const slots = await freeSlots();
+    expect(slots.map((s) => s.startsAt)).toEqual([
+      at("07:00", DAY),
+      at("07:30", DAY),
+      at("08:00", DAY),
+      at("08:30", DAY),
+      at("09:00", DAY),
+    ]);
+    expect(slots[0]?.endsAt).toEqual(at("08:00", DAY));
+
+    const { endsAt } = await bookIntro(at("07:30", DAY), {
+      guest: visitor("hour@visitor.test", "+7 900 555-00-07"),
+    });
+    expect(endsAt).toEqual(at("08:30", DAY));
+    expect((await freeSlots()).map((s) => s.startsAt)).toEqual([
+      at("08:30", DAY),
+      at("09:00", DAY),
+    ]);
+
+    const byPhone = await call(
+      bookingRouter.bookFree,
+      {
+        practiceId,
+        startsAt: at("09:00", DAY),
+        guestName: "Звонил",
+        guestPhone: "+79005550008",
+      },
+      { context: api.context(owner) },
+    );
+    expect(byPhone.endsAt).toEqual(at("10:00", DAY));
+
+    // An hour from 09:30 would run past the end of the day.
+    await expect(
+      bookIntro(at("09:30", DAY), {
+        guest: visitor("late@visitor.test", "+7 900 555-00-09"),
+      }),
+    ).rejects.toMatchObject({ code: "SLOT_UNAVAILABLE" });
+  });
+
+  it("leaves intros already booked as they were", async () => {
+    await call(
+      practiceRouter.setFreeBooking,
+      { practiceId, introMinutes: 30 },
+      { context: api.context(owner) },
+    );
+    const booked = await api.db.query.Booking.findFirst({
+      where: eq(Booking.startsAt, at("07:30", DAY)),
+    });
+    expect(booked?.endsAt).toEqual(at("08:30", DAY));
+    expect((await freeSlots()).map((s) => s.startsAt)).toEqual([
+      at("07:00", DAY),
+      at("08:30", DAY),
+    ]);
+  });
+});

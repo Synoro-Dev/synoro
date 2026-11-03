@@ -13,7 +13,8 @@ import { publicProcedure } from "../../orpc";
 
 /**
  * Free slots for `days` local days from `from` (YYYY-MM-DD, practice time
- * zone): hour-long for paid consultations, half-hour for free ones. Busy
+ * zone): hour-long paid consultations on the hour, free intros of the
+ * practice's `introMinutes` on the half hour. Busy
  * time (bookings, blocks, the specialist's Google Calendar) and past slots
  * are left out.
  *
@@ -56,6 +57,7 @@ export const slots = publicProcedure
         days: input.days,
         timeZone: practice.timezone,
         kind: input.kind,
+        introMinutes: practice.introMinutes,
         now: new Date(),
       }),
     };

@@ -147,18 +147,28 @@ export const countChanged = (a: SlotGrid, b: SlotGrid) =>
 
 /**
  * What the schedule offers in a week: open minutes, paid consultations (an
- * hour on the hour) and free ones (every half hour) — the slot grid of
- * `computeSlots` in `@synoro/api`.
+ * hour on the hour) and free intros of `introMinutes` (starting every half
+ * hour) — the slot grid of `computeSlots` in `@synoro/api`.
  */
-export function gridStats(grid: SlotGrid) {
+export function gridStats(grid: SlotGrid, introMinutes = SLOT_MINUTES) {
+  const introCells = Math.ceil(introMinutes / SLOT_MINUTES);
+  // Open cells from `slot` on, within the day.
+  const openFrom = (day: number, slot: number, cells: number) =>
+    slot + cells <= SLOTS_PER_DAY &&
+    Array.from(
+      { length: cells },
+      (_, i) => grid[cellIndex(day, slot + i)],
+    ).every(Boolean);
   let open = 0;
   let paid = 0;
+  let free = 0;
   for (let day = 0; day < DAYS; day++) {
     for (let slot = 0; slot < SLOTS_PER_DAY; slot++) {
       if (!grid[cellIndex(day, slot)]) continue;
       open++;
-      if (slot % 2 === 0 && grid[cellIndex(day, slot + 1)]) paid++;
+      if (slot % 2 === 0 && openFrom(day, slot, 2)) paid++;
+      if (openFrom(day, slot, introCells)) free++;
     }
   }
-  return { minutes: open * SLOT_MINUTES, paid, free: open };
+  return { minutes: open * SLOT_MINUTES, paid, free };
 }

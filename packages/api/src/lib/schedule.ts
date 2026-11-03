@@ -8,11 +8,27 @@
 
 export type SlotKind = "consultation" | "free";
 
-/** Paid consultations take an hour on the hour; free ones half an hour. */
+/**
+ * Default lengths: a paid consultation takes an hour, the free intro half an
+ * hour unless the practice set its own (`practices.intro_minutes`).
+ */
 export const SLOT_MINUTES: Record<SlotKind, number> = {
   consultation: 60,
   free: 30,
 };
+
+/** Where slots may start: paid ones on the hour, intros on the half hour. */
+const SLOT_STEP_MINUTES: Record<SlotKind, number> = {
+  consultation: 60,
+  free: 30,
+};
+
+/** Length in minutes of a `kind` slot, given the practice's intro length. */
+function slotMinutes(kind: SlotKind, introMinutes?: number) {
+  return kind === "free"
+    ? (introMinutes ?? SLOT_MINUTES.free)
+    : SLOT_MINUTES.consultation;
+}
 
 /** A client may cancel (and get the credit back) up to 24 h before start. */
 export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -218,9 +234,10 @@ export function isOnHalfHourGrid(at: Date) {
 /**
  * Bookable slots of `kind` for `days` local days starting at `from`.
  *
- * Slots are aligned to their own length from local midnight (paid: :00,
- * free: :00 and :30), lie fully inside a rule, start after `now`, and don't
- * overlap any `busy` range. Overlapping rules don't produce duplicates.
+ * Slots start on their grid from local midnight (paid: :00, free: :00 and
+ * :30), last `slotMinutes(kind, introMinutes)`, lie fully inside a rule,
+ * start after `now`, and don't overlap any `busy` range. Overlapping rules
+ * don't produce duplicates.
  */
 export function computeSlots(opts: {
   rules: Rule[];
@@ -229,9 +246,12 @@ export function computeSlots(opts: {
   days: number;
   timeZone: string;
   kind: SlotKind;
+  /** The practice's intro length (`practices.intro_minutes`). */
+  introMinutes?: number;
   now: Date;
 }): TimeRange[] {
-  const length = SLOT_MINUTES[opts.kind];
+  const length = slotMinutes(opts.kind, opts.introMinutes);
+  const step = SLOT_STEP_MINUTES[opts.kind];
   const slots = new Map<number, TimeRange>();
 
   for (let i = 0; i < opts.days; i++) {
@@ -240,9 +260,9 @@ export function computeSlots(opts: {
 
     for (const rule of opts.rules) {
       if (rule.weekday !== weekday) continue;
-      const first = Math.ceil(rule.startMinute / length) * length;
+      const first = Math.ceil(rule.startMinute / step) * step;
 
-      for (let m = first; m + length <= rule.endMinute; m += length) {
+      for (let m = first; m + length <= rule.endMinute; m += step) {
         const startsAt = zonedTimeToUtc(date, m, opts.timeZone);
         const slot = {
           startsAt,
@@ -272,6 +292,7 @@ export function freeWindows(opts: {
   from: string;
   days: number;
   timeZone: string;
+  introMinutes?: number;
   now: Date;
 }) {
   const nowCut = { startsAt: new Date(0), endsAt: opts.now };
@@ -314,6 +335,7 @@ export function isScheduledSlot(opts: {
   startsAt: Date;
   timeZone: string;
   kind: SlotKind;
+  introMinutes?: number;
   now: Date;
 }) {
   const from = toZonedDate(opts.startsAt, opts.timeZone);

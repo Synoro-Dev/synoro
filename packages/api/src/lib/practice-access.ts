@@ -66,7 +66,8 @@ export async function findOwnerMembership(
  * — Synoro» line at the bottom, shown while the owner has no «Про»;
  * `questions` — the booking questionnaire, asked only on «Про»;
  * `theme` — the page's look, the owner's own only on «Про»;
- * `freeBooking` — visitors may book the free intro themselves.
+ * `freeBooking` — visitors may book the free intro themselves;
+ * `introMinutes` — how long it lasts.
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -85,6 +86,7 @@ export async function publicPractice(
       bookingQuestions: true,
       bookingTheme: true,
       freeBookingEnabled: true,
+      introMinutes: true,
     },
   });
   if (!practice) return undefined;

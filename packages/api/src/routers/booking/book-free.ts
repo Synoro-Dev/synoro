@@ -10,11 +10,12 @@ import {
   findStaffMembership,
   practiceProcedure,
 } from "../../lib/practice-access";
-import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
+import { isScheduledSlot } from "../../lib/schedule";
 
 /**
- * Book a free 30-minute consultation for a guest (name + phone) — staff
- * only. Uses the half-hour grid inside working hours; no credits involved.
+ * Book the free intro for a guest (name + phone) — staff only. It lasts
+ * the practice's `introMinutes` and starts on the half-hour grid inside
+ * working hours; no credits involved.
  * Google Calendar busy time is not checked: staff see it on the calendar
  * and decide themselves.
  *
@@ -46,6 +47,7 @@ export const bookFree = practiceProcedure
       startsAt: input.startsAt,
       timeZone: practice.timezone,
       kind: "free",
+      introMinutes: practice.introMinutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
@@ -59,7 +61,7 @@ export const bookFree = practiceProcedure
           kind: "free",
           startsAt: input.startsAt,
           endsAt: new Date(
-            input.startsAt.getTime() + SLOT_MINUTES.free * 60_000,
+            input.startsAt.getTime() + practice.introMinutes * 60_000,
           ),
           guestName: input.guestName,
           guestPhone: input.guestPhone,

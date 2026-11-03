@@ -55,6 +55,7 @@ export function PracticeBookingPage({
     bookingUrl: string;
     videoUrl: string | null;
     freeBookingEnabled: boolean;
+    introMinutes: number;
     membership: { role: string };
   };
 }) {
@@ -178,6 +179,7 @@ export function PracticeBookingPage({
             <PracticeFreeBooking
               practiceId={practice.id}
               enabled={practice.freeBookingEnabled}
+              introMinutes={practice.introMinutes}
             />
           </Frame>
         )}
