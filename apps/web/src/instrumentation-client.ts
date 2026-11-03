@@ -2,7 +2,7 @@
  * Browser-side instrumentation: Next runs this file before the app hydrates.
  *
  * Events go to our own `/ingest` (rewritten to PostHog in next.config.ts), so
- * ad blockers don't drop them. Unset NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN — nothing is
+ * ad blockers don't drop them. Session replay is on, inputs masked. Unset NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN — nothing is
  * initialised. synoro.ru and app.synoro.ru share the visitor's cookie, so a
  * sign-up in the app is attributed to the landing visit.
  */
@@ -16,7 +16,7 @@ if (env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
     ui_host: env.NEXT_PUBLIC_POSTHOG_HOST,
     defaults: "2026-05-30",
     person_profiles: "identified_only",
-    disable_session_recording: true,
+    session_recording: { maskAllInputs: true },
     respect_dnt: true,
   });
 
