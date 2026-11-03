@@ -61,10 +61,16 @@ export function ResetPasswordForm({
 
     setLoading(true);
     try {
-      await authClient.resetPassword({
+      const { error } = await authClient.resetPassword({
         newPassword: data.password,
         token,
       });
+      if (error) {
+        toast.error(
+          "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
+        );
+        return;
+      }
       toast.success("Новый пароль сохранён. Теперь войдите.");
       router.push(paths.auth.login);
     } catch (_error) {

@@ -29,7 +29,7 @@ export function FinalCta({ links }: { links: SiteLinks }) {
           Настройка займёт несколько минут — и больше никаких «а есть окошко в
           четверг?». А когда клиенты захотят платить онлайн, включите
           онлайн-оплату в «{paidPlan.name}»: первые {paidPlan.trialDays} дней
-          бесплатно.
+          после создания практики бесплатно.
         </p>
         <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
           <a
