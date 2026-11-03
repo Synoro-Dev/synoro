@@ -39,6 +39,16 @@ describe("admin", () => {
       email: "anna-owner@test.local",
     });
     const client = await createSession(api.db, { name: "Клиент Анны" });
+    // Found only if the query's `%`, `_` or `\` worked as LIKE syntax.
+    await createSession(api.db, { name: "Пётр 100xyz" });
+    await createSession(api.db, {
+      name: "Back\\slash",
+      email: "bs@test.local",
+    });
+    await createSession(api.db, {
+      name: "Backslash",
+      email: "nobs@test.local",
+    });
     const [practice] = await api.db
       .insert(Practice)
       .values({
@@ -77,6 +87,12 @@ describe("admin", () => {
       context,
     );
     expect(users.total).toBe(1);
+    const slashed = await call(
+      adminRouter.users.list,
+      { query: "k\\s" },
+      context,
+    );
+    expect(slashed.items.map((u) => u.email)).toEqual(["bs@test.local"]);
     expect(users.items[0]).toMatchObject({
       id: owner.user.id,
       plan: "active",

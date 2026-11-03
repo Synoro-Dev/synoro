@@ -42,8 +42,16 @@ export const overview = adminProcedure.handler(async ({ context }) => {
 
   const [revenue] = await context.db
     .select({
-      month: sql<number>`coalesce(sum(${SubscriptionPayment.amount}) filter (where ${SubscriptionPayment.paidAt} > now() - interval '30 days'), 0)::int`,
-      total: sql<number>`coalesce(sum(${SubscriptionPayment.amount}), 0)::int`,
+      // `sum` of an integer is a bigint (a string from node-postgres): kopecks
+      // outgrow `int` at 21 474 836,47 ₽.
+      month:
+        sql<number>`coalesce(sum(${SubscriptionPayment.amount}) filter (where ${SubscriptionPayment.paidAt} > now() - interval '30 days'), 0)`.mapWith(
+          Number,
+        ),
+      total:
+        sql<number>`coalesce(sum(${SubscriptionPayment.amount}), 0)`.mapWith(
+          Number,
+        ),
       payments: sql<number>`count(*)::int`,
     })
     .from(SubscriptionPayment)

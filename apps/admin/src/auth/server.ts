@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
 import { after } from "next/server";
 import { cache } from "react";
 
+import { AUTH_BASE_PATH } from "./paths";
+
 /**
  * Same users, sessions and cookie as apps/app (`AUTH_COOKIE_DOMAIN` shares
  * it between app.synoro.ru and admin.synoro.ru), served from this host so
@@ -22,7 +24,7 @@ export const auth = initAuth({
   secret: env.AUTH_SECRET,
   cookieDomain: env.AUTH_COOKIE_DOMAIN,
   cookiePrefix: env.AUTH_COOKIE_PREFIX,
-  basePath: "/api/account",
+  basePath: AUTH_BASE_PATH,
   extraPlugins: [nextCookies()],
   runInBackground: (promise) => {
     try {

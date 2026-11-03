@@ -10,7 +10,9 @@ platform, users, practices and «Про» payments. Read-only for now.
 - Sign-in is by a code from the mail only. The admin's Better Auth handler
   (`/api/account` on the admin host) mails codes to admins only; anyone else
   gets the same "code sent" answer and no mail, so the admin host creates no
-  accounts and doesn't reveal who is an admin.
+  accounts and doesn't reveal who is an admin. The handler serves only the
+  code sign-in, sign-out and health routes (`src/auth/paths.ts`): password
+  sign-in and sign-up, which would skip the code, answer 404.
 - Users, sessions and the cookie are the app's: with `AUTH_COOKIE_DOMAIN`
   (`.synoro.ru`) a sign-in on either host counts on both. A signed-in
   non-admin lands on `/forbidden`.

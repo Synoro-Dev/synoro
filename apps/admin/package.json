@@ -10,6 +10,7 @@
     "lint": "biome lint .",
     "check": "biome check .",
     "start": "bun --env-file=../../.env run next start --port 3001",
+    "test": "bun test src",
     "typecheck": "bun --env-file=../../.env run next typegen && tsc --noEmit"
   },
   "dependencies": {

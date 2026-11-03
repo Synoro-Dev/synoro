@@ -3,5 +3,5 @@
  * literally (Postgres' default LIKE escape is the backslash).
  */
 export function containsPattern(query: string) {
-  return `%${query.trim().replace(/[%_]/g, "$&")}%`;
+  return `%${query.trim().replace(/[\\%_]/g, "\\$&")}%`;
 }
