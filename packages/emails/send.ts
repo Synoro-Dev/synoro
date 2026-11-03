@@ -90,7 +90,10 @@ if (resend) {
   providers.push({
     name: "resend",
     send: async (email) => {
-      const { error } = await resend.emails.send(email);
+      // With Postbox's ~15 s, inside the `send-email` task's 60 s.
+      const { error } = await resend.emails.send(email, {
+        signal: AbortSignal.timeout(40_000),
+      });
       // Resend reports a refusal in `error` instead of throwing.
       if (error) throw new Error(`${error.name}: ${error.message}`);
     },
