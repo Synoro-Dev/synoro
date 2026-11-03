@@ -1,12 +1,13 @@
 "use client";
 
-import { Label, Switch, toast } from "@synoro/ui";
+import { Label, Switch, ToggleGroup, ToggleGroupItem, toast } from "@synoro/ui";
 import {
   FrameDescription,
   FrameHeader,
   FramePanel,
   FrameTitle,
 } from "@synoro/ui/reui/frame";
+import { formatMinutes, INTRO_MINUTES } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -14,32 +15,38 @@ import { orpc } from "~/orpc/react";
 import { useTerms } from "./terms";
 
 /**
- * Whether visitors book the free intro themselves on the booking page —
- * once per person, 30 minutes, no payment. Staff book it in the calendar
- * either way.
+ * The free intro: how long it lasts, and whether visitors book it themselves
+ * on the booking page — once per person, no payment. Staff book it in the
+ * calendar either way.
  */
 export function PracticeFreeBooking({
   practiceId,
   enabled,
+  introMinutes,
 }: {
   practiceId: string;
   enabled: boolean;
+  introMinutes: number;
 }) {
   const terms = useTerms();
   const queryClient = useQueryClient();
   const [on, setOn] = useState(enabled);
+  const [minutes, setMinutes] = useState(introMinutes);
   const save = useMutation({
     ...orpc.practice.setFreeBooking.mutationOptions(),
-    onSuccess: async (result) => {
+    onSuccess: async (result, input) => {
       toast.success(
-        result.enabled
-          ? `Клиенты могут записаться: ${terms.free.toLowerCase()}`
-          : `Запись на «${terms.free}» — только через вас`,
+        input.introMinutes !== undefined
+          ? `«${terms.free}» длится ${formatMinutes(result.introMinutes)}`
+          : result.enabled
+            ? `Клиенты могут записаться: ${terms.free.toLowerCase()}`
+            : `Запись на «${terms.free}» — только через вас`,
       );
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
-    onError: (error) => {
-      setOn(!on);
+    onError: (error, input) => {
+      if (input.enabled !== undefined) setOn(!input.enabled);
+      if (input.introMinutes !== undefined) setMinutes(introMinutes);
       toast.error(error.message);
     },
   });
@@ -49,8 +56,8 @@ export function PracticeFreeBooking({
       <FrameHeader className="p-0">
         <FrameTitle>{terms.free} — бесплатно</FrameTitle>
         <FrameDescription>
-          Новые клиенты сами выбирают время на странице записи: 30 минут, без
-          оплаты, один раз на человека.
+          Новые клиенты сами выбирают время на странице записи:{" "}
+          {formatMinutes(minutes)}, без оплаты, один раз на человека.
         </FrameDescription>
       </FrameHeader>
       <div className="flex items-center gap-3">
@@ -66,6 +73,36 @@ export function PracticeFreeBooking({
         <Label htmlFor="free-booking">
           Принимать запись на «{terms.free}» онлайн
         </Label>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label id="intro-length">Длительность</Label>
+        <ToggleGroup
+          aria-labelledby="intro-length"
+          variant="outline"
+          size="sm"
+          value={[String(minutes)]}
+          disabled={save.isPending}
+          onValueChange={(value) => {
+            const next = Number(value[0]);
+            if (!next || next === minutes) return;
+            setMinutes(next);
+            save.mutate({ practiceId, introMinutes: next });
+          }}
+        >
+          {INTRO_MINUTES.map((option) => (
+            <ToggleGroupItem
+              key={option}
+              value={String(option)}
+              className="px-2.5"
+            >
+              {formatMinutes(option, true)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <p className="text-xs text-muted-foreground">
+          Начинается в :00 или :30. Уже назначенные встречи останутся прежней
+          длины.
+        </p>
       </div>
       <p className="text-xs text-muted-foreground">
         Повторно записаться не получится ни по той же почте, ни по тому же

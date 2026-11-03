@@ -41,6 +41,7 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 export function IntroBookingForm({
   practiceId,
   intro,
+  length,
   startsAt,
   signedIn,
   needsPhone,
@@ -51,6 +52,8 @@ export function IntroBookingForm({
   practiceId: string;
   /** The intro's name for this profession: «Пробная тренировка». */
   intro: string;
+  /** How long it lasts: «30 минут», «1 час». */
+  length: string;
   startsAt: Date;
   signedIn: boolean;
   needsPhone: boolean;
@@ -144,7 +147,7 @@ export function IntroBookingForm({
       <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
         <GiftIcon className="mt-0.5 size-3 shrink-0" />
         <span>
-          {intro} — 30 минут, без оплаты, один раз. Ссылка на запись придёт на
+          {intro} — {length}, без оплаты, один раз. Ссылка на запись придёт на
           почту: по ней её можно отменить.
         </span>
       </p>

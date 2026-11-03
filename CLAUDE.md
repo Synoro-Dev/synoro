@@ -144,9 +144,10 @@ and run `tsc` by hand, build them first.
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
-- **Free intro and phone booking** (`docs/free-booking.md`): the 30-minute
-  `kind = free` booking. Visitors book it themselves via `booking.bookIntro`
-  when `practices.free_booking_enabled` is on — once per person (member or
+- **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
+  booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
+  hour). Visitors book it themselves via `booking.bookIntro` when
+  `practices.free_booking_enabled` is on — once per person (member or
   phone); staff book guests with `bookFree`. `booking.windows` +
   `/practices/<id>/windows` show free time for booking a caller.
 - **«Про» billing** (`docs/billing.md`): 149 ₽/month or 1490 ₽/year, a

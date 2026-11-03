@@ -67,6 +67,7 @@ export const windows = practiceProcedure
         from: input.from,
         days: input.days,
         timeZone: practice.timezone,
+        introMinutes: practice.introMinutes,
         now: new Date(),
       }),
     };

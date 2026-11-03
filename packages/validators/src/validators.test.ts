@@ -3,8 +3,10 @@ import { accountFormSchema } from "./account";
 import {
   availabilityFormSchema,
   creditGrantFormSchema,
+  formatMinutes,
   freeBookingFormSchema,
   guestBookingFormSchema,
+  introMinutesSchema,
   normalizeHostname,
   practiceFormSchema,
 } from "./booking";
@@ -690,5 +692,23 @@ describe("booking questionnaire", () => {
       [a.id]: "Не больше 200 символов",
       [b.id]: "Выберите вариант из списка",
     });
+  });
+});
+
+describe("intro length", () => {
+  test("accepts only the offered lengths", () => {
+    expect(introMinutesSchema.safeParse(45).success).toBe(true);
+    expect(introMinutesSchema.safeParse(50).success).toBe(false);
+  });
+
+  test("reads as minutes or hours", () => {
+    expect(formatMinutes(30)).toBe("30 минут");
+    expect(formatMinutes(45)).toBe("45 минут");
+    expect(formatMinutes(60)).toBe("1 час");
+    expect(formatMinutes(90)).toBe("1,5 часа");
+    expect(formatMinutes(120)).toBe("2 часа");
+    expect(formatMinutes(21)).toBe("21 минута");
+    expect(formatMinutes(90, true)).toBe("1,5 ч");
+    expect(formatMinutes(45, true)).toBe("45 мин");
   });
 });

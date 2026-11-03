@@ -21,6 +21,7 @@ import {
 import {
   capitalize,
   formatCredits,
+  formatMinutes,
   freeBookingFormSchema,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -65,7 +66,7 @@ function atMinute(date: string, minute: number) {
 
 /**
  * Staff-only "new entry": a paid one-hour booking of a practice client
- * from their balance, a free 30-minute booking for a guest, or a block of
+ * from their balance, the free intro for a guest, or a block of
  * the specialist's own time. Opened from a calendar selection or
  * the toolbar; date and times stay editable.
  */
@@ -119,6 +120,12 @@ function EntryForm({
     // The intro form recognises a caller who is already a client.
     enabled: mode !== "block",
   });
+  const practice = useQuery(
+    orpc.practice.get.queryOptions({ input: { practiceId } }),
+  );
+  const introLength = practice.data
+    ? ` на ${formatMinutes(practice.data.introMinutes)}`
+    : "";
   const clients = (members.data ?? []).filter((m) => m.role === "client");
   const client = clients.find((c) => c.id === memberId);
   const found = matchClients(clients, search);
@@ -249,7 +256,8 @@ function EntryForm({
         <DialogTitle>Новая запись</DialogTitle>
         <DialogDescription>
           {capitalize(terms.credit[0])} на час с баланса клиента,{" "}
-          {terms.free.toLowerCase()} на 30 минут для гостя или закрытое время.
+          {terms.free.toLowerCase()}
+          {introLength} для гостя или закрытое время.
         </DialogDescription>
       </DialogHeader>
 

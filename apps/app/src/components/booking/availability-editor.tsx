@@ -29,6 +29,7 @@ import {
 import {
   type AvailabilityRuleValues,
   availabilityFormSchema,
+  formatMinutes,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -196,9 +197,12 @@ function useGridHistory(initial: SlotGrid, disabled: boolean) {
 export function AvailabilityEditor({
   practiceId,
   timezone,
+  introMinutes,
 }: {
   practiceId: string;
   timezone: string;
+  /** How long the practice's free intro lasts. */
+  introMinutes: number;
 }) {
   const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
@@ -220,6 +224,7 @@ export function AvailabilityEditor({
           key={JSON.stringify(rules.data)}
           practiceId={practiceId}
           initial={rules.data}
+          introMinutes={introMinutes}
         />
       )}
     </div>
@@ -229,9 +234,11 @@ export function AvailabilityEditor({
 function SlotEditor({
   practiceId,
   initial,
+  introMinutes,
 }: {
   practiceId: string;
   initial: AvailabilityRuleValues[];
+  introMinutes: number;
 }) {
   const queryClient = useQueryClient();
   const save = useMutation({
@@ -279,8 +286,8 @@ function SlotEditor({
 
   const changed = countChanged(saved, grid);
   const dirty = changed > 0;
-  const stats = gridStats(shown);
-  const delta = stats.minutes - gridStats(saved).minutes;
+  const stats = gridStats(shown, introMinutes);
+  const delta = stats.minutes - gridStats(saved, introMinutes).minutes;
 
   function onSave() {
     if (!dirty || save.isPending) return;
@@ -718,6 +725,7 @@ function SlotEditor({
         delta={delta}
         paid={stats.paid}
         free={stats.free}
+        introMinutes={introMinutes}
       />
     </div>
   );
@@ -839,12 +847,14 @@ function ScheduleSummary({
   delta,
   paid,
   free,
+  introMinutes,
 }: {
   grid: SlotGrid;
   minutes: number;
   delta: number;
   paid: number;
   free: number;
+  introMinutes: number;
 }) {
   return (
     <Frame spacing="sm" className="min-w-0 self-start">
@@ -875,7 +885,7 @@ function ScheduleSummary({
           <div className="flex flex-col gap-0.5 rounded-md border px-2.5 py-2">
             <span className="text-lg font-semibold tabular-nums">{free}</span>
             <span className="text-xs text-muted-foreground">
-              бесплатных по 30 мин
+              бесплатных по {formatMinutes(introMinutes, true)}
             </span>
           </div>
         </div>

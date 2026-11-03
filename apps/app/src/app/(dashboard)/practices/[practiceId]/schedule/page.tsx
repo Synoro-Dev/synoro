@@ -35,6 +35,7 @@ async function Schedule({
         <AvailabilityEditor
           practiceId={practice.id}
           timezone={practice.timezone}
+          introMinutes={practice.introMinutes}
         />
         <GoogleCalendarSync practiceId={practice.id} />
       </main>

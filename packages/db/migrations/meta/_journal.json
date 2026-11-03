@@ -43,6 +43,13 @@
       "when": 1793645461267,
       "tag": "0005_billing_order_number",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793682201821,
+      "tag": "0006_intro_minutes",
+      "breakpoints": true
     }
   ]
 }
