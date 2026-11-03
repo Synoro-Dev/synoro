@@ -52,7 +52,7 @@ function whenText(trigger: WorkflowTrigger, amount: number) {
   if (trigger === "after_end") return `через ${amount} ч после встречи`;
   if (trigger === "inactive") return `когда ${amount} дн. нет записи`;
   return amount === 0
-    ? "когда занятий не осталось"
+    ? "когда оплата на балансе закончилась"
     : `когда осталось ${amount} или меньше`;
 }
 

@@ -1,7 +1,7 @@
 import { APP_CONFIG } from "@synoro/config";
 import { cn, ThemeProvider, ThemeToggle, Toaster } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Onest } from "next/font/google";
 import { YandexMetrika } from "~/components/yandex-metrika";
 import { ORPCReactProvider } from "~/orpc/react";
 
@@ -35,9 +35,9 @@ export const viewport: Viewport = {
   ],
 };
 
-const geistSans = Geist({
+const onest = Onest({
   subsets: ["latin", "cyrillic"],
-  variable: "--font-geist-sans",
+  variable: "--font-onest",
 });
 const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
@@ -50,7 +50,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       <body
         className={cn(
           "bg-background text-foreground min-h-screen font-sans antialiased",
-          geistSans.variable,
+          onest.variable,
           geistMono.variable,
         )}
       >

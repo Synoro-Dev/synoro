@@ -437,7 +437,7 @@ export function PracticeAnalytics({
                 <FrameHeader className="p-0">
                   <FrameTitle>Отмены и неявки</FrameTitle>
                   <FrameDescription>
-                    Неявка — когда клиент не пришёл и занятие не вернулось на
+                    Неявка — когда клиент не пришёл и оплата не вернулась на
                     баланс.
                   </FrameDescription>
                 </FrameHeader>

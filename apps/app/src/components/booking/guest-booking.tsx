@@ -54,7 +54,7 @@ export function GuestBooking({ token }: { token: string }) {
     onSuccess: async ({ refunded }) => {
       toast.success(
         refunded
-          ? "Запись отменена, занятие осталось на вашем балансе"
+          ? "Запись отменена, оплата вернулась на баланс"
           : "Запись отменена",
       );
       await queryClient.invalidateQueries({ queryKey: options.queryKey });
@@ -117,7 +117,7 @@ export function GuestBooking({ token }: { token: string }) {
                 text={
                   intro
                     ? "Время освободилось. Если передумаете — запишитесь снова или выберите платную запись."
-                    : `Оплаченное занятие осталось на вашем балансе: ${formatCredits(data.balance, terms)}.`
+                    : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                 }
               />
             )}

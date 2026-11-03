@@ -484,7 +484,9 @@ function EntryForm({
         <Textarea
           id="entry-note"
           rows={2}
-          placeholder={mode === "block" ? "Личное время" : "Запрос клиента"}
+          placeholder={
+            mode === "block" ? "Личное время" : "Видна только вам и команде"
+          }
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />

@@ -355,8 +355,8 @@ export function MyBookings() {
     onSuccess: async (result) => {
       toast.success(
         result.kept > 0
-          ? `Отменено: ${result.cancelled}. Ближайшее занятие уже не отменить — до него меньше суток.`
-          : `Отменено: ${result.cancelled}, баланс восстановлен`,
+          ? `Отменено записей: ${result.cancelled}. Ближайшую уже не отменить — до неё меньше 24 часов.`
+          : `Отменено записей: ${result.cancelled}, оплата вернулась на баланс`,
       );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
@@ -512,8 +512,8 @@ export function MyBookings() {
                       {b.seriesId && seriesHeads.has(b.id) && (
                         <ConfirmButton
                           variant="ghost"
-                          title="Отменить все занятия серии?"
-                          description="Отменятся все предстоящие занятия этой повторной записи, до которых больше суток, и вернутся на баланс."
+                          title="Отменить все записи серии?"
+                          description="Отменятся предстоящие записи серии, до которых больше 24 часов. Оплата за них вернётся на баланс."
                           confirmLabel="Отменить серию"
                           disabled={cancelSeries.isPending}
                           onConfirm={() =>

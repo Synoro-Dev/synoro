@@ -157,7 +157,7 @@ export function PracticeOverview({
       {rules.data?.length === 0 && (
         <Alert variant="warning">
           <Clock3Icon />
-          <AlertTitle>Часы приёма не заданы</AlertTitle>
+          <AlertTitle>Рабочие часы не заданы</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-2">
             <span>Клиенты не увидят свободного времени для записи.</span>
             <Button

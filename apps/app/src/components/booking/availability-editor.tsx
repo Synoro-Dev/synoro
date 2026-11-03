@@ -216,7 +216,7 @@ export function AvailabilityEditor({
     <div className="flex flex-col gap-6">
       <PageHeading
         title="Расписание"
-        description={`Часы приёма по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
+        description={`Рабочие часы по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
         actions={
           isOwner && (
             <PracticeTimeZone practiceId={practiceId} timezone={timezone} />
@@ -458,7 +458,7 @@ function SlotEditor({
     if (hover) {
       const cell = { day0: hover.day, day1: hover.day };
       const open = grid[cellIndex(hover.day, hover.slot)];
-      return `${WEEKDAY_NAMES[hover.day]} · ${timeRange({ ...cell, slot0: hover.slot, slot1: hover.slot })} · ${open ? "приём" : "закрыто"}`;
+      return `${WEEKDAY_NAMES[hover.day]} · ${timeRange({ ...cell, slot0: hover.slot, slot1: hover.slot })} · ${open ? "открыто" : "закрыто"}`;
     }
     return "Тяните по сетке, чтобы открыть или закрыть время";
   })();
@@ -932,7 +932,7 @@ function ScheduleSummary({
 
       <FramePanel className="flex flex-col gap-2 p-0">
         <FrameHeader>
-          <FrameTitle>Быстрые приёмы</FrameTitle>
+          <FrameTitle>Подсказки</FrameTitle>
           <FrameDescription className="text-xs">
             Зелёное — клиенты могут записаться
           </FrameDescription>
