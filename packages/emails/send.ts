@@ -10,22 +10,25 @@ import { type Provider, sendWithFallback } from "./fallback";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
-// Postbox rejects a sender it hasn't verified, and the schema's default
-// EMAIL_FROM (Resend's onboarding address) never is: skip Postbox rather than
-// fail every attempt.
-const postboxSender = !env.EMAIL_FROM.includes("@resend.dev");
-if (env.POSTBOX_ACCESS_KEY_ID && !postboxSender) {
-  logger.warn("email.postbox_sender_missing", {
-    hint: "Set EMAIL_FROM to an address verified in Postbox",
-  });
-}
+// A half-configured Postbox fails every send instead of being left out: with
+// no Resend behind it the mail would otherwise be dropped without a retry.
+// Its default EMAIL_FROM (Resend's onboarding address) is never verified in
+// Postbox, which rejects such a sender.
+const postboxProblem =
+  !env.POSTBOX_ACCESS_KEY_ID && !env.POSTBOX_SECRET_ACCESS_KEY
+    ? null
+    : !env.POSTBOX_ACCESS_KEY_ID || !env.POSTBOX_SECRET_ACCESS_KEY
+      ? "set both POSTBOX_ACCESS_KEY_ID and POSTBOX_SECRET_ACCESS_KEY"
+      : env.EMAIL_FROM.includes("@resend.dev")
+        ? "set EMAIL_FROM to an address verified in Postbox"
+        : null;
 
 // Yandex Cloud Postbox through its SES v2-compatible HTTP API: a static
 // access key of a service account with the `postbox.sender` role. One
 // attempt with short timeouts — at most ~15 s of the `send-email` task's
 // 60 s, leaving Resend time to send; retries are the task's job.
 const postbox =
-  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY && postboxSender
+  env.POSTBOX_ACCESS_KEY_ID && env.POSTBOX_SECRET_ACCESS_KEY && !postboxProblem
     ? new SESv2Client({
         endpoint: env.POSTBOX_ENDPOINT,
         region: "ru-central1",
@@ -34,7 +37,13 @@ const postbox =
           secretAccessKey: env.POSTBOX_SECRET_ACCESS_KEY,
         },
         maxAttempts: 1,
-        requestHandler: { connectionTimeout: 5_000, requestTimeout: 10_000 },
+        requestHandler: {
+          connectionTimeout: 5_000,
+          requestTimeout: 10_000,
+          // Without it a stalled request only logs a warning and never fails
+          // over to Resend.
+          throwOnRequestTimeout: true,
+        },
       })
     : null;
 
@@ -53,6 +62,12 @@ export type EmailHtml = {
 };
 
 const providers: Provider<Required<EmailHtml>>[] = [];
+if (postboxProblem) {
+  providers.push({
+    name: "postbox",
+    send: () => Promise.reject(new Error(`postbox: ${postboxProblem}`)),
+  });
+}
 if (postbox) {
   providers.push({
     name: "postbox",

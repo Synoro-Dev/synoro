@@ -56,7 +56,9 @@ export const env = createEnv({
     // no mail.
     POSTBOX_ACCESS_KEY_ID: z.string().optional(),
     POSTBOX_SECRET_ACCESS_KEY: z.string().optional(),
-    POSTBOX_ENDPOINT: z.url().default("https://postbox.cloud.yandex.net"),
+    POSTBOX_ENDPOINT: z
+      .url({ protocol: /^https$/ })
+      .default("https://postbox.cloud.yandex.net"),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
     EMAIL_SANDBOX_HOST: z.string().default("localhost"),
