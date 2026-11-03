@@ -223,12 +223,12 @@ and run `tsc` by hand, build them first.
   `track()` in `packages/api/src/lib/analytics.ts` (add the name to
   `ServerEvent`). The key is a build arg (Dockerfiles, deploy.yml) _and_ must
   be in the pod env for server events.
-- **Yandex Direct, paid per annual customer** (`docs/direct.md`): the landing
+- **Yandex Direct, paid per paying customer** (`docs/direct.md`): the landing
   remembers `?yclid=` in cookie `ad_yclid` (`.synoro.ru`); `billing.checkout`
   stores it and Metrika's `_ym_uid` on `subscription_payments`; the
   `metrika-conversions` cron (`@synoro/jobs/metrika`) uploads the user's first
-  paid year as the offline conversion `paid_year` (once per payment, claim in
-  `sent_notices`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
+  paid year and first paid month as the offline conversions `paid_year` and
+  `paid_month` (once per payment, claim in `sent_notices`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
   goal in Metrika; the landing needs the repo variable
   `NEXT_PUBLIC_YANDEX_METRIKA_ID` (same counter as the app's `COUNTER_ID`).
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
