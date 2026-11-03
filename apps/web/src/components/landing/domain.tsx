@@ -2,6 +2,7 @@ import { cn } from "@synoro/ui";
 import { CheckIcon, GlobeIcon } from "lucide-react";
 
 import { brand } from "~/lib/brand";
+import { paidPlan } from "~/lib/pricing";
 
 import { Container, SectionHeading } from "./primitives";
 
@@ -10,9 +11,9 @@ const stages = [
     label: "Сразу после регистрации",
     host: `${brand.rootDomain}/p/anna`,
   },
-  { label: "Поддомен платформы", host: `anna.${brand.rootDomain}` },
+  { label: "Короткий адрес Synoro", host: `anna.${brand.rootDomain}` },
   {
-    label: "Ваш собственный домен",
+    label: "Ваш собственный адрес",
     host: "zapis.anna-ivanova.ru",
     highlight: true,
   },
@@ -91,8 +92,9 @@ export function Domain() {
         <div className="flex flex-col gap-5">
           <SectionHeading>Страница записи на вашем адресе</SectionHeading>
           <p className="max-w-lg text-base text-pretty text-zinc-400 sm:text-lg">
-            Начните со ссылки на платформе, а когда будете готовы — подключите
-            свой домен. Добавьте две DNS-записи, остальное мы проверим сами.
+            Начните со ссылки Synoro, а когда захотите — подключите собственный
+            адрес. Мы покажем, что указать у регистратора домена, и сами
+            проверим. Эта возможность входит в тариф «{paidPlan.name}».
           </p>
 
           <ol className="mt-4 flex flex-col">

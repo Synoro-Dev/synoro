@@ -17,7 +17,7 @@ export default function LoginPage() {
           className="flex items-center gap-2 self-center font-medium"
         >
           <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
-            <GalleryVerticalEnd className="size-4" aria-label="Company logo" />
+            <GalleryVerticalEnd className="size-4" aria-hidden />
           </div>
           {APP_CONFIG.name}
         </a>

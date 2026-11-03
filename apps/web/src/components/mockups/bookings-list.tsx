@@ -17,7 +17,7 @@ const rows: Row[] = [
     who: "Ольга Петрова",
     note: "olga.petrova@example.com",
     kind: "consultation",
-    extra: "3 в пакете",
+    extra: "Осталось 3 занятия",
   },
   {
     when: "Чт, 12 нояб · 15:00–15:30",
@@ -36,7 +36,7 @@ const rows: Row[] = [
     who: "Дмитрий Иванов",
     note: "dmitry.ivanov@example.com",
     kind: "consultation",
-    extra: "1 в пакете",
+    extra: "Осталось 1 занятие",
   },
 ];
 

@@ -48,7 +48,7 @@ export function StickyCta({ signupUrl }: { signupUrl: string }) {
           data-goal={signupGoal("free")}
           className={cn(buttonVariants({ size: "lg" }), "rounded-full px-5")}
         >
-          Начать
+          Начать бесплатно
         </a>
       </div>
     </div>

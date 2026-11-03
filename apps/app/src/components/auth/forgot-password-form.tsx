@@ -25,7 +25,7 @@ import { z } from "zod";
 import { authClient } from "~/auth/client";
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email("Некорректный адрес электронной почты"),
+  email: z.string().email("Проверьте адрес почты — похоже, в нём опечатка"),
 });
 
 type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
@@ -51,7 +51,7 @@ export function ForgotPasswordForm({
         redirectTo: paths.auth.resetPassword,
       });
       setSent(true);
-      toast.success("Ссылка для сброса пароля отправлена! Проверьте почту.");
+      toast.success("Отправили ссылку на почту");
     } catch (_error) {
       toast.error("Не удалось отправить ссылку. Попробуйте ещё раз.");
     } finally {
@@ -65,15 +65,15 @@ export function ForgotPasswordForm({
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Проверьте почту</CardTitle>
           <CardDescription>
-            Мы отправили ссылку для сброса пароля на ваш адрес электронной
-            почты.
+            Если аккаунт с этим адресом есть, мы отправили на него ссылку для
+            смены пароля.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              Перейдите по ссылке из письма, чтобы сбросить пароль. Ссылка
-              действительна в течение 1 часа.
+              Откройте ссылку из письма и задайте новый пароль. Она работает 1
+              час. Письма нет? Загляните в «Спам».
             </p>
             <Button
               render={<Link href={paths.auth.login} />}
@@ -93,8 +93,9 @@ export function ForgotPasswordForm({
       <CardHeader className="text-center">
         <CardTitle className="text-xl">Забыли пароль?</CardTitle>
         <CardDescription>
-          Введите адрес электронной почты, и мы отправим вам ссылку для сброса
-          пароля.
+          Укажите почту — отправим ссылку, по которой можно задать новый пароль.
+          Пароль можно и не вспоминать: при входе выберите «Получить код на
+          почту».
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -109,7 +110,7 @@ export function ForgotPasswordForm({
                   <FormControl>
                     <Input
                       type="email"
-                      placeholder="m@example.com"
+                      placeholder="name@example.com"
                       autoComplete="email"
                       spellCheck={false}
                       {...field}

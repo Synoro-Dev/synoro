@@ -37,7 +37,7 @@ function Card({
 const ledger = [
   { delta: "+10", label: "Пакет из 10 занятий", date: "1 нояб" },
   { delta: "−1", label: "Запись на 5 нояб, 10:00", date: "3 нояб" },
-  { delta: "+1", label: "Отмена за 2 дня — возврат", date: "4 нояб" },
+  { delta: "+1", label: "Отмена за 2 дня — занятие вернулось", date: "4 нояб" },
   { delta: "−1", label: "Запись на 12 нояб, 13:00", date: "10 нояб" },
 ];
 
@@ -54,7 +54,7 @@ function CreditsVisual() {
         </div>
         <div className="text-right">
           <p className="text-2xl leading-none font-medium tabular-nums">9</p>
-          <p className="text-muted-foreground text-xs">на балансе</p>
+          <p className="text-muted-foreground text-xs">осталось</p>
         </div>
       </div>
       <ul className="divide-y">
@@ -102,7 +102,7 @@ function ConflictVisual() {
         </span>
       </div>
       <p className="text-muted-foreground text-center text-xs">
-        две заявки в одну секунду
+        двое выбрали одно время
       </p>
     </div>
   );
@@ -113,8 +113,8 @@ function CancelVisual() {
     <div className="w-full max-w-64">
       <div className="text-muted-foreground mb-2 flex justify-between text-xs">
         <span>сейчас</span>
-        <span>−24 ч</span>
-        <span>сеанс</span>
+        <span>за 24 часа</span>
+        <span>занятие</span>
       </div>
       <div className="flex h-2 overflow-hidden rounded-full">
         <div className="flex-[3] bg-emerald-400" />
@@ -142,7 +142,7 @@ const team = [
   },
   {
     name: "Мария Соколова",
-    role: "Админ",
+    role: "Администратор",
     tone: "ring-border ring-1 ring-inset",
   },
   {
@@ -182,7 +182,7 @@ function CabinetVisual() {
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Мои записи</p>
         <span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
-          7 занятий
+          Осталось 7
         </span>
       </div>
       <div className="mt-3 flex flex-col gap-2">
@@ -215,35 +215,35 @@ export function Bento() {
         <Card
           className="md:col-span-4"
           title="Пакеты с предоплатой"
-          text="Клиент платит переводом или онлайн через ЮKassa — тогда пакет начислится сам. Каждая запись списывается с баланса, своевременная отмена — возвращается. Вся история в журнале."
+          text="Клиент платит заранее за несколько занятий — переводом или картой онлайн. Оплату онлайн («Про») система учтёт сама, перевод вы или администратор отметите вручную. Каждая запись уменьшает остаток, а отмена вовремя возвращает занятие. Вся история — в одном списке."
         >
           <CreditsVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Ни одной двойной записи"
-          text="Даже если двое нажмут «Записаться» в одну секунду, слот достанется только одному — это гарантирует сама база данных."
+          text="Если двое одновременно выберут одно время, запись получит только один. Второй сразу увидит, что время занято."
         >
           <ConflictVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Отмена без звонков"
-          text="Клиент сам отменяет запись за 24 часа и раньше — оплата вернётся на баланс автоматически."
+          text="Клиент сам отменяет запись не позднее чем за 24 часа — занятие вернётся в пакет автоматически."
         >
           <CancelVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Администратор в команде"
-          text="Помощник ведёт расписание, начисляет пакеты и записывает новых клиентов на бесплатную встречу. Вы — работаете."
+          text="Помощник ведёт расписание, добавляет занятия в пакеты и записывает новых клиентов на бесплатную встречу, а вы занимаетесь клиентами."
         >
           <TeamVisual />
         </Card>
         <Card
           className="md:col-span-2"
           title="Кабинет клиента"
-          text="Клиент входит по коду из письма, видит свои записи и остаток на балансе."
+          text="Клиент входит по коду из письма и видит свои записи и сколько занятий осталось."
         >
           <CabinetVisual />
         </Card>
@@ -252,19 +252,19 @@ export function Bento() {
       <div className="text-muted-foreground flex flex-wrap items-center justify-center gap-x-8 gap-y-3 border-t px-4 py-6 text-sm">
         <span className="flex items-center gap-2">
           <IconTile icon={ShieldCheckIcon} />
-          Приглашения с подтверждением email
+          Приглашения помощников по почте
         </span>
         <span className="flex items-center gap-2">
           <IconTile icon={UndoIcon} />
-          Возвраты и ручные корректировки
+          Возврат занятий и ручные поправки
         </span>
         <span className="flex items-center gap-2">
           <IconTile icon={UsersIcon} />
-          Список клиентов с балансами
+          Список клиентов с остатком занятий
         </span>
         <span className="flex items-center gap-2">
           <IconTile icon={UserRoundIcon} />
-          Вход по коду из письма
+          Клиенту не нужен пароль — вход по коду из письма
         </span>
       </div>
     </Section>

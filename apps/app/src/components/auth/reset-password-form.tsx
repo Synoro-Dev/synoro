@@ -25,9 +25,15 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "~/auth/client";
 
+/** Better Auth's default `maxPasswordLength`. */
+const MAX_PASSWORD = 128;
+
 const resetPasswordSchema = z
   .object({
-    password: z.string().min(8, "Пароль должен содержать не менее 8 символов"),
+    password: z
+      .string()
+      .min(8, "Пароль — не короче 8 символов")
+      .max(MAX_PASSWORD, `Пароль — не длиннее ${MAX_PASSWORD} символов`),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -53,24 +59,44 @@ export function ResetPasswordForm({
     },
   });
 
+  // The toast fades away, so it carries the way to a fresh link.
+  const showLinkError = () =>
+    toast.error(
+      "Не удалось сохранить пароль. Возможно, ссылка устарела — запросите новую.",
+      {
+        action: {
+          label: "Запросить новую ссылку",
+          onClick: () => router.push(paths.auth.forgotPassword),
+        },
+      },
+    );
+
   const onSubmit = async (data: ResetPasswordFormData) => {
     if (!token) {
-      toast.error("Недействительная ссылка для сброса пароля");
+      toast.error("Ссылка больше не работает. Запросите новую.");
       return;
     }
 
     setLoading(true);
     try {
-      await authClient.resetPassword({
+      const { error } = await authClient.resetPassword({
         newPassword: data.password,
         token,
       });
-      toast.success("Пароль успешно сброшен!");
+      if (error) {
+        if (error.code === "PASSWORD_TOO_LONG") {
+          toast.error(
+            `Пароль слишком длинный — не больше ${MAX_PASSWORD} символов.`,
+          );
+        } else {
+          showLinkError();
+        }
+        return;
+      }
+      toast.success("Новый пароль сохранён. Теперь войдите.");
       router.push(paths.auth.login);
     } catch (_error) {
-      toast.error(
-        "Не удалось сбросить пароль. Возможно, срок действия ссылки истёк.",
-      );
+      showLinkError();
     } finally {
       setLoading(false);
     }
@@ -80,12 +106,10 @@ export function ResetPasswordForm({
     return (
       <Card {...props}>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">
-            Недействительная ссылка для сброса
-          </CardTitle>
+          <CardTitle className="text-xl">Ссылка больше не работает</CardTitle>
           <CardDescription>
-            Эта ссылка для сброса пароля недействительна или срок её действия
-            истёк.
+            Она устарела или уже использована. Запросите новую — это займёт
+            минуту.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -103,8 +127,10 @@ export function ResetPasswordForm({
   return (
     <Card {...props}>
       <CardHeader className="text-center">
-        <CardTitle className="text-xl">Сброс пароля</CardTitle>
-        <CardDescription>Введите новый пароль ниже.</CardDescription>
+        <CardTitle className="text-xl">Новый пароль</CardTitle>
+        <CardDescription>
+          Придумайте пароль — не короче 8 символов.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -131,7 +157,7 @@ export function ResetPasswordForm({
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Подтвердите пароль</FormLabel>
+                  <FormLabel>Повторите пароль</FormLabel>
                   <FormControl>
                     <PasswordInput
                       placeholder="••••••••"
@@ -144,7 +170,7 @@ export function ResetPasswordForm({
               )}
             />
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Сброс пароля…" : "Сбросить пароль"}
+              {loading ? "Сохранение…" : "Сохранить пароль"}
             </Button>
           </form>
         </Form>

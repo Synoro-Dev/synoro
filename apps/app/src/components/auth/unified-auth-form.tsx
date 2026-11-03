@@ -11,6 +11,7 @@ import {
   CardTitle,
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -37,8 +38,8 @@ import { z } from "zod";
 import { authClient } from "~/auth/client";
 
 const emailPasswordSchema = z.object({
-  email: z.email("Некорректный адрес электронной почты"),
-  password: z.string().min(8, "Пароль должен содержать не менее 8 символов"),
+  email: z.email("Проверьте адрес почты — похоже, в нём опечатка"),
+  password: z.string().min(8, "Пароль — не короче 8 символов"),
 });
 
 type EmailPasswordData = z.infer<typeof emailPasswordSchema>;
@@ -52,9 +53,9 @@ const AUTH_ERRORS: Record<string, string> = {
   TOO_MANY_ATTEMPTS: "Слишком много попыток. Запросите новый код.",
   INVALID_EMAIL_OR_PASSWORD: "Неверный адрес почты или пароль.",
   USER_ALREADY_EXISTS:
-    "Аккаунт с этой почтой уже есть. Войдите по коду из письма.",
+    "Аккаунт с этой почтой уже есть. Нажмите «Войти» — по коду из письма или паролем.",
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL:
-    "Аккаунт с этой почтой уже есть. Войдите по коду из письма.",
+    "Аккаунт с этой почтой уже есть. Нажмите «Войти» — по коду из письма или паролем.",
 };
 
 /** Better Auth answers in English: show its known errors in Russian. */
@@ -159,12 +160,14 @@ export function UnifiedAuthForm({
       });
       if (error) {
         codeForm.reset();
-        toast.error(authErrorMessage(error, "Не удалось войти по коду."));
+        toast.error(
+          authErrorMessage(error, "Не удалось войти. Попробуйте ещё раз."),
+        );
         return;
       }
       router.push(homeAfterAuth());
     } catch (_error) {
-      toast.error("Не удалось войти по коду. Попробуйте ещё раз.");
+      toast.error("Не удалось войти. Попробуйте ещё раз.");
     } finally {
       setLoading(false);
     }
@@ -219,7 +222,7 @@ export function UnifiedAuthForm({
   };
 
   const title = sentTo
-    ? "Введите код"
+    ? "Проверьте почту"
     : signup
       ? "Создать аккаунт"
       : "С возвращением";
@@ -239,7 +242,7 @@ export function UnifiedAuthForm({
             <>
               Отправили 6-значный код на{" "}
               <span className="font-medium text-foreground">{sentTo}</span>. Он
-              действует 10 минут.
+              действует 10 минут. Письма нет? Загляните в «Спам».
             </>
           ) : signup ? (
             "Пришлём на почту 6-значный код — пароль не нужен"
@@ -305,7 +308,7 @@ export function UnifiedAuthForm({
                     className="text-primary underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                   >
                     {countdown > 0
-                      ? `Отправить снова через ${countdown} с`
+                      ? `Отправить код снова через ${countdown} с`
                       : "Отправить код снова"}
                   </button>
                 </div>
@@ -326,7 +329,7 @@ export function UnifiedAuthForm({
                       <FormControl>
                         <Input
                           type="email"
-                          placeholder="m@example.com"
+                          placeholder="name@example.com"
                           autoComplete="email"
                           spellCheck={false}
                           {...field}
@@ -337,7 +340,7 @@ export function UnifiedAuthForm({
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Отправка кода…" : "Получить код"}
+                  {loading ? "Отправка кода…" : "Получить код на почту"}
                 </Button>
                 <Button
                   type="button"
@@ -364,7 +367,7 @@ export function UnifiedAuthForm({
                       <FormControl>
                         <Input
                           type="email"
-                          placeholder="m@example.com"
+                          placeholder="name@example.com"
                           autoComplete="email"
                           spellCheck={false}
                           {...field}
@@ -399,6 +402,11 @@ export function UnifiedAuthForm({
                           {...field}
                         />
                       </FormControl>
+                      {signup && (
+                        <FormDescription className="text-xs">
+                          Не короче 8 символов
+                        </FormDescription>
+                      )}
                       <FormMessage />
                     </FormItem>
                   )}
