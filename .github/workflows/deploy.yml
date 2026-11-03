@@ -1,6 +1,6 @@
 name: Deploy
 
-# Builds the images (app, demo, tools, landing), pushes them to GHCR and then
+# Builds the images (app, demo, tools, landing, admin), pushes them to GHCR and then
 # restarts the Deployments in k3s: the manifests use moving tags (`latest`,
 # `demo`) with `imagePullPolicy: Always`, so a restarted pod pulls the new image.
 # Needs the repository secret KUBECONFIG (a kubeconfig whose server is
@@ -169,10 +169,45 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
+  # The admin site (apps/admin) on admin.synoro.ru: no build-time config, so
+  # one image; it runs no migrations and is restarted after the app's pods
+  # have migrated the database.
+  admin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/synoro-admin:${{ env.SHA }}
+            ${{ env.REGISTRY }}/synoro-admin:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
+
   # Runs only when every image above was pushed. The app's `migrate` init
   # container runs the new migrations before the new pod takes over.
   deploy:
-    needs: [tools, app, web]
+    needs: [tools, app, web, admin]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -191,6 +226,17 @@ jobs:
           for d in synoro-app synoro-demo synoro-landing synoro-worker; do
             kubectl rollout status "deploy/$d" --timeout=10m
           done
+
+      # After the app: its pods have migrated the database by now. Skipped
+      # until infra/synoro/admin.yaml is applied to the cluster.
+      - name: Restart admin
+        run: |
+          if kubectl get deploy/synoro-admin >/dev/null 2>&1; then
+            kubectl rollout restart deploy/synoro-admin
+            kubectl rollout status deploy/synoro-admin --timeout=10m
+          else
+            echo "deploy/synoro-admin not found: apply infra/synoro/admin.yaml"
+          fi
 
       - name: Cluster state on failure
         if: failure()

@@ -1,0 +1,139 @@
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { call } from "@orpc/server";
+import {
+  Practice,
+  PracticeMember,
+  Subscription,
+  SubscriptionPayment,
+} from "@synoro/db";
+
+import { createSession, setupTestApi } from "../../../test/helpers";
+import { adminRouter } from ".";
+
+let api: Awaited<ReturnType<typeof setupTestApi>>;
+
+const DAY = 24 * 60 * 60 * 1000;
+
+beforeAll(async () => {
+  api = await setupTestApi();
+});
+afterAll(() => api.close());
+
+describe("admin", () => {
+  it("refuses anyone but an admin", async () => {
+    const someone = await createSession(api.db);
+    for (const session of [null, someone]) {
+      const promise = call(adminRouter.stats.overview, undefined, {
+        context: api.context(session),
+      });
+      await expect(promise).rejects.toMatchObject({
+        code: session ? "FORBIDDEN" : "UNAUTHORIZED",
+      });
+    }
+  });
+
+  it("lists users, practices and payments with the owner's plan", async () => {
+    const admin = await createSession(api.db, { role: "admin" });
+    const owner = await createSession(api.db, {
+      name: "Анна 100%_Иванова",
+      email: "anna-owner@test.local",
+    });
+    const client = await createSession(api.db, { name: "Клиент Анны" });
+    const [practice] = await api.db
+      .insert(Practice)
+      .values({
+        name: "Практика Анны",
+        slug: "anna-admin",
+        ownerId: owner.user.id,
+      })
+      .returning();
+    if (!practice) throw new Error("no practice");
+    await api.db.insert(PracticeMember).values([
+      { practiceId: practice.id, userId: owner.user.id, role: "owner" },
+      { practiceId: practice.id, userId: client.user.id, role: "client" },
+    ]);
+    const now = Date.now();
+    await api.db.insert(Subscription).values({
+      userId: owner.user.id,
+      trialEndsAt: new Date(now - DAY),
+      paidUntil: new Date(now + 30 * DAY),
+    });
+    const [payment] = await api.db
+      .insert(SubscriptionPayment)
+      .values({
+        userId: owner.user.id,
+        period: "month",
+        amount: 14_900,
+        status: "succeeded",
+        paidAt: new Date(now - DAY),
+      })
+      .returning();
+    const context = { context: api.context(admin) };
+
+    // `%` and `_` in the query are literal, not wildcards.
+    const users = await call(
+      adminRouter.users.list,
+      { query: "100%_" },
+      context,
+    );
+    expect(users.total).toBe(1);
+    expect(users.items[0]).toMatchObject({
+      id: owner.user.id,
+      plan: "active",
+      practices: 1,
+    });
+
+    const practices = await call(
+      adminRouter.practices.list,
+      { query: "anna-owner@" },
+      context,
+    );
+    expect(practices.items).toEqual([
+      expect.objectContaining({
+        id: practice.id,
+        owner: expect.objectContaining({ id: owner.user.id }),
+        plan: "active",
+        clients: 1,
+      }),
+    ]);
+
+    const payments = await call(
+      adminRouter.payments.list,
+      { query: String(payment?.number), status: "succeeded" },
+      context,
+    );
+    expect(payments.items.map((p) => p.id)).toEqual([payment?.id ?? ""]);
+    const refunded = await call(
+      adminRouter.payments.list,
+      { status: "refunded" },
+      context,
+    );
+    expect(refunded.total).toBe(0);
+
+    const card = await call(
+      adminRouter.users.byId,
+      { id: owner.user.id },
+      context,
+    );
+    expect(card.plan).toMatchObject({ status: "active", autorenew: null });
+    expect(card.practices).toEqual([
+      expect.objectContaining({ id: practice.id, role: "owner" }),
+    ]);
+    expect(card.payments).toHaveLength(1);
+
+    const overview = await call(adminRouter.stats.overview, undefined, context);
+    expect(overview.pro.paying).toBe(1);
+    expect(overview.revenue.month).toBe(14_900);
+    expect(overview.practices.total).toBe(1);
+  });
+
+  it("reports an unknown user as NOT_FOUND", async () => {
+    const admin = await createSession(api.db, { role: "admin" });
+    const promise = call(
+      adminRouter.users.byId,
+      { id: "missing" },
+      { context: api.context(admin) },
+    );
+    await expect(promise).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

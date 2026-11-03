@@ -19,7 +19,7 @@
 # BUN_VERSION is the latest 1.x release (matches `packageManager`); NODE_VERSION
 # is the latest 24.x LTS, the newest line allowed by `engines` in the root
 # package.json (>=24.11.1 <25); TURBO_VERSION matches the root devDependency.
-# The Dockerfiles of apps/app and packages/jobs share these three.
+# The Dockerfiles of apps/app, apps/admin and packages/jobs share these three.
 
 ARG BUN_VERSION=1.4.4
 ARG NODE_VERSION=24.22.1

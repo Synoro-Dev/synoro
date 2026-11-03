@@ -11,6 +11,7 @@ package scripts.
 
 ```bash
 bun dev                  # Next.js app on :3000 (turbo watch, @synoro/app + deps)
+bun dev:admin            # admin site (apps/admin) on :3001
 bun jobs:dev             # Hatchet worker (watch); needs HATCHET_CLIENT_TOKEN
 bun run build            # turbo build of everything
 bun typecheck            # tsc across all workspaces (needs ^build)
@@ -54,6 +55,8 @@ apps/app            Next.js 16 App Router (RSC). Serves the API itself.
   src/orpc/server.ts  RSC caller `api` (server-only)
   src/orpc/react.tsx  browser client + `orpc` TanStack Query utils
   src/proxy.ts      optimistic auth redirect (Next 16 "proxy", ex-middleware)
+apps/admin          admin.synoro.ru (Next.js): RSC calls `appRouter.admin` in-process
+apps/web            landing on synoro.ru
 packages/api        oRPC procedures + router (`appRouter`)
 packages/auth       Better Auth `initAuth()` — single source of auth config
 packages/config     @t3-oss/env-core `env`, structured `logger`, `paths`
@@ -131,6 +134,9 @@ and run `tsc` by hand, build them first.
   get the role on sign-up / sign-in and always pass `adminProcedure`. Role
   checks live in `@synoro/auth/roles` (no better-auth import — usable from
   `@synoro/api`).
+  The admin site is its own app (`docs/admin.md`): `apps/admin`, procedures in
+  `routers/admin/`, every page starts with `requireAdmin()`; sign-in codes are
+  mailed to admins only.
 - **Background jobs** (Hatchet, `packages/jobs`): declare tasks in
   `src/workflows/` and register them in `src/worker.ts`. App code imports
   only `@synoro/jobs` (e.g. `dispatchEmail`), never `@synoro/jobs/workflows` at

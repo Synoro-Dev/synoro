@@ -38,6 +38,9 @@ export const env = createEnv({
 
     // App
     APP_URL: z.url().default("http://localhost:3000"),
+    // The admin site (apps/admin), e.g. "https://admin.synoro.ru": its own
+    // Better Auth base URL; the session cookie is shared with the app.
+    ADMIN_URL: z.url().default("http://localhost:3001"),
     // Main address of the public booking pages, e.g. "https://synoro.ru":
     // links specialists share, the page visitors return to after paying and
     // the one the app host redirects `/p/*` to. Unset: APP_URL.
@@ -192,6 +195,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     POSTGRES_URL: process.env.POSTGRES_URL,
     APP_URL: process.env.APP_URL,
+    ADMIN_URL: process.env.ADMIN_URL,
     BOOKING_URL: process.env.BOOKING_URL,
     PRACTICE_ROOT_DOMAIN: process.env.PRACTICE_ROOT_DOMAIN,
     CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
