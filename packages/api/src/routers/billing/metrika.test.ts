@@ -2,6 +2,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -9,8 +10,13 @@ import {
   spyOn,
 } from "bun:test";
 import { call } from "@orpc/server";
-import { eq, SubscriptionPayment } from "@synoro/db";
-import { conversionCsv, reportPaidYears } from "@synoro/jobs/metrika";
+import { eq, SentNotice, SubscriptionPayment } from "@synoro/db";
+import {
+  conversionCsv,
+  reportPaidConversions,
+  reportPaidMonths,
+  reportPaidYears,
+} from "@synoro/jobs/metrika";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { adAttribution } from "../../lib/billing/attribution";
@@ -310,5 +316,80 @@ describe("reportPaidYears", () => {
     metrikaStatus = 200;
     expect(await reportPaidYears(api.db)).toEqual({ sent: 1 });
     expect(uploads).toHaveLength(2);
+  });
+});
+
+describe("reportPaidMonths", () => {
+  const month: PaymentValues = { period: "month", amount: 149_00 };
+
+  // Earlier tests leave first months (the ones the year pass skips) behind.
+  beforeEach(async () => {
+    await api.db.delete(SentNotice);
+    await api.db.delete(SubscriptionPayment);
+  });
+
+  it("uploads the first paid month once, for its own goal", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await paid(userId, month);
+
+    expect(await reportPaidMonths(api.db)).toEqual({ sent: 1 });
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]?.csv).toStartWith(
+      "Yclid,Target,DateTime,Price,Currency\n1234567890123456789,paid_month,",
+    );
+    expect(uploads[0]?.csv).toEndWith(",149.00,RUB\n");
+
+    expect(await reportPaidMonths(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(1);
+  });
+
+  it("skips what is not a new monthly customer", async () => {
+    stubFetch();
+    const buyer = await specialist();
+    const first = await paid(buyer, {
+      ...month,
+      paidAt: new Date(Date.now() - 3 * DAY),
+    });
+    // The next month of the same user is a renewal.
+    await paid(buyer, { ...month, paidAt: new Date(Date.now() - 2 * DAY) });
+    await reportPaidMonths(api.db);
+    expect(uploads).toHaveLength(1);
+    expect(uploads[0]?.csv).toContain(`${first.yclid},paid_month`);
+
+    const skipped: PaymentValues[] = [
+      { period: "year" },
+      { ...month, yclid: null, ymClientId: null },
+      { ...month, refundedAt: new Date() },
+      { ...month, chargedFor: new Date() },
+      { ...month, status: "pending" },
+      { ...month, externalId: "demo-1" },
+      { ...month, externalId: "sandbox-1" },
+      { ...month, paidAt: new Date(Date.now() - 15 * DAY) },
+    ];
+    for (const values of skipped) await paid(await specialist(), values);
+    uploads = [];
+    expect(await reportPaidMonths(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(0);
+  });
+
+  it("counts a month and a year of one customer apart", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await paid(userId, {
+      ...month,
+      yclid: "month-click",
+      paidAt: new Date(Date.now() - 3 * DAY),
+    });
+    await paid(userId, { yclid: "year-click" });
+
+    expect(await reportPaidConversions(api.db)).toEqual({ sent: 2 });
+    expect(uploads.map((upload) => upload.csv).join("")).toContain(
+      "month-click,paid_month",
+    );
+    expect(uploads.map((upload) => upload.csv).join("")).toContain(
+      "year-click,paid_year",
+    );
+    expect(await reportPaidConversions(api.db)).toEqual({ sent: 0 });
   });
 });

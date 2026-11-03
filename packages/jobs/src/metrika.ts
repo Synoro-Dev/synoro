@@ -17,25 +17,30 @@ import {
 import { claimNotice } from "./notice-claims";
 
 /**
- * Yandex Direct is paid per annual customer (docs/direct.md): the first paid
- * year of a specialist who came from an ad goes back to Metrika as an offline
- * conversion, matched to the visit by the Direct click (`yclid`) or, failing
- * that, the Metrika visitor id. In Metrika the goal `paid_year` is a
- * JavaScript-event goal with the condition "matches"; Direct optimizes for it.
+ * Yandex Direct is paid per paying customer (docs/direct.md): the first paid
+ * year, and separately the first paid month, of a specialist who came from an
+ * ad goes back to Metrika as an offline conversion, matched to the visit by
+ * the Direct click (`yclid`) or, failing that, the Metrika visitor id. In
+ * Metrika the goals `paid_year` and `paid_month` are JavaScript-event goals
+ * with the condition "matches"; Direct optimizes for them.
  *
- * Only the FIRST paid year counts: a later year (a renewal, auto-renewal
- * included) is the same customer, not a new one. Month payments, refunds,
- * the demo stand and Точка's sandbox never count.
+ * Only the FIRST paid period of a kind counts: a later year or month (a
+ * renewal, auto-renewal included) is the same customer, not a new one. The two
+ * kinds are counted apart: a month followed by a year is two conversions, each
+ * for its own goal. Refunds, the demo stand and Точка's sandbox never count.
  *
  * The bank settles payments in a webhook, long after the browser is gone, so
- * an hourly cron looks for them (`reportPaidYears`). A conversion goes out
- * once: each is claimed in `sent_notices` like a mail (`claimNotice`).
+ * an hourly cron looks for them (`reportPaidConversions`). A conversion goes
+ * out once: each is claimed in `sent_notices` like a mail (`claimNotice`).
  */
 
 export const PAID_YEAR_GOAL = "paid_year";
+export const PAID_MONTH_GOAL = "paid_month";
+
+type Period = "month" | "year";
 
 /** Key of a payment's claim in `sent_notices`: this prefix + the payment id. */
-const CLAIM_PREFIX = `metrika:${PAID_YEAR_GOAL}:`;
+const claimPrefix = (goal: string) => `metrika:${goal}:`;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A payment is retried (after a failed upload) for this long. */
@@ -111,10 +116,10 @@ async function uploadConversion(
 }
 
 /**
- * Paid years from the last two weeks that came from an ad and are the user's
- * first, except those already sent (`sent_notices`).
+ * Payments for `period` from the last two weeks that came from an ad and are
+ * the user's first of that period, except those already sent (`sent_notices`).
  */
-function candidates(db: Database, now: Date) {
+function candidates(db: Database, now: Date, period: Period, goal: string) {
   return db
     .select({
       id: SubscriptionPayment.id,
@@ -129,7 +134,7 @@ function candidates(db: Database, now: Date) {
     .where(
       and(
         eq(SubscriptionPayment.status, "succeeded"),
-        eq(SubscriptionPayment.period, "year"),
+        eq(SubscriptionPayment.period, period),
         isNull(SubscriptionPayment.refundedAt),
         // An automatic charge is a renewal, never a new customer.
         isNull(SubscriptionPayment.chargedFor),
@@ -144,7 +149,7 @@ function candidates(db: Database, now: Date) {
         sql`not exists (
           select 1 from subscription_payments earlier
           where earlier.user_id = ${SubscriptionPayment.userId}
-            and earlier.period = 'year'
+            and earlier.period = ${period}
             and earlier.status = 'succeeded'
             and earlier.refunded_at is null
             and earlier.paid_at < ${SubscriptionPayment.paidAt}
@@ -152,7 +157,7 @@ function candidates(db: Database, now: Date) {
         // Sent ones must not fill the batch and starve the later payments.
         sql`not exists (
           select 1 from sent_notices
-          where ${SentNotice.key} = ${CLAIM_PREFIX} || ${SubscriptionPayment.id}::text
+          where ${SentNotice.key} = ${claimPrefix(goal)} || ${SubscriptionPayment.id}::text
             and ${SentNotice.sentAt} is not null
         )`,
       ),
@@ -162,21 +167,26 @@ function candidates(db: Database, now: Date) {
 }
 
 /**
- * Upload the conversions that are due. Does nothing without
+ * Upload the conversions of one kind that are due. Does nothing without
  * METRIKA_COUNTER_ID and METRIKA_OAUTH_TOKEN. A failed upload gives its claim
  * back, so the next run tries again until the payment is two weeks old.
  */
-export async function reportPaidYears(db: Database, now = new Date()) {
+async function reportFirstPayments(
+  db: Database,
+  now: Date,
+  period: Period,
+  goal: string,
+) {
   const counterId = env.METRIKA_COUNTER_ID;
   const token = env.METRIKA_OAUTH_TOKEN;
   if (!counterId || !token) return { sent: 0 };
 
   let sent = 0;
-  for (const payment of await candidates(db, now)) {
+  for (const payment of await candidates(db, now, period, goal)) {
     if (!payment.paidAt) continue;
     const claim = await claimNotice(
       db,
-      `${CLAIM_PREFIX}${payment.id}`,
+      `${claimPrefix(goal)}${payment.id}`,
       payment.userId,
     );
     if (!claim) continue;
@@ -186,7 +196,7 @@ export async function reportPaidYears(db: Database, now = new Date()) {
         yclid: payment.yclid,
         yclidAt: payment.yclidAt,
         ymClientId: payment.ymClientId,
-        target: PAID_YEAR_GOAL,
+        target: goal,
         paidAt: payment.paidAt,
         amount: payment.amount,
       });
@@ -194,6 +204,7 @@ export async function reportPaidYears(db: Database, now = new Date()) {
       sent += 1;
       logger.info("metrika.conversion_sent", {
         paymentId: payment.id,
+        goal,
         uploadId: uploading?.id,
         by: payment.yclid ? "yclid" : "client_id",
       });
@@ -201,9 +212,25 @@ export async function reportPaidYears(db: Database, now = new Date()) {
       await claim.release();
       logger.warn("metrika.conversion_failed", {
         paymentId: payment.id,
+        goal,
         error: error instanceof Error ? error.message : String(error),
       });
     }
   }
   return { sent };
+}
+
+/** The first paid year of each customer who came from an ad: `paid_year`. */
+export const reportPaidYears = (db: Database, now = new Date()) =>
+  reportFirstPayments(db, now, "year", PAID_YEAR_GOAL);
+
+/** The first paid month of each customer who came from an ad: `paid_month`. */
+export const reportPaidMonths = (db: Database, now = new Date()) =>
+  reportFirstPayments(db, now, "month", PAID_MONTH_GOAL);
+
+/** Both kinds, for the hourly cron. */
+export async function reportPaidConversions(db: Database, now = new Date()) {
+  const years = await reportPaidYears(db, now);
+  const months = await reportPaidMonths(db, now);
+  return { sent: years.sent + months.sent };
 }
