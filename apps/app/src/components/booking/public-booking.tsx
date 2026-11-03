@@ -52,7 +52,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
 import { LegalFooter } from "~/components/legal-links";
@@ -109,6 +109,21 @@ const keyToDate = (key: string) => new Date(`${key}T12:00:00`);
 
 /** Where the visitor's chosen view is remembered, per browser. */
 const VIEW_STORAGE_KEY = "synoro:booking-view";
+
+function readStoredView(): BookingView {
+  try {
+    const stored = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (isBookingView(stored)) return stored;
+  } catch {
+    // Storage is blocked (private mode, an iframe): the month it is.
+  }
+  return "month";
+}
+const monthView = (): BookingView => "month";
+// Read once per render: the choice is changed on this page only.
+const noStore = () => () => {};
+const yes = () => true;
+const no = () => false;
 
 /** Parts of the day the free times are grouped by, in the viewer's zone. */
 const DAY_PARTS = [
@@ -172,12 +187,19 @@ export function PublicBooking({
   const today = dateKey(new Date(), practice.timezone);
   const viewerToday = dateKey(new Date());
   const [month, setMonth] = useState(() => keyToDate(today));
-  const [view, setView] = useState<BookingView>("month");
+  /** The view picked on this visit; until then the one remembered. */
+  const [chosenView, setChosenView] = useState<BookingView | null>(null);
+  const storedView = useSyncExternalStore(noStore, readStoredView, monthView);
+  const view = chosenView ?? storedView;
+  // The server knows no stored view: slots wait for the browser's.
+  const hydrated = useSyncExternalStore(noStore, yes, no);
   /** The Monday of the week shown by the week and column views. */
   const [week, setWeek] = useState(() => weekStart(viewerToday));
   // A week of seven columns doesn't fit a phone: there it is the month.
   const isMobile = useIsMobile();
   const shown: BookingView = isMobile ? "month" : view;
+  /** The layout `month` / `week` were last lined up for. */
+  const [laidOut, setLaidOut] = useState(shown);
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
@@ -242,15 +264,6 @@ export function PublicBooking({
     };
   }, [accent, radius]);
 
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(VIEW_STORAGE_KEY);
-      if (isBookingView(stored)) setView(stored);
-    } catch {
-      // Storage is blocked (private mode, an iframe): the month it is.
-    }
-  }, []);
-
   /** The questionnaire is filled in; otherwise its errors are shown. */
   function answered() {
     const { errors } = checkBookingAnswers(questions, answers);
@@ -270,6 +283,20 @@ export function PublicBooking({
     // its top.
     const top = panel.current?.getBoundingClientRect().top ?? 0;
     if (top < 0) panel.current?.scrollIntoView({ block: "start" });
+  }
+
+  if (shown !== laidOut) {
+    // The width switched the layout (a turned phone, a narrowed window): keep
+    // the open booking form, or else the days that were in view, on screen.
+    setLaidOut(shown);
+    const anchor = picked
+      ? dateKey(picked.startsAt)
+      : shown === "month"
+        ? (weekDays(week).find((key) => key >= viewerToday) ?? week)
+        : (day ?? viewerToday);
+    setMonth(keyToDate(anchor));
+    setWeek(weekStart(anchor));
+    if (shown === "month") setDay(anchor);
   }
 
   const monthStart = dateKey(
@@ -292,6 +319,8 @@ export function PublicBooking({
       },
     }),
     placeholderData: (previous) => previous,
+    // Not the month's slots for a visitor who reads the week.
+    enabled: hydrated,
   });
 
   const byDay = new Map<string, Slot[]>();
@@ -321,7 +350,8 @@ export function PublicBooking({
       );
       setDay(firstFree);
     }
-    setView(next);
+    setChosenView(next);
+    setLaidOut(next);
     setPicked(null);
     try {
       localStorage.setItem(VIEW_STORAGE_KEY, next);
@@ -857,7 +887,8 @@ export function PublicBooking({
 
                   {slots.isError ? (
                     <ErrorState onRetry={() => slots.refetch()} />
-                  ) : slots.isPending && !slots.data ? (
+                  ) : !slots.data || slots.isPlaceholderData ? (
+                    // The last range's times are not this week's.
                     <WeekSkeleton />
                   ) : byDay.size === 0 ? (
                     <div className="flex flex-col items-start gap-3">
