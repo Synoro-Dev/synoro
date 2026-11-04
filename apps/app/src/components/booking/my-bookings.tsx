@@ -559,7 +559,8 @@ export function MyBookings() {
   const bookings = useQuery(orpc.booking.mine.queryOptions());
   const payments = useQuery(orpc.payment.mine.queryOptions());
   const [picked, setPicked] = useState<string | null>(null);
-  const [topUp, setTopUp] = useState(false);
+  /** The practice whose package is being bought. */
+  const [topUp, setTopUp] = useState<string | null>(null);
   const [acting, setActing] = useState<{
     booking: MyBooking;
     action: BookingAction;
@@ -577,6 +578,16 @@ export function MyBookings() {
     clientOf.find((p) => p.practiceId === upcomingAll[0]?.practiceId) ??
     clientOf[0];
 
+  const topUpPractice = clientOf.find((p) => p.practiceId === topUp);
+  // The nearest upcoming booking of each series: the only one that offers
+  // cancelling the whole series.
+  const seriesHeads = new Set<string>();
+  const seenSeries = new Set<string>();
+  for (const b of upcomingAll) {
+    if (!b.seriesId || seenSeries.has(b.seriesId)) continue;
+    seenSeries.add(b.seriesId);
+    seriesHeads.add(b.id);
+  }
   const mine = (bookings.data ?? []).filter(
     (b) => b.practiceId === practice?.practiceId,
   );
@@ -618,7 +629,13 @@ export function MyBookings() {
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Мои записи</h1>
 
-      <PaymentReturn onRetry={() => setTopUp(true)} />
+      {/* A failed payment is retried with its own specialist. */}
+      <PaymentReturn
+        onRetry={(practiceId) => {
+          setPicked(practiceId);
+          setTopUp(practiceId);
+        }}
+      />
 
       {me.data && !me.data.phone && (
         <Alert variant="warning">
@@ -689,7 +706,7 @@ export function MyBookings() {
           <Balance
             practice={practice}
             lastPackage={lastPackage}
-            onTopUp={() => setTopUp(true)}
+            onTopUp={() => setTopUp(practice.practiceId)}
           />
 
           <Tabs defaultValue="bookings" className="gap-4">
@@ -743,20 +760,20 @@ export function MyBookings() {
               )}
             </TabsContent>
           </Tabs>
-
-          {topUp && (
-            <TopUpDialog
-              practice={{
-                id: practice.practiceId,
-                name: practice.name,
-                profession: practice.profession,
-              }}
-              balance={practice.credits}
-              open
-              onOpenChange={(open) => !open && setTopUp(false)}
-            />
-          )}
         </>
+      )}
+
+      {topUpPractice && (
+        <TopUpDialog
+          practice={{
+            id: topUpPractice.practiceId,
+            name: topUpPractice.name,
+            profession: topUpPractice.profession,
+          }}
+          balance={topUpPractice.credits}
+          open
+          onOpenChange={(open) => !open && setTopUp(null)}
+        />
       )}
 
       <section id="contacts" className="flex scroll-mt-20 flex-col gap-3">
@@ -783,6 +800,7 @@ export function MyBookings() {
           clientOf.find((p) => p.practiceId === acting?.booking.practiceId)
             ?.credits ?? 0
         }
+        seriesHead={acting !== null && seriesHeads.has(acting.booking.id)}
         timeZone={zone}
         onClose={() => setActing(null)}
       />

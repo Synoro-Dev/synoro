@@ -44,7 +44,6 @@ import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
 
 const WEEK = 7;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The next half hour from now: where a new entry starts by default. */
 function nextHalfHour() {
@@ -89,12 +88,22 @@ export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
   );
 
   const now = new Date();
-  const todayKey = dateKey(now);
-  const tomorrowKey = dateKey(new Date(now.getTime() + DAY_MS));
+  // Calendar days in the viewer's zone, by date (not +24 h: DST days are
+  // 23 or 25 hours long).
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+  const tomorrowEnd = new Date(dayEnd);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
   const entries = calendar.data ?? [];
-  const today = entries.filter((b) => dateKey(b.startsAt) === todayKey);
+  // Everything that touches today — a vacation closed days ago included.
+  const today = entries.filter(
+    (b) => b.startsAt < dayEnd && b.endsAt > dayStart,
+  );
   const tomorrow = entries.filter(
-    (b) => b.kind !== "blocked" && dateKey(b.startsAt) === tomorrowKey,
+    (b) =>
+      b.kind !== "blocked" && b.startsAt >= dayEnd && b.startsAt < tomorrowEnd,
   );
   const meetingsToday = today.filter((b) => b.kind !== "blocked").length;
   const credits = new Map(
@@ -191,6 +200,7 @@ export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
                     key={b.id}
                     booking={b}
                     now={now}
+                    day={[dayStart, dayEnd]}
                     credits={b.memberId ? credits.get(b.memberId) : undefined}
                     label={kindLabel(b.kind, terms)}
                     onOpen={() => setSelected(b)}
@@ -241,12 +251,15 @@ export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
 function DayRow({
   booking: b,
   now,
+  day: [dayStart, dayEnd],
   credits,
   label,
   onOpen,
 }: {
   booking: CalendarBooking;
   now: Date;
+  /** Today's bounds: a block may start before it or end after it. */
+  day: [Date, Date];
   /** The client's balance, for a paid booking. */
   credits: number | undefined;
   label: string;
@@ -255,6 +268,7 @@ function DayRow({
   const current = b.startsAt <= now && b.endsAt > now;
   const past = b.endsAt <= now;
   const blocked = b.kind === "blocked";
+  const allDay = b.startsAt <= dayStart && b.endsAt >= dayEnd;
 
   return (
     <li className="relative flex items-center gap-1">
@@ -280,7 +294,11 @@ function DayRow({
           )}
         />
         <span className="w-12 shrink-0 text-sm font-medium tabular-nums">
-          {formatTime(b.startsAt)}
+          {allDay ? (
+            <span aria-hidden="true">—</span>
+          ) : (
+            formatTime(b.startsAt < dayStart ? dayStart : b.startsAt)
+          )}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-medium">
@@ -289,7 +307,10 @@ function DayRow({
           </span>
           <span className="text-sm text-muted-foreground">
             <span className="tabular-nums">
-              до {formatTime(b.endsAt)} · {label}
+              {allDay
+                ? "Весь день"
+                : `до ${formatTime(b.endsAt >= dayEnd ? dayEnd : b.endsAt)}`}{" "}
+              · {label}
             </span>
             {b.videoUrl && !blocked && " · онлайн"}
             {credits !== undefined && (
@@ -450,6 +471,11 @@ function SetupProgress({
   );
   if (!loaded || payments.isPending) return null;
 
+  // Online payment counts only where the owner can set it up («Про», and
+  // the server takes payments); a failed request is not a finished step.
+  const canPay = payments.data
+    ? payments.data.pro && payments.data.available
+    : true;
   const steps = [
     {
       title: "Задайте рабочие часы",
@@ -463,9 +489,8 @@ function SetupProgress({
     },
     {
       title: "Подключите онлайн-оплату",
-      // Unavailable (no «Про», not set up on the server) counts as done:
-      // nothing the owner can finish here.
-      done: payments.isError || !!payments.data?.account,
+      done: !!payments.data?.account,
+      shown: canPay,
       href: paths.booking.payments(practice.id),
     },
     {
@@ -473,7 +498,7 @@ function SetupProgress({
       done: hasClients,
       href: paths.booking.page(practice.id),
     },
-  ];
+  ].filter((s) => s.shown !== false);
   const done = steps.filter((s) => s.done).length;
   if (done === steps.length) return null;
   const next = steps.find((s) => !s.done);

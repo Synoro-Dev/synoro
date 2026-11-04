@@ -38,11 +38,18 @@ export function BookingActionDialog({
   booking,
   action,
   balance,
+  seriesHead,
   timeZone,
   onClose,
 }: {
   booking: MyBooking | null;
   action: BookingAction;
+  /**
+   * The booking is the nearest upcoming one of its series. Only there may
+   * the whole series go: `cancelSeries` cancels every upcoming booking of
+   * it, earlier ones included.
+   */
+  seriesHead: boolean;
   /** The client's balance in the booking's practice. */
   balance: number;
   timeZone: string;
@@ -142,7 +149,7 @@ export function BookingActionDialog({
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            {action === "cancel" && booking.seriesId && (
+            {action === "cancel" && booking.seriesId && seriesHead && (
               <label className="flex min-h-11 items-center gap-3 text-sm">
                 <input
                   type="checkbox"
@@ -150,7 +157,7 @@ export function BookingActionDialog({
                   checked={wholeSeries}
                   onChange={(e) => setWholeSeries(e.target.checked)}
                 />
-                Отменить и следующие записи этой серии
+                Отменить всю повторную запись
               </label>
             )}
             {failure && (

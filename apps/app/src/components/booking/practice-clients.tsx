@@ -75,7 +75,9 @@ function Balance({ credits }: { credits: number }) {
   );
 }
 
-function getColumns(): ColumnDef<DataGridFeatures, Member>[] {
+function getColumns(
+  onOpen: (member: Member) => void,
+): ColumnDef<DataGridFeatures, Member>[] {
   return [
     {
       accessorKey: "name",
@@ -128,11 +130,21 @@ function getColumns(): ColumnDef<DataGridFeatures, Member>[] {
     {
       id: "open",
       header: () => <span className="sr-only">Карточка</span>,
-      cell: () => (
-        <ChevronRightIcon
-          className="ml-auto size-4 text-muted-foreground"
-          aria-hidden
-        />
+      // The row opens on click too; this button is the keyboard's way in.
+      cell: ({ row }) => (
+        <div className="flex justify-end">
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Открыть карточку: ${row.original.name}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(row.original);
+            }}
+          >
+            <ChevronRightIcon />
+          </Button>
+        </div>
       ),
       size: 48,
       enableSorting: false,
@@ -199,7 +211,7 @@ export function PracticeClients({
   const table = useTable({
     features: dataGridFeatures,
     data,
-    columns: getColumns(),
+    columns: getColumns((member) => setOpenId(member.id)),
     state: { sorting, pagination },
     getRowId: (row) => row.id,
     onSortingChange: setSorting,
