@@ -48,7 +48,7 @@ export function SaveState({
 }
 
 /** Asks before the tab closes or reloads while there is a draft. */
-export function useLeaveGuard(dirty: boolean) {
+function useLeaveGuard(dirty: boolean) {
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
