@@ -14,6 +14,7 @@ import {
   freeBusy,
   GoogleError,
   googleCalendarAvailable,
+  hasOtherEvent,
   insertEvent,
   moveEvent,
   removeBookingEvent,
@@ -157,11 +158,13 @@ export async function isBusyInGoogle(
 
 /**
  * Busy time for moving `booking`: its own event reads as busy in Google, but
- * goes away with the booking, so it doesn't count. Free/busy has no event ids:
- * only a block of exactly the booking's time is taken for its event. Anything
- * else touching it widens the block, which then stays busy — a booking must
- * not land on another event. Google clips blocks to the range asked for, so
- * the range takes in the booking's whole time.
+ * goes away with the booking, so it doesn't count. Free/busy has no event ids,
+ * so a block of exactly the booking's time may be its event alone, or hide
+ * another one inside: the calendars are asked, and unless they say it is alone
+ * the block stays busy — a booking must not land on another event. An event
+ * running past the booking widens the block, which then stays busy anyway.
+ * Google clips blocks to the range asked for, so the range takes in the
+ * booking's whole time.
  */
 export async function googleBusyForMove(
   db: Database,
@@ -169,9 +172,9 @@ export async function googleBusyForMove(
   start: Date,
   end: Date,
 ) {
-  const { practiceId, startsAt, endsAt } = booking;
+  const { practiceId, startsAt, endsAt, googleEventId } = booking;
   const window = { startsAt: start, endsAt: end };
-  if (!booking.googleEventId || !overlaps(booking, window)) {
+  if (!googleEventId || !overlaps(booking, window)) {
     return googleBusy(db, practiceId, start, end);
   }
   const busy = await googleBusy(
@@ -180,11 +183,41 @@ export async function googleBusyForMove(
     startsAt < start ? startsAt : start,
     endsAt > end ? endsAt : end,
   );
-  return busy.filter(
-    (b) =>
-      b.startsAt.getTime() !== startsAt.getTime() ||
-      b.endsAt.getTime() !== endsAt.getTime(),
-  );
+  const own = (b: TimeRange) =>
+    b.startsAt.getTime() === startsAt.getTime() &&
+    b.endsAt.getTime() === endsAt.getTime();
+  if (!busy.some(own)) return busy;
+  const alone = await isAloneInGoogle(db, booking, googleEventId);
+  return alone ? busy.filter((b) => !own(b)) : busy;
+}
+
+/** Whether nothing but its own event makes the booking's time busy. */
+async function isAloneInGoogle(
+  db: Database,
+  booking: BookingRow,
+  eventId: string,
+) {
+  try {
+    const connection = await findConnection(db, booking.practiceId);
+    if (!connection) return false;
+    const others = await withGoogle(db, connection, (token) =>
+      Promise.all(
+        connection.busyCalendarIds.map((calendarId: string) =>
+          hasOtherEvent(
+            token,
+            calendarId,
+            eventId,
+            booking.startsAt,
+            booking.endsAt,
+          ),
+        ),
+      ),
+    );
+    return !others.includes(true);
+  } catch {
+    // Recorded by withGoogle. Not known: the time stays busy.
+    return false;
+  }
 }
 
 /** Google event ids are base32hex; a UUID's hex digits fit as they are. */

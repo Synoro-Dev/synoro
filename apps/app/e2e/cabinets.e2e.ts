@@ -220,6 +220,8 @@ test("client moves a booking to a new time without losing the credit", async ({
   browser,
   baseURL,
 }) => {
+  // Two sign-ups, each of which may wait out the rate limit.
+  test.setTimeout(180_000);
   const base = baseURL ?? "";
   const { api: owner, practiceId } = await ownerWithPractice(page, base);
   await owner.availability.replace({

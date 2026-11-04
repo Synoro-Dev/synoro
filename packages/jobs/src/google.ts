@@ -279,6 +279,39 @@ export async function freeBusy(
   return { busy, failed };
 }
 
+/**
+ * Whether `calendarId` has an event overlapping [start, end) that makes the
+ * time busy, other than `exceptEventId`. Unlike free/busy this tells events
+ * apart. It errs towards busy: an event the owner declined counts too.
+ */
+export async function hasOtherEvent(
+  accessToken: string,
+  calendarId: string,
+  exceptEventId: string,
+  start: Date,
+  end: Date,
+) {
+  const query = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    singleEvents: "true",
+    fields: "items(id,status,transparency)",
+  });
+  const data = await api<{
+    items?: { id: string; status?: string; transparency?: string }[];
+  }>(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events?${query}`,
+    { what: "Google events.list" },
+  );
+  return (data?.items ?? []).some(
+    (event) =>
+      event.id !== exceptEventId &&
+      event.status !== "cancelled" &&
+      event.transparency !== "transparent",
+  );
+}
+
 export interface GoogleEvent {
   /** base32hex (a–v, 0–9), 5–1024 chars: lets a retry find the same event. */
   id: string;
