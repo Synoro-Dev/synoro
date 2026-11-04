@@ -26,10 +26,14 @@ export function PracticeContact({
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(contact ?? "");
-  const dirty = draft.trim() !== (contact ?? "");
+  // The `contact` prop comes from the server page and stays as first loaded.
+  const [saved, setSaved] = useState(contact ?? "");
+  const dirty = draft.trim() !== saved;
   const save = useMutation({
     ...orpc.practice.setContact.mutationOptions(),
     onSuccess: async (result) => {
+      setSaved(result.contact ?? "");
+      setDraft(result.contact ?? "");
       toast.success(result.contact ? "Контакт сохранён" : "Контакт удалён");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },

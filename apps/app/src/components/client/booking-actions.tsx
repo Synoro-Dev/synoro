@@ -180,8 +180,7 @@ export function BookingActionDialog({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <SlotPicker
-              practiceId={booking.practiceId}
-              kind={free ? "free" : "consultation"}
+              bookingId={booking.id}
               timeZone={timeZone}
               selected={picked}
               onSelect={setPicked}

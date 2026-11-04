@@ -22,7 +22,7 @@ import {
 } from "@synoro/jobs/google-calendar";
 import { capitalize, professionTerms } from "@synoro/validators";
 import { findOwnerMembership, findPractice } from "../practice-access";
-import { overlaps, type TimeRange } from "../schedule";
+import { overlaps, subtractRanges, type TimeRange } from "../schedule";
 import { decryptSecret, encryptSecret } from "../secrets";
 
 export {
@@ -155,6 +155,20 @@ export async function isBusyInGoogle(
   return busy.some((b) => overlaps(b, range));
 }
 
+/**
+ * Busy time for moving `booking`: its own event reads as busy in Google, but
+ * goes away with the booking, so its time doesn't count.
+ */
+export async function googleBusyForMove(
+  db: Database,
+  booking: BookingRow,
+  start: Date,
+  end: Date,
+) {
+  const busy = await googleBusy(db, booking.practiceId, start, end);
+  return booking.googleEventId ? subtractRanges(busy, [booking]) : busy;
+}
+
 /** Google event ids are base32hex; a UUID's hex digits fit as they are. */
 function eventIdFor(bookingId: string) {
   return bookingId.replaceAll("-", "");
@@ -257,9 +271,14 @@ export async function exportBooking(db: Database, bookingId: string) {
   }
 }
 
+/** How many times a move looks at the booking again after writing to Google. */
+const MOVE_EVENT_TRIES = 3;
+
 /**
  * After a booking moved: take its Google Calendar event along, or add one if
- * it never got there. Best effort, like `exportBooking`.
+ * it never got there. Two moves can reach Google in the wrong order, so each
+ * reads the booking again after writing: the last write is its latest time.
+ * Best effort, like `exportBooking`.
  */
 export async function moveBookingEvent(db: Database, booking: BookingRow) {
   const { googleCalendarId, googleEventId } = booking;
@@ -274,13 +293,19 @@ export async function moveBookingEvent(db: Database, booking: BookingRow) {
       findPractice(db, booking.practiceId),
     ]);
     if (!connection || !practice) return;
-    await withGoogle(db, connection, (token) =>
-      moveEvent(token, googleCalendarId, googleEventId, {
-        startsAt: booking.startsAt,
-        endsAt: booking.endsAt,
-        timeZone: practice.timezone,
-      }),
-    );
+    let { startsAt, endsAt } = booking;
+    for (let tries = 0; tries < MOVE_EVENT_TRIES; tries++) {
+      const time = { startsAt, endsAt, timeZone: practice.timezone };
+      await withGoogle(db, connection, (token) =>
+        moveEvent(token, googleCalendarId, googleEventId, time),
+      );
+      const latest = await db.query.Booking.findFirst({
+        where: and(eq(Booking.id, booking.id), eq(Booking.status, "active")),
+        columns: { startsAt: true, endsAt: true },
+      });
+      if (!latest || latest.startsAt.getTime() === startsAt.getTime()) return;
+      ({ startsAt, endsAt } = latest);
+    }
   } catch {
     // Recorded by withGoogle.
   }

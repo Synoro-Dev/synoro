@@ -60,6 +60,7 @@ export async function notifyStaff(
         practiceName: Practice.name,
         timezone: Practice.timezone,
         notifyStaff: Practice.notifyStaff,
+        clientId: client.id,
         clientName: client.name,
         clientPhone: client.phone,
       })
@@ -130,6 +131,12 @@ export async function notifyStaff(
                 movedFrom: options.from
                   ? describeDates([options.from], row.timezone).when
                   : null,
+                movedBy:
+                  notice === "moved"
+                    ? options.actorId === row.clientId
+                      ? "client"
+                      : "staff"
+                    : null,
                 calendarUrl,
                 dates,
               },

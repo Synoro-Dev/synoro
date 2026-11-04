@@ -37,6 +37,7 @@ export default function StaffBookingEmail({
   cancelledBy = null,
   refunded = false,
   movedFrom = null,
+  movedBy = null,
   calendarUrl = "https://app.synoro.ru/practices/1/calendar",
   dates = [],
 }: {
@@ -54,6 +55,8 @@ export default function StaffBookingEmail({
   refunded?: boolean;
   /** The old time, formatted like `when`, for `moved`. */
   movedFrom?: string | null;
+  /** Who moved it, for `moved`. */
+  movedBy?: "client" | "staff" | null;
   calendarUrl: string;
   /**
    * Every date of a recurring booking, formatted like `when`; `when` then
@@ -83,7 +86,7 @@ export default function StaffBookingEmail({
             ? `${kind} в практике «${practiceName}».`
             : cancelled
               ? `${kind} в практике «${practiceName}» отменена${cancelledBy === "client" ? " клиентом" : ""}.`
-              : `${kind} в практике «${practiceName}» перенесена. Прежнее время: ${movedFrom}.`
+              : `${kind} в практике «${practiceName}» перенесена${movedBy === "client" ? " клиентом" : ""}. Прежнее время: ${movedFrom}.`
         }
       />
       {clientPhone ? <EmailText>Телефон: {clientPhone}</EmailText> : null}

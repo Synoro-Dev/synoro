@@ -3,24 +3,21 @@ import { notifyBookingMoved } from "@synoro/jobs/booking-video";
 import { clientTimeZoneInput } from "@synoro/validators";
 import { z } from "zod";
 
-import {
-  checkCancel,
-  loadRules,
-  releaseExpiredHolds,
-} from "../../lib/bookings";
-import { isBusyInGoogle, moveBookingEvent } from "../../lib/google-calendar";
+import { checkMove, loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import { googleBusyForMove, moveBookingEvent } from "../../lib/google-calendar";
 import { findPractice } from "../../lib/practice-access";
-import { isScheduledSlot } from "../../lib/schedule";
+import { isScheduledSlot, overlaps } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Move a confirmed booking to another time. It stays the same booking — same
  * id, link, video room, series and length — and the balance doesn't change.
  *
- * The rules are those of `booking.cancel` (`checkCancel`): a client moves
+ * The rules are those of `booking.cancel` (`checkMove`): a client moves
  * their own booking no later than 24 h before it starts (a free intro until
  * it starts), later → TOO_LATE; staff move anything at any time. Bookings the
- * caller may not touch, closed time and unpaid holds are NOT_FOUND.
+ * caller may not touch, closed time and unpaid holds are NOT_FOUND. The times
+ * to offer: `booking.rescheduleSlots`.
  *
  * SLOT_UNAVAILABLE when the new time is off the schedule, busy in the
  * specialist's Google Calendar (checked for clients only, as in `book`) or
@@ -52,12 +49,9 @@ export const reschedule = protectedProcedure
   )
   .handler(async ({ context, input, errors }) => {
     const userId = context.session.user.id;
-    const check = await checkCancel(context.db, input.bookingId, userId);
+    const check = await checkMove(context.db, input.bookingId, userId);
     if ("refusal" in check) throw errors[check.refusal]();
-    const { booking, staff } = check;
-    if (booking.kind === "blocked" || booking.holdUntil !== null) {
-      throw errors.NOT_FOUND();
-    }
+    const { booking, kind, staff, minutes } = check;
     // Already there (a repeated request): nothing to do, nobody to tell.
     if (booking.startsAt.getTime() === input.startsAt.getTime()) {
       return {
@@ -70,23 +64,28 @@ export const reschedule = protectedProcedure
     const practice = await findPractice(context.db, booking.practiceId);
     if (!practice) throw errors.NOT_FOUND();
 
-    // Intros already booked keep their length, whatever the practice's now.
-    const minutes =
-      (booking.endsAt.getTime() - booking.startsAt.getTime()) / 60_000;
     const rules = await loadRules(context.db, practice.id);
     const scheduled = isScheduledSlot({
       rules,
       startsAt: input.startsAt,
       timeZone: practice.timezone,
-      kind: booking.kind,
+      kind,
       introMinutes: minutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
     const endsAt = new Date(input.startsAt.getTime() + minutes * 60_000);
     const range = { startsAt: input.startsAt, endsAt };
-    if (!staff && (await isBusyInGoogle(context.db, practice.id, range))) {
-      throw errors.SLOT_UNAVAILABLE();
+    if (!staff) {
+      const busy = await googleBusyForMove(
+        context.db,
+        booking,
+        range.startsAt,
+        range.endsAt,
+      );
+      if (busy.some((b) => overlaps(b, range))) {
+        throw errors.SLOT_UNAVAILABLE();
+      }
     }
 
     await releaseExpiredHolds(context.db, practice.id);

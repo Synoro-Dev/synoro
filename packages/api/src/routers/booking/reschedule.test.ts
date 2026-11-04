@@ -8,11 +8,22 @@ import {
 } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { Booking, CreditEntry, eq, PracticeMember } from "@synoro/db";
-import type { TemplateEmail } from "@synoro/emails";
-import { notifyBookingMoved } from "@synoro/jobs/booking-video";
+import {
+  and,
+  Booking,
+  CreditEntry,
+  eq,
+  isNull,
+  PracticeMember,
+} from "@synoro/db";
+import {
+  type Deliver,
+  notifyBookingMoved,
+  sendBookingReminders,
+} from "@synoro/jobs/booking-video";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import { cancelBookingRows } from "../../lib/bookings";
 import { availabilityRouter } from "../availability";
 import { creditRouter } from "../credit";
 import { practiceRouter } from "../practice";
@@ -21,6 +32,8 @@ import { bookingRouter } from ".";
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const CREDITS = 10;
+
+type Mail = Parameters<Deliver>[0];
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
 let owner: Session;
@@ -357,6 +370,142 @@ describe("what may be moved", () => {
   });
 });
 
+describe("booking.rescheduleSlots", () => {
+  const starts = async (
+    bookingId: string,
+    day: number,
+    session: Session = client,
+  ) => {
+    const { slots } = await call(
+      bookingRouter.rescheduleSlots,
+      { bookingId, from: at(day).toISOString().slice(0, 10), days: 1 },
+      { context: api.context(session) },
+    );
+    return slots.map((slot) => slot.startsAt.getTime());
+  };
+  /** A free intro of `minutes`, whatever the practice's length (30) is. */
+  async function intro(minutes: number) {
+    const [booking] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "free",
+        startsAt: at(5),
+        endsAt: new Date(at(5).getTime() + minutes * 60_000),
+        memberId,
+      })
+      .returning();
+    if (!booking) throw new Error("no booking");
+    return booking;
+  }
+
+  it("leaves out the current start and other bookings", async () => {
+    const booking = await book(at(5));
+    await book(at(5, 12));
+    const free = await starts(booking.id, 5);
+    expect(free).not.toContain(at(5).getTime());
+    expect(free).not.toContain(at(5, 12).getTime());
+    expect(free).toContain(at(5, 11).getTime());
+  });
+
+  it("doesn't count the booking's own time as busy", async () => {
+    const booking = await intro(60);
+    const halfPast = new Date(at(5).getTime() + HOUR / 2);
+    expect(await starts(booking.id, 5)).toContain(halfPast.getTime());
+
+    await reschedule(booking.id, halfPast);
+    expect(await findBooking(booking.id)).toMatchObject({
+      startsAt: halfPast,
+      endsAt: new Date(halfPast.getTime() + HOUR),
+    });
+  });
+
+  it("fits the booking's own length, not the practice's", async () => {
+    // The day ends at 24:00 MSK, 21:00Z.
+    const lastHalfHour = at(6, 20).getTime() + HOUR / 2;
+    const long = await intro(60);
+    expect(await starts(long.id, 6)).not.toContain(lastHalfHour);
+
+    await api.db.delete(Booking).where(eq(Booking.id, long.id));
+    const short = await intro(30);
+    expect(await starts(short.id, 6)).toContain(lastHalfHour);
+  });
+
+  it("has the access rules of a move", async () => {
+    const booking = await book(at(5));
+    const stranger = await createSession(api.db, { name: "Мария" });
+    const refused = await starts(booking.id, 6, stranger).catch((e) => e);
+    expect(refused).toMatchObject({ code: "NOT_FOUND" });
+
+    const late = await insertBooking(3 * HOUR);
+    const tooLate = await starts(late.id, 6).catch((e) => e);
+    expect(tooLate).toMatchObject({ code: "TOO_LATE" });
+    expect(await starts(late.id, 6, owner)).toContain(at(6).getTime());
+  });
+});
+
+describe("what read the booking before it moved", () => {
+  it("a client's cancel doesn't go through", async () => {
+    const booking = await book(at(5));
+    const credits = await balance();
+    await reschedule(booking.id, at(6), owner);
+
+    const cancelled = await cancelBookingRows(api.db, booking.id, {
+      cancelledById: client.user.id,
+      refund: true,
+      reason: "client",
+      startsAt: at(5),
+    });
+
+    expect(cancelled).toBeUndefined();
+    expect(await findBooking(booking.id)).toMatchObject({ status: "active" });
+    expect(await balance()).toBe(credits);
+  });
+
+  it("the reminder cron sends nothing and marks nothing", async () => {
+    // Three short bookings within the hour: all due for the hour reminder.
+    const soon = [10, 25, 40].map((minutes) => {
+      const startsAt = new Date(Date.now() + minutes * 60_000);
+      return {
+        practiceId,
+        kind: "consultation" as const,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 5 * 60_000),
+        memberId,
+      };
+    });
+    await api.db.insert(Booking).values(soon);
+
+    // The batch is read before the first mail: the rest move during it.
+    let moved = false;
+    const mails: Mail[] = [];
+    await sendBookingReminders(api.db, async (mail) => {
+      mails.push(mail);
+      if (moved) return;
+      moved = true;
+      const unclaimed = await api.db.query.Booking.findMany({
+        where: and(
+          eq(Booking.practiceId, practiceId),
+          isNull(Booking.reminderHourSentAt),
+        ),
+      });
+      for (const [i, { id }] of unclaimed.entries()) {
+        await api.db
+          .update(Booking)
+          .set({ startsAt: at(6 + i), endsAt: at(6 + i, 11) })
+          .where(eq(Booking.id, id));
+      }
+    });
+
+    expect(mails).toHaveLength(1);
+    const rows = await api.db.query.Booking.findMany({
+      where: eq(Booking.practiceId, practiceId),
+    });
+    expect(rows.filter((r) => r.reminderHourSentAt !== null)).toHaveLength(1);
+    expect(rows.filter((r) => r.reminderDaySentAt !== null)).toHaveLength(1);
+  });
+});
+
 describe("after a move", () => {
   it("starts the reminders over", async () => {
     const booking = await insertBooking(25 * HOUR, {
@@ -405,7 +554,7 @@ describe("after a move", () => {
     const booking = await book(at(5));
     await reschedule(booking.id, at(6));
 
-    const mails: TemplateEmail[] = [];
+    const mails: Mail[] = [];
     await notifyBookingMoved(
       api.db,
       booking.id,
@@ -425,7 +574,10 @@ describe("after a move", () => {
       movedBy: "client",
     });
     expect(mails[1]?.subject).toStartWith("Запись перенесена: Иван,");
-    expect(mails[1]?.props).toMatchObject({ notice: "moved" });
+    expect(mails[1]?.props).toMatchObject({
+      notice: "moved",
+      movedBy: "client",
+    });
 
     mails.length = 0;
     await notifyBookingMoved(
@@ -441,6 +593,7 @@ describe("after a move", () => {
       "olga@move.test",
     ]);
     expect(mails[0]?.props).toMatchObject({ movedBy: "specialist" });
+    expect(mails[1]?.props).toMatchObject({ movedBy: "staff" });
   });
 
   it("tells only staff about a guest booked by phone", async () => {
@@ -450,7 +603,7 @@ describe("after a move", () => {
       guestName: "Мария",
       guestPhone: "+79001112233",
     });
-    const mails: TemplateEmail[] = [];
+    const mails: Mail[] = [];
     await notifyBookingMoved(
       api.db,
       free.id,

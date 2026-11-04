@@ -76,6 +76,7 @@ export const cancelSeries = protectedProcedure
             cancelledById: userId,
             refund: input.refund || !staff,
             reason: staff ? "staff" : "client",
+            startsAt: staff ? undefined : booking.startsAt,
           }),
         );
       }

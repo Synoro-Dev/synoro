@@ -83,7 +83,7 @@ function staffBooking(p: Props<"staff-booking">): MessengerMessage {
       ? `${kind} в практике «${p.practiceName}».`
       : cancelled
         ? `${kind} в практике «${p.practiceName}» отменена${p.cancelledBy === "client" ? " клиентом" : ""}.`
-        : `${kind} в практике «${p.practiceName}» перенесена. Прежнее время: ${p.movedFrom}.`,
+        : `${kind} в практике «${p.practiceName}» перенесена${p.movedBy === "client" ? " клиентом" : ""}. Прежнее время: ${p.movedFrom}.`,
   ];
   if (p.clientPhone) lines.push(`Телефон: ${p.clientPhone}`);
   if (series) {

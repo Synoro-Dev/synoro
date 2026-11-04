@@ -62,16 +62,25 @@ cabinet ask for it).
 another time: same id, link, video room and length, the balance and its journal
 untouched. One `UPDATE` does it and `bookings_no_overlap` decides races, so a
 taken time (`SLOT_UNAVAILABLE`) leaves the booking where it was. The rules are
-those of cancelling (`checkCancel`, `clientMayCancel`): a client up to 24 h
+those of cancelling (`checkMove`, `clientMayCancel`): a client up to 24 h
 before the start (a free intro until it starts), later `TOO_LATE`; staff at any
 time. Of a series only that booking moves. Closed time and unpaid holds don't
 move, and there is no moving by the `/b/<token>` link: a visitor signs in.
 
+The dialogs (`components/booking/slot-picker.tsx`) offer the times of
+`booking.rescheduleSlots`: `booking.slots` for this booking, with its own length
+and without counting its own time (and Google event) as busy.
+
 After the move the reminders start over, the Google Calendar event gets the new
 time (`moveBookingEvent`), and the client and staff are told (`booking-notice`
 and `staff-booking` with `notice: moved`), but not the one who moved it. A guest
-booked by phone has no account: staff tell them themselves. The dialogs pick the
-time from `booking.slots` (`components/booking/slot-picker.tsx`).
+booked by phone has no account: staff tell them themselves.
+
+Anything that read the booking before a move holds only for the time it read:
+a client's cancel (`cancelBookingRows` with `startsAt`) and the reminder cron's
+claims are conditional on `starts_at`, and `moveBookingEvent` reads the booking
+again after writing to Google, so moves arriving out of order end on the latest
+time.
 
 ## Contact for clients
 

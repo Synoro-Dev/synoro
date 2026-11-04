@@ -395,6 +395,78 @@ describe("bookings in Google", () => {
     expect(google.events.has(eventId)).toBe(false);
   });
 
+  it("ends on the latest time when moves reach Google out of order", async () => {
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("08:00") },
+      { context: api.context(client) },
+    );
+    // Another move lands while the first is on its way to Google.
+    let raced = false;
+    google.intercept = async (_url, init) => {
+      if (init?.method === "PATCH" && !raced) {
+        raced = true;
+        await api.db
+          .update(Booking)
+          .set({ startsAt: at("07:00"), endsAt: at("08:00") })
+          .where(eq(Booking.id, booking.id));
+      }
+      return undefined;
+    };
+    await call(
+      bookingRouter.reschedule,
+      { bookingId: booking.id, startsAt: at("09:00") },
+      { context: api.context(client) },
+    );
+    expect(google.moved.map((m) => m.start.dateTime)).toEqual([
+      at("09:00").toISOString(),
+      at("07:00").toISOString(),
+    ]);
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    );
+  });
+
+  it("doesn't take a booking's own event for busy time", async () => {
+    const [intro] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "free",
+        startsAt: at("08:00"),
+        endsAt: at("09:00"),
+        memberId: (
+          await call(
+            practiceRouter.join,
+            { practiceId },
+            { context: api.context(client) },
+          )
+        ).id,
+        googleCalendarId: "primary",
+        googleEventId: "ownevent",
+      })
+      .returning();
+    if (!intro) throw new Error("no booking");
+    google.busy = [busyAt("08:00", "09:00")];
+
+    await call(
+      bookingRouter.reschedule,
+      { bookingId: intro.id, startsAt: at("08:30") },
+      { context: api.context(client) },
+    );
+
+    expect(
+      (
+        await api.db.query.Booking.findFirst({
+          where: eq(Booking.id, intro.id),
+        })
+      )?.startsAt,
+    ).toEqual(at("08:30"));
+    await api.db.delete(Booking).where(eq(Booking.id, intro.id));
+  });
+
   it("lets staff book over Google time and shows only the rest", async () => {
     google.busy = [busyAt("07:00", "08:00"), busyAt("09:00", "10:00")];
     const free = await call(

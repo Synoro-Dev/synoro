@@ -153,12 +153,10 @@ function MeetingLink({
  */
 function MoveBooking({
   booking,
-  kind,
   onBack,
   onMoved,
 }: {
   booking: CalendarBooking;
-  kind: "consultation" | "free";
   onBack: () => void;
   onMoved: () => void;
 }) {
@@ -167,9 +165,10 @@ function MoveBooking({
   const move = useMutation({
     ...orpc.booking.reschedule.mutationOptions(),
     onSuccess: async () => {
+      // Mails are best effort: nothing here knows that the client got one.
       toast.success(
         booking.memberId
-          ? "Запись перенесена, клиенту отправлено уведомление"
+          ? "Запись перенесена"
           : "Запись перенесена — сообщите гостю новое время",
       );
       await Promise.all([
@@ -188,8 +187,7 @@ function MoveBooking({
   return (
     <>
       <SlotPicker
-        practiceId={booking.practiceId}
-        kind={kind}
+        bookingId={booking.id}
         selected={picked}
         onSelect={setPicked}
         disabled={move.isPending}
@@ -310,12 +308,11 @@ export function BookingDialog({
             </DialogHeader>
           </>
         )}
-        {booking && moving && booking.kind !== "blocked" && (
+        {booking && moving && (
           <MoveBooking
             // A new booking starts its own pick.
             key={booking.id}
             booking={booking}
-            kind={booking.kind}
             onBack={() => setMovingId(null)}
             onMoved={close}
           />

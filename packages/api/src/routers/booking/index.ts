@@ -10,6 +10,7 @@ import { cancelGuest, guest } from "./guest";
 import { markNoShow } from "./mark-no-show";
 import { mine } from "./mine";
 import { reschedule } from "./reschedule";
+import { rescheduleSlots } from "./reschedule-slots";
 import { reserve } from "./reserve";
 import { seriesPreview } from "./series-preview";
 import { setMeetingUrl } from "./set-meeting-url";
@@ -30,6 +31,7 @@ export const bookingRouter = {
   block,
   cancel,
   reschedule,
+  rescheduleSlots,
   markNoShow,
   calendar,
   windows,

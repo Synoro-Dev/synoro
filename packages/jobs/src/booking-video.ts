@@ -158,7 +158,8 @@ async function markDueReminders(db: Database, row: Row) {
       reminderHourSentAt:
         left <= HOUR_MS ? (row.reminderHourSentAt ?? now) : null,
     })
-    .where(eq(Booking.id, row.id));
+    // Moved since `row` was read: these marks aren't about its new time.
+    .where(and(eq(Booking.id, row.id), eq(Booking.startsAt, row.startsAt)));
 }
 
 function settled(bookingId: string, notice: Notice, error: unknown) {
@@ -521,19 +522,22 @@ export async function sendBookingReminders(
           }
           if (!daytime) continue;
         }
+        // Moved or cancelled since it was read: not due, and the marks belong
+        // to its new time.
+        const same = and(
+          eq(Booking.id, row.id),
+          eq(Booking.startsAt, row.startsAt),
+        );
         const claimed = await db
           .update(Booking)
           .set(window.claim())
-          .where(and(eq(Booking.id, row.id), window.pending))
+          .where(and(same, eq(Booking.status, "active"), window.pending))
           .returning({ id: Booking.id });
         if (claimed.length === 0) continue;
         try {
           await send(deliver, row, window.notice);
         } catch (error) {
-          await db
-            .update(Booking)
-            .set(window.release)
-            .where(eq(Booking.id, row.id));
+          await db.update(Booking).set(window.release).where(same);
           settled(row.id, window.notice, error);
         }
       }

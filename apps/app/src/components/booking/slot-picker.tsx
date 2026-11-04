@@ -16,20 +16,18 @@ import { ErrorState } from "./states";
 import { dateKey, formatTime } from "./time";
 
 /**
- * Free times of one week, grouped by day in `timeZone` (the viewer's when
- * omitted), from `booking.slots`. For picking a new time in a dialog; the
- * booking page has its own, roomier layouts.
+ * The times a booking can move to in one week, grouped by day in `timeZone`
+ * (the viewer's when omitted), from `booking.rescheduleSlots`. For picking a
+ * new time in a dialog; the booking page has its own, roomier layouts.
  */
 export function SlotPicker({
-  practiceId,
-  kind,
+  bookingId,
   timeZone,
   selected,
   onSelect,
   disabled,
 }: {
-  practiceId: string;
-  kind: "consultation" | "free";
+  bookingId: string;
   timeZone?: string;
   selected: Date | null;
   onSelect: (startsAt: Date) => void;
@@ -41,8 +39,8 @@ export function SlotPicker({
   // The padding of `weekWindow` also covers the practice's «today» being
   // another day than the viewer's.
   const slots = useQuery({
-    ...orpc.booking.slots.queryOptions({
-      input: { practiceId, kind, ...weekWindow(week, today) },
+    ...orpc.booking.rescheduleSlots.queryOptions({
+      input: { bookingId, ...weekWindow(week, today) },
     }),
     placeholderData: (previous) => previous,
   });

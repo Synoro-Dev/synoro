@@ -43,7 +43,6 @@ export const calendar = practiceProcedure
     return context.db
       .select({
         id: Booking.id,
-        practiceId: Booking.practiceId,
         kind: Booking.kind,
         startsAt: Booking.startsAt,
         endsAt: Booking.endsAt,

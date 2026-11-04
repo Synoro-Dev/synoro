@@ -279,10 +279,11 @@ test("client moves a booking to a new time without losing the credit", async ({
   expect(bookings[0]?.status).toBe("active");
   const movedTo = bookings[0]?.startsAt.getTime();
   expect(movedTo).not.toBe(inTime.getTime());
+  // `from` is a day in the practice's zone: a day either side covers any zone.
   const slots = await client.booking.slots({
     practiceId,
-    from: inTime.toISOString().slice(0, 10),
-    days: 1,
+    from: new Date(inTime.getTime() - 24 * HOUR).toISOString().slice(0, 10),
+    days: 3,
   });
   expect(slots.slots.map((s) => s.startsAt.getTime())).toContain(
     inTime.getTime(),
