@@ -1,5 +1,6 @@
 import { adminPaymentsRouter } from "./payments";
 import { adminPracticesRouter } from "./practices";
+import { adminSignInsRouter } from "./sign-ins";
 import { adminStatsRouter } from "./stats";
 import { adminUsersRouter } from "./users";
 
@@ -8,5 +9,6 @@ export const adminRouter = {
   users: adminUsersRouter,
   practices: adminPracticesRouter,
   payments: adminPaymentsRouter,
+  signIns: adminSignInsRouter,
   stats: adminStatsRouter,
 };

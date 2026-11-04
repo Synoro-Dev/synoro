@@ -30,7 +30,8 @@ Pages are Server Components calling `appRouter.admin` in-process
 (`src/orpc/server.ts`). The admin host has no `/api/orpc`: nothing but the
 admin procedures and the auth handler is reachable there. Procedures live in
 `packages/api/src/routers/admin/` (`stats.overview`, `users.list`,
-`users.byId`, `practices.list`, `payments.list`). Lists take `query`, `limit`,
+`users.byId`, `practices.list`, `payments.list`, `signIns.list` — the history
+of sign-ins, see `sign-in-history.md`). Lists take `query`, `limit`,
 `offset` and return `{ items, total }`; filters are URL params (`?q=`,
 `?page=`, `?status=`), so a filtered list is a link.
 

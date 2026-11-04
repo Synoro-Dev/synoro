@@ -13,6 +13,7 @@ import {
 } from "@synoro/ui";
 import {
   LayoutDashboardIcon,
+  LogInIcon,
   type LucideIcon,
   ShieldIcon,
   StoreIcon,
@@ -29,6 +30,7 @@ const NAV: { title: string; href: Route; icon: LucideIcon }[] = [
   { title: "Пользователи", href: "/users", icon: UsersIcon },
   { title: "Практики", href: "/practices", icon: StoreIcon },
   { title: "Платежи «Про»", href: "/payments", icon: WalletIcon },
+  { title: "Входы", href: "/sign-ins", icon: LogInIcon },
 ];
 
 const isActive = (pathname: string, href: string) =>
