@@ -44,6 +44,7 @@ import { useRef, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
+import { SaveState } from "../settings/save-state";
 import { ConfirmButton } from "./confirm-button";
 import { ErrorState } from "./states";
 
@@ -80,6 +81,11 @@ function Editor({
   const [active, setActive] = useState(rule.active);
   const [error, setError] = useState<string>();
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const dirty =
+    amount !== String(rule.amount) ||
+    subject !== rule.subject ||
+    text !== rule.text ||
+    active !== rule.active;
 
   const sample: Record<WorkflowVariable, string> = {
     имя: "Иван",
@@ -204,6 +210,7 @@ function Editor({
 
       {error ? <FieldError>{error}</FieldError> : null}
 
+      <SaveState dirty={dirty} savedAt={null} />
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose}>
           Отмена

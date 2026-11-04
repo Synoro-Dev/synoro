@@ -155,6 +155,13 @@ and run `tsc` by hand, build them first.
   the landing's routes: a new top-level route goes into `RESERVED_SLUGS`
   (`@synoro/validators`) and, for the app, `APP_ROOTS` first — tests
   (`page-routes.test.ts`) fail otherwise.
+- **Practice settings and first setup**: sections, by role, are listed in
+  `practiceSections` (`components/settings/practice-sections.ts`) and shown on
+  `/practices/<id>/settings`; each section keeps its own address and wraps its
+  page in `PracticeSettingsShell`. Forms save with a button and `SaveState`,
+  single switches apply at once. The first setup
+  (`/practices/<id>/setup?step=`) opens once, after creating a practice; it
+  stores nothing of its own, and `SetupProgress` on «Сегодня» leads back to it.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when

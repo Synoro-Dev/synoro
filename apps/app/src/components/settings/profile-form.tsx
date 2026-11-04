@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "./save-state";
 
 export function ProfileForm({
   initialData,
@@ -34,11 +35,15 @@ export function ProfileForm({
     },
     mode: "onChange",
   });
-  const { errors } = form.formState;
+  const { errors, isDirty } = form.formState;
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const updateProfile = useMutation({
     ...orpc.user.updateProfile.mutationOptions(),
     onSuccess: async () => {
+      // What was typed is what is saved now, not a draft.
+      form.reset(form.getValues());
+      setSavedAt(Date.now());
       toast.success("Профиль успешно обновлён");
       await queryClient.invalidateQueries({
         queryKey: orpc.user.key(),
@@ -190,13 +195,16 @@ export function ProfileForm({
         </p>
       </div>
 
-      <Button
-        type="submit"
-        className="bg-foreground text-background hover:bg-foreground/90"
-        disabled={updateProfile.isPending}
-      >
-        {updateProfile.isPending ? "Обновление…" : "Обновить профиль"}
-      </Button>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="submit"
+          className="bg-foreground text-background hover:bg-foreground/90"
+          disabled={updateProfile.isPending}
+        >
+          {updateProfile.isPending ? "Обновление…" : "Обновить профиль"}
+        </Button>
+        <SaveState dirty={isDirty} savedAt={savedAt} />
+      </div>
     </form>
   );
 }

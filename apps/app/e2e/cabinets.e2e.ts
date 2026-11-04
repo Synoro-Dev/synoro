@@ -100,6 +100,127 @@ test("first setup: «Сегодня» shows what is left until done", async ({
   ).toBeVisible();
 });
 
+test("the first setup opens once, every step can be skipped", async ({
+  page,
+  baseURL,
+}) => {
+  await signUp(page);
+  const api = await apiFor(page.context(), baseURL ?? "");
+
+  await page.goto("/practices?new=1");
+  await page.getByLabel("Название").fill("Репетитор по математике");
+  await page.getByRole("combobox", { name: "Чем вы занимаетесь" }).click();
+  await page.getByRole("option", { name: /Репетитор/ }).click();
+  await page
+    .getByLabel("Адрес страницы записи")
+    .fill(`e2e-${crypto.randomUUID().slice(0, 8)}`);
+  await page.getByRole("button", { name: "Создать" }).click();
+
+  // Right after creating: the working hours, weekdays 09:00–18:00 proposed.
+  await page.waitForURL(/\/practices\/[0-9a-f-]{36}\/setup/);
+  const practiceId = /practices\/([0-9a-f-]{36})/.exec(page.url())?.[1] ?? "";
+  await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+  await page.getByRole("button", { name: "Суббота" }).click();
+  await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
+
+  // Prices: nothing to save yet, so skipping and going on are the same.
+  await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
+  const rules = await api.availability.list({ practiceId });
+  expect(rules.map((r) => r.weekday)).toEqual([1, 2, 3, 4, 5, 6]);
+  expect(rules[0]).toMatchObject({ startMinute: 540, endMinute: 1080 });
+  await page.getByRole("button", { name: "Пропустить" }).click();
+
+  // The rules are only read, with an example.
+  await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
+  await expect(page.getByText(/Например, запись на среду/)).toBeVisible();
+  await page.getByRole("button", { name: "Дальше" }).click();
+
+  // The link, then «Сегодня».
+  await expect(page.getByText("Шаг 4 из 4")).toBeVisible();
+  await expect(page.getByLabel("Ссылка для записи")).toBeVisible();
+  await page.getByRole("button", { name: "Готово" }).click();
+  await page.waitForURL(`/practices/${practiceId}`);
+
+  // Not imposed again: «Сегодня» only offers to go on, at the skipped step.
+  await page.reload();
+  await expect(page).toHaveURL(`/practices/${practiceId}`);
+  await expect(
+    page
+      .getByRole("link", { name: /Задайте рабочие часы/ })
+      .getByLabel("Готово"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Продолжить настройку" }).click();
+  await expect(page).toHaveURL(/\/setup\?step=/);
+  // Hours already set are shown, not proposed again over them.
+  await page.goto(`/practices/${practiceId}/setup?step=hours`);
+  await expect(page.getByText("Рабочие часы уже заданы")).toBeVisible();
+});
+
+test("the specialist credits a package and books the client", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  const base = baseURL ?? "";
+  const { api: owner, practiceId } = await ownerWithPractice(page, base);
+  await owner.availability.replace({
+    practiceId,
+    rules: [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+      weekday,
+      startMinute: 0,
+      endMinute: 1440,
+    })),
+  });
+
+  const clientContext = await browser.newContext();
+  const clientPage = await clientContext.newPage();
+  await signUp(clientPage);
+  const client = await apiFor(clientContext, base);
+  await client.user.updatePhone({ phone: "+79161234567" });
+  await client.practice.join({ practiceId });
+  await clientContext.close();
+
+  // The form proposes the next half hour, paid bookings start on the hour:
+  // at :40 of any hour the proposal is a whole one.
+  const clock = new Date();
+  clock.setMinutes(40, 0, 0);
+  await page.clock.setFixedTime(clock);
+
+  await page.goto(`/practices/${practiceId}/clients`);
+  await page
+    .getByRole("button", { name: /Открыть карточку/ })
+    .first()
+    .click();
+  const card = page.getByRole("dialog");
+  await expect(card.getByText("0 занятий")).toBeVisible();
+
+  // A package of five, recorded by hand after the client paid.
+  await card.getByRole("button", { name: "Начислить" }).click();
+  const credit = page.getByRole("dialog", { name: "Начислить" });
+  await credit.getByRole("button", { name: "+5" }).click();
+  await credit.getByLabel("Комментарий").fill("Оплата пакета из 5");
+  await credit.getByRole("button", { name: "Начислить" }).click();
+  await expect(page.getByText(/Начислено\. На балансе .*: 5/)).toBeVisible();
+  await expect(card.getByText("5 занятий")).toBeVisible();
+
+  // Booked from the card, a whole hour in the coming days.
+  await card.getByRole("button", { name: "Записать" }).click();
+  const entry = page.getByRole("dialog", { name: "Новая запись" });
+  const startsAt = new Date(Date.now() + 72 * HOUR);
+  const date = [
+    startsAt.getFullYear(),
+    String(startsAt.getMonth() + 1).padStart(2, "0"),
+    String(startsAt.getDate()).padStart(2, "0"),
+  ].join("-");
+  await entry.getByLabel("Дата").fill(date);
+  await entry.getByRole("button", { name: "Записать", exact: true }).click();
+  await expect(page.getByText(/клиент записан/)).toBeVisible();
+  await expect(card.getByText("4 занятия")).toBeVisible();
+
+  const members = await owner.practice.members({ practiceId });
+  expect(members.find((m) => m.role === "client")?.credits).toBe(4);
+});
+
 test.describe("away from the practice's zone", () => {
   test.use({ timezoneId: "Asia/Novosibirsk" });
 

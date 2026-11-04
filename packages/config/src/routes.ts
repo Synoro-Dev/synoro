@@ -61,9 +61,30 @@ export const paths = {
     /** Platform subdomain and the practice's own domain. */
     domain: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/domain` as const,
-    /** Online payments: provider, packages, incoming payments. */
+    /** Incoming payments. Connecting a provider: `onlinePayment`. */
     payments: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/payments` as const,
+    /** First setup, right after creating a practice: `?step=` picks the step. */
+    setup: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/setup` as const,
+    /** The practice's settings: every section the viewer's role may open. */
+    settings: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/settings` as const,
+    /** What clients may cancel and when, read-only. */
+    rules: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/rules` as const,
+    /** The questionnaire clients fill in when booking («Про»). */
+    questions: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/questions` as const,
+    /** Owner and administrators. */
+    team: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/team` as const,
+    /** The provider clients pay through, and the prices («Про»). */
+    onlinePayment: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/online-payment` as const,
+    /** The owner's plan, beside the practice's other settings. */
+    plan: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/plan` as const,
     /** The client's own consultations. */
     mine: "/bookings",
     /**

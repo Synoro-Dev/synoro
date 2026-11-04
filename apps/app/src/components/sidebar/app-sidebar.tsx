@@ -19,15 +19,12 @@ import {
   CalendarDaysIcon,
   CalendarSearchIcon,
   ChartNoAxesColumnIcon,
-  Clock3Icon,
   ExternalLinkIcon,
-  GlobeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
-  MessageSquareTextIcon,
-  PanelTopIcon,
   PlusIcon,
   SettingsIcon,
+  SlidersHorizontalIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react";
@@ -36,6 +33,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type * as React from "react";
 
+import { practiceSections } from "../settings/practice-sections";
 import { CommandMenu } from "./command-menu";
 import { DemoSwitcher } from "./demo-switcher";
 import { MobileTabBar } from "./mobile-tab-bar";
@@ -86,8 +84,9 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 
 /**
  * The practice's sections for the viewer's role. Daily work first, the
- * rarely touched setup below. Administrators see only what they may do —
- * never a page that would just say «the owner sets this».
+ * rarely touched settings below, behind one entry (`practiceSections`).
+ * Administrators see only what they may do — never a page that would just
+ * say «the owner sets this».
  */
 function practiceNav(practice: SidebarPractice, pathname: string) {
   const id = practice.practiceId;
@@ -113,25 +112,33 @@ function practiceNav(practice: SidebarPractice, pathname: string) {
       owner,
     ),
   ];
-  const setup = [
-    ...entry("Страница записи", paths.booking.page(id), PanelTopIcon),
-    ...entry("Рабочие часы", paths.booking.schedule(id), Clock3Icon),
-    ...entry(
-      "Сообщения клиентам",
-      paths.booking.messages(id),
-      MessageSquareTextIcon,
-      owner,
-    ),
-    ...entry("Свой домен", paths.booking.domain(id), GlobeIcon, owner),
+  const sections = practiceSections(id, owner).flatMap((g) => g.sections);
+  const settings = paths.booking.settings(id);
+  const open: NavItem = {
+    title: "Открыть страницу записи",
+    href: paths.booking.public(practice.slug),
+    icon: ExternalLinkIcon,
+    active: false,
+    external: true,
+  };
+  const setup: NavItem[] = [
     {
-      title: "Открыть страницу записи",
-      href: paths.booking.public(practice.slug),
-      icon: ExternalLinkIcon,
-      active: false,
-      external: true,
+      title: "Настройки практики",
+      href: settings,
+      icon: SlidersHorizontalIcon,
+      active:
+        pathname === settings || sections.some((s) => s.href === pathname),
     },
+    open,
   ];
-  return { work, setup };
+  // ⌘K finds each section by name; the sidebar shows the one way into them.
+  const search = [
+    ...work,
+    ...setup.slice(0, 1),
+    ...sections.map(({ title, href, icon }) => ({ title, href, icon })),
+    open,
+  ];
+  return { work, setup, search };
 }
 
 export function AppSidebar({
@@ -168,8 +175,7 @@ export function AppSidebar({
             <CommandMenu
               practiceId={current.practiceId}
               items={[
-                ...nav.work,
-                ...nav.setup,
+                ...nav.search,
                 {
                   title: "Настройки аккаунта",
                   href: paths.settings.root,
@@ -183,7 +189,7 @@ export function AppSidebar({
           {nav ? (
             <>
               <NavGroup label="Работа" items={nav.work} />
-              <NavGroup label="Настройка практики" items={nav.setup} />
+              <NavGroup label="Практика" items={nav.setup} />
             </>
           ) : (
             <NavGroup
@@ -220,12 +226,12 @@ export function AppSidebar({
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Настройки"
+                tooltip="Настройки аккаунта"
                 isActive={pathname.startsWith(paths.settings.root)}
                 render={<Link href={paths.settings.root} />}
               >
                 <SettingsIcon />
-                <span>Настройки</span>
+                <span>Настройки аккаунта</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

@@ -23,10 +23,13 @@ export function PracticeFreeBooking({
   practiceId,
   enabled,
   introMinutes,
+  onEnabledChange,
 }: {
   practiceId: string;
   enabled: boolean;
   introMinutes: number;
+  /** Follows the switch, for a preview beside it. */
+  onEnabledChange?: (enabled: boolean) => void;
 }) {
   const terms = useTerms();
   const queryClient = useQueryClient();
@@ -48,7 +51,10 @@ export function PracticeFreeBooking({
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
     onError: (error, input) => {
-      if (input.enabled !== undefined) setOn(!input.enabled);
+      if (input.enabled !== undefined) {
+        setOn(!input.enabled);
+        onEnabledChange?.(!input.enabled);
+      }
       if (input.introMinutes !== undefined) setMinutes(savedMinutes);
       toast.error(error.message);
     },
@@ -70,6 +76,7 @@ export function PracticeFreeBooking({
           disabled={save.isPending}
           onCheckedChange={(checked) => {
             setOn(checked);
+            onEnabledChange?.(checked);
             save.mutate({ practiceId, enabled: checked });
           }}
         />

@@ -174,7 +174,7 @@ function Editor({
           </FrameTitle>
           <FrameDescription>
             Цвет, шрифт и пара слов о себе — чтобы страница записи выглядела как
-            ваша, а не как сервис. Справа видно, что получится.
+            ваша, а не как сервис.
           </FrameDescription>
         </FrameHeader>
 
@@ -343,12 +343,15 @@ export function BookingThemePreview({
   name,
   imageUrl,
   what,
+  free,
 }: {
   theme: BookingTheme;
   name: string;
   imageUrl: string | null;
   /** «Консультация», «Занятие»… */
   what: string;
+  /** The free intro's name, when clients book it themselves. */
+  free: string | null;
 }) {
   const times = ["10:00", "11:00", "13:00", "15:00", "17:00", "18:00"];
   return (
@@ -372,6 +375,11 @@ export function BookingThemePreview({
             {name}
           </span>
           <span className="text-xs text-muted-foreground">{what}, 1 час</span>
+          {free && (
+            <span className="text-xs text-muted-foreground">
+              {free} — бесплатно
+            </span>
+          )}
         </div>
       </div>
       {theme.about && (

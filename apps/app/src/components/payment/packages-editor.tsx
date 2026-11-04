@@ -19,11 +19,12 @@ import {
 import { paymentPackagesFormSchema } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
 import { useTerms } from "../booking/terms";
+import { SaveState } from "../settings/save-state";
 import { formatRub, packageDeals } from "./format";
 
 interface Row {
@@ -46,8 +47,25 @@ const row = (credits: number | null, price = ""): Row => ({
 const toKopecks = (rubles: string) =>
   Math.round(Number(rubles.replace(/\s/g, "").replace(",", ".")) * 100);
 
+/** What the rows say, whatever their keys: to tell a draft from the saved. */
+const snapshot = (rows: Row[]) =>
+  JSON.stringify(rows.map((r) => [r.credits, r.price.trim()]));
+
+interface EditorEvents {
+  /**
+   * The form's id when a surrounding step saves it with its own button: the
+   * form then shows no button or status of its own.
+   */
+  formId?: string;
+  onDirtyChange?: (dirty: boolean) => void;
+  onSaved?: () => void;
+}
+
 /** The price list clients buy from: package size and its price. */
-export function PackagesEditor({ practiceId }: { practiceId: string }) {
+export function PackagesEditor({
+  practiceId,
+  ...events
+}: { practiceId: string } & EditorEvents) {
   const offer = useQuery(
     orpc.payment.packages.queryOptions({ input: { practiceId } }),
   );
@@ -63,6 +81,7 @@ export function PackagesEditor({ practiceId }: { practiceId: string }) {
             )
           : [row(1)]
       }
+      {...events}
     />
   );
 }
@@ -70,14 +89,22 @@ export function PackagesEditor({ practiceId }: { practiceId: string }) {
 function Editor({
   practiceId,
   initial,
+  formId,
+  onDirtyChange,
+  onSaved,
 }: {
   practiceId: string;
   initial: Row[];
-}) {
+} & EditorEvents) {
   const queryClient = useQueryClient();
   const terms = useTerms();
   const [rows, setRows] = useState(initial);
+  const [saved, setSaved] = useState(() => snapshot(initial));
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string>();
+  const dirty = snapshot(rows) !== saved;
+
+  useEffect(() => onDirtyChange?.(dirty), [dirty, onDirtyChange]);
 
   const update = (key: number, patch: Partial<Row>) => {
     setRows((current) =>
@@ -89,10 +116,13 @@ function Editor({
   const save = useMutation({
     ...orpc.payment.savePackages.mutationOptions(),
     onSuccess: async () => {
+      setSaved(snapshot(rows));
+      setSavedAt(Date.now());
       toast.success("Цены сохранены");
       await queryClient.invalidateQueries({
         queryKey: orpc.payment.packages.key(),
       });
+      onSaved?.();
     },
     onError: (e) => toast.error(e.message),
   });
@@ -120,7 +150,7 @@ function Editor({
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
+    <form id={formId} onSubmit={submit} className="flex flex-col gap-3">
       {rows.length > 0 && (
         <div className="hidden grid-cols-[8.5rem_10rem_1fr_2.25rem] gap-3 text-xs text-muted-foreground sm:grid">
           <span className="first-letter:uppercase">{terms.credit[2]}</span>
@@ -184,7 +214,7 @@ function Editor({
         );
       })}
       {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
@@ -201,9 +231,14 @@ function Editor({
           <PlusIcon />
           Добавить пакет
         </Button>
-        <Button type="submit" size="sm" disabled={save.isPending}>
-          Сохранить цены
-        </Button>
+        {!formId && (
+          <>
+            <Button type="submit" size="sm" disabled={!dirty || save.isPending}>
+              Сохранить цены
+            </Button>
+            <SaveState dirty={dirty} savedAt={savedAt} />
+          </>
+        )}
       </div>
     </form>
   );

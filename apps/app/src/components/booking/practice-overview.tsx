@@ -2,7 +2,7 @@
 
 import { paths } from "@synoro/config";
 import type { MemberRole } from "@synoro/db";
-import { Button, cn, Input, Progress, Skeleton, toast } from "@synoro/ui";
+import { Button, cn, Progress, Skeleton } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import {
   Frame,
@@ -20,9 +20,6 @@ import {
   CircleCheckIcon,
   CircleDashedIcon,
   Clock3Icon,
-  CodeIcon,
-  CopyIcon,
-  ExternalLinkIcon,
   LockIcon,
   VideoIcon,
   WalletIcon,
@@ -38,7 +35,9 @@ import {
   type CalendarBooking,
   kindLabel,
 } from "./booking-dialog";
+import { BookingLinkActions } from "./booking-link";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
+import { setupStepHref } from "./practice-setup-steps";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
@@ -454,7 +453,9 @@ function Attention({
 
 /**
  * What is left before the booking page works on its own. Shown to the
- * owner until every step is done, then gone for good.
+ * owner until every step is done, then gone for good. This is how one comes
+ * back to the first setup: it opens by itself only once, after creating the
+ * practice.
  */
 function SetupProgress({
   practice,
@@ -472,7 +473,12 @@ function SetupProgress({
       input: { practiceId: practice.id },
     }),
   );
-  if (!loaded || payments.isPending) return null;
+  const offer = useQuery(
+    orpc.payment.packages.queryOptions({
+      input: { practiceId: practice.id },
+    }),
+  );
+  if (!loaded || payments.isPending || offer.isPending) return null;
 
   // Online payment counts only where the owner can set it up («Про», and
   // the server takes payments); a failed request is not a finished step.
@@ -483,7 +489,13 @@ function SetupProgress({
     {
       title: "Задайте рабочие часы",
       done: hasHours,
-      href: paths.booking.schedule(practice.id),
+      href: setupStepHref(practice.id, "hours"),
+    },
+    {
+      title: "Укажите цены",
+      done: (offer.data?.packages.length ?? 0) > 0,
+      shown: canPay,
+      href: setupStepHref(practice.id, "prices"),
     },
     {
       title: "Добавьте фото на страницу записи",
@@ -494,33 +506,48 @@ function SetupProgress({
       title: "Подключите онлайн-оплату",
       done: !!payments.data?.account,
       shown: canPay,
-      href: paths.booking.payments(practice.id),
+      href: paths.booking.onlinePayment(practice.id),
     },
     {
       title: "Отправьте ссылку первому клиенту",
       done: hasClients,
-      href: paths.booking.page(practice.id),
+      href: setupStepHref(practice.id, "link"),
     },
   ].filter((s) => s.shown !== false);
   const done = steps.filter((s) => s.done).length;
   if (done === steps.length) return null;
   const next = steps.find((s) => !s.done);
+  // Back into the first setup while it has something left to do.
+  const resume =
+    steps.find((s) => !s.done && s.href.includes("/setup?")) ?? next;
 
   return (
     <Frame spacing="default">
       <FramePanel className="flex flex-col gap-4">
-        <FrameHeader className="flex-row items-center justify-between gap-4 p-0">
+        <FrameHeader className="flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2 p-0">
           <div className="flex flex-col gap-0.5">
             <FrameTitle>Настройка практики</FrameTitle>
             <FrameDescription>
               Готово {done} из {steps.length}
             </FrameDescription>
           </div>
-          <Progress
-            value={(done / steps.length) * 100}
-            aria-label={`Настройка: готово ${done} из ${steps.length}`}
-            className="w-32 [&_[data-slot=progress-indicator]]:bg-brand"
-          />
+          <div className="flex flex-wrap items-center gap-4">
+            <Progress
+              value={(done / steps.length) * 100}
+              aria-label={`Настройка: готово ${done} из ${steps.length}`}
+              className="w-32 [&_[data-slot=progress-indicator]]:bg-brand"
+            />
+            {resume && (
+              <Button
+                size="sm"
+                nativeButton={false}
+                render={<Link href={resume.href as Route} />}
+              >
+                Продолжить настройку
+                <ArrowRightIcon />
+              </Button>
+            )}
+          </div>
         </FrameHeader>
         <ol className="grid gap-1 sm:grid-cols-2">
           {steps.map((step) => (
@@ -554,19 +581,8 @@ function SetupProgress({
   );
 }
 
-/** The booking link with copy, the embed code and the page itself. */
+/** The booking link, where the day's work is. */
 function BookingLink({ practice }: { practice: PracticeSummary }) {
-  const publicUrl = practice.bookingUrl;
-
-  async function copy(text: string, done: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(done);
-    } catch {
-      toast.info(text);
-    }
-  }
-
   return (
     <Frame spacing="default">
       <FramePanel className="flex flex-col gap-3">
@@ -576,41 +592,7 @@ function BookingLink({ practice }: { practice: PracticeSummary }) {
             Клиенты записываются по ссылке без регистрации
           </FrameDescription>
         </FrameHeader>
-        <div className="flex gap-2">
-          <Input readOnly value={publicUrl} aria-label="Ссылка для записи" />
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="Скопировать ссылку"
-            onClick={() => copy(publicUrl, "Ссылка скопирована")}
-          >
-            <CopyIcon />
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<a href={publicUrl} target="_blank" rel="noreferrer" />}
-          >
-            <ExternalLinkIcon />
-            Открыть
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              copy(
-                `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`,
-                "Код скопирован — вставьте его на свой сайт",
-              )
-            }
-          >
-            <CodeIcon />
-            Код для сайта
-          </Button>
-        </div>
+        <BookingLinkActions url={practice.bookingUrl} />
       </FramePanel>
     </Frame>
   );

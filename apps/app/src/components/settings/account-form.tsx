@@ -13,9 +13,11 @@ import {
 } from "@synoro/ui";
 import { type AccountFormValues, accountFormSchema } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "./save-state";
 
 export function AccountForm({
   initialData,
@@ -31,9 +33,13 @@ export function AccountForm({
     },
   });
 
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
   const updateAccount = useMutation({
     ...orpc.user.updateAccount.mutationOptions(),
-    onSuccess: async () => {
+    onSuccess: async (_, data) => {
+      form.reset(data);
+      setSavedAt(Date.now());
       toast.success("Аккаунт успешно обновлён");
       await queryClient.invalidateQueries({
         queryKey: orpc.user.key(),
@@ -67,13 +73,16 @@ export function AccountForm({
           )}
         />
 
-        <Button
-          type="submit"
-          className="bg-foreground text-background hover:bg-foreground/90"
-          disabled={updateAccount.isPending}
-        >
-          {updateAccount.isPending ? "Обновление…" : "Обновить аккаунт"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="submit"
+            className="bg-foreground text-background hover:bg-foreground/90"
+            disabled={updateAccount.isPending}
+          >
+            {updateAccount.isPending ? "Обновление…" : "Обновить аккаунт"}
+          </Button>
+          <SaveState dirty={form.formState.isDirty} savedAt={savedAt} />
+        </div>
       </form>
     </Form>
   );

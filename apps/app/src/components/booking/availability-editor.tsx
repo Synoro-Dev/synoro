@@ -210,7 +210,7 @@ export function AvailabilityEditor({
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container flex flex-col gap-6">
       <PageHeading
         title="Рабочие часы"
         description={`Рабочие часы по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
@@ -463,7 +463,7 @@ function SlotEditor({
   })();
 
   return (
-    <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_18rem]">
+    <div className="grid min-w-0 gap-6 @[60rem]:grid-cols-[minmax(0,1fr)_18rem]">
       <Frame spacing="sm" className="min-w-0" stacked>
         <FramePanel className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">

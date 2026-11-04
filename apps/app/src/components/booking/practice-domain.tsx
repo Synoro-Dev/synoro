@@ -42,6 +42,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
+import { SaveState } from "../settings/save-state";
 import { ConfirmButton } from "./confirm-button";
 import { ErrorState } from "./states";
 
@@ -257,6 +258,7 @@ export function PracticeDomain({
                 </FieldDescription>
                 <FieldError>{inputError}</FieldError>
               </Field>
+              <SaveState dirty={hostname.trim() !== ""} savedAt={null} />
             </form>
           ) : (
             <>

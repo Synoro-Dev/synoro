@@ -1,6 +1,7 @@
 "use client";
 
 import type { RouterOutputs } from "@synoro/api";
+import { paths } from "@synoro/config";
 import {
   Button,
   Input,
@@ -22,10 +23,17 @@ import {
   FramePanel,
   FrameTitle,
 } from "@synoro/ui/reui/frame";
-import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { capitalize, formatCredits } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CopyIcon, CreditCardIcon, ReceiptIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  CircleCheckIcon,
+  CircleDashedIcon,
+  CopyIcon,
+  FlaskConicalIcon,
+  ReceiptIcon,
+} from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
@@ -34,6 +42,7 @@ import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
 import { useTerms } from "../booking/terms";
 import { formatDateTime } from "../booking/time";
+import { FoldedBlock } from "./folded-block";
 import { formatRub, PAYMENT_STATUS } from "./format";
 import { PackagesEditor } from "./packages-editor";
 import { ProviderForm, TAX_SYSTEM_LABELS } from "./provider-form";
@@ -71,6 +80,38 @@ function Section({
   );
 }
 
+/** The connection, said in one phrase. */
+function ConnectionPhrase({ account }: { account: Settings["account"] }) {
+  const terms = useTerms();
+  const {
+    icon: Icon,
+    tone,
+    text,
+  } = !account
+    ? {
+        icon: CircleDashedIcon,
+        tone: "text-muted-foreground",
+        text: "Онлайн-оплата не подключена: клиенты пока не могут заплатить сами.",
+      }
+    : account.test
+      ? {
+          icon: FlaskConicalIcon,
+          tone: "text-warning-foreground",
+          text: `Подключён тестовый магазин ${account.providerName}: деньги не списываются, а ${terms.credits} начисляются по-настоящему.`,
+        }
+      : {
+          icon: CircleCheckIcon,
+          tone: "text-brand",
+          text: `Онлайн-оплата работает: клиенты платят напрямую на ваш счёт в ${account.providerName}.`,
+        };
+  return (
+    <p className="flex min-w-0 items-start gap-2 text-sm">
+      <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden="true" />
+      <span className="min-w-0">{text}</span>
+    </p>
+  );
+}
+
 function ConnectedAccount({
   practiceId,
   settings,
@@ -82,7 +123,6 @@ function ConnectedAccount({
   onChange: (settings: Settings) => void;
   onEdit: () => void;
 }) {
-  const terms = useTerms();
   const account = settings.account;
   const disconnect = useMutation({
     ...orpc.payment.disconnect.mutationOptions(),
@@ -96,88 +136,74 @@ function ConnectedAccount({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <IconTile variant="soft" aria-hidden="true">
-          <CreditCardIcon />
-        </IconTile>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="font-medium">{account.providerName}</span>
-          <span className="font-mono text-xs text-muted-foreground">
-            {account.merchantId}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant="success-light">Подключена</Badge>
-          {account.test && (
-            <Badge variant="warning-light">Тестовый режим</Badge>
-          )}
-          {account.receipts && (
-            <Badge variant="info-light">
-              Чеки
-              {account.taxSystem &&
-                ` · ${TAX_SYSTEM_LABELS[account.taxSystem]}`}
-            </Badge>
-          )}
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button size="sm" variant="outline" onClick={onEdit}>
-            Изменить
-          </Button>
-          <ConfirmButton
-            title="Отключить онлайн-оплату?"
-            description="Клиенты перестанут видеть кнопку «Пополнить». Начатые платежи всё равно зачислятся."
-            confirmLabel="Отключить"
-            disabled={disconnect.isPending}
-            onConfirm={() => disconnect.mutate({ practiceId })}
-          >
-            Отключить
-          </ConfirmButton>
-        </div>
+      <ConnectionPhrase account={account} />
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          Изменить
+        </Button>
+        <ConfirmButton
+          title="Отключить онлайн-оплату?"
+          description="Клиенты перестанут видеть кнопку «Пополнить». Начатые платежи всё равно зачислятся."
+          confirmLabel="Отключить"
+          disabled={disconnect.isPending}
+          onConfirm={() => disconnect.mutate({ practiceId })}
+        >
+          Отключить
+        </ConfirmButton>
       </div>
 
-      {account.test && (
-        <Alert variant="warning">
-          <AlertTitle>Тестовый магазин</AlertTitle>
-          <AlertDescription>
-            Деньги не списываются, а {terms.credits} начисляются по-настоящему.
-            Перед запуском подключите боевые ключи.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {account.provider === "yookassa" ? (
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium">
-            Добавьте адрес для уведомлений в ЮKassa
-          </span>
-          <div className="flex gap-2">
-            <Input
-              readOnly
-              value={settings.notificationUrls.yookassa}
-              aria-label="Адрес для уведомлений"
-              className="font-mono text-xs"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Скопировать адрес"
-              onClick={() => copy(settings.notificationUrls.yookassa)}
-            >
-              <CopyIcon />
-            </Button>
+      <FoldedBlock title="Уведомления, чеки и налоги">
+        <dl className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-wrap justify-between gap-x-4">
+            <dt className="text-muted-foreground">Магазин</dt>
+            <dd className="break-all">
+              {account.providerName}, {account.merchantId}
+            </dd>
           </div>
+          <div className="flex flex-wrap justify-between gap-x-4">
+            <dt className="text-muted-foreground">Чеки клиентам</dt>
+            <dd>
+              {account.receipts
+                ? account.taxSystem
+                  ? `Отправляются, ${TAX_SYSTEM_LABELS[account.taxSystem]}`
+                  : "Отправляются"
+                : "Не отправляются"}
+            </dd>
+          </div>
+        </dl>
+        {account.provider === "yookassa" ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Адрес для уведомлений</span>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={settings.notificationUrls.yookassa}
+                aria-label="Адрес для уведомлений"
+                className="text-xs"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Скопировать адрес"
+                onClick={() => copy(settings.notificationUrls.yookassa)}
+              >
+                <CopyIcon />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              С ним оплата зачисляется сразу, без него — когда клиент вернётся
+              на сайт. В личном кабинете ЮKassa откройте Интеграция →
+              HTTP-уведомления, вставьте адрес и отметьте события
+              payment.succeeded и payment.canceled.
+            </p>
+          </div>
+        ) : (
           <p className="text-xs text-muted-foreground">
-            Личный кабинет ЮKassa → Интеграция → HTTP-уведомления: вставьте
-            адрес и отметьте события payment.succeeded и payment.canceled. Без
-            этого оплата зачислится, когда клиент вернётся на сайт.
+            Уведомления об оплате Т-Банк присылает сам, настраивать ничего не
+            нужно. Терминал должен быть одностадийным.
           </p>
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Уведомления об оплате Т-Банк присылает автоматически — настраивать
-          ничего не нужно. Терминал должен быть одностадийным.
-        </p>
-      )}
+        )}
+      </FoldedBlock>
     </div>
   );
 }
@@ -200,8 +226,8 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
 
   return (
     <Section
-      title="Платёжная система"
-      description="Клиенты платят на ваш счёт в ЮKassa или Т-Банке — платформа не касается денег"
+      title="Куда приходят деньги"
+      description="Клиенты платят на ваш счёт в ЮKassa или Т-Банке, Synoro денег не касается"
     >
       {settings.isError ? (
         <ErrorState onRetry={() => settings.refetch()} />
@@ -209,10 +235,10 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
         <Skeleton className="h-32 w-full rounded-md" />
       ) : !settings.data.available ? (
         <Alert variant="warning">
-          <AlertTitle>Онлайн-оплата не настроена на сервере</AlertTitle>
+          <AlertTitle>Онлайн-оплата пока недоступна</AlertTitle>
           <AlertDescription>
-            Администратору платформы нужно задать PAYMENTS_SECRET_KEY — им
-            шифруются ключи магазинов.
+            Её должна включить команда Synoro. Как только это случится, здесь
+            появится подключение.
           </AlertDescription>
         </Alert>
       ) : !settings.data.pro ? (
@@ -225,14 +251,43 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
           onEdit={() => setEditing(true)}
         />
       ) : (
-        <ProviderForm
-          practiceId={practiceId}
-          settings={settings.data}
-          onSaved={saved}
-          onCancel={settings.data.account ? () => setEditing(false) : undefined}
-        />
+        <>
+          <ConnectionPhrase account={settings.data.account} />
+          <ProviderForm
+            practiceId={practiceId}
+            settings={settings.data}
+            onSaved={saved}
+            onCancel={
+              settings.data.account ? () => setEditing(false) : undefined
+            }
+          />
+        </>
       )}
     </Section>
+  );
+}
+
+/** The owner's way to the provider and the prices, above the payments. */
+function ConnectionStatus({ practiceId }: { practiceId: string }) {
+  const settings = useQuery(
+    orpc.payment.settings.queryOptions({ input: { practiceId } }),
+  );
+  if (!settings.data?.available) return null;
+  return (
+    <Frame spacing="default" className="min-w-0">
+      <FramePanel className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <ConnectionPhrase account={settings.data.account} />
+        <Button
+          size="sm"
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={paths.booking.onlinePayment(practiceId)} />}
+        >
+          Подключение и цены
+          <ArrowRightIcon />
+        </Button>
+      </FramePanel>
+    </Frame>
   );
 }
 
@@ -324,9 +379,29 @@ function PaymentsSection({ practiceId }: { practiceId: string }) {
 }
 
 /**
- * Online payments of a practice: the owner connects ЮKassa or Т-Банк and
- * sets the prices; all staff see incoming payments.
+ * The owner's settings of online payment: the provider clients pay through
+ * and the prices. The money coming in is on `PracticePayments`.
  */
+export function PracticeOnlinePayment({ practiceId }: { practiceId: string }) {
+  const terms = useTerms();
+  return (
+    <div className="flex max-w-3xl min-w-0 flex-col gap-6">
+      <PageHeading
+        title="Онлайн-оплата"
+        description="Клиенты сами оплачивают записи и пополняют баланс"
+      />
+      <ProviderSection practiceId={practiceId} />
+      <Section
+        title="Цены"
+        description={`Что клиент может купить: ${terms.credits} по одной цене или пакетом со скидкой`}
+      >
+        <PackagesEditor practiceId={practiceId} />
+      </Section>
+    </div>
+  );
+}
+
+/** The payments coming in, for all staff. The owner also sees the connection. */
 export function PracticePayments({
   practiceId,
   isOwner,
@@ -334,28 +409,13 @@ export function PracticePayments({
   practiceId: string;
   isOwner: boolean;
 }) {
-  const terms = useTerms();
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeading
         title="Оплаты"
-        description={
-          isOwner
-            ? "Клиенты сами пополняют баланс онлайн"
-            : "Платежи клиентов. Начислить оплату вручную можно в карточке клиента."
-        }
+        description="Платежи клиентов. Начислить оплату вручную можно в карточке клиента."
       />
-      {isOwner ? (
-        <>
-          <ProviderSection practiceId={practiceId} />
-          <Section
-            title="Цены"
-            description={`Что клиент может купить: ${terms.credits} по одной цене или пакетом со скидкой`}
-          >
-            <PackagesEditor practiceId={practiceId} />
-          </Section>
-        </>
-      ) : null}
+      {isOwner ? <ConnectionStatus practiceId={practiceId} /> : null}
       <PaymentsSection practiceId={practiceId} />
     </div>
   );

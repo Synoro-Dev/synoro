@@ -5,6 +5,8 @@ import { videoServiceName, videoUrlSchema } from "@synoro/validators";
 import { VideoIcon } from "lucide-react";
 import { useState } from "react";
 
+import { SaveState } from "../settings/save-state";
+
 /** «Войти на встречу» — opens the video room in a new tab. */
 export function VideoLinkButton({
   url,
@@ -43,12 +45,15 @@ export function VideoLinkForm({
   pending,
   onSave,
   label,
+  savedAt = null,
 }: {
   value: string | null;
   placeholder: string;
   pending: boolean;
   onSave: (url: string) => void;
   label: string;
+  /** Kept by the parent when a `key` remounts the form on saving. */
+  savedAt?: number | null;
 }) {
   const [draft, setDraft] = useState(value ?? "");
   const dirty = draft.trim() !== (value ?? "");
@@ -66,18 +71,21 @@ export function VideoLinkForm({
   }
 
   return (
-    <form onSubmit={submit} className="flex gap-2">
-      <Input
-        type="text"
-        inputMode="url"
-        aria-label={label}
-        placeholder={placeholder}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-      />
-      <Button type="submit" disabled={pending || !dirty}>
-        Сохранить
-      </Button>
+    <form onSubmit={submit} className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          inputMode="url"
+          aria-label={label}
+          placeholder={placeholder}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+        />
+        <Button type="submit" disabled={pending || !dirty}>
+          Сохранить
+        </Button>
+      </div>
+      <SaveState dirty={dirty} savedAt={savedAt} />
     </form>
   );
 }

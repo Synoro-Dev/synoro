@@ -110,7 +110,7 @@ export function PracticeList() {
       <CreatePracticeDialog
         open={creating}
         onOpenChange={setCreating}
-        next={pro ? "billing" : "schedule"}
+        next={pro ? "billing" : "setup"}
       />
     </div>
   );

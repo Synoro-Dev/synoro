@@ -8,6 +8,7 @@ import {
   FrameTitle,
 } from "@synoro/ui/reui/frame";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { VideoLinkForm } from "./video-link";
@@ -25,9 +26,11 @@ export function PracticeVideoLink({
   videoUrl: string | null;
 }) {
   const queryClient = useQueryClient();
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const save = useMutation({
     ...orpc.practice.setVideoUrl.mutationOptions(),
     onSuccess: async (result) => {
+      setSavedAt(Date.now());
       toast.success(
         result.videoUrl
           ? "Ссылка сохранена, клиентам с будущими записями отправлено письмо"
@@ -57,6 +60,7 @@ export function PracticeVideoLink({
         placeholder="https://company.ktalk.ru/your-room"
         value={videoUrl}
         pending={save.isPending}
+        savedAt={savedAt}
         onSave={(url) => save.mutate({ practiceId, videoUrl: url })}
       />
       <p className="text-xs text-muted-foreground">
