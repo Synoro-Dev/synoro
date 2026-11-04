@@ -10,6 +10,9 @@ import type { appRouter } from "@synoro/api";
  * what the user does is done through the interface.
  */
 
+// Signing up may wait out the auth rate limit (see `signUp`).
+test.describe.configure({ timeout: 90_000 });
+
 const PASSWORD = "e2e-password-123";
 const HOUR = 60 * 60 * 1000;
 
