@@ -10,11 +10,6 @@ import {
   DialogTitle,
   Input,
   Label,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
   ToggleGroup,
   ToggleGroupItem,
@@ -60,14 +55,19 @@ const REASON_LABELS = {
   adjustment: "Корректировка",
 } as const;
 
-/** Record paid credits (or correct the balance) for one client. */
+/**
+ * Record paid credits for one client («Начислить») or correct the
+ * balance either way («Скорректировать»): the same entry, two intents.
+ */
 export function CreditDialog({
   practiceId,
   member,
+  intent = "grant",
   onClose,
 }: {
   practiceId: string;
   member: Member | null;
+  intent?: "grant" | "adjust";
   onClose: () => void;
 }) {
   return (
@@ -77,6 +77,7 @@ export function CreditDialog({
           <CreditForm
             practiceId={practiceId}
             member={member}
+            intent={intent}
             onDone={onClose}
           />
         )}
@@ -88,22 +89,31 @@ export function CreditDialog({
 function CreditForm({
   practiceId,
   member,
+  intent,
   onDone,
 }: {
   practiceId: string;
   member: Member;
+  intent: "grant" | "adjust";
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   const terms = useTerms();
-  const [delta, setDelta] = useState<number | null>(1);
+  const grantOnly = intent === "grant";
+  const [delta, setDelta] = useState<number | null>(
+    grantOnly || member.credits === 0 ? 1 : -1,
+  );
   const [note, setNote] = useState("");
   const next = member.credits + (delta ?? 0);
 
   const grant = useMutation({
     ...orpc.credit.grant.mutationOptions(),
     onSuccess: async (result) => {
-      toast.success(`${member.name}: оплачено ${result.credits}`);
+      toast.success(
+        grantOnly
+          ? `Начислено. На балансе ${member.name}: ${result.credits}`
+          : `Баланс изменён. На балансе ${member.name}: ${result.credits}`,
+      );
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       await queryClient.invalidateQueries({ queryKey: orpc.credit.key() });
       onDone();
@@ -127,9 +137,13 @@ function CreditForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-5">
       <DialogHeader>
-        <DialogTitle>Баланс: {member.name}</DialogTitle>
+        <DialogTitle>
+          {grantOnly ? "Начислить" : "Скорректировать баланс"}
+        </DialogTitle>
         <DialogDescription>
-          Плюс — оплаченные {terms.credits}, минус — списание.
+          {grantOnly
+            ? `${member.name}: сколько ${terms.credit[2]} добавить на баланс после оплаты.`
+            : `${member.name}: плюс добавляет ${terms.credits}, минус списывает.`}
         </DialogDescription>
       </DialogHeader>
 
@@ -137,7 +151,7 @@ function CreditForm({
         <NumberField
           value={delta}
           onValueChange={setDelta}
-          min={-member.credits}
+          min={grantOnly ? 1 : -member.credits}
           max={100}
         >
           <NumberFieldGroup>
@@ -182,7 +196,7 @@ function CreditForm({
           Отмена
         </Button>
         <Button type="submit" disabled={grant.isPending || !delta || next < 0}>
-          Сохранить
+          {grantOnly ? "Начислить" : "Сохранить"}
         </Button>
       </DialogFooter>
     </form>
@@ -190,35 +204,7 @@ function CreditForm({
 }
 
 /** A client's balance history on the ReUI timeline. */
-export function HistorySheet({
-  member,
-  onClose,
-}: {
-  member: Member | null;
-  onClose: () => void;
-}) {
-  return (
-    <Sheet open={member !== null} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full gap-0 sm:max-w-md">
-        {member && (
-          <>
-            <SheetHeader>
-              <SheetTitle>История баланса</SheetTitle>
-              <SheetDescription>
-                {member.name} · сейчас оплачено {member.credits}
-              </SheetDescription>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
-              <HistoryList memberId={member.id} />
-            </div>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-function HistoryList({ memberId }: { memberId: string }) {
+export function HistoryList({ memberId }: { memberId: string }) {
   const history = useQuery(
     orpc.credit.history.queryOptions({ input: { memberId } }),
   );
@@ -275,17 +261,21 @@ function HistoryList({ memberId }: { memberId: string }) {
 export function AddMemberDialog({
   practiceId,
   isOwner,
+  invite,
   open,
   onClose,
 }: {
   practiceId: string;
   isOwner: boolean;
+  /** Fixes the role: no choice in the form. */
+  invite?: MemberInviteFormValues["role"];
   open: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<MemberInviteFormValues["role"]>("client");
+  const [picked, setRole] = useState<MemberInviteFormValues["role"]>("client");
+  const role = invite ?? picked;
 
   const add = useMutation({
     ...orpc.practice.addMember.mutationOptions(),
@@ -315,7 +305,13 @@ export function AddMemberDialog({
       <DialogContent className="sm:max-w-sm">
         <form onSubmit={submit} className="flex flex-col gap-5">
           <DialogHeader>
-            <DialogTitle>Пригласить в практику</DialogTitle>
+            <DialogTitle>
+              {invite === "admin"
+                ? "Пригласить администратора"
+                : invite === "client"
+                  ? "Пригласить клиента"
+                  : "Пригласить в практику"}
+            </DialogTitle>
             <DialogDescription>
               Приглашение действует 7 дней и принимается с подтверждённой почты.
             </DialogDescription>
@@ -331,7 +327,7 @@ export function AddMemberDialog({
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          {isOwner && (
+          {isOwner && !invite && (
             <div className="flex flex-col gap-1.5">
               <Label>Роль</Label>
               <ToggleGroup

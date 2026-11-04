@@ -55,6 +55,8 @@ export interface EntryDraft {
   mode: EntryMode;
   start: Date;
   end: Date;
+  /** Book this client (opened from their card). */
+  client?: { id: string; name: string };
 }
 
 const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
@@ -81,7 +83,7 @@ export function EntryDialog({
 }) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md [&>*]:min-w-0">
         {draft && (
           <EntryForm practiceId={practiceId} draft={draft} onDone={onClose} />
         )}
@@ -111,8 +113,10 @@ function EntryForm({
   const [guestPhone, setGuestPhone] = useState("");
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
-  const [memberId, setMemberId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [memberId, setMemberId] = useState<string | null>(
+    draft.client?.id ?? null,
+  );
+  const [search, setSearch] = useState(draft.client?.name ?? "");
   const [repeat, setRepeat] = useState<Repeat | null>(null);
   const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
   const members = useQuery({
@@ -262,7 +266,8 @@ function EntryForm({
       </DialogHeader>
 
       <Tabs value={mode} onValueChange={(value) => setMode(value as EntryMode)}>
-        <TabsList className="w-full">
+        {/* Narrow phones: the three tabs fit by dropping their icons. */}
+        <TabsList className="w-full max-[420px]:[&_svg]:hidden">
           <TabsTrigger value="consultation">
             <CalendarCheckIcon />
             Клиент
