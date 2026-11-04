@@ -241,6 +241,7 @@ export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
 
       <EntryDialog
         practiceId={practice.id}
+        timezone={practice.timezone}
         draft={draft}
         onClose={() => setDraft(null)}
       />

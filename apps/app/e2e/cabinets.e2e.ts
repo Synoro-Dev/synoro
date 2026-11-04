@@ -100,6 +100,47 @@ test("first setup: «Сегодня» shows what is left until done", async ({
   ).toBeVisible();
 });
 
+test.describe("away from the practice's zone", () => {
+  test.use({ timezoneId: "Asia/Novosibirsk" });
+
+  test("«Закрыть даты» closes the practice's calendar days", async ({
+    page,
+    baseURL,
+  }) => {
+    const { api, practiceId } = await ownerWithPractice(page, baseURL ?? "");
+    const day = (offset: number) =>
+      new Date(Date.now() + offset * 24 * HOUR).toISOString().slice(0, 10);
+    const first = day(10);
+    const last = day(11);
+    const after = day(12);
+
+    await page.goto(`/practices/${practiceId}/calendar`);
+    await page.getByRole("button", { name: "Закрыть даты" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByText("Дни считаются по времени практики"),
+    ).toBeVisible();
+    await dialog.getByLabel("С", { exact: true }).fill(first);
+    await dialog.getByLabel("По", { exact: true }).fill(last);
+    await dialog.getByRole("button", { name: "Закрыть даты" }).click();
+    await expect(page.getByText("Даты закрыты")).toBeVisible();
+
+    // New practices are on Moscow time (+03:00), the browser on +07:00.
+    const entries = await api.booking.calendar({
+      practiceId,
+      from: first,
+      days: 2,
+    });
+    const closed = entries.find((b) => b.kind === "blocked");
+    expect(closed?.startsAt.toISOString()).toBe(
+      new Date(`${first}T00:00:00+03:00`).toISOString(),
+    );
+    expect(closed?.endsAt.toISOString()).toBe(
+      new Date(`${after}T00:00:00+03:00`).toISOString(),
+    );
+  });
+});
+
 test("client cancels in time (credit back) but not within 24 hours", async ({
   page,
   browser,

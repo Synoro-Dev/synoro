@@ -46,7 +46,13 @@ import {
 } from "./series-fields";
 import { ErrorState } from "./states";
 import { useTerms } from "./terms";
-import { dateKey } from "./time";
+import {
+  dateKey,
+  nextDate,
+  viewerTimeZone,
+  viewerTimeZoneName,
+  zonedDayStart,
+} from "./time";
 import { TimeSelect } from "./time-select";
 
 type EntryMode = "consultation" | "free" | "block";
@@ -63,6 +69,7 @@ export interface EntryDraft {
 
 /** The longest block the API takes (`booking.block`). */
 const MAX_BLOCK_DAYS = 31;
+const HALF_HOUR_MS = 30 * 60_000;
 
 const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
 
@@ -79,10 +86,13 @@ function atMinute(date: string, minute: number) {
  */
 export function EntryDialog({
   practiceId,
+  timezone,
   draft,
   onClose,
 }: {
   practiceId: string;
+  /** The practice's zone: whole closed days are its calendar days. */
+  timezone: string;
   draft: EntryDraft | null;
   onClose: () => void;
 }) {
@@ -90,7 +100,12 @@ export function EntryDialog({
     <Dialog open={draft !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md [&>*]:min-w-0">
         {draft && (
-          <EntryForm practiceId={practiceId} draft={draft} onDone={onClose} />
+          <EntryForm
+            practiceId={practiceId}
+            timezone={timezone}
+            draft={draft}
+            onDone={onClose}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -99,19 +114,26 @@ export function EntryDialog({
 
 function EntryForm({
   practiceId,
+  timezone,
   draft,
   onDone,
 }: {
   practiceId: string;
+  timezone: string;
   draft: EntryDraft;
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   const terms = useTerms();
   const [mode, setMode] = useState<EntryMode>(draft.mode);
-  const [date, setDate] = useState(dateKey(draft.start));
+  // Whole days are the practice's calendar days; hours are the viewer's.
+  const firstDate = dateKey(
+    draft.start,
+    draft.wholeDays ? timezone : undefined,
+  );
+  const [date, setDate] = useState(firstDate);
   const [wholeDays, setWholeDays] = useState(draft.wholeDays ?? false);
-  const [untilDate, setUntilDate] = useState(dateKey(draft.start));
+  const [untilDate, setUntilDate] = useState(firstDate);
   const [start, setStart] = useState(minutesOf(draft.start));
   const [end, setEnd] = useState(
     Math.max(minutesOf(draft.end) || 1440, minutesOf(draft.start) + 30),
@@ -250,9 +272,19 @@ function EntryForm({
       return;
     }
     if (wholeDays) {
-      const startsAt = atMinute(date, 0);
-      // Inclusive: «по 14-е» closes the 14th too.
-      const endsAt = atMinute(untilDate, 24 * 60);
+      // Slots are built from midnight in the practice's zone, so that is
+      // where a closed day begins, wherever the viewer is. Inclusive: «по
+      // 14-е» closes the 14th too. The API takes half-hour UTC bounds, which
+      // miss midnight in :45 zones: round outward to close the whole day.
+      const startsAt = new Date(
+        Math.floor(zonedDayStart(date, timezone).getTime() / HALF_HOUR_MS) *
+          HALF_HOUR_MS,
+      );
+      const endsAt = new Date(
+        Math.ceil(
+          zonedDayStart(nextDate(untilDate), timezone).getTime() / HALF_HOUR_MS,
+        ) * HALF_HOUR_MS,
+      );
       if (endsAt <= startsAt) {
         toast.error("Последний день не может быть раньше первого");
         return;
@@ -317,6 +349,11 @@ function EntryForm({
           />
           Целые дни — отпуск, выходные, праздники
         </label>
+      )}
+      {mode === "block" && wholeDays && viewerTimeZone() !== timezone && (
+        <p className="text-sm text-muted-foreground">
+          Дни считаются по времени практики: {viewerTimeZoneName(timezone)}.
+        </p>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
@@ -562,7 +599,9 @@ function EntryForm({
           disabled={pending || (series !== null && chosen.length < 2)}
         >
           {mode === "block"
-            ? "Закрыть время"
+            ? wholeDays
+              ? "Закрыть даты"
+              : "Закрыть время"
             : series
               ? `Записать: ${formatCredits(chosen.length, terms)}`
               : "Записать"}

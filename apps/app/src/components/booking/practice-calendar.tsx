@@ -296,6 +296,7 @@ export function PracticeCalendar({
 
       <EntryDialog
         practiceId={practiceId}
+        timezone={timezone}
         draft={draft}
         onClose={() => setDraft(null)}
       />
