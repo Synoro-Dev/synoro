@@ -4,7 +4,7 @@ import { ServerError } from "~/components/errors/server-error";
 
 export default function RootError(props: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return <ServerError {...props} />;
 }

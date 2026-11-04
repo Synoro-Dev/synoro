@@ -20,6 +20,7 @@ export * from "./dialog";
 export * from "./drawer";
 export * from "./dropdown-menu";
 export * from "./empty";
+export * from "./error-screen";
 export * from "./field";
 export * from "./form";
 export * from "./input";

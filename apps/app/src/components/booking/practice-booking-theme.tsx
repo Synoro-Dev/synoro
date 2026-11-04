@@ -48,6 +48,7 @@ import { type Dispatch, type SetStateAction, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
+import { SaveState } from "../settings/save-state";
 import { bookingThemeAttributes } from "./booking-theme";
 import { displayFonts } from "./display-font";
 import { ErrorState } from "./states";
@@ -114,11 +115,13 @@ function Editor({
 } & Draft) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string>();
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const theme = draft ?? saved;
 
   const save = useMutation({
     ...orpc.practice.setTheme.mutationOptions(),
     onSuccess: async ({ theme }) => {
+      setSavedAt(Date.now());
       toast.success(
         isDefaultBookingTheme(theme)
           ? "Вернули оформление по умолчанию"
@@ -291,7 +294,7 @@ function Editor({
             id="theme-about"
             rows={3}
             maxLength={MAX_BOOKING_ABOUT}
-            placeholder="Например: психолог, КПТ. Помогаю справиться с тревогой и выгоранием. Встречи онлайн."
+            placeholder="Например: готовлю к ЕГЭ по математике. Встречи онлайн, по будням с 16 до 21."
             value={theme.about}
             onChange={(e) => patch({ about: e.target.value })}
           />
@@ -309,6 +312,7 @@ function Editor({
           <Button type="submit" disabled={!canSave || save.isPending}>
             Сохранить оформление
           </Button>
+          <SaveState dirty={changed} savedAt={savedAt} />
           {!isDefault && (
             <Button
               type="button"

@@ -23,6 +23,7 @@ import { useRouter } from "next/navigation";
 
 import { authClient } from "~/auth/client";
 import { resetAnalytics } from "~/lib/analytics";
+import { ThemeMenuItems } from "../theme-menu";
 
 function getInitials(name: string): string {
   return name
@@ -117,6 +118,8 @@ export function NavUser({
                 Аккаунт
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <ThemeMenuItems />
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />

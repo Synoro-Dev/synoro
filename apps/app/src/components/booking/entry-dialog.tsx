@@ -46,7 +46,13 @@ import {
 } from "./series-fields";
 import { ErrorState } from "./states";
 import { useTerms } from "./terms";
-import { dateKey } from "./time";
+import {
+  dateKey,
+  nextDate,
+  viewerTimeZone,
+  viewerTimeZoneName,
+  zonedDayStart,
+} from "./time";
 import { TimeSelect } from "./time-select";
 
 type EntryMode = "consultation" | "free" | "block";
@@ -55,7 +61,15 @@ export interface EntryDraft {
   mode: EntryMode;
   start: Date;
   end: Date;
+  /** Book this client (opened from their card). */
+  client?: { id: string; name: string };
+  /** Close whole days (a vacation) rather than hours of one day. */
+  wholeDays?: boolean;
 }
+
+/** The longest block the API takes (`booking.block`). */
+const MAX_BLOCK_DAYS = 31;
+const HALF_HOUR_MS = 30 * 60_000;
 
 const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
 
@@ -72,18 +86,26 @@ function atMinute(date: string, minute: number) {
  */
 export function EntryDialog({
   practiceId,
+  timezone,
   draft,
   onClose,
 }: {
   practiceId: string;
+  /** The practice's zone: whole closed days are its calendar days. */
+  timezone: string;
   draft: EntryDraft | null;
   onClose: () => void;
 }) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md [&>*]:min-w-0">
         {draft && (
-          <EntryForm practiceId={practiceId} draft={draft} onDone={onClose} />
+          <EntryForm
+            practiceId={practiceId}
+            timezone={timezone}
+            draft={draft}
+            onDone={onClose}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -92,17 +114,26 @@ export function EntryDialog({
 
 function EntryForm({
   practiceId,
+  timezone,
   draft,
   onDone,
 }: {
   practiceId: string;
+  timezone: string;
   draft: EntryDraft;
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   const terms = useTerms();
   const [mode, setMode] = useState<EntryMode>(draft.mode);
-  const [date, setDate] = useState(dateKey(draft.start));
+  // Whole days are the practice's calendar days; hours are the viewer's.
+  const firstDate = dateKey(
+    draft.start,
+    draft.wholeDays ? timezone : undefined,
+  );
+  const [date, setDate] = useState(firstDate);
+  const [wholeDays, setWholeDays] = useState(draft.wholeDays ?? false);
+  const [untilDate, setUntilDate] = useState(firstDate);
   const [start, setStart] = useState(minutesOf(draft.start));
   const [end, setEnd] = useState(
     Math.max(minutesOf(draft.end) || 1440, minutesOf(draft.start) + 30),
@@ -111,8 +142,10 @@ function EntryForm({
   const [guestPhone, setGuestPhone] = useState("");
   const [guestContact, setGuestContact] = useState("");
   const [note, setNote] = useState("");
-  const [memberId, setMemberId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [memberId, setMemberId] = useState<string | null>(
+    draft.client?.id ?? null,
+  );
+  const [search, setSearch] = useState(draft.client?.name ?? "");
   const [repeat, setRepeat] = useState<Repeat | null>(null);
   const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
   const members = useQuery({
@@ -185,7 +218,7 @@ function EntryForm({
   });
   const block = useMutation({
     ...orpc.booking.block.mutationOptions(),
-    onSuccess: () => onSuccess("Время закрыто"),
+    onSuccess: () => onSuccess(wholeDays ? "Даты закрыты" : "Время закрыто"),
     onError: (error) => toast.error(error.message),
   });
   const pending =
@@ -238,6 +271,33 @@ function EntryForm({
       });
       return;
     }
+    if (wholeDays) {
+      // Slots are built from midnight in the practice's zone, so that is
+      // where a closed day begins, wherever the viewer is. Inclusive: «по
+      // 14-е» closes the 14th too. The API takes half-hour UTC bounds, which
+      // miss midnight in :45 zones: round outward to close the whole day.
+      const startsAt = new Date(
+        Math.floor(zonedDayStart(date, timezone).getTime() / HALF_HOUR_MS) *
+          HALF_HOUR_MS,
+      );
+      const endsAt = new Date(
+        Math.ceil(
+          zonedDayStart(nextDate(untilDate), timezone).getTime() / HALF_HOUR_MS,
+        ) * HALF_HOUR_MS,
+      );
+      if (endsAt <= startsAt) {
+        toast.error("Последний день не может быть раньше первого");
+        return;
+      }
+      if (endsAt.getTime() - startsAt.getTime() > MAX_BLOCK_DAYS * 86_400_000) {
+        toast.error(
+          `Закрыть можно до ${MAX_BLOCK_DAYS} дня подряд — разбейте на две части`,
+        );
+        return;
+      }
+      block.mutate({ practiceId, startsAt, endsAt, note: note || undefined });
+      return;
+    }
     if (end <= start) {
       toast.error("Конец должен быть позже начала");
       return;
@@ -262,7 +322,8 @@ function EntryForm({
       </DialogHeader>
 
       <Tabs value={mode} onValueChange={(value) => setMode(value as EntryMode)}>
-        <TabsList className="w-full">
+        {/* Narrow phones: the three tabs fit by dropping their icons. */}
+        <TabsList className="w-full max-[420px]:[&_svg]:hidden">
           <TabsTrigger value="consultation">
             <CalendarCheckIcon />
             Клиент
@@ -278,22 +339,59 @@ function EntryForm({
         </TabsList>
       </Tabs>
 
+      {mode === "block" && (
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--brand)]"
+            checked={wholeDays}
+            onChange={(e) => setWholeDays(e.target.checked)}
+          />
+          Целые дни — отпуск, выходные, праздники
+        </label>
+      )}
+      {mode === "block" && wholeDays && viewerTimeZone() !== timezone && (
+        <p className="text-sm text-muted-foreground">
+          Дни считаются по времени практики: {viewerTimeZoneName(timezone)}.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="entry-date">Дата</Label>
+          <Label htmlFor="entry-date">
+            {mode === "block" && wholeDays ? "С" : "Дата"}
+          </Label>
           <Input
             id="entry-date"
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              setDate(e.target.value);
+              // The last day never comes before the first.
+              if (untilDate < e.target.value) setUntilDate(e.target.value);
+            }}
             className="w-40"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>{mode === "block" ? "С" : "Начало"}</Label>
-          <TimeSelect label="Начало" value={start} onChange={setStart} />
-        </div>
-        {mode === "block" && (
+        {mode === "block" && wholeDays ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entry-until">По</Label>
+            <Input
+              id="entry-until"
+              type="date"
+              min={date}
+              value={untilDate}
+              onChange={(e) => setUntilDate(e.target.value)}
+              className="w-40"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <Label>{mode === "block" ? "С" : "Начало"}</Label>
+            <TimeSelect label="Начало" value={start} onChange={setStart} />
+          </div>
+        )}
+        {mode === "block" && !wholeDays && (
           <div className="flex flex-col gap-1.5">
             <Label>До</Label>
             <TimeSelect label="Конец" value={end} onChange={setEnd} endOfDay />
@@ -484,7 +582,9 @@ function EntryForm({
         <Textarea
           id="entry-note"
           rows={2}
-          placeholder={mode === "block" ? "Личное время" : "Запрос клиента"}
+          placeholder={
+            mode === "block" ? "Личное время" : "Видна только вам и команде"
+          }
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
@@ -499,7 +599,9 @@ function EntryForm({
           disabled={pending || (series !== null && chosen.length < 2)}
         >
           {mode === "block"
-            ? "Закрыть время"
+            ? wholeDays
+              ? "Закрыть даты"
+              : "Закрыть время"
             : series
               ? `Записать: ${formatCredits(chosen.length, terms)}`
               : "Записать"}

@@ -24,7 +24,7 @@ async function Payments({
   return (
     <TermsProvider profession={practice.profession}>
       <SiteHeader
-        title="Оплата"
+        title="Оплаты"
         parent={{
           label: practice.name,
           href: paths.booking.practice(practice.id),

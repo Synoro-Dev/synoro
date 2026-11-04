@@ -81,6 +81,26 @@ function offsetMinutes(timeZone: string, at: Date) {
   return match[1] === "-" ? -minutes : minutes;
 }
 
+/** The next calendar date after `date` (YYYY-MM-DD). */
+export function nextDate(date: string) {
+  const [y = 0, m = 1, d = 1] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+/** The instant the calendar day `date` (YYYY-MM-DD) begins in `timeZone`. */
+export function zonedDayStart(date: string, timeZone: string) {
+  const [y = 0, m = 1, d = 1] = date.split("-").map(Number);
+  const wallClock = Date.UTC(y, m - 1, d);
+  const at = (offsetFrom: number) =>
+    wallClock - offsetMinutes(timeZone, new Date(offsetFrom)) * 60_000;
+  // Two passes settle the offset around DST transitions.
+  const first = at(wallClock);
+  const second = new Date(at(first));
+  // Where the clock jumps over midnight, the day begins at the jump: the
+  // second pass lands in the evening before.
+  return dateKey(second, timeZone) === date ? second : new Date(first);
+}
+
 export interface TimeZoneOption {
   value: string;
   /** «Новосибирск (UTC+7)». */

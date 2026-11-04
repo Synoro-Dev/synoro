@@ -33,6 +33,7 @@ async function Clients({
       <main className="flex min-w-0 flex-col p-4 lg:p-6">
         <PracticeClients
           practiceId={practice.id}
+          timezone={practice.timezone}
           isOwner={practice.membership.role === "owner"}
         />
       </main>

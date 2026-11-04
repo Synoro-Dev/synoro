@@ -55,6 +55,7 @@ import {
 } from "react";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "../settings/save-state";
 import { PracticeTimeZone } from "./practice-timezone";
 import {
   type Cell,
@@ -85,12 +86,6 @@ const WEEKDAYS = [0, 1, 2, 3, 4];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WORKDAY: [number, number] = [540, 1080];
 const HISTORY_LIMIT = 100;
-const SLOT_PLURAL_RULES = new Intl.PluralRules("ru-RU");
-const SLOT_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {
-  one: "слот",
-  few: "слота",
-  many: "слотов",
-};
 
 const PRESETS: { label: string; grid: () => SlotGrid }[] = [
   { label: "Будни 09:00–18:00", grid: () => presetGrid(WEEKDAYS, [WORKDAY]) },
@@ -211,12 +206,14 @@ export function AvailabilityEditor({
   const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
   );
+  // Above the keyed editor: its remount after saving keeps «Сохранено».
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeading
-        title="Расписание"
-        description={`Часы приёма по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
+        title="Рабочие часы"
+        description={`Рабочие часы по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
         actions={
           isOwner && (
             <PracticeTimeZone practiceId={practiceId} timezone={timezone} />
@@ -234,6 +231,8 @@ export function AvailabilityEditor({
           practiceId={practiceId}
           initial={rules.data}
           introMinutes={introMinutes}
+          savedAt={savedAt}
+          onSaved={() => setSavedAt(Date.now())}
         />
       )}
     </div>
@@ -244,16 +243,21 @@ function SlotEditor({
   practiceId,
   initial,
   introMinutes,
+  savedAt,
+  onSaved,
 }: {
   practiceId: string;
   initial: AvailabilityRuleValues[];
   introMinutes: number;
+  savedAt: number | null;
+  onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
   const save = useMutation({
     ...orpc.availability.replace.mutationOptions(),
     onSuccess: async () => {
-      toast.success("Расписание сохранено");
+      onSaved();
+      toast.success("Рабочие часы сохранены");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.availability.key() }),
         queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
@@ -332,12 +336,7 @@ function SlotEditor({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // SaveState asks before the tab closes on unsaved hours.
 
   function changeView(next: View) {
     setView(next);
@@ -458,7 +457,7 @@ function SlotEditor({
     if (hover) {
       const cell = { day0: hover.day, day1: hover.day };
       const open = grid[cellIndex(hover.day, hover.slot)];
-      return `${WEEKDAY_NAMES[hover.day]} · ${timeRange({ ...cell, slot0: hover.slot, slot1: hover.slot })} · ${open ? "приём" : "закрыто"}`;
+      return `${WEEKDAY_NAMES[hover.day]} · ${timeRange({ ...cell, slot0: hover.slot, slot1: hover.slot })} · ${open ? "открыто" : "закрыто"}`;
     }
     return "Тяните по сетке, чтобы открыть или закрыть время";
   })();
@@ -538,12 +537,7 @@ function SlotEditor({
           </ToggleGroup>
 
           <div className="ml-auto flex items-center gap-2">
-            {dirty && (
-              <Badge variant="warning-light" size="lg">
-                Не сохранено · {changed}{" "}
-                {SLOT_FORMS[SLOT_PLURAL_RULES.select(changed)] ?? "слотов"}
-              </Badge>
-            )}
+            <SaveState dirty={dirty} savedAt={savedAt} />
             <Button
               variant="ghost"
               size="sm"
@@ -932,7 +926,7 @@ function ScheduleSummary({
 
       <FramePanel className="flex flex-col gap-2 p-0">
         <FrameHeader>
-          <FrameTitle>Быстрые приёмы</FrameTitle>
+          <FrameTitle>Подсказки</FrameTitle>
           <FrameDescription className="text-xs">
             Зелёное — клиенты могут записаться
           </FrameDescription>

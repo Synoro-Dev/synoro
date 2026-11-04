@@ -28,7 +28,7 @@ export function PracticeTimeZone({
     onSuccess: async (result) => {
       setValue(result.timezone);
       toast.success(
-        `Часы приёма теперь по времени: ${viewerTimeZoneName(result.timezone)}. Часы в таблице остались прежними.`,
+        `Рабочие часы теперь по времени: ${viewerTimeZoneName(result.timezone)}. Часы в таблице остались прежними.`,
       );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),

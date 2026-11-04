@@ -108,6 +108,12 @@ const ThemeContext = React.createContext<ThemeContextProps | undefined>(
 export function ThemeProvider({ children }: React.PropsWithChildren) {
   const [themeMode, setThemeMode] = React.useState(getStoredThemeMode);
 
+  // Скрипт ниже не выполняется при рендере на клиенте: так открывается страница
+  // ошибки, если документ упал на сервере.
+  React.useLayoutEffect(() => {
+    updateThemeClass(themeMode);
+  }, [themeMode]);
+
   React.useEffect(() => {
     if (themeMode !== "auto") return;
     return setupPreferredListener();
@@ -118,7 +124,6 @@ export function ThemeProvider({ children }: React.PropsWithChildren) {
   const setTheme = (newTheme: ThemeMode) => {
     setThemeMode(newTheme);
     setStoredThemeMode(newTheme);
-    updateThemeClass(newTheme);
   };
 
   const toggleMode = () => {
