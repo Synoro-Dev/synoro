@@ -24,7 +24,7 @@ async function Domain({
   return (
     <TermsProvider profession={practice.profession}>
       <SiteHeader
-        title="Домен"
+        title="Свой домен"
         parent={{
           label: practice.name,
           href: paths.booking.practice(practice.id),

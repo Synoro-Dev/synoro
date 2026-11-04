@@ -210,7 +210,7 @@ export function AvailabilityEditor({
   return (
     <div className="flex flex-col gap-6">
       <PageHeading
-        title="Расписание"
+        title="Рабочие часы"
         description={`Рабочие часы по времени: ${viewerTimeZoneName(timezone)}. Клиенты видят их в своём часовом поясе.`}
         actions={
           isOwner && (

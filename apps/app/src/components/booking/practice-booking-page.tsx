@@ -2,7 +2,6 @@
 
 import { paths } from "@synoro/config";
 import { Button, Input, toast } from "@synoro/ui";
-import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import {
   Frame,
   FrameDescription,
@@ -22,7 +21,6 @@ import {
   CopyIcon,
   ExternalLinkIcon,
   GlobeIcon,
-  ImageUpIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -89,17 +87,6 @@ export function PracticeBookingPage({
   return (
     <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex min-w-0 flex-col gap-6">
-        {!isOwner && (
-          <Alert variant="info">
-            <ImageUpIcon />
-            <AlertTitle>Страницу записи настраивает владелец</AlertTitle>
-            <AlertDescription>
-              Фото, бесплатную запись, видеовстречу и анкету меняет владелец
-              практики. Ссылкой можно делиться, оформление — менять.
-            </AlertDescription>
-          </Alert>
-        )}
-
         {isOwner && (
           <Frame spacing="default" className="min-w-0">
             <FramePanel className="flex flex-col gap-4">

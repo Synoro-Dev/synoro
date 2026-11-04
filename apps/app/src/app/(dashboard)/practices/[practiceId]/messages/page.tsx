@@ -25,7 +25,7 @@ async function Messages({
   return (
     <TermsProvider profession={practice.profession}>
       <SiteHeader
-        title="Сообщения"
+        title="Сообщения клиентам"
         parent={{
           label: practice.name,
           href: paths.booking.practice(practice.id),

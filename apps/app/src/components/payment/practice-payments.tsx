@@ -338,8 +338,12 @@ export function PracticePayments({
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeading
-        title="Оплата"
-        description="Клиенты сами пополняют баланс онлайн"
+        title="Оплаты"
+        description={
+          isOwner
+            ? "Клиенты сами пополняют баланс онлайн"
+            : "Платежи клиентов. Начислить оплату вручную можно в карточке клиента."
+        }
       />
       {isOwner ? (
         <>
@@ -351,16 +355,7 @@ export function PracticePayments({
             <PackagesEditor practiceId={practiceId} />
           </Section>
         </>
-      ) : (
-        <Alert variant="info">
-          <CreditCardIcon />
-          <AlertTitle>Оплату и цены настраивает владелец практики</AlertTitle>
-          <AlertDescription>
-            Здесь видны платежи клиентов. Пополнить баланс вручную можно в
-            разделе «Клиенты».
-          </AlertDescription>
-        </Alert>
-      )}
+      ) : null}
       <PaymentsSection practiceId={practiceId} />
     </div>
   );

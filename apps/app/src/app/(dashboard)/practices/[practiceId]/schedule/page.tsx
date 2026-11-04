@@ -25,7 +25,7 @@ async function Schedule({
   return (
     <TermsProvider profession={practice.profession}>
       <SiteHeader
-        title="Расписание"
+        title="Рабочие часы"
         parent={{
           label: practice.name,
           href: paths.booking.practice(practice.id),
