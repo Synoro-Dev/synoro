@@ -26,10 +26,13 @@ export function PracticeVideoLink({
   videoUrl: string | null;
 }) {
   const queryClient = useQueryClient();
+  // What is saved now: `videoUrl` comes from the server and stays as it was.
+  const [saved, setSaved] = useState(videoUrl);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const save = useMutation({
     ...orpc.practice.setVideoUrl.mutationOptions(),
     onSuccess: async (result) => {
+      setSaved(result.videoUrl);
       setSavedAt(Date.now());
       toast.success(
         result.videoUrl
@@ -54,11 +57,11 @@ export function PracticeVideoLink({
         </FrameDescription>
       </FrameHeader>
       <VideoLinkForm
-        // Re-seed the field when the saved value changes.
-        key={videoUrl ?? ""}
+        // Re-seed the field on each save: the server may normalize the link.
+        key={savedAt}
         label="Ссылка на видеовстречу"
         placeholder="https://company.ktalk.ru/your-room"
-        value={videoUrl}
+        value={saved}
         pending={save.isPending}
         savedAt={savedAt}
         onSave={(url) => save.mutate({ practiceId, videoUrl: url })}

@@ -167,6 +167,23 @@ test("the first setup opens once, every step can be skipped", async ({
   ).toBeVisible();
 });
 
+test("a saved video link is no longer a draft", async ({ page, baseURL }) => {
+  const { practiceId } = await ownerWithPractice(page, baseURL ?? "");
+
+  await page.goto(`/practices/${practiceId}/booking-page`);
+  await page
+    .getByLabel("Ссылка на видеовстречу")
+    .fill("https://telemost.yandex.ru/j/123");
+  await expect(
+    page.getByText("Есть несохранённые изменения", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect(page.getByText("Сохранено", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Есть несохранённые изменения", { exact: true }),
+  ).toHaveCount(0);
+});
+
 test("the specialist credits a package and books the client", async ({
   page,
   browser,

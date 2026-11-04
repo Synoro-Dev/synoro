@@ -188,9 +188,9 @@ and run `tsc` by hand, build them first.
   `claimNotice` (`notice-claims.ts`, keys `wf:<rule>:…` in `sent_notices`), only
   while the owner has `hasPro`.
 - **Booking questionnaire («Про»)** (`docs/booking-questions.md`): up to 10
-  questions in `practices.booking_questions` (owner edits them on the booking
-  page settings, `question.*` router, schema and `checkBookingAnswers` in
-  `@synoro/validators/booking-questions`). Clients answer in `booking.book` /
+  questions in `practices.booking_questions` (owner edits them at
+  `/practices/<id>/questions`, `question.*` router, schema and
+  `checkBookingAnswers` in `@synoro/validators/booking-questions`). Clients answer in `booking.book` /
   `bookSeries` / `reserve` (`ANSWERS_INVALID` per question id); answers are
   kept with the question's wording in `bookings.answers` and shown to staff in
   `booking.calendar`. Not asked without `hasPro` (`askedQuestions`).
