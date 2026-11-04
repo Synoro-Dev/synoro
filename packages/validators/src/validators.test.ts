@@ -333,13 +333,23 @@ describe("availabilityFormSchema", () => {
 });
 
 describe("practiceFormSchema reserved slugs", () => {
+  /** The paths of the errors for a form that is valid except for its slug. */
+  const errorPaths = (slug: string) => {
+    const result = practiceFormSchema.safeParse({
+      name: "Анна",
+      slug,
+      profession: "tutor",
+    });
+    return result.success ? [] : result.error.issues.map((i) => i.path[0]);
+  };
+
+  test("accepts a free address, so the cases below fail for the slug", () => {
+    expect(errorPaths("anna")).toEqual([]);
+  });
+
   test("rejects slugs reserved for platform subdomains", () => {
-    expect(
-      practiceFormSchema.safeParse({ name: "Анна", slug: "www" }).success,
-    ).toBe(false);
-    expect(
-      practiceFormSchema.safeParse({ name: "Анна", slug: "API" }).success,
-    ).toBe(false);
+    expect(errorPaths("www")).toEqual(["slug"]);
+    expect(errorPaths("API")).toEqual(["slug"]);
   });
 
   test("rejects the top-level routes of the app and the landing", () => {
@@ -350,9 +360,7 @@ describe("practiceFormSchema reserved slugs", () => {
       "legal",
       "pricing",
     ]) {
-      expect(practiceFormSchema.safeParse({ name: "Анна", slug }).success).toBe(
-        false,
-      );
+      expect(errorPaths(slug)).toEqual(["slug"]);
     }
   });
 });
