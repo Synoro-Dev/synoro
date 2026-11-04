@@ -13,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@synoro/ui";
+import type { Route } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 
@@ -20,6 +22,7 @@ import { requireAdmin } from "~/auth/server";
 import { PageHeader } from "~/components/page-header";
 import { PaymentStatus, PERIOD_LABELS } from "~/components/payment-status";
 import { PlanBadge } from "~/components/plan-badge";
+import { SignInTable } from "~/components/sign-in-table";
 import { formatDate, formatDateTime, formatKopecks } from "~/lib/format";
 import { bookingPageUrl } from "~/lib/links";
 import { api } from "~/orpc/server";
@@ -59,10 +62,13 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 async function UserCard({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;
-  const card = await api.users.byId({ id }).catch((error: unknown) => {
-    if (error instanceof ORPCError && error.code === "NOT_FOUND") notFound();
-    throw error;
-  });
+  const [card, signIns] = await Promise.all([
+    api.users.byId({ id }).catch((error: unknown) => {
+      if (error instanceof ORPCError && error.code === "NOT_FOUND") notFound();
+      throw error;
+    }),
+    api.signIns.list({ userId: id, limit: 20, offset: 0 }),
+  ]);
   const { user, plan } = card;
 
   return (
@@ -163,6 +169,25 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
               </TableBody>
             </Table>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between gap-2">
+            Входы
+            {signIns.total > signIns.items.length && (
+              <Link
+                href={`/sign-ins?q=${encodeURIComponent(user.email)}` as Route}
+                className="text-muted-foreground text-sm font-normal hover:underline"
+              >
+                Все {signIns.total}
+              </Link>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SignInTable items={signIns.items} showUser={false} />
         </CardContent>
       </Card>
 

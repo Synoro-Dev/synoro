@@ -100,6 +100,18 @@ export const env = createEnv({
       .transform((origins) => origins.join(","))
       .optional(),
 
+    // City by IP for the sign-in history (docs/sign-in-history.md): a JSON
+    // geo service, `{ip}` is replaced by the visitor's address. Visitors' IPs
+    // are sent to it. Understands ipwho.is, ip-api.com and ipapi.co answers.
+    // Empty string: no lookup, the history keeps IPs only.
+    GEOIP_URL: z
+      .string()
+      .refine(
+        (value) => value === "" || /^https:\/\/[^\s]*\{ip\}/.test(value),
+        "Expected an https URL containing {ip}",
+      )
+      .default("https://ipwho.is/{ip}?lang=ru"),
+
     // Online payments: encrypts specialists' ЮKassa / Т-Банк keys at rest.
     // Any long random string (openssl rand -base64 32). Unset: specialists
     // can't connect a payment provider. Changing it orphans stored keys.
@@ -213,6 +225,7 @@ export const env = createEnv({
     AUTH_COOKIE_PREFIX: process.env.AUTH_COOKIE_PREFIX,
     DEMO_LOGIN_EMAIL: process.env.DEMO_LOGIN_EMAIL,
     AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
+    GEOIP_URL: process.env.GEOIP_URL,
     PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
     TOCHKA_API_TOKEN: process.env.TOCHKA_API_TOKEN,
     TOCHKA_CUSTOMER_CODE: process.env.TOCHKA_CUSTOMER_CODE,

@@ -6,7 +6,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin, emailOTP, oAuthProxy } from "better-auth/plugins";
 
 import { demoLogin } from "./demo-login";
+import { type GeoLookup, lookupGeo } from "./geo";
 import { ADMIN_ROLE, hasAdminRole, isAdminEmail } from "./roles";
+import { recordSignIn } from "./sign-in-log";
 
 export function initAuth<
   TExtraPlugins extends BetterAuthPlugin[] = [],
@@ -52,6 +54,8 @@ export function initAuth<
    */
   demoLoginEmail?: string;
   extraPlugins?: TExtraPlugins;
+  /** City by IP for the sign-in history; defaults to the `GEOIP_URL` service. */
+  lookupGeo?: GeoLookup;
   /** Defaults to the app database; tests pass an in-memory PGlite one. */
   database?: Database;
 }) {
@@ -171,6 +175,23 @@ export function initAuth<
       session: {
         create: {
           async after(session, ctx) {
+            // The history of sign-ins (admin site); never throws.
+            await recordSignIn(
+              options.database ?? db,
+              {
+                userId: session.userId,
+                ipAddress: session.ipAddress,
+                userAgent: session.userAgent,
+                impersonatedBy: (session as { impersonatedBy?: string | null })
+                  .impersonatedBy,
+                path: ctx?.path,
+                headers: ctx?.headers ?? ctx?.request?.headers,
+              },
+              {
+                lookupGeo: options.lookupGeo ?? lookupGeo,
+                runInBackground: options.runInBackground,
+              },
+            );
             if (!ctx) return;
             const adapter = ctx.context.internalAdapter;
             const user = await adapter.findUserById(session.userId);

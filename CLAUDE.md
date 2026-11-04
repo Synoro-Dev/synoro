@@ -238,6 +238,14 @@ and run `tsc` by hand, build them first.
   `paid_month` (once per payment, claim in `sent_notices`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
   goal in Metrika; the landing needs the repo variable
   `NEXT_PUBLIC_YANDEX_METRIKA_ID` (same counter as the app's `COUNTER_ID`).
+- **Sign-in history** (`docs/sign-in-history.md`): one `sign_ins` row per
+  session Better Auth opens, written by the `session.create.after` hook
+  (`recordSignIn` in `@synoro/auth`): IP, device, city by IP (`GEOIP_URL`, an
+  external service — visitors' IPs go to it; `lookupGeo`, private IPs never
+  sent) and the source from the landing's cookies `ad_yclid` / `ad_visit`
+  (`readVisitSource`; the writer is `AdClick` in `apps/web` — keep them in
+  sync). Admins read it via `admin.signIns.list` at `/sign-ins` and on the
+  user's card.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes
