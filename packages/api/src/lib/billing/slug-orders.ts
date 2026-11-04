@@ -7,6 +7,7 @@ import {
   gt,
   type PaymentStatus,
   SlugOrder,
+  sql,
 } from "@synoro/db";
 import { PREMIUM_SLUG_PRICE } from "@synoro/validators";
 
@@ -61,15 +62,12 @@ async function settleSlugOrder(
         .where(and(eq(SlugOrder.id, orderId), eq(SlugOrder.status, "pending")))
         .returning();
       if (!paid) return;
-      const holder = await findPracticeIdBySlug(tx, paid.slug);
-      if (holder && holder !== paid.practiceId) {
+      if (!(await moveToSlug(tx, paid.practiceId, paid.slug))) {
         logger.error("slug_order.name_taken", undefined, {
           orderId,
           slug: paid.slug,
         });
-        return;
       }
-      await moveToSlug(tx, paid.practiceId, paid.slug);
     });
   }
   const order = await db.query.SlugOrder.findFirst({
@@ -161,33 +159,40 @@ export async function startSlugOrder(
     return { result: "taken" as const };
   }
 
-  const [opened] = await db
-    .select({ orders: count() })
-    .from(SlugOrder)
-    .where(
-      and(
-        eq(SlugOrder.userId, input.user.id),
-        eq(SlugOrder.status, "pending"),
-        gt(SlugOrder.holdUntil, new Date()),
-      ),
+  const opening = await db.transaction(async (tx) => {
+    // Counting and inserting must not interleave with another tab of the user.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`slug-orders:${input.user.id}`}))`,
     );
-  if ((opened?.orders ?? 0) >= MAX_OPEN_ORDERS) {
-    return { result: "too_many" as const };
-  }
+    const [opened] = await tx
+      .select({ orders: count() })
+      .from(SlugOrder)
+      .where(
+        and(
+          eq(SlugOrder.userId, input.user.id),
+          eq(SlugOrder.status, "pending"),
+          gt(SlugOrder.holdUntil, new Date()),
+        ),
+      );
+    if ((opened?.orders ?? 0) >= MAX_OPEN_ORDERS) return "too_many" as const;
 
-  const [order] = await db
-    .insert(SlugOrder)
-    .values({
-      userId: input.user.id,
-      practiceId: input.practiceId,
-      slug: input.slug,
-      amount: PREMIUM_SLUG_PRICE,
-      holdUntil: new Date(Date.now() + HOLD_MS),
-    })
-    .onConflictDoNothing()
-    .returning();
+    const [inserted] = await tx
+      .insert(SlugOrder)
+      .values({
+        userId: input.user.id,
+        practiceId: input.practiceId,
+        slug: input.slug,
+        amount: PREMIUM_SLUG_PRICE,
+        holdUntil: new Date(Date.now() + HOLD_MS),
+      })
+      .onConflictDoNothing()
+      .returning();
+    return inserted;
+  });
+  if (opening === "too_many") return { result: "too_many" as const };
   // Someone else opened an order for this name a moment ago.
-  if (!order) return { result: "taken" as const };
+  if (!opening) return { result: "taken" as const };
+  const order = opening;
 
   if (isDemoBilling()) {
     await db

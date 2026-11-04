@@ -1,5 +1,4 @@
 import { logger } from "@synoro/config";
-import { isUniqueViolation } from "@synoro/db";
 import { isPremiumSlug, practiceSlugFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
@@ -53,13 +52,8 @@ export const setSlug = practiceProcedure
     }
 
     if (holder || !isPremiumSlug(input.slug)) {
-      try {
-        await moveToSlug(db, owner.practiceId, input.slug);
-      } catch (error) {
-        if (isUniqueViolation(error, "practices_slug_unique")) {
-          throw errors.CONFLICT({ data: { field: "slug" }, cause: error });
-        }
-        throw error;
+      if (!(await moveToSlug(db, owner.practiceId, input.slug))) {
+        throw errors.CONFLICT({ data: { field: "slug" } });
       }
       return {
         status: "changed" as const,

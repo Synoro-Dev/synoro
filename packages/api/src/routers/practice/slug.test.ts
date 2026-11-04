@@ -16,6 +16,7 @@ import { PREMIUM_SLUG_PRICE } from "@synoro/validators";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { handleBillingWebhook } from "../../lib/billing";
+import { moveToSlug } from "../../lib/practice-slugs";
 import { practiceRouter } from ".";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
@@ -290,6 +291,62 @@ describe("practice.setSlug", () => {
     await expect(setSlug(session, practice.id, "cap4")).rejects.toMatchObject({
       code: "TOO_MANY_ORDERS",
     });
+  });
+
+  it("keeps the cap when one user orders names in parallel", async () => {
+    const { session, practice } = await owner();
+    const results = await Promise.allSettled(
+      ["par1", "par2", "par3", "par4", "par5", "par6"].map((slug) =>
+        setSlug(session, practice.id, slug),
+      ),
+    );
+    const held = await api.db.query.SlugOrder.findMany({
+      where: eq(SlugOrder.userId, session.user.id),
+    });
+    expect(held).toHaveLength(3);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(3);
+  });
+
+  it("won't move a practice onto an address another one holds", async () => {
+    const first = await owner("held-now");
+    const second = await owner();
+    await setSlug(first.session, first.practice.id, "held-later");
+
+    // What a request that checked before the name was taken would do next.
+    for (const slug of ["held-now", "held-later"]) {
+      expect(await moveToSlug(api.db, second.practice.id, slug)).toBe(false);
+    }
+    expect(await slugOf(second.practice.id)).toBe(second.practice.slug);
+  });
+
+  it("creates one practice when two ask for a free address at once", async () => {
+    const [a, b] = await Promise.all([
+      createSession(api.db, { email: "race-a@test.local" }),
+      createSession(api.db, { email: "race-b@test.local" }),
+    ]);
+    const results = await Promise.allSettled(
+      [a, b].map((session) =>
+        call(
+          practiceRouter.create,
+          { name: "Гонка", slug: "same-address", profession: "other" },
+          { context: api.context(session) },
+        ),
+      ),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const lost = results.find((r) => r.status === "rejected");
+    expect(lost).toMatchObject({ reason: { code: "CONFLICT" } });
+  });
+
+  it("lists the addresses a practice can return to for free", async () => {
+    const { session, practice } = await owner();
+    await setSlug(session, practice.id, "listed-address");
+    const found = await call(
+      practiceRouter.get,
+      { practiceId: practice.id },
+      { context: api.context(session) },
+    );
+    expect(found.formerSlugs).toEqual([practice.slug]);
   });
 
   it("never gives a former address to someone else", async () => {

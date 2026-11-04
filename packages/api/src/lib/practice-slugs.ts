@@ -4,6 +4,7 @@ import {
   eq,
   Practice,
   PracticeSlugAlias,
+  sql,
 } from "@synoro/db";
 
 /** The practice a public address leads to: its current one or a former one. */
@@ -21,21 +22,41 @@ export async function findPracticeIdBySlug(db: Database, slug: string) {
 }
 
 /**
- * Give the practice a new address. The old one stays as an alias, so links
- * clients already have keep working and nobody else can take the name.
+ * Hold these addresses until the transaction ends. Whoever checks that a name
+ * is free and then writes it holds this lock from the check to the commit: the
+ * unique index covers `practices.slug` only, not the aliases. Sorted, so two
+ * moves never wait for each other.
+ */
+export async function lockSlugs(tx: Database, slugs: string[]) {
+  for (const slug of [...slugs].sort()) {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`practice-slug:${slug}`}))`,
+    );
+  }
+}
+
+/**
+ * Give the practice a new address, unless another practice holds it (now or
+ * formerly): false then. The old address stays as an alias, so links clients
+ * already have keep working and nobody else can take the name.
  */
 export async function moveToSlug(
   db: Database,
   practiceId: string,
   slug: string,
 ) {
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     const [practice] = await tx
       .select({ slug: Practice.slug })
       .from(Practice)
       .where(eq(Practice.id, practiceId))
       .for("update");
-    if (!practice || practice.slug === slug) return;
+    if (!practice) return false;
+    if (practice.slug === slug) return true;
+
+    await lockSlugs(tx, [practice.slug, slug]);
+    const holder = await findPracticeIdBySlug(tx, slug);
+    if (holder && holder !== practiceId) return false;
 
     await tx
       .delete(PracticeSlugAlias)
@@ -50,5 +71,6 @@ export async function moveToSlug(
       .insert(PracticeSlugAlias)
       .values({ slug: practice.slug, practiceId })
       .onConflictDoNothing();
+    return true;
   });
 }

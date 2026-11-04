@@ -184,10 +184,12 @@ function OrderReturn() {
 function AddressForm({
   practiceId,
   slug,
+  formerSlugs,
   host,
 }: {
   practiceId: string;
   slug: string;
+  formerSlugs: string[];
   host: string;
 }) {
   const router = useRouter();
@@ -202,7 +204,11 @@ function AddressForm({
     useWatch({ control: form.control, name: "slug" }),
   );
   const unchanged = typed.success && typed.data === slug;
-  const premium = typed.success && !unchanged && isPremiumSlug(typed.data);
+  const premium =
+    typed.success &&
+    !unchanged &&
+    isPremiumSlug(typed.data) &&
+    !formerSlugs.includes(typed.data);
 
   const save = useMutation({
     ...orpc.practice.setSlug.mutationOptions(),
@@ -276,10 +282,12 @@ function AddressForm({
 export function PracticeAddress({
   practiceId,
   slug,
+  formerSlugs,
   bookingUrl,
 }: {
   practiceId: string;
   slug: string;
+  formerSlugs: string[];
   bookingUrl: string;
 }) {
   return (
@@ -298,6 +306,7 @@ export function PracticeAddress({
         key={slug}
         practiceId={practiceId}
         slug={slug}
+        formerSlugs={formerSlugs}
         host={new URL(bookingUrl).host}
       />
     </FramePanel>

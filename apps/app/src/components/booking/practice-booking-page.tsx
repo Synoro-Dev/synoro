@@ -51,6 +51,7 @@ export function PracticeBookingPage({
     id: string;
     name: string;
     slug: string;
+    formerSlugs: string[];
     imageUrl: string | null;
     bookingUrl: string;
     videoUrl: string | null;
@@ -159,6 +160,7 @@ export function PracticeBookingPage({
             <PracticeAddress
               practiceId={practice.id}
               slug={practice.slug}
+              formerSlugs={practice.formerSlugs}
               bookingUrl={publicUrl}
             />
           </Frame>

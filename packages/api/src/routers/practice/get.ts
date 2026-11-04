@@ -1,3 +1,4 @@
+import { eq, PracticeSlugAlias } from "@synoro/db";
 import { z } from "zod";
 import {
   findMembership,
@@ -24,6 +25,11 @@ export const get = practiceProcedure
       member && (await findPractice(context.db, member.practiceId));
     if (!member || !practice) throw errors.FORBIDDEN();
 
+    const formerSlugs = await context.db.query.PracticeSlugAlias.findMany({
+      where: eq(PracticeSlugAlias.practiceId, practice.id),
+      columns: { slug: true },
+    });
+
     // The questionnaire and the page's look are settings of their own
     // (`question.list`, `practice.theme`); clients get what they're shown
     // from `practice.bySlug`.
@@ -41,6 +47,8 @@ export const get = practiceProcedure
       imageUrl: practiceImageUrl(practice.slug, image),
       /** The main address of the booking page, for sharing. */
       bookingUrl: publicBookingUrl(practice.slug),
+      /** Addresses it had before: the owner goes back to them for free. */
+      formerSlugs: formerSlugs.map((former) => former.slug),
       membership: { id: member.id, role: member.role, credits: member.credits },
     };
   });

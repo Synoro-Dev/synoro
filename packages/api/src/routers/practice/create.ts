@@ -9,7 +9,7 @@ import {
   startSlugOrder,
 } from "../../lib/billing/slug-orders";
 import { ProviderError } from "../../lib/payments";
-import { findPracticeIdBySlug } from "../../lib/practice-slugs";
+import { findPracticeIdBySlug, lockSlugs } from "../../lib/practice-slugs";
 import { protectedProcedure } from "../../orpc";
 
 /**
@@ -43,26 +43,30 @@ export const create = protectedProcedure
     const premium = isPremiumSlug(input.slug);
 
     if (premium && !billingAvailable()) throw errors.PREMIUM_UNAVAILABLE();
-    if (
-      (await findPracticeIdBySlug(context.db, input.slug)) ||
-      (premium && (await findOpenSlugOrder(context.db, input.slug)))
-    ) {
+    if (premium && (await findOpenSlugOrder(context.db, input.slug))) {
       throw errors.CONFLICT({ data: { field: "slug" } });
     }
 
     let practice: typeof Practice.$inferSelect | undefined;
     try {
-      [practice] = await context.db
-        .insert(Practice)
-        .values({
-          name: input.name,
-          slug: premium
-            ? `${input.slug}-${crypto.randomUUID().slice(0, 6)}`
-            : input.slug,
-          profession: input.profession,
-          ownerId,
-        })
-        .returning();
+      practice = await context.db.transaction(async (tx) => {
+        await lockSlugs(tx, [input.slug]);
+        if (await findPracticeIdBySlug(tx, input.slug)) {
+          throw errors.CONFLICT({ data: { field: "slug" } });
+        }
+        const [inserted] = await tx
+          .insert(Practice)
+          .values({
+            name: input.name,
+            slug: premium
+              ? `${input.slug}-${crypto.randomUUID().slice(0, 6)}`
+              : input.slug,
+            profession: input.profession,
+            ownerId,
+          })
+          .returning();
+        return inserted;
+      });
     } catch (error) {
       if (isUniqueViolation(error, "practices_slug_unique")) {
         throw errors.CONFLICT({ data: { field: "slug" }, cause: error });
