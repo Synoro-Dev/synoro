@@ -293,6 +293,35 @@ describe("practice.setSlug", () => {
     });
   });
 
+  it("counts orders past their hold until the bank closes them", async () => {
+    const { session, practice } = await owner();
+    const orders = [];
+    for (const slug of ["old1", "old2", "old3"]) {
+      const result = await setSlug(session, practice.id, slug);
+      if (result.status !== "payment") throw new Error("Expected a payment");
+      orders.push(result.orderId);
+    }
+    await api.db
+      .update(SlugOrder)
+      .set({ holdUntil: new Date(Date.now() - 1000) })
+      .where(eq(SlugOrder.userId, session.user.id));
+
+    // The bank hasn't closed them: they still hold their names.
+    await expect(setSlug(session, practice.id, "old4")).rejects.toMatchObject({
+      code: "TOO_MANY_ORDERS",
+    });
+
+    // Abandoned links ran out: nothing keeps the user from ordering again.
+    for (const orderId of orders) {
+      operations.set(await operationOf(orderId), {
+        status: "EXPIRED",
+        amount: PREMIUM_SLUG_PRICE / 100,
+      });
+    }
+    const next = await setSlug(session, practice.id, "old4");
+    expect(next.status).toBe("payment");
+  });
+
   it("keeps the cap when one user orders names in parallel", async () => {
     const { session, practice } = await owner();
     const results = await Promise.allSettled(

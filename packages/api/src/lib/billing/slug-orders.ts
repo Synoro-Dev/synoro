@@ -4,7 +4,7 @@ import {
   count,
   type Database,
   eq,
-  gt,
+  lte,
   type PaymentStatus,
   SlugOrder,
   sql,
@@ -12,7 +12,7 @@ import {
 import { PREMIUM_SLUG_PRICE } from "@synoro/validators";
 
 import { ProviderError } from "../payments/types";
-import { findPracticeIdBySlug, moveToSlug } from "../practice-slugs";
+import { findPracticeIdBySlug, lockSlugs, moveToSlug } from "../practice-slugs";
 import {
   createTochkaPayment,
   fetchTochkaPayment,
@@ -154,16 +154,26 @@ export async function startSlugOrder(
         }
       : { result: "taken" as const };
   }
-  // Checking an old order above may have just sold the name.
-  if (await findPracticeIdBySlug(db, input.slug)) {
-    return { result: "taken" as const };
-  }
+  // Orders past their hold still hold their names until the bank says so, and
+  // count below: ask now, or abandoned ones would block the user for good.
+  const stale = await db.query.SlugOrder.findMany({
+    where: and(
+      eq(SlugOrder.userId, input.user.id),
+      eq(SlugOrder.status, "pending"),
+      lte(SlugOrder.holdUntil, new Date()),
+    ),
+  });
+  for (const order of stale) await syncSlugOrder(db, order);
 
   const opening = await db.transaction(async (tx) => {
     // Counting and inserting must not interleave with another tab of the user.
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtext(${`slug-orders:${input.user.id}`}))`,
     );
+    // Settling holds this lock too: a name sold by now is seen here.
+    await lockSlugs(tx, [input.slug]);
+    if (await findPracticeIdBySlug(tx, input.slug)) return "taken" as const;
+
     const [opened] = await tx
       .select({ orders: count() })
       .from(SlugOrder)
@@ -171,7 +181,6 @@ export async function startSlugOrder(
         and(
           eq(SlugOrder.userId, input.user.id),
           eq(SlugOrder.status, "pending"),
-          gt(SlugOrder.holdUntil, new Date()),
         ),
       );
     if ((opened?.orders ?? 0) >= MAX_OPEN_ORDERS) return "too_many" as const;
@@ -190,8 +199,8 @@ export async function startSlugOrder(
     return inserted;
   });
   if (opening === "too_many") return { result: "too_many" as const };
-  // Someone else opened an order for this name a moment ago.
-  if (!opening) return { result: "taken" as const };
+  // Sold, or someone else opened an order for this name a moment ago.
+  if (opening === "taken" || !opening) return { result: "taken" as const };
   const order = opening;
 
   if (isDemoBilling()) {
