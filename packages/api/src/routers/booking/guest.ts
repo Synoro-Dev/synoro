@@ -35,6 +35,7 @@ function findByToken(db: Database, token: string) {
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
       practiceVideoUrl: Practice.videoUrl,
+      practiceContact: Practice.clientContact,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
       clientTimezone: Booking.clientTimezone,
@@ -129,6 +130,8 @@ export const guest = publicProcedure
         state === "confirmed"
           ? (found.meetingUrl ?? found.practiceVideoUrl)
           : null,
+      /** How to reach the specialist, only once the booking is confirmed. */
+      contact: state === "confirmed" ? found.practiceContact : null,
       balance: found.credits,
       name: found.clientName,
       email: maskEmail(found.clientEmail),

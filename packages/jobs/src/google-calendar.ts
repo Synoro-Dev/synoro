@@ -24,6 +24,7 @@ export {
   GoogleError,
   insertEvent,
   listCalendars,
+  moveEvent,
   revokeToken,
 } from "./google";
 

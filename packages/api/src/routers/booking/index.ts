@@ -9,6 +9,7 @@ import { cancelSeries } from "./cancel-series";
 import { cancelGuest, guest } from "./guest";
 import { markNoShow } from "./mark-no-show";
 import { mine } from "./mine";
+import { reschedule } from "./reschedule";
 import { reserve } from "./reserve";
 import { seriesPreview } from "./series-preview";
 import { setMeetingUrl } from "./set-meeting-url";
@@ -28,6 +29,7 @@ export const bookingRouter = {
   bookFree,
   block,
   cancel,
+  reschedule,
   markNoShow,
   calendar,
   windows,

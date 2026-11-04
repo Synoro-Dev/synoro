@@ -30,6 +30,7 @@ export const get = practiceProcedure
     const {
       image,
       videoUrl,
+      clientContact,
       bookingQuestions: _questions,
       bookingTheme: _theme,
       ...info
@@ -38,6 +39,8 @@ export const get = practiceProcedure
       ...info,
       /** The permanent video room: staff only, clients get it per booking. */
       videoUrl: isStaff(member.role) ? videoUrl : null,
+      /** Likewise: anyone can join, a client gets it with a confirmed booking. */
+      clientContact: isStaff(member.role) ? clientContact : null,
       imageUrl: practiceImageUrl(practice.slug, image),
       /** The main address of the booking page, for sharing. */
       bookingUrl: publicBookingUrl(practice.slug),

@@ -15,6 +15,7 @@ import {
   GoogleError,
   googleCalendarAvailable,
   insertEvent,
+  moveEvent,
   removeBookingEvent,
   revokeToken,
   withGoogle,
@@ -251,6 +252,35 @@ export async function exportBooking(db: Database, bookingId: string) {
         googleEventId: eventId,
       });
     }
+  } catch {
+    // Recorded by withGoogle.
+  }
+}
+
+/**
+ * After a booking moved: take its Google Calendar event along, or add one if
+ * it never got there. Best effort, like `exportBooking`.
+ */
+export async function moveBookingEvent(db: Database, booking: BookingRow) {
+  const { googleCalendarId, googleEventId } = booking;
+  if (!googleCalendarId || !googleEventId) {
+    await exportBooking(db, booking.id);
+    return;
+  }
+  if (!googleCalendarAvailable()) return;
+  try {
+    const [connection, practice] = await Promise.all([
+      findConnection(db, booking.practiceId),
+      findPractice(db, booking.practiceId),
+    ]);
+    if (!connection || !practice) return;
+    await withGoogle(db, connection, (token) =>
+      moveEvent(token, googleCalendarId, googleEventId, {
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        timeZone: practice.timezone,
+      }),
+    );
   } catch {
     // Recorded by withGoogle.
   }

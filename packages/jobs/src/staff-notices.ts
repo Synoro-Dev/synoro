@@ -18,7 +18,7 @@ import { describeDates } from "./when";
 
 /**
  * Telling the specialist and the administrators of a practice that a booking
- * was made or cancelled, unless the practice turned it off
+ * was made, moved or cancelled, unless the practice turned it off
  * (`practices.notify_staff`). The one who did it is not told. Event-driven: the
  * callers act once per booking (a conditional insert or update), so nothing
  * here needs deduplicating. Best effort — a mail failure is logged and never
@@ -29,13 +29,19 @@ const client = alias(user, "client");
 
 /**
  * Mail the staff about `bookingId`. A series passes the dates of all its
- * bookings in `dates` (the booking is one of them) and gets one mail.
+ * bookings in `dates` (the booking is one of them) and gets one mail. A move
+ * passes the old time in `from` and who moved it in `actorId`.
  */
 export async function notifyStaff(
   db: Database,
   bookingId: string,
   notice: StaffBookingNotice,
-  options: { refunded?: boolean; dates?: Date[] } = {},
+  options: {
+    refunded?: boolean;
+    dates?: Date[];
+    from?: Date;
+    actorId?: string;
+  } = {},
   deliver: Deliver = noticeSender(db),
 ) {
   try {
@@ -64,10 +70,12 @@ export async function notifyStaff(
       .where(eq(Booking.id, bookingId));
     // An unpaid hold is not a booking yet, and its lapse is nobody's news.
     if (!row || row.kind === "blocked" || row.holdUntil !== null) return;
-    if (notice === "booked" && row.status !== "active") return;
+    if (notice !== "cancelled" && row.status !== "active") return;
     if (!row.notifyStaff) return;
 
-    const actorId = notice === "booked" ? row.createdById : row.cancelledById;
+    const actorId =
+      options.actorId ??
+      (notice === "booked" ? row.createdById : row.cancelledById);
     const staff = await db
       .select({ userId: user.id, email: user.email })
       .from(PracticeMember)
@@ -90,10 +98,12 @@ export async function notifyStaff(
       paths.booking.calendar(row.practiceId),
       env.APP_URL,
     ).href;
-    const subject =
-      notice === "booked"
-        ? `Новая запись: ${clientName}, ${when}`
-        : `Запись отменена: ${clientName}, ${when}`;
+    const titles = {
+      booked: "Новая запись",
+      moved: "Запись перенесена",
+      cancelled: "Запись отменена",
+    };
+    const subject = `${titles[notice]}: ${clientName}, ${when}`;
 
     await Promise.all(
       staff.map(async ({ userId, email }) => {
@@ -117,6 +127,9 @@ export async function notifyStaff(
                       ? "staff"
                       : null,
                 refunded: options.refunded ?? false,
+                movedFrom: options.from
+                  ? describeDates([options.from], row.timezone).when
+                  : null,
                 calendarUrl,
                 dates,
               },

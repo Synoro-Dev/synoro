@@ -45,6 +45,7 @@ const google = {
   busy: [] as { start: string; end: string }[],
   down: false,
   events: new Map<string, { calendarId: string; summary: string }>(),
+  moved: [] as { id: string; start: { dateTime: string } }[],
   calls: [] as string[],
   intercept: undefined as
     | ((url: URL, init?: RequestInit) => Promise<Response | undefined>)
@@ -53,6 +54,7 @@ const google = {
   reset() {
     this.busy = [];
     this.down = false;
+    this.moved = [];
     this.calls = [];
     this.intercept = undefined;
     this.afterInsert = undefined;
@@ -131,6 +133,13 @@ async function fakeGoogle(input: RequestInfo | URL, init?: RequestInit) {
   if (event?.[2] && method === "DELETE") {
     const existed = google.events.delete(event[2]);
     return new Response(null, { status: existed ? 204 : 410 });
+  }
+  if (event?.[2] && method === "PATCH") {
+    google.moved.push({
+      id: event[2],
+      ...(JSON.parse(init?.body as string) as { start: { dateTime: string } }),
+    });
+    return json({ id: event[2] });
   }
   return json({ error: { message: "Not found" } }, 404);
 }
@@ -348,6 +357,35 @@ describe("bookings in Google", () => {
       googleCalendarId: "primary",
       googleEventId: eventId,
     });
+
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(client) },
+    );
+    expect(google.events.has(eventId)).toBe(false);
+  });
+
+  it("takes the event along when a booking moves", async () => {
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("08:00") },
+      { context: api.context(client) },
+    );
+    await call(
+      bookingRouter.reschedule,
+      { bookingId: booking.id, startsAt: at("09:00") },
+      { context: api.context(client) },
+    );
+    const eventId = booking.id.replaceAll("-", "");
+    expect(google.moved).toEqual([
+      expect.objectContaining({
+        id: eventId,
+        start: expect.objectContaining({
+          dateTime: at("09:00").toISOString(),
+        }),
+      }),
+    ]);
 
     await call(
       bookingRouter.cancel,

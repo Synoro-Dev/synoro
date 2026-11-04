@@ -318,6 +318,31 @@ export async function insertEvent(
   );
 }
 
+/** Give the event a new time; one deleted in the calendar stays deleted. */
+export async function moveEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+  time: Pick<GoogleEvent, "startsAt" | "endsAt" | "timeZone">,
+) {
+  await api(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=none`,
+    {
+      what: "Google events.patch",
+      method: "PATCH",
+      allow: [404, 410],
+      body: JSON.stringify({
+        start: {
+          dateTime: time.startsAt.toISOString(),
+          timeZone: time.timeZone,
+        },
+        end: { dateTime: time.endsAt.toISOString(), timeZone: time.timeZone },
+      }),
+    },
+  );
+}
+
 /** Delete the event; one already gone counts as deleted. */
 export async function deleteEvent(
   accessToken: string,

@@ -225,6 +225,11 @@ and run `tsc` by hand, build them first.
   mail (`booking-notice`) via `@synoro/jobs/booking-video`; reminders are the
   `booking-reminders` Hatchet workflow. Never expose the link in public
   procedures (`slots`, `bySlug`).
+- **Moving a booking** (`docs/guest-booking.md`): `booking.reschedule`, one
+  `UPDATE` under `bookings_no_overlap`, balance untouched; a client up to 24 h
+  before (`checkCancel`), staff any time. `practices.client_contact` reaches
+  clients only on confirmed bookings (`booking.mine` / `guest`), never in public
+  procedures.
 - **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
   cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
   in `apps/app` and `apps/web`, events via the `/ingest` rewrite in

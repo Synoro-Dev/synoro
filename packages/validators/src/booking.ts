@@ -237,6 +237,16 @@ export const freeBookingFormSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+/**
+ * How clients reach the specialist (`practices.client_contact`): a phone,
+ * Telegram, anything — free text, shown as is. Empty means none (null).
+ */
+export const practiceContactSchema = z
+  .string()
+  .trim()
+  .max(200, "Контакт не должен быть длиннее 200 символов")
+  .transform((value) => value || null);
+
 export type FreeBookingFormInput = z.input<typeof freeBookingFormSchema>;
 export type FreeBookingFormValues = z.infer<typeof freeBookingFormSchema>;
 

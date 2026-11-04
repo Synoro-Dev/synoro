@@ -33,15 +33,16 @@ import {
   BookingThemePreview,
   PracticeBookingTheme,
 } from "./practice-booking-theme";
+import { PracticeContact } from "./practice-contact";
 import { PracticeFreeBooking } from "./practice-free-booking";
 import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
  * Where the practice's public page is edited: photo, link, free intro,
- * video room, the questionnaire clients fill in when booking and the page's
- * look, previewed beside the settings. Administrators share the link and
- * design the page; the rest is the owner's.
+ * video room, the contact for clients, the questionnaire clients fill in when
+ * booking and the page's look, previewed beside the settings. Administrators
+ * share the link and design the page; the rest is the owner's.
  */
 export function PracticeBookingPage({
   practice,
@@ -52,6 +53,7 @@ export function PracticeBookingPage({
     imageUrl: string | null;
     bookingUrl: string;
     videoUrl: string | null;
+    clientContact: string | null;
     freeBookingEnabled: boolean;
     introMinutes: number;
     membership: { role: string };
@@ -176,6 +178,15 @@ export function PracticeBookingPage({
             <PracticeVideoLink
               practiceId={practice.id}
               videoUrl={practice.videoUrl}
+            />
+          </Frame>
+        )}
+
+        {isOwner && (
+          <Frame spacing="default" className="min-w-0">
+            <PracticeContact
+              practiceId={practice.id}
+              contact={practice.clientContact}
             />
           </Frame>
         )}

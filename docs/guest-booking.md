@@ -56,6 +56,32 @@ already exists, so their bookings and balance are there. Booking while signed
 in needs a phone on the profile (`PHONE_REQUIRED`; the booking page and the
 cabinet ask for it).
 
+## Moving a booking
+
+`booking.reschedule` moves a confirmed booking (`consultation` or `free`) to
+another time: same id, link, video room and length, the balance and its journal
+untouched. One `UPDATE` does it and `bookings_no_overlap` decides races, so a
+taken time (`SLOT_UNAVAILABLE`) leaves the booking where it was. The rules are
+those of cancelling (`checkCancel`, `clientMayCancel`): a client up to 24 h
+before the start (a free intro until it starts), later `TOO_LATE`; staff at any
+time. Of a series only that booking moves. Closed time and unpaid holds don't
+move, and there is no moving by the `/b/<token>` link: a visitor signs in.
+
+After the move the reminders start over, the Google Calendar event gets the new
+time (`moveBookingEvent`), and the client and staff are told (`booking-notice`
+and `staff-booking` with `notice: moved`), but not the one who moved it. A guest
+booked by phone has no account: staff tell them themselves. The dialogs pick the
+time from `booking.slots` (`components/booking/slot-picker.tsx`).
+
+## Contact for clients
+
+`practices.client_contact` is free text (a phone, Telegram…) the owner sets on
+the booking page's settings (`practice.setContact`). Clients see it on a
+**confirmed** booking only (`booking.mine.contact`, `booking.guest.contact`):
+in the cabinet's dialog when it is too late to change a booking themselves, and
+on `/b/<token>`. Never in public procedures (`slots`, `bySlug`), and not in
+`practice.get` for clients, because anyone can join a practice.
+
 ## Video meetings
 
 The specialist gives clients a video link (Толк, Телемост, Google Meet, Zoom —
