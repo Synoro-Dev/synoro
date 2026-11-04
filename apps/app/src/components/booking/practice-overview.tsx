@@ -2,30 +2,32 @@
 
 import { paths } from "@synoro/config";
 import type { MemberRole } from "@synoro/db";
-import { Button, Input, Skeleton, toast } from "@synoro/ui";
-import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
+import { Button, cn, Input, Progress, Skeleton, toast } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import {
   Frame,
   FrameDescription,
-  FrameFooter,
   FrameHeader,
   FramePanel,
   FrameTitle,
 } from "@synoro/ui/reui/frame";
-import { IconTile } from "@synoro/ui/reui/icon-tile";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowRightIcon,
+  CalendarClockIcon,
   CalendarDaysIcon,
   CalendarPlusIcon,
+  CircleCheckIcon,
+  CircleDashedIcon,
   Clock3Icon,
   CodeIcon,
   CopyIcon,
   ExternalLinkIcon,
-  PanelTopIcon,
-  UsersIcon,
+  LockIcon,
+  VideoIcon,
   WalletIcon,
 } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -34,7 +36,6 @@ import {
   BookingDialog,
   bookingTitle,
   type CalendarBooking,
-  KIND_META,
   kindLabel,
 } from "./booking-dialog";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
@@ -43,71 +44,40 @@ import { useTerms } from "./terms";
 import { dateKey, formatTime } from "./time";
 
 const WEEK = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function Kpi({
-  label,
-  value,
-  hint,
-  loading,
-}: {
-  label: string;
-  value: number | string;
-  hint: string;
-  loading: boolean;
-}) {
-  return (
-    <FramePanel className="flex flex-col gap-1">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      {loading ? (
-        <Skeleton className="h-8 w-16" />
-      ) : (
-        <span className="text-2xl font-semibold tracking-tight tabular-nums">
-          {value}
-        </span>
-      )}
-      <span className="text-xs text-muted-foreground">{hint}</span>
-    </FramePanel>
-  );
+/** The next half hour from now: where a new entry starts by default. */
+function nextHalfHour() {
+  const at = new Date();
+  at.setSeconds(0, 0);
+  at.setMinutes(at.getMinutes() < 30 ? 30 : 60);
+  return at;
 }
 
-function DateChip({ at }: { at: Date }) {
-  return (
-    <div className="flex w-11 shrink-0 flex-col items-center rounded-md border py-1 leading-none">
-      <span className="text-[0.625rem] font-medium text-muted-foreground uppercase">
-        {at.toLocaleDateString("ru-RU", { weekday: "short" })}
-      </span>
-      <span className="text-base font-semibold tabular-nums">
-        {at.getDate()}
-      </span>
-    </div>
-  );
+interface PracticeSummary {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  bookingUrl: string;
+  timezone: string;
+  videoUrl: string | null;
+  membership: { role: MemberRole };
 }
 
-export function PracticeOverview({
-  practice,
-}: {
-  practice: {
-    id: string;
-    name: string;
-    imageUrl: string | null;
-    bookingUrl: string;
-    timezone: string;
-    videoUrl: string | null;
-    membership: { role: MemberRole };
-  };
-}) {
+/**
+ * «Сегодня»: what the day holds, what needs a hand, and the two things one
+ * does from here — book a client, close time. Until the practice is set up,
+ * its owner also sees what is left to do.
+ */
+export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
   const terms = useTerms();
+  const owner = practice.membership.role === "owner";
   const from = dateKey(new Date(), practice.timezone);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
   const calendar = useQuery(
     orpc.booking.calendar.queryOptions({
-      input: { practiceId: practice.id, from, days: WEEK },
-    }),
-  );
-  const slots = useQuery(
-    orpc.booking.slots.queryOptions({
       input: { practiceId: practice.id, from, days: WEEK },
     }),
   );
@@ -118,106 +88,81 @@ export function PracticeOverview({
     orpc.availability.list.queryOptions({ input: { practiceId: practice.id } }),
   );
 
-  const now = Date.now();
-  const appointments = (calendar.data ?? []).filter(
-    (b) => b.kind !== "blocked",
+  const now = new Date();
+  const todayKey = dateKey(now);
+  const tomorrowKey = dateKey(new Date(now.getTime() + DAY_MS));
+  const entries = calendar.data ?? [];
+  const today = entries.filter((b) => dateKey(b.startsAt) === todayKey);
+  const tomorrow = entries.filter(
+    (b) => b.kind !== "blocked" && dateKey(b.startsAt) === tomorrowKey,
   );
-  const upcoming = (calendar.data ?? [])
-    .filter((b) => b.endsAt.getTime() > now)
-    .slice(0, 8);
-  const today = appointments.filter(
-    (b) => dateKey(b.startsAt) === dateKey(new Date()),
+  const meetingsToday = today.filter((b) => b.kind !== "blocked").length;
+  const credits = new Map(
+    (members.data ?? []).map((m) => [m.id, m.credits] as const),
   );
-  const clients = (members.data ?? []).filter((m) => m.role === "client");
-  const prepaid = clients.reduce((sum, m) => sum + m.credits, 0);
-  const publicUrl = practice.bookingUrl;
 
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(publicUrl);
-      toast.success("Ссылка скопирована");
-    } catch {
-      toast.info(publicUrl);
-    }
-  }
-
-  /** The booking page in an iframe, to paste into the practice's own site. */
-  async function copyEmbed() {
-    const code = `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`;
-    try {
-      await navigator.clipboard.writeText(code);
-      toast.success("Код скопирован — вставьте его на свой сайт");
-    } catch {
-      toast.info(code);
-    }
+  function open(mode: EntryDraft["mode"]) {
+    const start = nextHalfHour();
+    setDraft({
+      mode,
+      start,
+      end: new Date(start.getTime() + 60 * 60_000),
+    });
   }
 
   return (
     <div className="flex flex-col gap-6">
-      {rules.data?.length === 0 && (
-        <Alert variant="warning">
-          <Clock3Icon />
-          <AlertTitle>Рабочие часы не заданы</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center gap-2">
-            <span>Клиенты не увидят свободного времени для записи.</span>
-            <Button
-              size="sm"
-              variant="outline"
-              nativeButton={false}
-              render={<Link href={paths.booking.schedule(practice.id)} />}
-            >
-              Задать расписание
-            </Button>
-          </AlertDescription>
-        </Alert>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight first-letter:uppercase">
+            {now.toLocaleDateString("ru-RU", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {calendar.isPending
+              ? "Загружаем записи…"
+              : meetingsToday === 0
+                ? "Сегодня записей нет"
+                : `Записей сегодня: ${meetingsToday}`}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:flex">
+          <Button variant="outline" onClick={() => open("block")}>
+            <LockIcon />
+            Закрыть время
+          </Button>
+          <Button onClick={() => open("consultation")}>
+            <CalendarPlusIcon />
+            Записать
+          </Button>
+        </div>
+      </div>
+
+      {owner && (
+        <SetupProgress
+          practice={practice}
+          hasHours={(rules.data?.length ?? 0) > 0}
+          hasClients={(members.data ?? []).some((m) => m.role === "client")}
+          loaded={rules.isSuccess && members.isSuccess}
+        />
       )}
 
-      <Frame
-        spacing="default"
-        className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
-      >
-        <Kpi
-          label="Сегодня"
-          value={today.length}
-          hint="записей на сегодня"
-          loading={calendar.isPending}
-        />
-        <Kpi
-          label="Неделя"
-          value={appointments.length}
-          hint="записей за 7 дней"
-          loading={calendar.isPending}
-        />
-        <Kpi
-          label="Свободно"
-          value={slots.data?.slots.length ?? 0}
-          hint="часов для записи за 7 дней"
-          loading={slots.isPending}
-        />
-        <Kpi
-          label="Клиенты"
-          value={clients.length}
-          hint={`оплачено ${terms.credit[2]}: ${prepaid}`}
-          loading={members.isPending}
-        />
-      </Frame>
-
-      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-        <Frame spacing="default" className="min-w-0 lg:col-span-2">
+      <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <Frame spacing="default" className="min-w-0">
           <FramePanel className="flex flex-col gap-3">
             <FrameHeader className="flex-row items-center justify-between p-0">
-              <div className="flex flex-col gap-0.5">
-                <FrameTitle>Ближайшие записи</FrameTitle>
-                <FrameDescription>Следующие 7 дней</FrameDescription>
-              </div>
+              <FrameTitle>Сегодня</FrameTitle>
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 nativeButton={false}
                 render={<Link href={paths.booking.calendar(practice.id)} />}
               >
-                <CalendarDaysIcon />
                 Календарь
+                <ArrowRightIcon />
               </Button>
             </FrameHeader>
 
@@ -226,181 +171,60 @@ export function PracticeOverview({
             ) : calendar.isPending ? (
               <div className="flex flex-col gap-2">
                 {["a", "b", "c"].map((k) => (
-                  <Skeleton key={k} className="h-14 w-full" />
+                  <Skeleton key={k} className="h-16 w-full" />
                 ))}
               </div>
-            ) : upcoming.length === 0 ? (
+            ) : today.length === 0 ? (
               <EmptyState
                 icon={CalendarDaysIcon}
-                title="Записей нет"
-                description="Поделитесь ссылкой — клиенты запишутся сами."
-                action={
-                  <Button size="sm" onClick={copyLink}>
-                    <CopyIcon />
-                    Скопировать ссылку
-                  </Button>
+                title="День свободен"
+                description={
+                  entries.some((b) => b.kind !== "blocked")
+                    ? "Ближайшие записи — в календаре."
+                    : "Отправьте клиентам ссылку на страницу записи — они выберут время сами."
                 }
               />
             ) : (
               <ul className="-mx-2 flex flex-col">
-                {upcoming.map((b) => (
-                  <li key={b.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(b)}
-                      className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted dark:hover:bg-muted/50"
-                    >
-                      <DateChip at={b.startsAt} />
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="truncate text-sm font-medium">
-                          {bookingTitle(b)}
-                        </span>
-                        <span className="text-xs text-muted-foreground tabular-nums">
-                          {formatTime(b.startsAt)}–{formatTime(b.endsAt)}
-                        </span>
-                      </div>
-                      <Badge variant={KIND_META[b.kind].badge}>
-                        {kindLabel(b.kind, terms)}
-                      </Badge>
-                    </button>
-                  </li>
+                {today.map((b) => (
+                  <DayRow
+                    key={b.id}
+                    booking={b}
+                    now={now}
+                    credits={b.memberId ? credits.get(b.memberId) : undefined}
+                    label={kindLabel(b.kind, terms)}
+                    onOpen={() => setSelected(b)}
+                  />
                 ))}
               </ul>
             )}
           </FramePanel>
         </Frame>
 
-        <Frame spacing="default" className="min-w-0">
-          <FramePanel className="flex flex-col gap-4">
-            <FrameHeader className="p-0">
-              <FrameTitle>Страница записи</FrameTitle>
-              <FrameDescription>
-                Записаться можно без регистрации — отправьте ссылку клиентам
-              </FrameDescription>
-            </FrameHeader>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={publicUrl}
-                aria-label="Ссылка для записи"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Скопировать ссылку"
-                onClick={copyLink}
-              >
-                <CopyIcon />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Скопировать код для вставки на сайт"
-                title="Код для вставки на сайт"
-                onClick={copyEmbed}
-              >
-                <CodeIcon />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Открыть страницу записи"
-                nativeButton={false}
-                render={
-                  // biome-ignore lint/a11y/useAnchorContent: Button renders the children.
-                  <a href={publicUrl} target="_blank" rel="noreferrer" />
-                }
-              >
-                <ExternalLinkIcon />
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              nativeButton={false}
-              render={<Link href={paths.booking.page(practice.id)} />}
-            >
-              <PanelTopIcon />
-              {practice.imageUrl
-                ? "Настроить страницу"
-                : "Добавить фото и настроить"}
-            </Button>
-          </FramePanel>
-          <FramePanel className="flex flex-col gap-1">
-            <FrameTitle className="mb-2">Быстрые действия</FrameTitle>
-            {[
-              {
-                icon: CalendarPlusIcon,
-                label: "Новая запись",
-                hint: `${terms.free} для гостя или закрытое время`,
-                onClick: () => {
-                  const start = new Date();
-                  start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0);
-                  setDraft({
-                    mode: "free",
-                    start,
-                    end: new Date(start.getTime() + 30 * 60_000),
-                  });
-                },
-              },
-            ].map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                onClick={action.onClick}
-                className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-muted dark:hover:bg-muted/50"
-              >
-                <IconTile size="sm" aria-hidden="true">
-                  <action.icon />
-                </IconTile>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">{action.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {action.hint}
-                  </span>
-                </div>
-              </button>
-            ))}
-            {[
-              {
-                icon: WalletIcon,
-                label: `Начислить ${terms.credits}`,
-                hint: "Оплата от клиента",
-                href: paths.booking.clients(practice.id),
-              },
-              {
-                icon: Clock3Icon,
-                label: "Рабочие часы",
-                hint: "Дни и время работы",
-                href: paths.booking.schedule(practice.id),
-              },
-              {
-                icon: UsersIcon,
-                label: "Пригласить клиента",
-                hint: "По адресу почты",
-                href: paths.booking.clients(practice.id),
-              },
-            ].map((action) => (
-              <Link
-                key={action.label}
-                href={action.href}
-                className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-muted dark:hover:bg-muted/50"
-              >
-                <IconTile size="sm" aria-hidden="true">
-                  <action.icon />
-                </IconTile>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">{action.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {action.hint}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </FramePanel>
-          <FrameFooter className="text-xs text-muted-foreground">
-            Часовой пояс расписания: {practice.timezone}
-          </FrameFooter>
-        </Frame>
+        <div className="flex min-w-0 flex-col gap-6">
+          <Attention
+            practiceId={practice.id}
+            entries={entries}
+            members={members.data}
+            hasHours={rules.data ? rules.data.length > 0 : true}
+            owner={owner}
+          />
+          <Frame spacing="default">
+            <FramePanel className="flex flex-col gap-1">
+              <span className="text-sm text-muted-foreground">Завтра</span>
+              <span className="text-base font-medium">
+                {calendar.isPending
+                  ? "…"
+                  : tomorrow.length === 0
+                    ? "Записей нет"
+                    : `Записей: ${tomorrow.length}, первая в ${formatTime(
+                        tomorrow[0]?.startsAt ?? now,
+                      )}`}
+              </span>
+            </FramePanel>
+          </Frame>
+          <BookingLink practice={practice} />
+        </div>
       </div>
 
       <EntryDialog
@@ -410,5 +234,356 @@ export function PracticeOverview({
       />
       <BookingDialog booking={selected} onClose={() => setSelected(null)} />
     </div>
+  );
+}
+
+/** One entry of the day: time, who, what's left on their balance. */
+function DayRow({
+  booking: b,
+  now,
+  credits,
+  label,
+  onOpen,
+}: {
+  booking: CalendarBooking;
+  now: Date;
+  /** The client's balance, for a paid booking. */
+  credits: number | undefined;
+  label: string;
+  onOpen: () => void;
+}) {
+  const current = b.startsAt <= now && b.endsAt > now;
+  const past = b.endsAt <= now;
+  const blocked = b.kind === "blocked";
+
+  return (
+    <li className="relative flex items-center gap-1">
+      <button
+        type="button"
+        onClick={onOpen}
+        className={cn(
+          "flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-md px-2 py-2 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-muted/50",
+          past && "opacity-60",
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "h-10 w-1 shrink-0 rounded-full",
+            current
+              ? "bg-brand"
+              : blocked
+                ? "bg-[repeating-linear-gradient(45deg,var(--border)_0_3px,transparent_3px_6px)]"
+                : b.kind === "free"
+                  ? "border border-dashed border-muted-foreground/50"
+                  : "bg-brand/30",
+          )}
+        />
+        <span className="w-12 shrink-0 text-sm font-medium tabular-nums">
+          {formatTime(b.startsAt)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-sm font-medium">
+            {current && <span className="sr-only">Сейчас: </span>}
+            {bookingTitle(b)}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            <span className="tabular-nums">
+              до {formatTime(b.endsAt)} · {label}
+            </span>
+            {b.videoUrl && !blocked && " · онлайн"}
+            {credits !== undefined && (
+              <span
+                className={cn(
+                  "whitespace-nowrap",
+                  credits === 0 && "text-warning-foreground",
+                )}
+              >
+                {" "}
+                · на балансе {credits}
+              </span>
+            )}
+          </span>
+        </span>
+        {current && (
+          <Badge variant="success-light" className="shrink-0">
+            Сейчас
+          </Badge>
+        )}
+        {b.holdUntil && (
+          <Badge variant="warning-light" className="shrink-0">
+            Ждёт оплаты
+          </Badge>
+        )}
+      </button>
+      {b.videoUrl && !blocked && !past && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Войти на встречу: ${bookingTitle(b)}`}
+          nativeButton={false}
+          render={
+            <a href={b.videoUrl} target="_blank" rel="noreferrer noopener" />
+          }
+        >
+          <VideoIcon />
+        </Button>
+      )}
+    </li>
+  );
+}
+
+/**
+ * What needs a hand this week. Quiet when nothing does — an empty list of
+ * problems is good news, said once.
+ */
+function Attention({
+  practiceId,
+  entries,
+  members = [],
+  hasHours,
+  owner,
+}: {
+  practiceId: string;
+  entries: CalendarBooking[];
+  members?: { id: string; name: string; credits: number; role: MemberRole }[];
+  hasHours: boolean;
+  owner: boolean;
+}) {
+  const terms = useTerms();
+  const awaiting = entries.filter((b) => b.holdUntil !== null);
+  const booked = new Set(entries.map((b) => b.memberId));
+  // Clients coming this week whose balance has run out.
+  const empty = members.filter(
+    (m) => m.role === "client" && m.credits === 0 && booked.has(m.id),
+  );
+
+  const items: {
+    key: string;
+    text: string;
+    href: Route;
+    icon: typeof Clock3Icon;
+  }[] = [];
+  if (!hasHours && !owner) {
+    items.push({
+      key: "hours",
+      text: "Рабочие часы не заданы — клиенты не видят свободного времени",
+      href: paths.booking.schedule(practiceId) as Route,
+      icon: Clock3Icon,
+    });
+  }
+  if (awaiting.length > 0) {
+    items.push({
+      key: "awaiting",
+      text: `Ждут оплаты: ${awaiting.length}`,
+      href: paths.booking.calendar(practiceId) as Route,
+      icon: CalendarClockIcon,
+    });
+  }
+  if (empty.length > 0) {
+    items.push({
+      key: "empty",
+      text: `Оплаченные ${terms.credits} закончились: ${empty
+        .slice(0, 3)
+        .map((m) => m.name)
+        .join(", ")}${empty.length > 3 ? ` и ещё ${empty.length - 3}` : ""}`,
+      href: paths.booking.clients(practiceId) as Route,
+      icon: WalletIcon,
+    });
+  }
+
+  return (
+    <Frame spacing="default">
+      <FramePanel className="flex flex-col gap-2">
+        <FrameTitle>Требует внимания</FrameTitle>
+        {items.length === 0 ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CircleCheckIcon className="size-4 text-brand" aria-hidden />
+            Всё в порядке
+          </p>
+        ) : (
+          <ul className="-mx-2 flex flex-col">
+            {items.map((item) => (
+              <li key={item.key}>
+                <Link
+                  href={item.href}
+                  className="flex min-h-11 items-center gap-3 rounded-md px-2 py-2 text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-muted/50"
+                >
+                  <item.icon
+                    className="size-4 shrink-0 text-warning-foreground"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1">{item.text}</span>
+                  <ArrowRightIcon
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </FramePanel>
+    </Frame>
+  );
+}
+
+/**
+ * What is left before the booking page works on its own. Shown to the
+ * owner until every step is done, then gone for good.
+ */
+function SetupProgress({
+  practice,
+  hasHours,
+  hasClients,
+  loaded,
+}: {
+  practice: PracticeSummary;
+  hasHours: boolean;
+  hasClients: boolean;
+  loaded: boolean;
+}) {
+  const payments = useQuery(
+    orpc.payment.settings.queryOptions({
+      input: { practiceId: practice.id },
+    }),
+  );
+  if (!loaded || payments.isPending) return null;
+
+  const steps = [
+    {
+      title: "Задайте рабочие часы",
+      done: hasHours,
+      href: paths.booking.schedule(practice.id),
+    },
+    {
+      title: "Добавьте фото на страницу записи",
+      done: !!practice.imageUrl,
+      href: paths.booking.page(practice.id),
+    },
+    {
+      title: "Подключите онлайн-оплату",
+      // Unavailable (no «Про», not set up on the server) counts as done:
+      // nothing the owner can finish here.
+      done: payments.isError || !!payments.data?.account,
+      href: paths.booking.payments(practice.id),
+    },
+    {
+      title: "Отправьте ссылку первому клиенту",
+      done: hasClients,
+      href: paths.booking.page(practice.id),
+    },
+  ];
+  const done = steps.filter((s) => s.done).length;
+  if (done === steps.length) return null;
+  const next = steps.find((s) => !s.done);
+
+  return (
+    <Frame spacing="default">
+      <FramePanel className="flex flex-col gap-4">
+        <FrameHeader className="flex-row items-center justify-between gap-4 p-0">
+          <div className="flex flex-col gap-0.5">
+            <FrameTitle>Настройка практики</FrameTitle>
+            <FrameDescription>
+              Готово {done} из {steps.length}
+            </FrameDescription>
+          </div>
+          <Progress
+            value={(done / steps.length) * 100}
+            aria-label={`Настройка: готово ${done} из ${steps.length}`}
+            className="w-32 [&_[data-slot=progress-indicator]]:bg-brand"
+          />
+        </FrameHeader>
+        <ol className="grid gap-1 sm:grid-cols-2">
+          {steps.map((step) => (
+            <li key={step.title}>
+              <Link
+                href={step.href as Route}
+                className={cn(
+                  "flex min-h-11 items-center gap-2 rounded-md px-2 text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 dark:hover:bg-muted/50",
+                  step === next && "font-medium",
+                  step.done && "text-muted-foreground",
+                )}
+              >
+                {step.done ? (
+                  <CircleCheckIcon
+                    className="size-4 shrink-0 text-brand"
+                    aria-label="Готово"
+                  />
+                ) : (
+                  <CircleDashedIcon
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-label="Не сделано"
+                  />
+                )}
+                {step.title}
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </FramePanel>
+    </Frame>
+  );
+}
+
+/** The booking link with copy, the embed code and the page itself. */
+function BookingLink({ practice }: { practice: PracticeSummary }) {
+  const publicUrl = practice.bookingUrl;
+
+  async function copy(text: string, done: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(done);
+    } catch {
+      toast.info(text);
+    }
+  }
+
+  return (
+    <Frame spacing="default">
+      <FramePanel className="flex flex-col gap-3">
+        <FrameHeader className="p-0">
+          <FrameTitle>Страница записи</FrameTitle>
+          <FrameDescription>
+            Клиенты записываются по ссылке без регистрации
+          </FrameDescription>
+        </FrameHeader>
+        <div className="flex gap-2">
+          <Input readOnly value={publicUrl} aria-label="Ссылка для записи" />
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Скопировать ссылку"
+            onClick={() => copy(publicUrl, "Ссылка скопирована")}
+          >
+            <CopyIcon />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<a href={publicUrl} target="_blank" rel="noreferrer" />}
+          >
+            <ExternalLinkIcon />
+            Открыть
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              copy(
+                `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`,
+                "Код скопирован — вставьте его на свой сайт",
+              )
+            }
+          >
+            <CodeIcon />
+            Код для сайта
+          </Button>
+        </div>
+      </FramePanel>
+    </Frame>
   );
 }
