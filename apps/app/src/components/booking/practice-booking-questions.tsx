@@ -38,6 +38,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
+import { SaveState } from "../settings/save-state";
 import { ErrorState } from "./states";
 
 /** A question being edited: choices as text, one per line. */
@@ -121,10 +122,12 @@ function Editor({
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState(() => saved.map(toDraft));
   const [error, setError] = useState<string>();
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const save = useMutation({
     ...orpc.question.save.mutationOptions(),
     onSuccess: async ({ questions }) => {
+      setSavedAt(Date.now());
       toast.success(
         questions.length > 0 ? "Анкета сохранена" : "Анкета выключена",
       );
@@ -363,6 +366,7 @@ function Editor({
           <Button type="submit" disabled={!canSave || save.isPending}>
             Сохранить анкету
           </Button>
+          <SaveState dirty={changed} savedAt={savedAt} />
           {full && (
             <span className="text-xs text-muted-foreground">
               Не больше {MAX_BOOKING_QUESTIONS} вопросов

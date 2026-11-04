@@ -55,6 +55,7 @@ import {
 } from "react";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "../settings/save-state";
 import { PracticeTimeZone } from "./practice-timezone";
 import {
   type Cell,
@@ -85,12 +86,6 @@ const WEEKDAYS = [0, 1, 2, 3, 4];
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WORKDAY: [number, number] = [540, 1080];
 const HISTORY_LIMIT = 100;
-const SLOT_PLURAL_RULES = new Intl.PluralRules("ru-RU");
-const SLOT_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {
-  one: "слот",
-  few: "слота",
-  many: "слотов",
-};
 
 const PRESETS: { label: string; grid: () => SlotGrid }[] = [
   { label: "Будни 09:00–18:00", grid: () => presetGrid(WEEKDAYS, [WORKDAY]) },
@@ -250,10 +245,12 @@ function SlotEditor({
   introMinutes: number;
 }) {
   const queryClient = useQueryClient();
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const save = useMutation({
     ...orpc.availability.replace.mutationOptions(),
     onSuccess: async () => {
-      toast.success("Расписание сохранено");
+      setSavedAt(Date.now());
+      toast.success("Рабочие часы сохранены");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.availability.key() }),
         queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
@@ -332,12 +329,7 @@ function SlotEditor({
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // SaveState asks before the tab closes on unsaved hours.
 
   function changeView(next: View) {
     setView(next);
@@ -538,12 +530,7 @@ function SlotEditor({
           </ToggleGroup>
 
           <div className="ml-auto flex items-center gap-2">
-            {dirty && (
-              <Badge variant="warning-light" size="lg">
-                Не сохранено · {changed}{" "}
-                {SLOT_FORMS[SLOT_PLURAL_RULES.select(changed)] ?? "слотов"}
-              </Badge>
-            )}
+            <SaveState dirty={dirty} savedAt={savedAt} />
             <Button
               variant="ghost"
               size="sm"
