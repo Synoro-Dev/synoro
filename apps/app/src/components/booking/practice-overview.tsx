@@ -71,13 +71,24 @@ interface PracticeSummary {
 export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
   const terms = useTerms();
   const owner = practice.membership.role === "owner";
-  const from = dateKey(new Date(), practice.timezone);
+  // Calendar days in the viewer's zone. Each bound is built from the date
+  // itself, not +24 h or a copied time: DST days are 23 or 25 hours long,
+  // and where the clock jumps at midnight a copied time would drift.
+  const now = new Date();
+  const [y, m, d] = [now.getFullYear(), now.getMonth(), now.getDate()];
+  const dayStart = new Date(y, m, d);
+  const dayEnd = new Date(y, m, d + 1);
+  const tomorrowEnd = new Date(y, m, d + 2);
+  // The API counts days in the practice's zone: start on the practice date
+  // of the viewer's midnight, so a viewer west of the practice misses
+  // nothing of their morning, and fetch a day more to cover tomorrow.
+  const from = dateKey(dayStart, practice.timezone);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
   const calendar = useQuery(
     orpc.booking.calendar.queryOptions({
-      input: { practiceId: practice.id, from, days: WEEK },
+      input: { practiceId: practice.id, from, days: WEEK + 1 },
     }),
   );
   const members = useQuery(
@@ -87,15 +98,6 @@ export function PracticeOverview({ practice }: { practice: PracticeSummary }) {
     orpc.availability.list.queryOptions({ input: { practiceId: practice.id } }),
   );
 
-  const now = new Date();
-  // Calendar days in the viewer's zone, by date (not +24 h: DST days are
-  // 23 or 25 hours long).
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-  const tomorrowEnd = new Date(dayEnd);
-  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
   const entries = calendar.data ?? [];
   // Everything that touches today — a vacation closed days ago included.
   const today = entries.filter(
