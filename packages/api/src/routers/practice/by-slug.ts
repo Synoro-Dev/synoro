@@ -5,7 +5,7 @@ import { publicPractice } from "../../lib/practice-access";
 import { publicProcedure } from "../../orpc";
 
 /**
- * Public info for the booking page `/p/<slug>`, plus the caller's
+ * Public info for the booking page `/<slug>`, plus the caller's
  * membership (role, balance) when signed in.
  *
  * @example client.practice.bySlug({ slug: "anna" })

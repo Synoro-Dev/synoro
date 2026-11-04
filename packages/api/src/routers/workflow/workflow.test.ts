@@ -324,7 +324,7 @@ describe("after_end messages", () => {
       props: {
         practiceName: "Анна Иванова",
         title: "Тема для Иван",
-        text: "Здравствуйте, Иван! 3 ноября в 08:00. Осталось: 3. http://localhost:3000/p/wf-end",
+        text: "Здравствуйте, Иван! 3 ноября в 08:00. Осталось: 3. http://localhost:3000/wf-end",
       },
     });
   });

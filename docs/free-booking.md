@@ -18,7 +18,7 @@ workout can still start at 10:30. Its name follows the profession
 
 - **Staff** book it in the calendar or on «Свободные окна» for a guest with a
   name and a phone (`booking.bookFree`, no account). Always available.
-- **Visitors** book it themselves on `/p/<slug>` when the owner turned on
+- **Visitors** book it themselves on `/<slug>` when the owner turned on
   `practices.free_booking_enabled` («Страница записи» → «… — бесплатно»,
   `practice.setFreeBooking`). Free plan, no «Про» needed. The page shows a
   second tab next to the paid hour; with no way to book paid hours (no online

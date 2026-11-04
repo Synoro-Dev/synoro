@@ -3,7 +3,7 @@ import { createTestDb } from "@synoro/db/testing";
 
 import { initAuth } from ".";
 
-// app.synoro.ru is the main origin; the same app also serves synoro.ru/p/*.
+// app.synoro.ru is the main origin; the same app also serves synoro.ru/<slug>.
 const APP = "https://app.synoro.ru";
 const PUBLIC = "https://synoro.ru";
 const SECRET = "test-secret-0123456789-0123456789-abcdef";
@@ -118,7 +118,7 @@ describe("auth across app.synoro.ru and synoro.ru", () => {
       shared,
       "public@test.local",
       PUBLIC,
-      `${PUBLIC}/p/anna`,
+      `${PUBLIC}/anna`,
     );
 
     expect(response.status).toBe(200);
@@ -129,7 +129,7 @@ describe("auth across app.synoro.ru and synoro.ru", () => {
       isolated,
       "untrusted@test.local",
       PUBLIC,
-      `${PUBLIC}/p/anna`,
+      `${PUBLIC}/anna`,
     );
 
     expect(response.status).toBe(403);
@@ -159,7 +159,7 @@ describe("auth across app.synoro.ru and synoro.ru", () => {
       shared,
       "evil-callback@test.local",
       APP,
-      "https://evil.example/p/anna",
+      "https://evil.example/anna",
     );
     expect(callback.status).toBe(403);
   });

@@ -150,7 +150,11 @@ and run `tsc` by hand, build them first.
   `/b/<token>`; `settlePayment` confirms the booking in the same statement as
   the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
-  `/p/<slug>`; build links from `packages/api/src/lib/urls.ts`.
+  `/<slug>` (the old `/p/<slug>` redirects); build links from
+  `packages/api/src/lib/urls.ts`. A slug shares the root with the app's and
+  the landing's routes: a new top-level route goes into `RESERVED_SLUGS`
+  (`@synoro/validators`) and, for the app, `APP_ROOTS` first — tests
+  (`page-routes.test.ts`) fail otherwise.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when

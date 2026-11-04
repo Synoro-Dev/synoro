@@ -10,7 +10,7 @@ describe("practiceImageUrl", () => {
   test("versions the url with the timestamp of the stored key", () => {
     expect(
       practiceImageUrl("anna", "practices/p1/avatar-1730000000000.jpg"),
-    ).toBe("/p/anna/avatar.jpg?v=1730000000000");
+    ).toBe("/anna/avatar.jpg?v=1730000000000");
   });
 
   test("a static app path is used as is", () => {

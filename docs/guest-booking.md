@@ -1,6 +1,6 @@
 # Booking without an account
 
-The main address of a booking page is `https://synoro.ru/p/<slug>`
+The main address of a booking page is `https://synoro.ru/<slug>`
 (`BOOKING_URL=https://synoro.ru`). A visitor needs no account there: they pick
 a time, leave **name, phone and email**, pay online and are booked. The phone
 is required everywhere a person is booked or signs up for the cabinet.
@@ -94,22 +94,26 @@ link too, but there is no email for the guest — staff pass it on.
 
 ## Hosts
 
-- `synoro.ru/p/*`, `/b/*`, `/bookings`, `/auth/*` are routed to the app
-  (`infra/synoro/app.yaml`); `app.synoro.ru/p/*` redirects (308) to
-  `BOOKING_URL`, and the page carries `<link rel="canonical">` to it.
+- `synoro.ru/<slug>` (one segment, optionally `/avatar.jpg`), `/b/*`,
+  `/bookings`, `/auth/*` are routed to the app (`infra/synoro/app.yaml`); the
+  landing keeps `/`, `/legal`, `/solutions/*` (`landing.yaml`, higher
+  priority). `app.synoro.ru/<slug>` redirects (308) to `BOOKING_URL`, and the
+  page carries `<link rel="canonical">` to it.
+- The old address `/p/<slug>` (links already mailed or posted) redirects
+  (308) to `/<slug>` in `proxy.ts`; keep it for good.
 - `BOOKING_URL` also sets the share link in the dashboard, the payment return
   URL and the links in emails. Unset (local dev) everything stays on `APP_URL`.
 - Renaming a practice address (`practices.slug`) is a data change: the page
-  opens at `/p/<new slug>` as soon as it is saved.
+  opens at `/<new slug>` as soon as it is saved.
 
 ## Embedding in an iframe
 
-`/p/*` may be framed by any site (`frame-ancestors *`, no `X-Frame-Options`;
+A booking page (`/<slug>`) may be framed by any site (`frame-ancestors *`, no `X-Frame-Options`;
 `next.config.ts`). Everything else stays `frame-ancestors 'none'` + `DENY`. The
 dashboard has a "code for your site" button that copies:
 
 ```html
-<iframe src="https://synoro.ru/p/<slug>" title="Онлайн-запись"
+<iframe src="https://synoro.ru/<slug>" title="Онлайн-запись"
   style="width:100%;height:720px;border:0" loading="lazy"></iframe>
 ```
 

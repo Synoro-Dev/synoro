@@ -5,7 +5,7 @@ function bookingOrigin() {
   return new URL(env.BOOKING_URL ?? env.APP_URL).origin;
 }
 
-/** The main address of a practice booking page: `https://synoro.ru/p/anna`. */
+/** The main address of a practice booking page: `https://synoro.ru/anna`. */
 export function publicBookingUrl(slug: string) {
   return new URL(paths.booking.public(slug), bookingOrigin()).href;
 }

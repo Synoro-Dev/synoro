@@ -21,7 +21,7 @@ describe("proxy matcher", () => {
     expect(matches("/api/domains/tls")).toBe(false);
     expect(matches("/_next/static/chunk.js")).toBe(false);
     expect(matches("/ingest/e/")).toBe(false);
-    // Public photos: a signed-out visitor of /p/<slug> must load them.
+    // Public photos: a signed-out visitor of /<slug> must load them.
     expect(matches("/demo/klyuev.jpg")).toBe(false);
     expect(matches("/demonstration")).toBe(true);
   });
@@ -91,14 +91,56 @@ describe("proxy on the app host", () => {
     }));
 });
 
+describe("booking pages at /<slug>", () => {
+  it("are open without a session", async () => {
+    await withDemoLogin(undefined, async () => {
+      const response = await proxy(request("/andrey-klyuev", "localhost"));
+      expect(redirectTarget(response)).toBeNull();
+      const photo = await proxy(
+        request("/andrey-klyuev/avatar.jpg", "localhost"),
+      );
+      expect(redirectTarget(photo)).toBeNull();
+    });
+  });
+
+  it("redirect the old /p/<slug> address, query kept", async () => {
+    for (const host of ["localhost", "zapis.anna-ivanova.ru"]) {
+      const response = await proxy(request("/p/andrey-klyuev?x=1", host));
+      expect(response.status).toBe(308);
+      expect(redirectTarget(response)).toBe(`http://${host}/andrey-klyuev?x=1`);
+    }
+    const photo = await proxy(
+      request("/p/andrey-klyuev/avatar.jpg", "zapis.anna-ivanova.ru"),
+    );
+    expect(redirectTarget(photo)).toBe(
+      "http://zapis.anna-ivanova.ru/andrey-klyuev/avatar.jpg",
+    );
+  });
+
+  it("don't take over the app's own routes", () =>
+    withDemoLogin(undefined, async () => {
+      const response = await proxy(request("/settings", "localhost"));
+      expect(redirectTarget(response)).toContain("/auth/login");
+    }));
+});
+
 describe("bookingRedirect", () => {
-  const page = { pathname: "/p/andrey-klyuev", search: "?x=1" };
+  const page = { pathname: "/andrey-klyuev", search: "?x=1" };
 
   it("sends a booking page opened on another host to the main address", () => {
     expect(
       bookingRedirect({ ...page, host: "app.synoro.ru" }, "https://synoro.ru")
         ?.href,
-    ).toBe("https://synoro.ru/p/andrey-klyuev?x=1");
+    ).toBe("https://synoro.ru/andrey-klyuev?x=1");
+  });
+
+  it("does the same for the old /p/<slug> address", () => {
+    expect(
+      bookingRedirect(
+        { pathname: "/p/andrey-klyuev", search: "", host: "app.synoro.ru" },
+        "https://synoro.ru",
+      )?.href,
+    ).toBe("https://synoro.ru/andrey-klyuev");
   });
 
   it("leaves the main address, other paths and an unset address alone", () => {

@@ -43,7 +43,7 @@ export const env = createEnv({
     ADMIN_URL: z.url().default("http://localhost:3001"),
     // Main address of the public booking pages, e.g. "https://synoro.ru":
     // links specialists share, the page visitors return to after paying and
-    // the one the app host redirects `/p/*` to. Unset: APP_URL.
+    // the one the app host redirects booking pages to. Unset: APP_URL.
     BOOKING_URL: z.url().optional(),
 
     // Practice pages on their own hosts (see docs/custom-domains.md).

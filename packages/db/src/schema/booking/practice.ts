@@ -42,14 +42,14 @@ export interface PracticeBookingTheme {
 export const Practice = pgTable("practices", (t) => ({
   id: t.uuid().notNull().primaryKey().defaultRandom(),
   name: t.varchar({ length: 120 }).notNull(),
-  /** Public booking link: `/p/<slug>`. */
+  /** Public booking link: `/<slug>`. */
   slug: t.varchar({ length: 48 }).notNull().unique(),
   /** IANA zone the availability rules are written in. */
   timezone: t.text().notNull().default("Europe/Moscow"),
   profession: practiceProfession().notNull().default("other"),
   /**
    * Specialist's photo: the S3 key (`practices/<id>/avatar-<time>.jpg`), not a
-   * URL. Served at `/p/<slug>/avatar.jpg`; see `practiceImageUrl` in `@synoro/api`.
+   * URL. Served at `/<slug>/avatar.jpg`; see `practiceImageUrl` in `@synoro/api`.
    * The demo seed stores a path from the app's `public/` instead (`/demo/…`).
    */
   image: t.text(),

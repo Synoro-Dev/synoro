@@ -1018,7 +1018,7 @@ export async function main(
     inserted.filter((b) => b.kind === kind && b.status === "active").length;
   const paid = payments.filter((p) => p.status === "succeeded");
   const rubles = paid.reduce((sum, p) => sum + p.amount, 0) / 100;
-  console.log(`✓ Seeded practice "${practice.name}" → /p/${practice.slug}`);
+  console.log(`✓ Seeded practice "${practice.name}" → /${practice.slug}`);
   console.log(
     `  ${count("consultation")} consultations, ${count("free")} free, ${count("blocked")} blocked, ${inserted.filter((b) => b.status === "cancelled").length} cancelled (${inserted.filter((b) => b.cancelReason === "no_show").length} no-shows)`,
   );

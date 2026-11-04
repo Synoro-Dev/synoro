@@ -95,7 +95,7 @@ export function PracticeList() {
                     </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {staff
-                        ? `/p/${p.slug}`
+                        ? paths.booking.public(p.slug)
                         : `Оплачено ${professionTerms(p.profession).credit[2]}: ${p.credits}`}
                     </span>
                   </div>

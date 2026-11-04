@@ -10,7 +10,7 @@ const steps = [
     icon: StoreIcon,
     title: "Создайте практику",
     text: "Название, адрес страницы и часовой пояс. Это займёт несколько минут.",
-    detail: `${brand.rootDomain}/p/anna`,
+    detail: `${brand.rootDomain}/anna`,
   },
   {
     icon: CalendarCogIcon,
