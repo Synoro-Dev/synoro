@@ -36,6 +36,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type * as React from "react";
 
+import { CommandMenu } from "./command-menu";
 import { DemoSwitcher } from "./demo-switcher";
 import { MobileTabBar } from "./mobile-tab-bar";
 import { NavPlan } from "./nav-plan";
@@ -163,6 +164,20 @@ export function AppSidebar({
             current={current}
             isClient={isClient}
           />
+          {nav && current && (
+            <CommandMenu
+              practiceId={current.practiceId}
+              items={[
+                ...nav.work,
+                ...nav.setup,
+                {
+                  title: "Настройки аккаунта",
+                  href: paths.settings.root,
+                  icon: SettingsIcon,
+                },
+              ]}
+            />
+          )}
         </SidebarHeader>
         <SidebarContent>
           {nav ? (

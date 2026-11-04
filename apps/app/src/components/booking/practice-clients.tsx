@@ -37,6 +37,7 @@ import {
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
@@ -163,7 +164,15 @@ export function PracticeClients({
     pageIndex: 0,
     pageSize: 20,
   });
-  const [openId, setOpenId] = useState<string | null>(null);
+  // `?client=<id>` (from the ⌘K search) opens that client's card.
+  const linked = useSearchParams().get("client");
+  const [openId, setOpenId] = useState<string | null>(linked);
+  const [seen, setSeen] = useState(linked);
+  if (linked !== seen) {
+    // Another client picked in ⌘K while this page is open.
+    setSeen(linked);
+    setOpenId(linked);
+  }
   const [crediting, setCrediting] = useState<{
     member: Member;
     intent: "grant" | "adjust";
