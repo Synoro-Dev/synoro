@@ -174,6 +174,12 @@ and run `tsc` by hand, build them first.
   `TOCHKA_SANDBOX=true` runs the flow against Точка's official sandbox (built-in
   test credentials; its links can't be paid, so the billing page confirms with
   `billing.sandboxPay`); never on a deployment with real customers.
+- **Premium addresses** (`docs/premium-slugs.md`): a slug of 3–4 characters
+  costs 990 ₽ once (`isPremiumSlug`, `PREMIUM_SLUG_PRICE`; no «Про» needed).
+  `practice.create` / `setSlug` open a `slug_orders` payment through Точка; a
+  pending order holds the name, and only the bank releases it. A changed
+  address stays with the practice in `practice_slug_aliases` and redirects:
+  look practices up with `findPracticeIdBySlug`, not `Practice.slug`.
 - **Own client messages («Про»)** (`docs/reminders.md`): `workflows` rules
   (owner edits them at `/practices/<id>/messages`, `workflow.*` router, texts and
   ranges in `@synoro/validators/workflow`); the Hatchet cron `workflow-messages`

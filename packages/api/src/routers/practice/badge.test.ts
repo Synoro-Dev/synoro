@@ -31,7 +31,7 @@ beforeAll(async () => {
   owner = await createSession(api.db);
   const practice = await call(
     practiceRouter.create,
-    { name: "Анна Иванова", slug: "anna", profession: "tutor" },
+    { name: "Анна Иванова", slug: "anna-i", profession: "tutor" },
     { context: api.context(owner) },
   );
   await api.db.insert(PracticeDomain).values({
@@ -48,8 +48,8 @@ afterAll(async () => {
 
 describe("practice.bySlug / byHost showBadge", () => {
   it("hides the badge during the «Про» trial", async () => {
-    expect((await bySlug("anna")).showBadge).toBe(false);
-    expect((await byHost("anna.pages.test")).showBadge).toBe(false);
+    expect((await bySlug("anna-i")).showBadge).toBe(false);
+    expect((await byHost("anna-i.pages.test")).showBadge).toBe(false);
   });
 
   it("shows the badge once «Про» lapses to the free plan", async () => {
@@ -57,7 +57,7 @@ describe("practice.bySlug / byHost showBadge", () => {
       trialEndsAt: new Date(Date.now() - DAY_MS),
       paidUntil: null,
     });
-    expect((await bySlug("anna")).showBadge).toBe(true);
+    expect((await bySlug("anna-i")).showBadge).toBe(true);
     expect((await byHost("anna-ivanova.ru")).showBadge).toBe(true);
   });
 
@@ -66,7 +66,7 @@ describe("practice.bySlug / byHost showBadge", () => {
       trialEndsAt: new Date(Date.now() - 30 * DAY_MS),
       paidUntil: new Date(Date.now() + DAY_MS),
     });
-    expect((await bySlug("anna")).showBadge).toBe(false);
+    expect((await bySlug("anna-i")).showBadge).toBe(false);
     expect((await byHost("anna-ivanova.ru")).showBadge).toBe(false);
   });
 
@@ -74,10 +74,10 @@ describe("practice.bySlug / byHost showBadge", () => {
     await api.db
       .delete(Subscription)
       .where(eq(Subscription.userId, owner.user.id));
-    expect((await bySlug("anna")).showBadge).toBe(true);
+    expect((await bySlug("anna-i")).showBadge).toBe(true);
   });
 
   it("never sends the owner id to the page", async () => {
-    expect(await bySlug("anna")).not.toHaveProperty("ownerId");
+    expect(await bySlug("anna-i")).not.toHaveProperty("ownerId");
   });
 });

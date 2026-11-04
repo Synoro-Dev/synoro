@@ -67,7 +67,7 @@ beforeAll(async () => {
   owner = await createSession(api.db, { name: "Анна" });
   const practice = await call(
     practiceRouter.create,
-    { name: "Анна Иванова", slug: "anna", profession: "psychologist" },
+    { name: "Анна Иванова", slug: "anna-i", profession: "psychologist" },
     { context: api.context(owner) },
   );
   practiceId = practice.id;
@@ -87,7 +87,7 @@ describe("practice", () => {
   it("rejects a taken slug with a typed CONFLICT", async () => {
     const error = await call(
       practiceRouter.create,
-      { name: "Другая", slug: "anna", profession: "other" },
+      { name: "Другая", slug: "anna-i", profession: "other" },
       { context: api.context(owner) },
     ).catch((e) => e);
 
@@ -98,14 +98,14 @@ describe("practice", () => {
   it("shows the public page with the caller's membership", async () => {
     const anonymous = await call(
       practiceRouter.bySlug,
-      { slug: "ANNA" },
+      { slug: "ANNA-I" },
       { context: api.context() },
     );
     expect(anonymous.membership).toBeNull();
 
     const mine = await call(
       practiceRouter.bySlug,
-      { slug: "anna" },
+      { slug: "anna-i" },
       { context: api.context(owner) },
     );
     expect(mine.membership?.role).toBe("owner");

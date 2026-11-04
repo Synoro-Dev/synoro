@@ -27,6 +27,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 
+import { PracticeAddress } from "./practice-address";
 import { PracticeAvatar } from "./practice-avatar";
 import { PracticeBookingQuestions } from "./practice-booking-questions";
 import {
@@ -38,7 +39,7 @@ import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
- * Where the practice's public page is edited: photo, link, free intro,
+ * Where the practice's public page is edited: photo, link, address, free intro,
  * video room, the questionnaire clients fill in when booking and the page's
  * look, previewed beside the settings. Administrators share the link and
  * design the page; the rest is the owner's.
@@ -49,6 +50,8 @@ export function PracticeBookingPage({
   practice: {
     id: string;
     name: string;
+    slug: string;
+    formerSlugs: string[];
     imageUrl: string | null;
     bookingUrl: string;
     videoUrl: string | null;
@@ -151,6 +154,17 @@ export function PracticeBookingPage({
             </Button>
           </FramePanel>
         </Frame>
+
+        {isOwner && (
+          <Frame spacing="default" className="min-w-0">
+            <PracticeAddress
+              practiceId={practice.id}
+              slug={practice.slug}
+              formerSlugs={practice.formerSlugs}
+              bookingUrl={publicUrl}
+            />
+          </Frame>
+        )}
 
         <Frame spacing="default" className="min-w-0">
           <PracticeBookingTheme
