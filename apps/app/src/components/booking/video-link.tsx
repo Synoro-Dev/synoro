@@ -79,6 +79,8 @@ export function VideoLinkForm({
           aria-label={label}
           placeholder={placeholder}
           value={draft}
+          // Locked while saving: the form is re-seeded with the saved link.
+          disabled={pending}
           onChange={(e) => setDraft(e.target.value)}
         />
         <Button type="submit" disabled={pending || !dirty}>
