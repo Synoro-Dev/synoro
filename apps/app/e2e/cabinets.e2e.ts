@@ -149,6 +149,8 @@ test("client cancels in time (credit back) but not within 24 hours", async ({
   browser,
   baseURL,
 }) => {
+  // Two sign-ups, each of which may wait out the rate limit.
+  test.setTimeout(180_000);
   const base = baseURL ?? "";
   const { api: owner, practiceId } = await ownerWithPractice(page, base);
   // Open every hour of every day, so any whole hour can be booked.
