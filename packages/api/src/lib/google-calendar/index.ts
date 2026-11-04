@@ -22,7 +22,7 @@ import {
 } from "@synoro/jobs/google-calendar";
 import { capitalize, professionTerms } from "@synoro/validators";
 import { findOwnerMembership, findPractice } from "../practice-access";
-import { overlaps, subtractRanges, type TimeRange } from "../schedule";
+import { overlaps, type TimeRange } from "../schedule";
 import { decryptSecret, encryptSecret } from "../secrets";
 
 export {
@@ -157,7 +157,11 @@ export async function isBusyInGoogle(
 
 /**
  * Busy time for moving `booking`: its own event reads as busy in Google, but
- * goes away with the booking, so its time doesn't count.
+ * goes away with the booking, so it doesn't count. Free/busy has no event ids:
+ * only a block of exactly the booking's time is taken for its event. Anything
+ * else touching it widens the block, which then stays busy — a booking must
+ * not land on another event. Google clips blocks to the range asked for, so
+ * the range takes in the booking's whole time.
  */
 export async function googleBusyForMove(
   db: Database,
@@ -165,8 +169,22 @@ export async function googleBusyForMove(
   start: Date,
   end: Date,
 ) {
-  const busy = await googleBusy(db, booking.practiceId, start, end);
-  return booking.googleEventId ? subtractRanges(busy, [booking]) : busy;
+  const { practiceId, startsAt, endsAt } = booking;
+  const window = { startsAt: start, endsAt: end };
+  if (!booking.googleEventId || !overlaps(booking, window)) {
+    return googleBusy(db, practiceId, start, end);
+  }
+  const busy = await googleBusy(
+    db,
+    practiceId,
+    startsAt < start ? startsAt : start,
+    endsAt > end ? endsAt : end,
+  );
+  return busy.filter(
+    (b) =>
+      b.startsAt.getTime() !== startsAt.getTime() ||
+      b.endsAt.getTime() !== endsAt.getTime(),
+  );
 }
 
 /** Google event ids are base32hex; a UUID's hex digits fit as they are. */

@@ -71,14 +71,24 @@ export const cancelSeries = protectedProcedure
           kept++;
           continue;
         }
-        rows.push(
-          await cancelBookingRows(tx, booking.id, {
-            cancelledById: userId,
-            refund: input.refund || !staff,
-            reason: staff ? "staff" : "client",
-            startsAt: staff ? undefined : booking.startsAt,
-          }),
-        );
+        const row = await cancelBookingRows(tx, booking.id, {
+          cancelledById: userId,
+          refund: input.refund || !staff,
+          reason: staff ? "staff" : "client",
+          startsAt: staff ? undefined : booking.startsAt,
+        });
+        rows.push(row);
+        // Moved meanwhile, so it stays and the series goes on; one that someone
+        // else cancelled doesn't count.
+        if (!row) {
+          const [active] = await tx
+            .select({ id: Booking.id })
+            .from(Booking)
+            .where(
+              and(eq(Booking.id, booking.id), eq(Booking.status, "active")),
+            );
+          if (active) kept++;
+        }
       }
       if (kept === 0) {
         await tx

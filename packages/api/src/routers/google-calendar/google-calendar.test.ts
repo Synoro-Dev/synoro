@@ -467,6 +467,44 @@ describe("bookings in Google", () => {
     await api.db.delete(Booking).where(eq(Booking.id, intro.id));
   });
 
+  it("doesn't move a booking onto another event next to its own", async () => {
+    const member = await call(
+      practiceRouter.join,
+      { practiceId },
+      { context: api.context(client) },
+    );
+    const [intro] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "free",
+        startsAt: at("08:00"),
+        endsAt: at("09:00"),
+        memberId: member.id,
+        googleCalendarId: "primary",
+        googleEventId: "ownevent",
+      })
+      .returning();
+    if (!intro) throw new Error("no booking");
+    // Google merges its own event with another one running on to 09:30.
+    google.busy = [busyAt("08:00", "09:30")];
+
+    const error = await call(
+      bookingRouter.reschedule,
+      { bookingId: intro.id, startsAt: at("08:30") },
+      { context: api.context(client) },
+    ).catch((e) => e);
+    expect(error).toMatchObject({ code: "SLOT_UNAVAILABLE" });
+
+    const { slots } = await call(
+      bookingRouter.rescheduleSlots,
+      { bookingId: intro.id, from: MONDAY, days: 1 },
+      { context: api.context(client) },
+    );
+    expect(slots.map((s) => s.startsAt)).not.toContainEqual(at("08:30"));
+    await api.db.delete(Booking).where(eq(Booking.id, intro.id));
+  });
+
   it("lets staff book over Google time and shows only the rest", async () => {
     google.busy = [busyAt("07:00", "08:00"), busyAt("09:00", "10:00")];
     const free = await call(

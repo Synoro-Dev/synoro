@@ -69,7 +69,9 @@ move, and there is no moving by the `/b/<token>` link: a visitor signs in.
 
 The dialogs (`components/booking/slot-picker.tsx`) offer the times of
 `booking.rescheduleSlots`: `booking.slots` for this booking, with its own length
-and without counting its own time (and Google event) as busy.
+and without counting its own time (and Google event) as busy. Free/busy has no
+event ids, so only a Google block of exactly the booking's time is taken for its
+event; a block widened by another event stays busy (`googleBusyForMove`).
 
 After the move the reminders start over, the Google Calendar event gets the new
 time (`moveBookingEvent`), and the client and staff are told (`booking-notice`
