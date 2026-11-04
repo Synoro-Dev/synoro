@@ -206,6 +206,8 @@ export function AvailabilityEditor({
   const rules = useQuery(
     orpc.availability.list.queryOptions({ input: { practiceId } }),
   );
+  // Above the keyed editor: its remount after saving keeps «Сохранено».
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -229,6 +231,8 @@ export function AvailabilityEditor({
           practiceId={practiceId}
           initial={rules.data}
           introMinutes={introMinutes}
+          savedAt={savedAt}
+          onSaved={() => setSavedAt(Date.now())}
         />
       )}
     </div>
@@ -239,17 +243,20 @@ function SlotEditor({
   practiceId,
   initial,
   introMinutes,
+  savedAt,
+  onSaved,
 }: {
   practiceId: string;
   initial: AvailabilityRuleValues[];
   introMinutes: number;
+  savedAt: number | null;
+  onSaved: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [savedAt, setSavedAt] = useState<number | null>(null);
   const save = useMutation({
     ...orpc.availability.replace.mutationOptions(),
     onSuccess: async () => {
-      setSavedAt(Date.now());
+      onSaved();
       toast.success("Рабочие часы сохранены");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.availability.key() }),

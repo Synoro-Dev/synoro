@@ -1,7 +1,10 @@
 "use client";
 
 import { CircleCheckIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
+/** How long «Сохранено» stays after a save. */
+const FRESH_MS = 4000;
 
 /**
  * The console saves with an explicit button everywhere (one model for the
@@ -15,18 +18,23 @@ export function SaveState({
   savedAt,
 }: {
   dirty: boolean;
-  /** Bumped (e.g. `Date.now()` in onSuccess) when a save lands. */
+  /**
+   * `Date.now()` of the last save. Keep it above any `key` that remounts
+   * the editor, or the status forgets the save.
+   */
   savedAt: number | null;
 }) {
   useLeaveGuard(dirty);
   const [fresh, setFresh] = useState(false);
-  const last = useRef(savedAt);
 
+  // Read on mount too: an editor remounted by the refetch after saving
+  // still says «Сохранено» for what is left of the moment.
   useEffect(() => {
-    if (savedAt === null || savedAt === last.current) return;
-    last.current = savedAt;
+    if (savedAt === null) return;
+    const left = savedAt + FRESH_MS - Date.now();
+    if (left <= 0) return;
     setFresh(true);
-    const timer = setTimeout(() => setFresh(false), 4000);
+    const timer = setTimeout(() => setFresh(false), left);
     return () => clearTimeout(timer);
   }, [savedAt]);
 

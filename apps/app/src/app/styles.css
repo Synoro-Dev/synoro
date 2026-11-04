@@ -83,10 +83,11 @@
 
 /*
  * Touch screens: every button and menu row in the consoles is at least
- * 44px tall. The event calendar keeps its dense grid.
+ * 44px tall — the phone's sidebar sheet too, portalled outside the page.
+ * The event calendar keeps its dense grid.
  */
 @media (pointer: coarse) {
-  .touch-targets
+  :is(.touch-targets, [data-sidebar="sidebar"][data-mobile="true"])
     :is(
       [data-slot="button"],
       [data-slot="sidebar-menu-button"],

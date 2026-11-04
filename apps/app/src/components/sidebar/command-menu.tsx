@@ -66,7 +66,8 @@ export function CommandMenu({
     setShortcut(shortcutLabel());
     const onKey = (event: KeyboardEvent) => {
       if (
-        event.key.toLowerCase() === "k" &&
+        // The physical K: on a Russian layout `key` is «л».
+        (event.code === "KeyK" || event.key.toLowerCase() === "k") &&
         (event.metaKey || event.ctrlKey) &&
         !event.altKey
       ) {

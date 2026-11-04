@@ -37,7 +37,8 @@ import {
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import type { Route } from "next";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
@@ -178,6 +179,8 @@ export function PracticeClients({
   });
   // `?client=<id>` (from the ⌘K search) opens that client's card.
   const linked = useSearchParams().get("client");
+  const router = useRouter();
+  const pathname = usePathname();
   const [openId, setOpenId] = useState<string | null>(linked);
   const [seen, setSeen] = useState(linked);
   if (linked !== seen) {
@@ -383,7 +386,11 @@ export function PracticeClients({
         practiceId={practiceId}
         timezone={timezone}
         member={open}
-        onClose={() => setOpenId(null)}
+        onClose={() => {
+          setOpenId(null);
+          // Drop `?client=` so ⌘K can open the same client again.
+          if (linked) router.replace(pathname as Route, { scroll: false });
+        }}
         onBook={(member) => {
           const start = nextHalfHour();
           setDraft({
