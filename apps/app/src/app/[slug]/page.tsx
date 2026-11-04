@@ -1,8 +1,10 @@
 import { isDefinedError } from "@orpc/server";
+import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { isPracticeSlug } from "@synoro/validators";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { getSession } from "~/auth/server";
@@ -39,6 +41,9 @@ async function PublicBookingWithData({
   const { slug } = await params;
   // Names that cannot be a slug (/robots.txt, /favicon.ico) skip the database.
   if (!isPracticeSlug(slug.toLowerCase())) notFound();
+  // At request time: nothing below can be prerendered, including the tracing
+  // span around the API call.
+  await connection();
   const [practice, session] = await Promise.all([
     api.practice.bySlug({ slug }).catch((error: unknown) => {
       if (isDefinedError(error)) notFound();
@@ -46,6 +51,10 @@ async function PublicBookingWithData({
     }),
     getSession(),
   ]);
+  // A former address: clients' old links lead to the current one.
+  if (practice.slug !== slug.toLowerCase()) {
+    redirect(paths.booking.public(practice.slug));
+  }
 
   return (
     <>

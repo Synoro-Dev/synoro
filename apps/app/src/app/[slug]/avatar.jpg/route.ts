@@ -1,3 +1,4 @@
+import { findPracticeIdBySlug } from "@synoro/api";
 import { env } from "@synoro/config";
 import { db, eq, Practice } from "@synoro/db";
 
@@ -12,10 +13,14 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const practice = await db.query.Practice.findFirst({
-    where: eq(Practice.slug, slug.toLowerCase()),
-    columns: { image: true },
-  });
+  // A former address too: a page opened before the change still links it.
+  const practiceId = await findPracticeIdBySlug(db, slug.toLowerCase());
+  const practice = practiceId
+    ? await db.query.Practice.findFirst({
+        where: eq(Practice.id, practiceId),
+        columns: { image: true },
+      })
+    : undefined;
   if (!practice?.image || !env.AWS_ACCESS_KEY_ID) {
     return new Response(null, { status: 404 });
   }

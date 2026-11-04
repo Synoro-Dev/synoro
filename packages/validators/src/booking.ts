@@ -152,23 +152,40 @@ export function legacyPracticePath(pathname: string) {
   return path && practiceSlugOfPath(path) ? path : undefined;
 }
 
+/** Addresses this short are premium names (`docs/premium-slugs.md`). */
+export const PREMIUM_SLUG_MAX_LENGTH = 4;
+/** The one-off price of a premium name, kopecks. */
+export const PREMIUM_SLUG_PRICE = 990_00;
+export const PREMIUM_SLUG_PRICE_LABEL = `${(PREMIUM_SLUG_PRICE / 100).toLocaleString("ru-RU")} ₽`;
+
+/** Whether a valid address has to be bought. */
+export function isPremiumSlug(slug: string) {
+  return slug.length <= PREMIUM_SLUG_MAX_LENGTH;
+}
+
+export const practiceSlugSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(SLUG_MIN_LENGTH, "Адрес должен содержать не менее 3 символов")
+  .max(SLUG_MAX_LENGTH, "Адрес не должен быть длиннее 48 символов")
+  .regex(
+    SLUG_PATTERN,
+    "Только латинские буквы, цифры и дефис (не в начале и не в конце)",
+  )
+  .refine((slug) => !RESERVED_SLUGS.has(slug), "Этот адрес зарезервирован");
+
+export const practiceSlugFormSchema = z.object({ slug: practiceSlugSchema });
+
+export type PracticeSlugFormValues = z.infer<typeof practiceSlugFormSchema>;
+
 export const practiceFormSchema = z.object({
   name: z
     .string()
     .trim()
     .min(2, "Название должно содержать не менее 2 символов")
     .max(120, "Название не должно быть длиннее 120 символов"),
-  slug: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .min(SLUG_MIN_LENGTH, "Адрес должен содержать не менее 3 символов")
-    .max(SLUG_MAX_LENGTH, "Адрес не должен быть длиннее 48 символов")
-    .regex(
-      SLUG_PATTERN,
-      "Только латинские буквы, цифры и дефис (не в начале и не в конце)",
-    )
-    .refine((slug) => !RESERVED_SLUGS.has(slug), "Этот адрес зарезервирован"),
+  slug: practiceSlugSchema,
   profession: z.enum(PROFESSIONS, "Выберите, чем вы занимаетесь"),
 });
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
+import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 
@@ -107,6 +107,24 @@ export const Practice = pgTable("practices", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+/**
+ * An address the practice used to have. Clients keep old links, so it stays
+ * the practice's for good: the booking page redirects to the current address,
+ * and nobody else can take the name.
+ */
+export const PracticeSlugAlias = pgTable(
+  "practice_slug_aliases",
+  (t) => ({
+    slug: t.varchar({ length: 48 }).notNull().primaryKey(),
+    practiceId: t
+      .uuid()
+      .notNull()
+      .references(() => Practice.id, { onDelete: "cascade" }),
+    createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  }),
+  (table) => [index("practice_slug_aliases_practice_idx").on(table.practiceId)],
+);
 
 /**
  * owner  — the specialist: everything, including adding administrators.

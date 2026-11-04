@@ -11,9 +11,12 @@ import { mine } from "./mine";
 import { setContact } from "./set-contact";
 import { setFreeBooking } from "./set-free-booking";
 import { setNotifications } from "./set-notifications";
+import { setSlug } from "./set-slug";
 import { setTheme } from "./set-theme";
 import { setTimezone } from "./set-timezone";
 import { setVideoUrl } from "./set-video-url";
+import { slugOrder } from "./slug-order";
+import { slugOrderSandboxPay } from "./slug-order-sandbox-pay";
 import { theme } from "./theme";
 
 export const practiceRouter = {
@@ -32,6 +35,9 @@ export const practiceRouter = {
   setFreeBooking,
   setNotifications,
   setTimezone,
+  setSlug,
+  slugOrder,
+  slugOrderSandboxPay,
   theme,
   setTheme,
 };
