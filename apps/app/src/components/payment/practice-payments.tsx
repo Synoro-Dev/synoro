@@ -81,29 +81,44 @@ function Section({
 }
 
 /** The connection, said in one phrase. */
-function ConnectionPhrase({ account }: { account: Settings["account"] }) {
+function ConnectionPhrase({
+  account,
+  pro,
+}: {
+  account: Settings["account"];
+  /** Without «Про» clients can't pay, even with a shop connected. */
+  pro: boolean;
+}) {
   const terms = useTerms();
   const {
     icon: Icon,
     tone,
     text,
-  } = !account
+  } = !pro
     ? {
         icon: CircleDashedIcon,
-        tone: "text-muted-foreground",
-        text: "Онлайн-оплата не подключена: клиенты пока не могут заплатить сами.",
+        tone: "text-warning-foreground",
+        text: account
+          ? "Онлайн-оплата приостановлена: она входит в «Про». Оплатите тариф, и клиенты снова смогут платить сами."
+          : "Онлайн-оплата входит в «Про». Оплатите тариф, чтобы клиенты могли платить сами.",
       }
-    : account.test
+    : !account
       ? {
-          icon: FlaskConicalIcon,
-          tone: "text-warning-foreground",
-          text: `Подключён тестовый магазин ${account.providerName}: деньги не списываются, а ${terms.credits} начисляются по-настоящему.`,
+          icon: CircleDashedIcon,
+          tone: "text-muted-foreground",
+          text: "Онлайн-оплата не подключена: клиенты пока не могут заплатить сами.",
         }
-      : {
-          icon: CircleCheckIcon,
-          tone: "text-brand",
-          text: `Онлайн-оплата работает: клиенты платят напрямую на ваш счёт в ${account.providerName}.`,
-        };
+      : account.test
+        ? {
+            icon: FlaskConicalIcon,
+            tone: "text-warning-foreground",
+            text: `Подключён тестовый магазин ${account.providerName}: деньги не списываются, а ${terms.credits} начисляются по-настоящему.`,
+          }
+        : {
+            icon: CircleCheckIcon,
+            tone: "text-brand",
+            text: `Онлайн-оплата работает: клиенты платят напрямую на ваш счёт в ${account.providerName}.`,
+          };
   return (
     <p className="flex min-w-0 items-start gap-2 text-sm">
       <Icon className={`mt-0.5 size-4 shrink-0 ${tone}`} aria-hidden="true" />
@@ -136,7 +151,7 @@ function ConnectedAccount({
 
   return (
     <div className="flex flex-col gap-4">
-      <ConnectionPhrase account={account} />
+      <ConnectionPhrase account={account} pro={settings.pro} />
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="outline" onClick={onEdit}>
           Изменить
@@ -252,7 +267,10 @@ function ProviderSection({ practiceId }: { practiceId: string }) {
         />
       ) : (
         <>
-          <ConnectionPhrase account={settings.data.account} />
+          <ConnectionPhrase
+            account={settings.data.account}
+            pro={settings.data.pro}
+          />
           <ProviderForm
             practiceId={practiceId}
             settings={settings.data}
@@ -276,14 +294,25 @@ function ConnectionStatus({ practiceId }: { practiceId: string }) {
   return (
     <Frame spacing="default" className="min-w-0">
       <FramePanel className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <ConnectionPhrase account={settings.data.account} />
+        <ConnectionPhrase
+          account={settings.data.account}
+          pro={settings.data.pro}
+        />
         <Button
           size="sm"
           variant="outline"
           nativeButton={false}
-          render={<Link href={paths.booking.onlinePayment(practiceId)} />}
+          render={
+            <Link
+              href={
+                settings.data.pro
+                  ? paths.booking.onlinePayment(practiceId)
+                  : paths.booking.plan(practiceId)
+              }
+            />
+          }
         >
-          Подключение и цены
+          {settings.data.pro ? "Подключение и цены" : "Тариф"}
           <ArrowRightIcon />
         </Button>
       </FramePanel>

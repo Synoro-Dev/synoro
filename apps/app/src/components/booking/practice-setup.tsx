@@ -437,12 +437,20 @@ function LinkStep({
  * own: it opens once after creating the practice (`CreatePracticeDialog`) and
  * «Сегодня» shows what is left (`SetupProgress`), leading back to a step.
  */
-export function PracticeSetup({ practice }: { practice: SetupPractice }) {
+export function PracticeSetup({
+  practice: initial,
+}: {
+  practice: SetupPractice;
+}) {
   const step = setupStepFrom(useSearchParams().get("step"));
   const index = SETUP_STEPS.indexOf(step);
+  // Steps change without a round trip to the server, so what a step saved
+  // comes back through this query, which saving invalidates.
+  const { data: practice = initial } = useQuery(
+    orpc.practice.get.queryOptions({ input: { practiceId: initial.id } }),
+  );
 
-  // The address carries the step, without a round trip to the server: a
-  // draft in another step's form is the only thing it would cost.
+  // The address carries the step: going back and forth needs no server.
   function go(next: SetupStep) {
     window.history.pushState(null, "", setupStepHref(practice.id, next));
     window.scrollTo({ top: 0 });

@@ -136,6 +136,8 @@ function Editor({
 
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    // A surrounding step's button stays outside the locked fieldset.
+    if (save.isPending) return;
     const parsed = paymentPackagesFormSchema.safeParse({
       packages: rows.map((r) => ({
         credits: r.credits ?? Number.NaN,
@@ -150,96 +152,106 @@ function Editor({
   }
 
   return (
-    <form id={formId} onSubmit={submit} className="flex flex-col gap-3">
-      {rows.length > 0 && (
-        <div className="hidden grid-cols-[8.5rem_10rem_1fr_2.25rem] gap-3 text-xs text-muted-foreground sm:grid">
-          <span className="first-letter:uppercase">{terms.credit[2]}</span>
-          <span>Цена пакета</span>
-        </div>
-      )}
-      {rows.map((r) => {
-        const deal = deals.get(r.key);
-        return (
-          <div
-            key={r.key}
-            className="grid grid-cols-[1fr_auto] items-center gap-3 sm:grid-cols-[8.5rem_10rem_1fr_2.25rem]"
-          >
-            <NumberField
-              value={r.credits}
-              onValueChange={(credits) => update(r.key, { credits })}
-              min={1}
-              max={100}
-              aria-label={`Сколько ${terms.credit[2]} в пакете`}
-            >
-              <NumberFieldGroup>
-                <NumberFieldDecrement />
-                <NumberFieldInput />
-                <NumberFieldIncrement />
-              </NumberFieldGroup>
-            </NumberField>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              aria-label="Удалить пакет"
-              className="sm:order-last"
-              onClick={() =>
-                setRows((current) => current.filter((x) => x.key !== r.key))
-              }
-            >
-              <Trash2Icon />
-            </Button>
-            <InputGroup>
-              <InputGroupInput
-                inputMode="decimal"
-                placeholder="3 000"
-                aria-label="Цена пакета, ₽"
-                value={r.price}
-                onChange={(e) => update(r.key, { price: e.target.value })}
-              />
-              <InputGroupAddon align="inline-end">₽</InputGroupAddon>
-            </InputGroup>
-            <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {deal && r.credits && r.credits > 1 && (
-                <>
-                  {formatRub(deal.unitPrice)} за {terms.creditAccusative}
-                  {deal.discount > 0 && (
-                    <Badge variant="success-light">−{deal.discount}%</Badge>
-                  )}
-                </>
-              )}
-              {deal && r.credits === 1 && `за 1 ${terms.creditAccusative}`}
-            </span>
+    <form id={formId} onSubmit={submit}>
+      {/* Locked while saving: an edit made meanwhile would pass for saved. */}
+      <fieldset
+        disabled={save.isPending}
+        className="flex min-w-0 flex-col gap-3"
+      >
+        {rows.length > 0 && (
+          <div className="hidden grid-cols-[8.5rem_10rem_1fr_2.25rem] gap-3 text-xs text-muted-foreground sm:grid">
+            <span className="first-letter:uppercase">{terms.credit[2]}</span>
+            <span>Цена пакета</span>
           </div>
-        );
-      })}
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={rows.length >= 10}
-          onClick={() => {
-            const taken = new Set(rows.map((r) => r.credits));
-            setRows([
-              ...rows,
-              row(SIZES.find((size) => !taken.has(size)) ?? null),
-            ]);
-          }}
-        >
-          <PlusIcon />
-          Добавить пакет
-        </Button>
-        {!formId && (
-          <>
-            <Button type="submit" size="sm" disabled={!dirty || save.isPending}>
-              Сохранить цены
-            </Button>
-            <SaveState dirty={dirty} savedAt={savedAt} />
-          </>
         )}
-      </div>
+        {rows.map((r) => {
+          const deal = deals.get(r.key);
+          return (
+            <div
+              key={r.key}
+              className="grid grid-cols-[1fr_auto] items-center gap-3 sm:grid-cols-[8.5rem_10rem_1fr_2.25rem]"
+            >
+              <NumberField
+                value={r.credits}
+                onValueChange={(credits) => update(r.key, { credits })}
+                min={1}
+                max={100}
+                aria-label={`Сколько ${terms.credit[2]} в пакете`}
+              >
+                <NumberFieldGroup>
+                  <NumberFieldDecrement />
+                  <NumberFieldInput />
+                  <NumberFieldIncrement />
+                </NumberFieldGroup>
+              </NumberField>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Удалить пакет"
+                className="sm:order-last"
+                onClick={() =>
+                  setRows((current) => current.filter((x) => x.key !== r.key))
+                }
+              >
+                <Trash2Icon />
+              </Button>
+              <InputGroup>
+                <InputGroupInput
+                  inputMode="decimal"
+                  placeholder="3 000"
+                  aria-label="Цена пакета, ₽"
+                  value={r.price}
+                  onChange={(e) => update(r.key, { price: e.target.value })}
+                />
+                <InputGroupAddon align="inline-end">₽</InputGroupAddon>
+              </InputGroup>
+              <span className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {deal && r.credits && r.credits > 1 && (
+                  <>
+                    {formatRub(deal.unitPrice)} за {terms.creditAccusative}
+                    {deal.discount > 0 && (
+                      <Badge variant="success-light">−{deal.discount}%</Badge>
+                    )}
+                  </>
+                )}
+                {deal && r.credits === 1 && `за 1 ${terms.creditAccusative}`}
+              </span>
+            </div>
+          );
+        })}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={rows.length >= 10}
+            onClick={() => {
+              const taken = new Set(rows.map((r) => r.credits));
+              setRows([
+                ...rows,
+                row(SIZES.find((size) => !taken.has(size)) ?? null),
+              ]);
+            }}
+          >
+            <PlusIcon />
+            Добавить пакет
+          </Button>
+          {!formId && (
+            <>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!dirty || save.isPending}
+              >
+                Сохранить цены
+              </Button>
+              <SaveState dirty={dirty} savedAt={savedAt} />
+            </>
+          )}
+        </div>
+      </fieldset>
     </form>
   );
 }

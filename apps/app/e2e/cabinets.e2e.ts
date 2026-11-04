@@ -119,24 +119,33 @@ test("the first setup opens once, every step can be skipped", async ({
   // Right after creating: the working hours, weekdays 09:00–18:00 proposed.
   await page.waitForURL(/\/practices\/[0-9a-f-]{36}\/setup/);
   const practiceId = /practices\/([0-9a-f-]{36})/.exec(page.url())?.[1] ?? "";
-  await expect(page.getByText("Шаг 1 из 4")).toBeVisible();
+  await expect(page.getByText("Шаг 1 из 4", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Суббота" }).click();
   await page.getByRole("button", { name: "Сохранить и продолжить" }).click();
 
   // Prices: nothing to save yet, so skipping and going on are the same.
-  await expect(page.getByText("Шаг 2 из 4")).toBeVisible();
+  await expect(page.getByText("Шаг 2 из 4", { exact: true })).toBeVisible();
   const rules = await api.availability.list({ practiceId });
   expect(rules.map((r) => r.weekday)).toEqual([1, 2, 3, 4, 5, 6]);
   expect(rules[0]).toMatchObject({ startMinute: 540, endMinute: 1080 });
+
+  // A switch applies at once, and coming back to the step still shows it.
+  const freeBooking = page.getByRole("switch", { name: /Принимать запись/ });
+  await freeBooking.click();
+  await expect(page.getByText(/Клиенты могут записаться/)).toBeVisible();
+  await page.getByRole("button", { name: "Пропустить" }).click();
+  await expect(page.getByText("Шаг 3 из 4", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Назад" }).click();
+  await expect(freeBooking).toBeChecked();
   await page.getByRole("button", { name: "Пропустить" }).click();
 
   // The rules are only read, with an example.
-  await expect(page.getByText("Шаг 3 из 4")).toBeVisible();
+  await expect(page.getByText("Шаг 3 из 4", { exact: true })).toBeVisible();
   await expect(page.getByText(/Например, запись на среду/)).toBeVisible();
   await page.getByRole("button", { name: "Дальше" }).click();
 
   // The link, then «Сегодня».
-  await expect(page.getByText("Шаг 4 из 4")).toBeVisible();
+  await expect(page.getByText("Шаг 4 из 4", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Ссылка для записи")).toBeVisible();
   await page.getByRole("button", { name: "Готово" }).click();
   await page.waitForURL(`/practices/${practiceId}`);
@@ -153,7 +162,9 @@ test("the first setup opens once, every step can be skipped", async ({
   await expect(page).toHaveURL(/\/setup\?step=/);
   // Hours already set are shown, not proposed again over them.
   await page.goto(`/practices/${practiceId}/setup?step=hours`);
-  await expect(page.getByText("Рабочие часы уже заданы")).toBeVisible();
+  await expect(
+    page.getByText("Рабочие часы уже заданы", { exact: true }),
+  ).toBeVisible();
 });
 
 test("the specialist credits a package and books the client", async ({
@@ -186,13 +197,14 @@ test("the specialist credits a package and books the client", async ({
   clock.setMinutes(40, 0, 0);
   await page.clock.setFixedTime(clock);
 
+  const clients = await owner.practice.members({ practiceId });
+  const name = clients.find((m) => m.role === "client")?.name ?? "";
+
   await page.goto(`/practices/${practiceId}/clients`);
-  await page
-    .getByRole("button", { name: /Открыть карточку/ })
-    .first()
-    .click();
-  const card = page.getByRole("dialog");
-  await expect(card.getByText("0 занятий")).toBeVisible();
+  await page.getByRole("button", { name: `Открыть карточку: ${name}` }).click();
+  // By name: the dialogs opened from the card can linger as they close.
+  const card = page.getByRole("dialog", { name });
+  await expect(card.getByText("0 занятий", { exact: true })).toBeVisible();
 
   // A package of five, recorded by hand after the client paid.
   await card.getByRole("button", { name: "Начислить" }).click();
@@ -201,7 +213,7 @@ test("the specialist credits a package and books the client", async ({
   await credit.getByLabel("Комментарий").fill("Оплата пакета из 5");
   await credit.getByRole("button", { name: "Начислить" }).click();
   await expect(page.getByText(/Начислено\. На балансе .*: 5/)).toBeVisible();
-  await expect(card.getByText("5 занятий")).toBeVisible();
+  await expect(card.getByText("5 занятий", { exact: true })).toBeVisible();
 
   // Booked from the card, a whole hour in the coming days.
   await card.getByRole("button", { name: "Записать" }).click();
@@ -215,7 +227,7 @@ test("the specialist credits a package and books the client", async ({
   await entry.getByLabel("Дата").fill(date);
   await entry.getByRole("button", { name: "Записать", exact: true }).click();
   await expect(page.getByText(/клиент записан/)).toBeVisible();
-  await expect(card.getByText("4 занятия")).toBeVisible();
+  await expect(card.getByText("4 занятия", { exact: true })).toBeVisible();
 
   const members = await owner.practice.members({ practiceId });
   expect(members.find((m) => m.role === "client")?.credits).toBe(4);

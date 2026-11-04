@@ -37,6 +37,14 @@ export function PracticeFreeBooking({
   const [minutes, setMinutes] = useState(introMinutes);
   /** The length last saved, to go back to when a change fails. */
   const [savedMinutes, setSavedMinutes] = useState(introMinutes);
+  // The first setup refetches the practice: a mount can precede fresh values.
+  const [seen, setSeen] = useState({ enabled, introMinutes });
+  if (seen.enabled !== enabled || seen.introMinutes !== introMinutes) {
+    setSeen({ enabled, introMinutes });
+    setOn(enabled);
+    setMinutes(introMinutes);
+    setSavedMinutes(introMinutes);
+  }
   const save = useMutation({
     ...orpc.practice.setFreeBooking.mutationOptions(),
     onSuccess: async (result, input) => {
