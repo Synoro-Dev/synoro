@@ -1,24 +1,21 @@
 import { paths } from "@synoro/config";
-import { Button } from "@synoro/ui";
-import { Compass, House } from "lucide-react";
+import { BackButton, buttonVariants, ErrorScreen } from "@synoro/ui";
+import { House } from "lucide-react";
 import Link from "next/link";
-
-import { BackButton, ErrorScreen } from "~/components/errors";
 
 export default function DashboardNotFound() {
   return (
     <ErrorScreen
       code="404"
       title="Здесь ничего нет"
-      description="Запись удалена, ссылка устарела или у вас нет к ней доступа."
-      icon={Compass}
+      description="Страница удалена, ссылка устарела или у вас нет к ней доступа."
       variant="inline"
     >
-      <BackButton />
-      <Button render={<Link href={paths.dashboard.root} />}>
-        <House aria-hidden />
+      <Link href={paths.dashboard.root} className={buttonVariants()}>
+        <House data-icon="inline-start" aria-hidden />
         На главную
-      </Button>
+      </Link>
+      <BackButton />
     </ErrorScreen>
   );
 }

@@ -1,56 +1,47 @@
 "use client";
 
-import { Button } from "@synoro/ui";
-import { House, RotateCw, TriangleAlert } from "lucide-react";
-import { useEffect } from "react";
-
-import { ErrorScreen } from "~/components/errors/error-screen";
+import { legal } from "@synoro/config";
+import { cn, ServerErrorScreen, ThemeProvider } from "@synoro/ui";
+import { Onest } from "next/font/google";
 
 import "~/app/styles.css";
 
+const onest = Onest({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-onest",
+});
+
 /**
  * Последняя линия обороны: срабатывает, когда падает сам корневой layout, и
- * заменяет его целиком. Провайдера темы здесь нет.
+ * заменяет его целиком, вместе со шрифтами и темой. Поэтому и обновляем
+ * страницу целиком, а не повторяем рендер.
  */
 export default function GlobalError({
   error,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
 }) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle(
-      "dark",
-      window.matchMedia("(prefers-color-scheme: dark)").matches,
-    );
-  }, []);
-
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
-        <title>Ошибка сервиса</title>
+        <title>Сервис временно недоступен</title>
       </head>
-      <body className="bg-background text-foreground min-h-screen font-sans antialiased">
-        <ErrorScreen
-          code="500"
-          title="Сервис временно недоступен"
-          description="Произошёл серьёзный сбой. Обновите страницу через минуту — мы уже работаем над этим."
-          icon={TriangleAlert}
-          footnote={error.digest && <>ID ошибки: {error.digest}</>}
-        >
-          <Button onClick={() => window.location.reload()}>
-            <RotateCw aria-hidden />
-            Обновить страницу
-          </Button>
-          <Button variant="outline" render={<a href="/" />}>
-            <House aria-hidden />
-            На главную
-          </Button>
-        </ErrorScreen>
+      <body
+        className={cn(
+          "bg-background text-foreground min-h-screen font-sans antialiased",
+          onest.variable,
+        )}
+      >
+        <ThemeProvider>
+          <ServerErrorScreen
+            error={error}
+            onRetry={() => window.location.reload()}
+            retryLabel="Обновить страницу"
+            title="Сервис временно недоступен"
+            description="Произошёл технический сбой. Обновите страницу через минуту."
+            support={legal.operator.email}
+          />
+        </ThemeProvider>
       </body>
     </html>
   );
