@@ -4,7 +4,7 @@ A practice's booking page opens at three kinds of address:
 
 | Address                                            | Setup                                                 |
 | -------------------------------------------------- | ----------------------------------------------------- |
-| `https://app.example.com/p/anna`                   | always                                                |
+| `https://app.example.com/anna`                     | always                                                |
 | `https://anna.example.com`                         | `PRACTICE_ROOT_DOMAIN=example.com` + wildcard DNS/TLS |
 | `https://anna-psy.ru`, `https://zapis.anna-psy.ru` | owner connects it under **Практика → Домен**          |
 
@@ -19,7 +19,7 @@ A practice's booking page opens at three kinds of address:
   by slug, anything else by an **active** row in `practice_domains`.
 - Sign-in and the cabinet stay on the app host: the session cookie is never
   set for a specialist's domain. On a practice host the page is read-only for
-  visitors; «Войти и записаться» leads to `/p/<slug>` on the app host. With
+  visitors; «Войти и записаться» leads to `/<slug>` on the app host. With
   `AUTH_COOKIE_DOMAIN=.example.com` the session also reaches platform
   subdomains (`anna.example.com`), so signed-in clients book right there.
 - Exact `AUTH_TRUSTED_ORIGINS` (e.g. `https://example.com`) count as app hosts

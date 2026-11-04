@@ -7,8 +7,10 @@ import {
   freeBookingFormSchema,
   guestBookingFormSchema,
   introMinutesSchema,
+  legacyPracticePath,
   normalizeHostname,
   practiceFormSchema,
+  practiceSlugOfPath,
 } from "./booking";
 import {
   type BookingQuestion,
@@ -339,6 +341,62 @@ describe("practiceFormSchema reserved slugs", () => {
       practiceFormSchema.safeParse({ name: "Анна", slug: "API" }).success,
     ).toBe(false);
   });
+
+  test("rejects the top-level routes of the app and the landing", () => {
+    for (const slug of [
+      "practices",
+      "settings",
+      "bookings",
+      "legal",
+      "pricing",
+    ]) {
+      expect(practiceFormSchema.safeParse({ name: "Анна", slug }).success).toBe(
+        false,
+      );
+    }
+  });
+});
+
+describe("practiceSlugOfPath", () => {
+  test("finds the practice of a booking page and of its photo", () => {
+    expect(practiceSlugOfPath("/anna")).toBe("anna");
+    expect(practiceSlugOfPath("/anna/")).toBe("anna");
+    expect(practiceSlugOfPath("/anna-ivanova/avatar.jpg")).toBe("anna-ivanova");
+    expect(practiceSlugOfPath("/Anna")).toBe("anna");
+  });
+
+  test("leaves the app's own routes and other paths alone", () => {
+    for (const path of [
+      "/",
+      "/practices",
+      "/practices/abc/calendar",
+      "/settings",
+      "/b/token",
+      "/p/anna",
+      "/anna/other",
+      "/anna/avatar.jpg/x",
+      "/an",
+      "/-anna",
+      "/Practices",
+      "/favicon.ico",
+    ]) {
+      expect(practiceSlugOfPath(path)).toBeUndefined();
+    }
+  });
+});
+
+describe("legacyPracticePath", () => {
+  test("turns /p/<slug>… into /<slug>…", () => {
+    expect(legacyPracticePath("/p/anna")).toBe("/anna");
+    expect(legacyPracticePath("/p/anna/avatar.jpg")).toBe("/anna/avatar.jpg");
+  });
+
+  test("ignores everything else", () => {
+    expect(legacyPracticePath("/anna")).toBeUndefined();
+    expect(legacyPracticePath("/p/")).toBeUndefined();
+    expect(legacyPracticePath("/p/settings")).toBeUndefined();
+    expect(legacyPracticePath("/pricing")).toBeUndefined();
+  });
 });
 
 describe("normalizeHostname", () => {
@@ -538,7 +596,7 @@ describe("workflow texts", () => {
     дата: "3 ноября",
     время: "19:00",
     баланс: "1",
-    ссылка: "https://synoro.ru/p/anna",
+    ссылка: "https://synoro.ru/anna",
     кабинет: "https://synoro.ru/bookings",
   };
 

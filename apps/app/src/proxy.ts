@@ -1,4 +1,5 @@
 import { env, paths } from "@synoro/config";
+import { legacyPracticePath, practiceSlugOfPath } from "@synoro/validators";
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -9,17 +10,39 @@ const hosts = hostConfig();
 // Redirects go to `appUrl`, not `request.url`: behind the ingress the
 // standalone server builds that from HOSTNAME:PORT (https://0.0.0.0:3000).
 
-/** Open without a session on the app's own host. */
+/**
+ * Open without a session on the app's own host. Booking pages (`/anna`) are
+ * too, matched by `practiceSlugOfPath`; the old `/p/` only redirects.
+ */
 const PUBLIC_PATHS = [paths.auth.root, "/p/", "/b/", "/site/", paths.api.auth];
+
+/**
+ * A 308 to a path on the host the request came to. The origin is built from
+ * the headers, not `request.url` (the standalone server's HOSTNAME:PORT), and
+ * Next rejects a relative `Location` from a proxy.
+ */
+function redirectToPath(request: NextRequest, path: string) {
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    request.nextUrl.protocol.replace(":", "");
+  const host = request.headers.get("host") || request.nextUrl.host;
+  return NextResponse.redirect(new URL(path, `${proto}://${host}`), 308);
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // The old address of a booking page, `/p/anna` and its photo, became `/anna`.
+  // First of all: a practice's own host serves the photo too.
+  const current = legacyPracticePath(pathname);
+  const currentUrl = current && `${current}${search}`;
 
   // A practice's own host (`anna.<root>`, `anna-ivanova.ru`): `/` is its booking
   // page. Sign-in and the cabinet stay on the app host, where the session
   // cookie lives, so other pages redirect there; assets are served as is.
   const host = practiceHost(request.headers.get("host"), hosts);
   if (host) {
+    if (currentUrl) return redirectToPath(request, currentUrl);
     if (pathname === "/") {
       return NextResponse.rewrite(
         new URL(`${paths.booking.site(host)}${search}`, request.url),
@@ -48,14 +71,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(paths.auth.demo, appUrl));
   }
 
-  // One main address for a booking page: synoro.ru/p/anna, not app.synoro.ru.
+  // One main address for a booking page: synoro.ru/anna, not app.synoro.ru.
   const main = bookingRedirect(
     { pathname, search, host: request.headers.get("host") },
     env.BOOKING_URL,
   );
   if (main) return NextResponse.redirect(main, 308);
+  if (currentUrl) return redirectToPath(request, currentUrl);
 
-  if (PUBLIC_PATHS.some((path) => pathname.startsWith(path))) {
+  if (
+    practiceSlugOfPath(pathname) ||
+    PUBLIC_PATHS.some((path) => pathname.startsWith(path))
+  ) {
     return NextResponse.next();
   }
 

@@ -80,7 +80,7 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
                 >
                   <span className="font-medium">{practice.name}</span>
                   <span className="text-muted-foreground text-xs">
-                    /p/{practice.slug}
+                    /{practice.slug}
                   </span>
                 </a>
               </TableCell>

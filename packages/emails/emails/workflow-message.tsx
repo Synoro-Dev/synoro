@@ -32,7 +32,7 @@ function Linkified({ line }: { line: string }) {
 export default function WorkflowMessageEmail({
   practiceName = "Анна Иванова",
   title = "Спасибо за встречу",
-  text = "Здравствуйте, Иван!\n\nСпасибо, что были на встрече. Следующее время можно выбрать здесь: https://synoro.ru/p/anna",
+  text = "Здравствуйте, Иван!\n\nСпасибо, что были на встрече. Следующее время можно выбрать здесь: https://synoro.ru/anna",
 }: {
   practiceName: string;
   /** The subject line, repeated as the heading. */

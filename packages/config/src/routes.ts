@@ -66,13 +66,17 @@ export const paths = {
       `${ROOTS.PRACTICES}/${practiceId}/payments` as const,
     /** The client's own consultations. */
     mine: "/bookings",
-    /** Public booking page of a practice. */
-    public: (slug: string) => `/p/${slug}` as const,
+    /**
+     * Public booking page of a practice: `/anna`, straight under the root.
+     * A slug must never equal a top-level route (`RESERVED_SLUGS`). The old
+     * address `/p/anna` redirects here (proxy.ts).
+     */
+    public: (slug: string) => `/${slug}` as const,
     /**
      * The specialist's photo on that page. Ends in `.jpg` so a practice's own
      * host serves it as an asset (proxy.ts lets file-like paths through).
      */
-    avatar: (slug: string) => `/p/${slug}/avatar.jpg` as const,
+    avatar: (slug: string) => `/${slug}/avatar.jpg` as const,
     /** Upload (POST) and remove (DELETE) the photo; staff cabinet only. */
     avatarUpload: (practiceId: string) =>
       `/api/practices/${practiceId}/avatar` as const,

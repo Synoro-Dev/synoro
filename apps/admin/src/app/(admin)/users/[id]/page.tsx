@@ -159,7 +159,7 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
                       </a>
                       <span className="text-muted-foreground">
                         {" "}
-                        /p/{practice.slug}
+                        /{practice.slug}
                       </span>
                     </TableCell>
                     <TableCell>{ROLE_LABELS[practice.role]}</TableCell>

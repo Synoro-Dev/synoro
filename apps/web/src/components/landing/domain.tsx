@@ -9,7 +9,7 @@ import { Container, SectionHeading } from "./primitives";
 const stages = [
   {
     label: "Сразу после регистрации",
-    host: `${brand.rootDomain}/p/anna`,
+    host: `${brand.rootDomain}/anna`,
   },
   { label: "Короткий адрес Synoro", host: `anna.${brand.rootDomain}` },
   {

@@ -211,7 +211,7 @@ export function CreatePracticeDialog({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="practice-slug">Адрес страницы записи</Label>
             <InputGroup aria-invalid={!!errors.slug}>
-              <InputGroupAddon>/p/</InputGroupAddon>
+              <InputGroupAddon>/</InputGroupAddon>
               <InputGroupInput
                 id="practice-slug"
                 placeholder="anna"

@@ -61,28 +61,96 @@ export function clientMayCancel(
 }
 
 /**
- * Slugs double as platform subdomains (`<slug>.<root>`), so names the
- * platform itself may need as hosts are off limits.
+ * Slugs are the address of a booking page (`synoro.ru/<slug>`) and double as
+ * platform subdomains (`<slug>.<root>`). So every top-level route of the app
+ * and of the landing, and every name the platform may need as a host, is off
+ * limits. A new top-level route goes here first, or a specialist can take its
+ * address (`apps/app/src/lib/app-roots.test.ts` checks the existing ones).
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
+  "about",
   "admin",
   "api",
   "app",
   "assets",
   "auth",
+  "b",
+  "billing",
   "blog",
+  "bookings",
   "cdn",
+  "contact",
+  "contacts",
   "dashboard",
+  "demo",
   "docs",
   "domains",
+  "faq",
+  "features",
   "help",
+  "ingest",
+  "legal",
+  "login",
+  "logout",
   "mail",
+  "p",
+  "practices",
+  "pricing",
+  "privacy",
+  "pro",
+  "robots",
+  "security",
+  "settings",
+  "signup",
+  "site",
+  "sitemap",
   "smtp",
+  "solutions",
   "static",
   "status",
   "support",
+  "tariffs",
+  "terms",
   "www",
 ]);
+
+/** Letters, digits and hyphens; no hyphen at either end. */
+export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+export const SLUG_MIN_LENGTH = 3;
+export const SLUG_MAX_LENGTH = 48;
+
+/** Whether `value` can be the address of a booking page. */
+export function isPracticeSlug(value: string) {
+  return (
+    value.length >= SLUG_MIN_LENGTH &&
+    value.length <= SLUG_MAX_LENGTH &&
+    SLUG_PATTERN.test(value) &&
+    !RESERVED_SLUGS.has(value)
+  );
+}
+
+/**
+ * The practice a request path belongs to: `/anna` or `/anna/avatar.jpg` →
+ * `anna`. Any other path (the app's own routes included) → undefined.
+ */
+export function practiceSlugOfPath(pathname: string) {
+  const [, slug = "", rest = "", ...extra] = pathname.split("/");
+  if (extra.length > 0 || (rest !== "" && rest !== "avatar.jpg")) {
+    return undefined;
+  }
+  // Addresses are typed by hand: `/Anna` opens the page of `anna`.
+  const lower = slug.toLowerCase();
+  return isPracticeSlug(lower) ? lower : undefined;
+}
+
+/**
+ * The old address of a booking page, `/p/<slug>…`, as the current one
+ * (`/<slug>…`); undefined for any other path.
+ */
+export function legacyPracticePath(pathname: string) {
+  const path = pathname.startsWith("/p/") ? pathname.slice(2) : undefined;
+  return path && practiceSlugOfPath(path) ? path : undefined;
+}
 
 export const practiceFormSchema = z.object({
   name: z
@@ -94,10 +162,10 @@ export const practiceFormSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .min(3, "Адрес должен содержать не менее 3 символов")
-    .max(48, "Адрес не должен быть длиннее 48 символов")
+    .min(SLUG_MIN_LENGTH, "Адрес должен содержать не менее 3 символов")
+    .max(SLUG_MAX_LENGTH, "Адрес не должен быть длиннее 48 символов")
     .regex(
-      /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
+      SLUG_PATTERN,
       "Только латинские буквы, цифры и дефис (не в начале и не в конце)",
     )
     .refine((slug) => !RESERVED_SLUGS.has(slug), "Этот адрес зарезервирован"),

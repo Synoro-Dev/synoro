@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import { env } from "./src/env";
+import { EMBEDDABLE_SOURCE, SECURE_SOURCE } from "./src/lib/page-routes";
 
 /**
  * Browser analytics goes through `/ingest` on our own origin (ad blockers
@@ -59,7 +60,7 @@ const securityHeaders = [
 ];
 
 /**
- * A practice's booking page (`/p/<slug>`) may sit in an iframe on the
+ * A practice's booking page (`/<slug>`) may sit in an iframe on the
  * specialist's own site, which we don't know: any origin. There is no
  * `X-Frame-Options` value for that, so the header is left out. The page is
  * safe to frame: the session cookie is `SameSite=Lax`, so a cross-site frame
@@ -114,8 +115,8 @@ export default async function createNextConfig(): Promise<NextConfig> {
 
     async headers() {
       return [
-        { source: "/((?!p/).*)", headers: securityHeaders },
-        { source: "/p/:path*", headers: embeddableHeaders },
+        { source: SECURE_SOURCE, headers: securityHeaders },
+        { source: EMBEDDABLE_SOURCE, headers: embeddableHeaders },
       ];
     },
   };
