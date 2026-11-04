@@ -252,7 +252,7 @@ function EntryForm({
     if (wholeDays) {
       const startsAt = atMinute(date, 0);
       // Inclusive: «по 14-е» closes the 14th too.
-      const endsAt = atMinute(untilDate < date ? date : untilDate, 24 * 60);
+      const endsAt = atMinute(untilDate, 24 * 60);
       if (endsAt <= startsAt) {
         toast.error("Последний день не может быть раньше первого");
         return;
@@ -328,7 +328,11 @@ function EntryForm({
             id="entry-date"
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              setDate(e.target.value);
+              // The last day never comes before the first.
+              if (untilDate < e.target.value) setUntilDate(e.target.value);
+            }}
             className="w-40"
           />
         </div>
@@ -339,7 +343,7 @@ function EntryForm({
               id="entry-until"
               type="date"
               min={date}
-              value={untilDate < date ? date : untilDate}
+              value={untilDate}
               onChange={(e) => setUntilDate(e.target.value)}
               className="w-40"
             />
