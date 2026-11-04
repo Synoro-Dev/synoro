@@ -44,7 +44,7 @@ async function activate(hostname: string) {
 
 beforeAll(async () => {
   api = await setupTestApi();
-  ({ session: owner, practiceId } = await newPractice("anna"));
+  ({ session: owner, practiceId } = await newPractice("anna-i"));
 });
 afterAll(async () => {
   await api.close();
@@ -57,7 +57,7 @@ describe("domain.get", () => {
       { practiceId },
       { context: api.context(owner) },
     );
-    expect(settings.platformUrl).toBe("http://anna.pages.test:3000");
+    expect(settings.platformUrl).toBe("http://anna-i.pages.test:3000");
     expect(settings.targetsConfigured).toBe(true);
     expect(settings.domain).toBeNull();
   });
@@ -122,7 +122,7 @@ describe("domain.connect", () => {
 
 describe("practice.byHost", () => {
   it("serves platform subdomains by slug", async () => {
-    const practice = await byHost("anna.pages.test");
+    const practice = await byHost("anna-i.pages.test");
     expect(practice.id).toBe(practiceId);
     expect(practice.membership).toBeNull();
   });

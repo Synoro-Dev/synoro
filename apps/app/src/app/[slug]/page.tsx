@@ -1,8 +1,9 @@
 import { isDefinedError } from "@orpc/server";
+import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { isPracticeSlug } from "@synoro/validators";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { getSession } from "~/auth/server";
@@ -46,6 +47,10 @@ async function PublicBookingWithData({
     }),
     getSession(),
   ]);
+  // A former address: clients' old links lead to the current one.
+  if (practice.slug !== slug.toLowerCase()) {
+    redirect(paths.booking.public(practice.slug));
+  }
 
   return (
     <>
