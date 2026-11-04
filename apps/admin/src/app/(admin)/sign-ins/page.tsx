@@ -43,10 +43,40 @@ async function SignIns({ searchParams }: { searchParams: SearchParams }) {
   const { params, page, input, first } = await listParams(searchParams);
   const requested = first(params.source);
   const source = isSource(requested) ? requested : undefined;
-  const { items, total } = await api.signIns.list({ ...input, source });
+  // A user's full history (the link on their card); ids are short strings.
+  const userId = first(params.userId)?.trim().slice(0, 100) || undefined;
+  const { items, total } = await api.signIns.list({
+    ...input,
+    source,
+    userId,
+  });
+  const owner = userId ? items[0] : undefined;
 
   return (
     <>
+      {userId && (
+        <p className="text-muted-foreground text-sm">
+          Входы пользователя{" "}
+          <Link
+            href={`/users/${encodeURIComponent(userId)}` as Route}
+            className="text-foreground hover:underline"
+          >
+            {owner ? `${owner.userName} (${owner.userEmail})` : userId}
+          </Link>
+          {" · "}
+          <Link
+            href={
+              listHref("/sign-ins", params, {
+                userId: undefined,
+                page: undefined,
+              }) as Route
+            }
+            className="hover:underline"
+          >
+            показать всех
+          </Link>
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SearchForm
           action="/sign-ins"
@@ -54,6 +84,7 @@ async function SignIns({ searchParams }: { searchParams: SearchParams }) {
           placeholder="Имя, почта, IP или город"
         >
           {source && <input type="hidden" name="source" value={source} />}
+          {userId && <input type="hidden" name="userId" value={userId} />}
         </SearchForm>
         <div className="flex flex-wrap gap-1">
           {SOURCES.map((option) => (

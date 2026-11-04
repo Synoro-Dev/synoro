@@ -33,20 +33,76 @@ function isPublicV4(ip: string) {
 }
 
 /**
+ * The eight 16-bit groups of an IPv6 address, whatever its spelling (`::1`,
+ * `0:0:0:0:0:0:0:1`, `::ffff:7f00:1`, `::ffff:127.0.0.1`); null if it is not
+ * one (or carries a zone id).
+ */
+function ipv6Groups(ip: string): number[] | null {
+  if (ip.includes("%") || isIP(ip) !== 6) return null;
+  let text = ip.toLowerCase();
+  // A dotted IPv4 tail stands for the last two groups.
+  const dotted = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(text);
+  if (dotted?.[1]) {
+    const [a = 0, b = 0, c = 0, d = 0] = dotted[1].split(".").map(Number);
+    text = `${text.slice(0, -dotted[1].length)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head = "", tail, ...rest] = text.split("::");
+  if (rest.length > 0) return null;
+  const parse = (part: string) =>
+    part === ""
+      ? []
+      : part.split(":").map((group) => Number.parseInt(group, 16));
+  const first = parse(head);
+  const last = tail === undefined ? [] : parse(tail);
+  const missing = 8 - first.length - last.length;
+  if (tail === undefined ? missing !== 0 : missing < 0) return null;
+  const groups = [
+    ...first,
+    ...Array<number>(tail === undefined ? 0 : missing).fill(0),
+    ...last,
+  ];
+  return groups.length === 8 && groups.every((g) => g >= 0 && g <= 0xffff)
+    ? groups
+    : null;
+}
+
+const v4Of = (high: number, low: number) =>
+  `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+
+/**
  * Whether a geo service can say anything about the address: not a private,
  * loopback or link-local one (a dev machine, or a proxy that hides the
- * client's IP), and never sent to a third party.
+ * client's IP), and never sent to a third party. IPv6 is judged by the
+ * address, not its spelling.
  */
 export function isPublicIp(ip: string) {
   const kind = isIP(ip);
   if (kind === 4) return isPublicV4(ip);
-  if (kind !== 6) return false;
-  const lower = ip.toLowerCase();
-  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(lower);
-  if (mapped?.[1]) return isPublicV4(mapped[1]);
-  if (lower === "::" || lower === "::1") return false;
-  // fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast.
-  return !/^(f[cd]|fe[89ab]|ff)/.test(lower);
+  const groups = ipv6Groups(ip);
+  if (!groups) return false;
+  const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] =
+    groups;
+  // IPv4 inside IPv6: mapped (::ffff:a.b.c.d), compatible (::a.b.c.d) and
+  // NAT64 (64:ff9b::a.b.c.d) take the IPv4 verdict, :: and ::1 included.
+  const zeros = g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0;
+  if (zeros && (g5 === 0xffff || g5 === 0)) return isPublicV4(v4Of(g6, g7));
+  if (
+    g0 === 0x64 &&
+    g1 === 0xff9b &&
+    g2 === 0 &&
+    g3 === 0 &&
+    g4 === 0 &&
+    g5 === 0
+  ) {
+    return isPublicV4(v4Of(g6, g7));
+  }
+  // fc00::/7 unique local, fe80::/10 link-local, fec0::/10 site-local,
+  // ff00::/8 multicast, 2001:db8::/32 documentation.
+  if ((g0 & 0xfe00) === 0xfc00) return false;
+  if ((g0 & 0xffc0) === 0xfe80 || (g0 & 0xffc0) === 0xfec0) return false;
+  if (g0 >> 8 === 0xff) return false;
+  if (g0 === 0x2001 && g1 === 0xdb8) return false;
+  return true;
 }
 
 const str = (value: unknown) =>

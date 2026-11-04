@@ -53,6 +53,17 @@ describe("admin.signIns.list", () => {
         city: "Омск",
         createdAt: new Date(now - MINUTE),
       },
+      // Any single UTM tag marks an ad, as the landing treats it.
+      {
+        userId: boris.user.id,
+        utmContent: "555",
+        createdAt: new Date(now + MINUTE),
+      },
+      {
+        userId: boris.user.id,
+        utmTerm: "keyword",
+        createdAt: new Date(now + 2 * MINUTE),
+      },
       // A click with no UTM tags is still an ad.
       {
         userId: boris.user.id,
@@ -66,15 +77,17 @@ describe("admin.signIns.list", () => {
       call(adminRouter.signIns.list, input, { context });
 
     const all = await list({ limit: 50, offset: 0 });
-    expect(all.total).toBe(4);
+    expect(all.total).toBe(6);
     // Newest first, with the user and the kind of source.
     expect(all.items.map((item) => item.source)).toEqual([
+      "ad",
+      "ad",
       "ad",
       "direct",
       "referral",
       "ad",
     ]);
-    expect(all.items[3]).toMatchObject({
+    expect(all.items[5]).toMatchObject({
       userName: "Анна",
       userEmail: "anna-signin@test.local",
       ipAddress: "93.184.216.34",
@@ -84,7 +97,7 @@ describe("admin.signIns.list", () => {
     });
 
     const ads = await list({ source: "ad", limit: 50, offset: 0 });
-    expect(ads.total).toBe(2);
+    expect(ads.total).toBe(4);
     const referrals = await list({ source: "referral", limit: 50, offset: 0 });
     expect(referrals.items.map((item) => item.referrerHost)).toEqual([
       "habr.com",
@@ -98,7 +111,7 @@ describe("admin.signIns.list", () => {
     // Name, email, IP and city are all searchable.
     for (const [query, total] of [
       ["Анна", 2],
-      ["boris-signin", 2],
+      ["boris-signin", 4],
       ["203.0.113", 1],
       ["казан", 1],
     ] as const) {
@@ -108,7 +121,7 @@ describe("admin.signIns.list", () => {
 
     const page = await list({ limit: 1, offset: 1 });
     expect(page.items).toHaveLength(1);
-    expect(page.total).toBe(4);
+    expect(page.total).toBe(6);
   });
 
   it("refuses anyone but an admin", async () => {

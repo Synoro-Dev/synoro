@@ -82,6 +82,11 @@ export function readVisitSource(
 ): VisitSource {
   const header = headers?.get("cookie");
   if (!header) return NO_VISIT_SOURCE;
+  // A visitor who declined analytics (CONSENT_COOKIE in @synoro/ui, shared
+  // across .synoro.ru) is not tracked, whatever cookies are left over.
+  if (cookieValue(header, "cookie_consent") === "declined") {
+    return NO_VISIT_SOURCE;
+  }
 
   const yclidRaw = cookieValue(header, YCLID_COOKIE);
   const yclid =

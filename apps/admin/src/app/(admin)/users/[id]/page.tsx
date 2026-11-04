@@ -178,7 +178,9 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
             Входы
             {signIns.total > signIns.items.length && (
               <Link
-                href={`/sign-ins?q=${encodeURIComponent(user.email)}` as Route}
+                href={
+                  `/sign-ins?userId=${encodeURIComponent(user.id)}` as Route
+                }
                 className="text-muted-foreground text-sm font-normal hover:underline"
               >
                 Все {signIns.total}

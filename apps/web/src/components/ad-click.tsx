@@ -10,7 +10,7 @@ import { useEffect } from "react";
  * keep the names and the format in sync.
  */
 export const YCLID_COOKIE = "ad_yclid";
-const VISIT_COOKIE = "ad_visit";
+export const VISIT_COOKIE = "ad_visit";
 
 const DAYS = 90;
 const MAX_FIELD = 120;

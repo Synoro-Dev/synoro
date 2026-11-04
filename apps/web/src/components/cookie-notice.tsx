@@ -4,7 +4,7 @@ import { legal } from "@synoro/config";
 import { CookieBanner } from "@synoro/ui";
 import { clearCookies, stopYandexMetrika } from "@synoro/ui/cookie-consent";
 
-import { YCLID_COOKIE } from "./ad-click";
+import { VISIT_COOKIE, YCLID_COOKIE } from "./ad-click";
 
 /**
  * Analytics banner of the landing; refusing stops the Metrika counter and
@@ -19,6 +19,7 @@ export function CookieNotice({ counterId }: { counterId: number }) {
         if (value !== "declined") return;
         stopYandexMetrika(counterId);
         clearCookies(YCLID_COOKIE);
+        clearCookies(VISIT_COOKIE);
       }}
     />
   );

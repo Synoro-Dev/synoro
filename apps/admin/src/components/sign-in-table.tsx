@@ -57,7 +57,7 @@ function Source({ item }: { item: SignInItem }) {
     <div className="flex flex-col gap-0.5">
       <span className="flex items-center gap-2">
         <Badge variant="secondary">реклама</Badge>
-        {channel || "Яндекс Директ"}
+        {channel || (item.yclid ? "Яндекс Директ" : "Реклама")}
       </span>
       {details && (
         <span className="text-muted-foreground text-xs">{details}</span>

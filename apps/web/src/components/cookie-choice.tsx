@@ -11,7 +11,7 @@ import {
 } from "@synoro/ui/cookie-consent";
 import { useEffect, useState } from "react";
 
-import { YCLID_COOKIE } from "./ad-click";
+import { VISIT_COOKIE, YCLID_COOKIE } from "./ad-click";
 
 /** Current analytics choice with a switch, for the cookie policy page. */
 export function CookieChoice({ counterId }: { counterId: number }) {
@@ -29,6 +29,7 @@ export function CookieChoice({ counterId }: { counterId: number }) {
     if (value === "declined") {
       stopYandexMetrika(counterId);
       clearCookies(YCLID_COOKIE);
+      clearCookies(VISIT_COOKIE);
     }
     setDeclined(value === "declined");
   }

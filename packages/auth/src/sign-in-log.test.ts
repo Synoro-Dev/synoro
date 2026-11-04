@@ -177,6 +177,18 @@ describe("visit source cookies", () => {
     expect(source.yclidAt).toBeNull();
   });
 
+  it("reads nothing from a visitor who declined analytics", () => {
+    const cookie = [
+      "cookie_consent=declined",
+      "ad_yclid=abc123",
+      visit({ us: "yandex", ref: "habr.com" }),
+    ].join("; ");
+    expect(readVisitSource(headers(cookie))).toEqual(NO_VISIT_SOURCE);
+    expect(
+      readVisitSource(headers(cookie.replace("declined", "accepted"))).yclid,
+    ).toBe("abc123");
+  });
+
   it("survives a broken percent-encoding", () => {
     expect(readVisitSource(headers("ad_visit=%E0%A4%A"))).toEqual(
       NO_VISIT_SOURCE,
@@ -201,12 +213,44 @@ describe("geo", () => {
       "fd00::1",
       "fe80::1",
       "::ffff:10.0.0.1",
+      // The same addresses, spelled another way.
+      "0:0:0:0:0:0:0:1",
+      "0000:0000:0000:0000:0000:0000:0000:0001",
+      "::ffff:7f00:1",
+      "::ffff:a00:1",
+      "::ffff:127.0.0.1",
+      "0:0:0:0:0:ffff:c0a8:101",
+      "::",
+      "::10.0.0.1",
+      "64:ff9b::a00:1",
+      // Range edges: fe80::/10 ends at febf, fc00::/7 at fdff, ff00::/8 up.
+      "febf:ffff::1",
+      "fec0::1",
+      "fc00::1",
+      "fdff::1",
+      "ff02::1",
+      "2001:db8::1",
+      "fe80::1%eth0",
       "unknown",
       "",
     ]) {
       expect(isPublicIp(ip)).toBe(false);
     }
     expect(isPublicIp("172.32.0.1")).toBe(true);
+    // Just outside the private ranges, and a public IPv4 inside IPv6.
+    for (const ip of [
+      "fe7f::1",
+      "fe00::1",
+      "fbff::1",
+      "fe::1",
+      "2001:db9::1",
+      "::ffff:808:808",
+      "::ffff:8.8.8.8",
+      "0:0:0:0:0:ffff:5db8:d822",
+      "64:ff9b::808:808",
+    ]) {
+      expect(isPublicIp(ip)).toBe(true);
+    }
   });
 
   it("reads the answers of the supported services", () => {
