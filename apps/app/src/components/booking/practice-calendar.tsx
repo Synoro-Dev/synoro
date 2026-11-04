@@ -2,6 +2,7 @@
 
 import { paths } from "@synoro/config";
 import { Button, Skeleton } from "@synoro/ui";
+import { useIsMobile } from "@synoro/ui/hooks";
 import { EventCalendar } from "@synoro/ui/reui/event-calendar/event-calendar";
 import { EventCalendarContent } from "@synoro/ui/reui/event-calendar/event-calendar-content";
 import { EventCalendarNav } from "@synoro/ui/reui/event-calendar/event-calendar-nav";
@@ -10,7 +11,11 @@ import { Frame, FramePanel } from "@synoro/ui/reui/frame";
 import { useQuery } from "@tanstack/react-query";
 import { addDays, startOfWeek } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarSearchIcon, PlusIcon } from "lucide-react";
+import {
+  CalendarOffIcon,
+  CalendarPlusIcon,
+  CalendarSearchIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -76,6 +81,8 @@ export function PracticeCalendar({
     return { start, end: new Date(start.getTime() + 7 * DAY_MS) };
   });
   const terms = useTerms();
+  // Phones open on the agenda: a list of days reads better than a grid.
+  const isMobile = useIsMobile();
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [selected, setSelected] = useState<CalendarBooking | null>(null);
 
@@ -170,8 +177,8 @@ export function PracticeCalendar({
               Google Календарь
             </span>
           )}
-          <span className="hidden sm:inline">
-            Выделите время мышью, чтобы добавить запись
+          <span className="hidden md:inline">
+            Выделите время в сетке, чтобы добавить запись
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -186,17 +193,33 @@ export function PracticeCalendar({
           </Button>
           <Button
             size="sm"
+            variant="outline"
             onClick={() => {
               const start = nextHalfHour();
               setDraft({
-                mode: "free",
+                mode: "block",
+                start,
+                end: new Date(start.getTime() + 60 * 60_000),
+                wholeDays: true,
+              });
+            }}
+          >
+            <CalendarOffIcon />
+            Закрыть даты
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => {
+              const start = nextHalfHour();
+              setDraft({
+                mode: "consultation",
                 start,
                 end: new Date(start.getTime() + 60 * 60_000),
               });
             }}
           >
-            <PlusIcon />
-            Новая запись
+            <CalendarPlusIcon />
+            Записать
           </Button>
         </div>
       </div>
@@ -207,9 +230,10 @@ export function PracticeCalendar({
             <Skeleton className="h-[640px] w-full" />
           ) : (
             <EventCalendar<CalendarBooking>
+              key={isMobile ? "phone" : "wide"}
               className="h-[calc(100svh-13rem)] min-h-[560px]"
               events={events}
-              defaultView="week"
+              defaultView={isMobile ? "agenda" : "week"}
               views={["month", "week", "day", "agenda"]}
               locale={ru}
               weekStartsOn={1}

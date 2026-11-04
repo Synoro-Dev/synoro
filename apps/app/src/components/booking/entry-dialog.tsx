@@ -57,7 +57,12 @@ export interface EntryDraft {
   end: Date;
   /** Book this client (opened from their card). */
   client?: { id: string; name: string };
+  /** Close whole days (a vacation) rather than hours of one day. */
+  wholeDays?: boolean;
 }
+
+/** The longest block the API takes (`booking.block`). */
+const MAX_BLOCK_DAYS = 31;
 
 const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
 
@@ -105,6 +110,8 @@ function EntryForm({
   const terms = useTerms();
   const [mode, setMode] = useState<EntryMode>(draft.mode);
   const [date, setDate] = useState(dateKey(draft.start));
+  const [wholeDays, setWholeDays] = useState(draft.wholeDays ?? false);
+  const [untilDate, setUntilDate] = useState(dateKey(draft.start));
   const [start, setStart] = useState(minutesOf(draft.start));
   const [end, setEnd] = useState(
     Math.max(minutesOf(draft.end) || 1440, minutesOf(draft.start) + 30),
@@ -189,7 +196,7 @@ function EntryForm({
   });
   const block = useMutation({
     ...orpc.booking.block.mutationOptions(),
-    onSuccess: () => onSuccess("Время закрыто"),
+    onSuccess: () => onSuccess(wholeDays ? "Даты закрыты" : "Время закрыто"),
     onError: (error) => toast.error(error.message),
   });
   const pending =
@@ -242,6 +249,23 @@ function EntryForm({
       });
       return;
     }
+    if (wholeDays) {
+      const startsAt = atMinute(date, 0);
+      // Inclusive: «по 14-е» closes the 14th too.
+      const endsAt = atMinute(untilDate < date ? date : untilDate, 24 * 60);
+      if (endsAt <= startsAt) {
+        toast.error("Последний день не может быть раньше первого");
+        return;
+      }
+      if (endsAt.getTime() - startsAt.getTime() > MAX_BLOCK_DAYS * 86_400_000) {
+        toast.error(
+          `Закрыть можно до ${MAX_BLOCK_DAYS} дня подряд — разбейте на две части`,
+        );
+        return;
+      }
+      block.mutate({ practiceId, startsAt, endsAt, note: note || undefined });
+      return;
+    }
     if (end <= start) {
       toast.error("Конец должен быть позже начала");
       return;
@@ -283,9 +307,23 @@ function EntryForm({
         </TabsList>
       </Tabs>
 
+      {mode === "block" && (
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--brand)]"
+            checked={wholeDays}
+            onChange={(e) => setWholeDays(e.target.checked)}
+          />
+          Целые дни — отпуск, выходные, праздники
+        </label>
+      )}
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="entry-date">Дата</Label>
+          <Label htmlFor="entry-date">
+            {mode === "block" && wholeDays ? "С" : "Дата"}
+          </Label>
           <Input
             id="entry-date"
             type="date"
@@ -294,11 +332,25 @@ function EntryForm({
             className="w-40"
           />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label>{mode === "block" ? "С" : "Начало"}</Label>
-          <TimeSelect label="Начало" value={start} onChange={setStart} />
-        </div>
-        {mode === "block" && (
+        {mode === "block" && wholeDays ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entry-until">По</Label>
+            <Input
+              id="entry-until"
+              type="date"
+              min={date}
+              value={untilDate < date ? date : untilDate}
+              onChange={(e) => setUntilDate(e.target.value)}
+              className="w-40"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <Label>{mode === "block" ? "С" : "Начало"}</Label>
+            <TimeSelect label="Начало" value={start} onChange={setStart} />
+          </div>
+        )}
+        {mode === "block" && !wholeDays && (
           <div className="flex flex-col gap-1.5">
             <Label>До</Label>
             <TimeSelect label="Конец" value={end} onChange={setEnd} endOfDay />

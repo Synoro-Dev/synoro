@@ -40,9 +40,13 @@ import { VideoLinkButton, VideoLinkForm, VideoServiceName } from "./video-link";
 
 export type CalendarBooking = RouterOutputs["booking"]["calendar"][number];
 
+/**
+ * Calm, distinct looks per kind: paid bookings carry the accent, free
+ * ones a quiet blue, closed time stays grey. Labels always go with them.
+ */
 export const KIND_META = {
-  consultation: { badge: "info-light", color: "var(--info)" },
-  free: { badge: "success-light", color: "var(--success)" },
+  consultation: { badge: "success-light", color: "var(--brand)" },
+  free: { badge: "info-light", color: "var(--calendar-free)" },
   blocked: { badge: "outline", color: "var(--muted-foreground)" },
 } as const;
 
