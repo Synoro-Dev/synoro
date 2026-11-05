@@ -4,7 +4,13 @@ import Script from "next/script";
 /** Exported for the cookie banner, which stops this counter on refusal. */
 export const COUNTER_ID = 109190662;
 
-/** Яндекс Метрика. Только в production, чтобы не засорять статистику. */
+/**
+ * Яндекс Метрика. Только в production, чтобы не засорять статистику.
+ *
+ * Not on `/b/<token>`: that address is the only credential to a booking, and
+ * the counter would send it along with a Webvisor recording. Every way there
+ * is a full page load, so a check at start is enough.
+ */
 export function YandexMetrika() {
   if (process.env.NODE_ENV !== "production") return null;
 
@@ -14,6 +20,7 @@ export function YandexMetrika() {
         {`
 (function(){
 if (document.cookie.indexOf("${CONSENT_COOKIE}=declined") !== -1) { return; }
+if (location.pathname.indexOf("/b/") === 0) { return; }
 (function(m,e,t,r,i,k,a){
   m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
   m[i].l=1*new Date();

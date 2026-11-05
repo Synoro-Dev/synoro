@@ -244,6 +244,14 @@ and run `tsc` by hand, build them first.
   offer: `booking.rescheduleSlots`. `practices.client_contact` reaches clients
   only on confirmed bookings (`booking.mine` / `guest`), never in public
   procedures.
+- **Search engines**: the landing is what gets indexed: `apps/web/src/app/robots.txt`
+  (static, `Clean-param` for Direct's UTMs), canonicals, JSON-LD from
+  `lib/structured-data.ts` (`FAQPage` from the questions the page shows; no
+  `aggregateRating` without real reviews), link previews `/assets/og/<card>.png`,
+  prerendered. Not `opengraph-image`: `/opengraph-image` looks like a slug, and
+  Traefik would send it to the app. In the app everything but `/` gets
+  `X-Robots-Tag: noindex, follow` (`NOINDEX_SOURCE`), `synoro.ru/<slug>` included;
+  a practice's own domain stays indexable, with a canonical to itself.
 - **Analytics (PostHog)**: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (+ `_HOST`, default EU
   cloud); unset — everything is a no-op. Browser: `src/instrumentation-client.ts`
   in `apps/app` and `apps/web`, events via the `/ingest` rewrite in

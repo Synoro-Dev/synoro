@@ -1,7 +1,7 @@
 import { buttonVariants, cn } from "@synoro/ui";
 
 import { paidPlan, signupGoal } from "~/lib/pricing";
-import type { ProfessionPage } from "~/lib/professions";
+import { homeHero, type ProfessionPage } from "~/lib/professions";
 import type { SiteLinks } from "~/lib/site";
 
 import { BookingDemo } from "./booking-demo";
@@ -15,6 +15,7 @@ export function Hero({
   links: SiteLinks;
   page?: ProfessionPage;
 }) {
+  const { h1, heading, lead } = page ?? homeHero;
   const secondary = cn(
     buttonVariants({ variant: "outline", size: "lg" }),
     "h-11 rounded-full px-6 text-[15px]",
@@ -37,29 +38,22 @@ export function Hero({
             Бесплатно навсегда, без лимита записей
           </a>
 
-          <h1
+          <h1 className="mb-4 text-lg font-medium tracking-tight text-balance sm:text-xl">
+            {h1}
+          </h1>
+
+          <p
             className={cn(
               display,
               "text-[2.75rem] leading-[0.98] tracking-[-0.045em] sm:text-6xl xl:text-[4.25rem]",
             )}
           >
-            {page ? (
-              <>
-                <span className="block">{page.heading[0]}</span>
-                <span className="block">{page.heading[1]}</span>
-              </>
-            ) : (
-              <>
-                <span className="block">Клиенты записываются сами.</span>
-                <span className="block">Вы работаете с&nbsp;людьми.</span>
-              </>
-            )}
-          </h1>
+            <span className="block">{heading[0]}</span>
+            <span className="block">{heading[1]}</span>
+          </p>
 
           <p className="text-muted-foreground mt-6 max-w-[34rem] text-lg text-pretty">
-            {page
-              ? page.lead
-              : "Онлайн-запись для психологов, репетиторов и других специалистов частной практики: расписание, пакеты занятий с предоплатой, кабинет клиента и своя страница. Без таблиц и переписки в мессенджерах — и бесплатно."}
+            {lead}
           </p>
 
           <div className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">

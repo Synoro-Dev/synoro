@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { RESERVED_SLUGS } from "@synoro/validators";
 import { pathToRegexp } from "next/dist/compiled/path-to-regexp";
 
-import { APP_ROOTS, EMBEDDABLE_SOURCE, SECURE_SOURCE } from "./page-routes";
+import {
+  APP_ROOTS,
+  EMBEDDABLE_SOURCE,
+  NOINDEX_SOURCE,
+  SECURE_SOURCE,
+} from "./page-routes";
 
 const appDir = join(import.meta.dir, "..", "app");
 const publicDir = join(import.meta.dir, "..", "..", "public");
@@ -69,6 +74,29 @@ describe("header sources", () => {
     ]) {
       expect(embeddable.test(path)).toBe(false);
       expect(secure.test(path)).toBe(true);
+    }
+  });
+
+  it("keep the app and booking pages out of the index, not a domain's `/`", () => {
+    const noindex = pathToRegexp(NOINDEX_SOURCE);
+    for (const path of [
+      "/anna",
+      "/nonexistent-page",
+      "/auth/login",
+      "/auth/signup",
+      "/practices/abc/calendar",
+      "/b/token",
+      "/site/anna-ivanova.ru",
+    ]) {
+      expect(noindex.test(path)).toBe(true);
+    }
+    for (const path of [
+      "/",
+      "/robots.txt",
+      "/favicon.ico",
+      "/_next/static/chunks/a.js",
+    ]) {
+      expect(noindex.test(path)).toBe(false);
     }
   });
 });
