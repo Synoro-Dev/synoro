@@ -5,6 +5,7 @@ import {
   type Database,
   eq,
   type PaymentStatus,
+  SlugOrder,
   Subscription,
   SubscriptionAutorenewal,
   SubscriptionPayment,
@@ -18,9 +19,11 @@ import { PRO_PRICES, TRIAL_DAYS } from "@synoro/validators";
 
 import { ProviderError } from "../payments/types";
 import type { AdAttribution } from "./attribution";
+import { syncSlugOrder } from "./slug-orders";
 import {
   createTochkaPayment,
   fetchTochkaPayment,
+  isDemoBilling,
   isSandboxPayment,
   refundTochkaPayment,
   sandboxExternalId,
@@ -111,14 +114,6 @@ function billingReturnUrl(paymentId: string) {
   const url = new URL(paths.settings.billing, env.APP_URL);
   url.searchParams.set("payment", paymentId);
   return url.href;
-}
-
-/**
- * The demo stand (DEMO_LOGIN_EMAIL) has no bank behind it: a «Про» payment
- * there is paid the moment it starts, like payments to `demo-` shops.
- */
-function isDemoBilling() {
-  return !!env.DEMO_LOGIN_EMAIL && !tochkaAvailable();
 }
 
 /** «Про» can be paid for on this deployment. */
@@ -425,15 +420,21 @@ export async function handleBillingWebhook(
   db: Database,
 ): Promise<globalThis.Response> {
   const operationId = tochkaWebhookOperationId(await request.text());
-  const payment =
-    operationId &&
-    (await db.query.SubscriptionPayment.findFirst({
-      where: eq(SubscriptionPayment.externalId, operationId),
-    }));
-  if (!payment) return new Response("OK");
+  if (!operationId) return new Response("OK");
+  const payment = await db.query.SubscriptionPayment.findFirst({
+    where: eq(SubscriptionPayment.externalId, operationId),
+  });
+  const order = payment
+    ? undefined
+    : await db.query.SlugOrder.findFirst({
+        where: eq(SlugOrder.externalId, operationId),
+      });
+  if (!payment && !order) return new Response("OK");
 
-  const synced = await syncSubscriptionPayment(db, payment);
-  return synced.status === "pending"
+  const synced = payment
+    ? await syncSubscriptionPayment(db, payment)
+    : order && (await syncSlugOrder(db, order));
+  return synced?.status === "pending"
     ? new Response("Not settled yet", { status: 503 })
     : new Response("OK");
 }

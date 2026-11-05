@@ -63,6 +63,14 @@ export function tochkaAvailable() {
 }
 
 /**
+ * The demo stand (DEMO_LOGIN_EMAIL) has no bank behind it: a payment to the
+ * platform there is paid the moment it starts, like payments to `demo-` shops.
+ */
+export function isDemoBilling() {
+  return !!env.DEMO_LOGIN_EMAIL && !tochkaAvailable();
+}
+
+/**
  * APPROVED — paid. EXPIRED — the link ran out unpaid. CREATED (and the
  * two-stage AUTHORIZED, which we don't use) — not yet. Refund statuses
  * only follow APPROVED, and a settled payment never changes.
@@ -166,6 +174,8 @@ export async function createTochkaPayment(request: {
   returnUrl: string;
   /** Open a schedule-less subscription instead of a one-off payment. */
   autorenew?: boolean;
+  /** How long a one-off link lives; a day unless said otherwise. */
+  ttlMinutes?: number;
 }): Promise<TochkaPayment> {
   const { customerCode, merchantId, taxSystem } = tochkaConfig();
   if (!taxSystem) {
@@ -187,7 +197,7 @@ export async function createTochkaPayment(request: {
       : {
           purpose: request.purpose.slice(0, 210),
           paymentMode: ["card", "sbp"],
-          ttl: LINK_TTL_MINUTES,
+          ttl: request.ttlMinutes ?? LINK_TTL_MINUTES,
         }),
   };
   const { Data } = await call<{ Data: TochkaOperation }>(

@@ -10,6 +10,9 @@ import type { appRouter } from "@synoro/api";
  * what the user does is done through the interface.
  */
 
+// Signing up may wait out the auth rate limit (see `signUp`).
+test.describe.configure({ timeout: 90_000 });
+
 const PASSWORD = "e2e-password-123";
 const HOUR = 60 * 60 * 1000;
 
@@ -296,6 +299,8 @@ test("client cancels in time (credit back) but not within 24 hours", async ({
   browser,
   baseURL,
 }) => {
+  // Two sign-ups, each of which may wait out the rate limit.
+  test.setTimeout(180_000);
   const base = baseURL ?? "";
   const { api: owner, practiceId } = await ownerWithPractice(page, base);
   // Open every hour of every day, so any whole hour can be booked.

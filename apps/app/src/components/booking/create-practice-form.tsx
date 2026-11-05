@@ -24,10 +24,13 @@ import {
   toast,
 } from "@synoro/ui";
 import {
+  isPremiumSlug,
+  PREMIUM_SLUG_PRICE_LABEL,
   PROFESSION_TERMS,
   PROFESSIONS,
   type PracticeFormValues,
   practiceFormSchema,
+  practiceSlugSchema,
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -110,13 +113,29 @@ export function CreatePracticeDialog({
   });
   const { errors, dirtyFields } = form.formState;
   const profession = useWatch({ control: form.control, name: "profession" });
+  const typedSlug = practiceSlugSchema.safeParse(
+    useWatch({ control: form.control, name: "slug" }),
+  );
+  const premium = typedSlug.success && isPremiumSlug(typedSlug.data);
 
   const create = useMutation({
     ...orpc.practice.create.mutationOptions(),
-    onSuccess: async (practice) => {
+    onSuccess: async (practice, values) => {
       toast.success("Практика создана");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       form.reset();
+      if (practice.slugOrder) {
+        window.location.assign(practice.slugOrder.confirmationUrl);
+        return;
+      }
+      if (isPremiumSlug(values.slug)) {
+        toast.info(
+          "Оплатить адрес не удалось, практика открыта на временном адресе. Купить короткий адрес можно на этой странице.",
+        );
+        router.push(paths.booking.page(practice.id));
+        router.refresh();
+        return;
+      }
       router.push(
         next === "billing"
           ? paths.settings.billing
@@ -128,6 +147,10 @@ export function CreatePracticeDialog({
     onError: (error) => {
       if (isDefinedError(error) && error.code === "CONFLICT") {
         form.setError(error.data.field, { message: error.message });
+        return;
+      }
+      if (isDefinedError(error) && error.code === "PREMIUM_UNAVAILABLE") {
+        form.setError("slug", { message: error.message });
         return;
       }
       toast.error(error.message || "Не удалось создать практику");
@@ -215,15 +238,23 @@ export function CreatePracticeDialog({
               <InputGroupAddon>/</InputGroupAddon>
               <InputGroupInput
                 id="practice-slug"
-                placeholder="anna"
+                placeholder="anna-ivanova"
                 aria-invalid={!!errors.slug}
                 {...form.register("slug")}
               />
             </InputGroup>
-            {errors.slug && (
+            {errors.slug ? (
               <p role="alert" className="text-sm text-destructive">
                 {errors.slug.message}
               </p>
+            ) : (
+              premium && (
+                <p className="text-sm text-muted-foreground">
+                  Короткий адрес — премиум-имя. Стоит {PREMIUM_SLUG_PRICE_LABEL}
+                  , платить нужно один раз. Практика откроется сразу, а адрес
+                  заработает после оплаты.
+                </p>
+              )
             )}
           </div>
           <DialogFooter>
@@ -235,7 +266,11 @@ export function CreatePracticeDialog({
               Отмена
             </Button>
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? "Создание…" : "Создать"}
+              {create.isPending
+                ? "Создание…"
+                : premium
+                  ? `Создать и оплатить ${PREMIUM_SLUG_PRICE_LABEL}`
+                  : "Создать"}
             </Button>
           </DialogFooter>
         </form>

@@ -24,6 +24,7 @@ import { useState } from "react";
 import { orpc } from "~/orpc/react";
 
 import { BookingLinkActions } from "./booking-link";
+import { PracticeAddress } from "./practice-address";
 import { PracticeAvatar } from "./practice-avatar";
 import {
   BookingThemePreview,
@@ -34,10 +35,11 @@ import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
- * Where the practice's public page is edited: photo, link, free intro, video
- * room and the page's look, with a live preview «как видит клиент» — beside
- * the settings where they fit, on a narrow screen a panel that stays in view.
- * Administrators share the link and design the page; the rest is the owner's.
+ * Where the practice's public page is edited: photo, link, address, free
+ * intro, video room and the page's look, with a live preview «как видит
+ * клиент» — beside the settings where they fit, on a narrow screen a panel
+ * that stays in view. Administrators share the link and design the page; the
+ * rest is the owner's.
  */
 export function PracticeBookingPage({
   practice,
@@ -45,6 +47,8 @@ export function PracticeBookingPage({
   practice: {
     id: string;
     name: string;
+    slug: string;
+    formerSlugs: string[];
     imageUrl: string | null;
     bookingUrl: string;
     videoUrl: string | null;
@@ -142,6 +146,17 @@ export function PracticeBookingPage({
               <BookingLinkActions url={practice.bookingUrl} />
             </FramePanel>
           </Frame>
+
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticeAddress
+                practiceId={practice.id}
+                slug={practice.slug}
+                formerSlugs={practice.formerSlugs}
+                bookingUrl={practice.bookingUrl}
+              />
+            </Frame>
+          )}
 
           <Frame spacing="default" className="min-w-0">
             <PracticeBookingTheme
