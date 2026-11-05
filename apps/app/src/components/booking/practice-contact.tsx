@@ -33,7 +33,6 @@ export function PracticeContact({
     ...orpc.practice.setContact.mutationOptions(),
     onSuccess: async (result) => {
       setSaved(result.contact ?? "");
-      setDraft(result.contact ?? "");
       toast.success(result.contact ? "Контакт сохранён" : "Контакт удалён");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
