@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isAdmin } from "@synoro/auth/roles";
 import {
   Badge,
   Card,
@@ -19,6 +20,7 @@ import { notFound } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 
 import { requireAdmin } from "~/auth/server";
+import { DeleteUserButton } from "~/components/delete-user-button";
 import { PageHeader } from "~/components/page-header";
 import { PaymentStatus, PERIOD_LABELS } from "~/components/payment-status";
 import { PlanBadge } from "~/components/plan-badge";
@@ -70,6 +72,9 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
     api.signIns.list({ userId: id, limit: 20, offset: 0 }),
   ]);
   const { user, plan } = card;
+  const { user: me } = await requireAdmin();
+  // The procedure refuses these too; no button rather than a dead end.
+  const canDelete = user.id !== me.id && !isAdmin(user);
 
   return (
     <>
@@ -106,6 +111,15 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
               <code className="text-xs">{user.id}</code>
             </Row>
           </dl>
+          {canDelete && (
+            <div className="mt-4 flex justify-end">
+              <DeleteUserButton
+                id={user.id}
+                email={user.email}
+                ownedPractices={card.ownedPractices}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 

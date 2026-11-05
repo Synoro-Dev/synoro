@@ -1,4 +1,5 @@
 import {
+  count,
   desc,
   eq,
   Practice,
@@ -45,41 +46,47 @@ export const byId = adminProcedure
       throw errors.NOT_FOUND();
     }
 
-    const [practices, subscription, autorenewal, payments] = await Promise.all([
-      context.db
-        .select({
-          id: Practice.id,
-          name: Practice.name,
-          slug: Practice.slug,
-          role: PracticeMember.role,
-          joinedAt: PracticeMember.createdAt,
-        })
-        .from(PracticeMember)
-        .innerJoin(Practice, eq(Practice.id, PracticeMember.practiceId))
-        .where(eq(PracticeMember.userId, found.id))
-        .orderBy(desc(PracticeMember.createdAt)),
-      findSubscription(context.db, found.id),
-      findActiveAutorenewal(context.db, found.id),
-      context.db
-        .select({
-          id: SubscriptionPayment.id,
-          number: SubscriptionPayment.number,
-          period: SubscriptionPayment.period,
-          amount: SubscriptionPayment.amount,
-          status: SubscriptionPayment.status,
-          paidAt: SubscriptionPayment.paidAt,
-          refundedAt: SubscriptionPayment.refundedAt,
-          createdAt: SubscriptionPayment.createdAt,
-        })
-        .from(SubscriptionPayment)
-        .where(eq(SubscriptionPayment.userId, found.id))
-        .orderBy(desc(SubscriptionPayment.createdAt))
-        .limit(20),
-    ]);
+    const [practices, owned, subscription, autorenewal, payments] =
+      await Promise.all([
+        context.db
+          .select({
+            id: Practice.id,
+            name: Practice.name,
+            slug: Practice.slug,
+            role: PracticeMember.role,
+            joinedAt: PracticeMember.createdAt,
+          })
+          .from(PracticeMember)
+          .innerJoin(Practice, eq(Practice.id, PracticeMember.practiceId))
+          .where(eq(PracticeMember.userId, found.id))
+          .orderBy(desc(PracticeMember.createdAt)),
+        context.db
+          .select({ value: count() })
+          .from(Practice)
+          .where(eq(Practice.ownerId, found.id)),
+        findSubscription(context.db, found.id),
+        findActiveAutorenewal(context.db, found.id),
+        context.db
+          .select({
+            id: SubscriptionPayment.id,
+            number: SubscriptionPayment.number,
+            period: SubscriptionPayment.period,
+            amount: SubscriptionPayment.amount,
+            status: SubscriptionPayment.status,
+            paidAt: SubscriptionPayment.paidAt,
+            refundedAt: SubscriptionPayment.refundedAt,
+            createdAt: SubscriptionPayment.createdAt,
+          })
+          .from(SubscriptionPayment)
+          .where(eq(SubscriptionPayment.userId, found.id))
+          .orderBy(desc(SubscriptionPayment.createdAt))
+          .limit(20),
+      ]);
 
     return {
       user: found,
       practices,
+      ownedPractices: owned[0]?.value ?? 0,
       plan: {
         ...planOf(subscription),
         autorenew: autorenewal ? autorenewal.period : null,

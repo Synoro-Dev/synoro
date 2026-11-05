@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import {
+  eq,
   Practice,
   PracticeMember,
   Subscription,
   SubscriptionPayment,
+  user,
 } from "@synoro/db";
 
 import {
@@ -170,5 +172,148 @@ describe("admin", () => {
       { context: api.context(admin) },
     );
     await expect(promise).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  describe("users.remove", () => {
+    it("deletes the user with their practice, membership and plan", async () => {
+      const admin = await createSession(api.db, {
+        role: "admin",
+        emailVerified: true,
+      });
+      const owner = await createSession(api.db, {
+        email: "to-delete@test.local",
+      });
+      const [practice] = await api.db
+        .insert(Practice)
+        .values({ name: "Уходит", slug: "to-delete", ownerId: owner.user.id })
+        .returning();
+      if (!practice) throw new Error("no practice");
+      await api.db.insert(PracticeMember).values({
+        practiceId: practice.id,
+        userId: owner.user.id,
+        role: "owner",
+      });
+      await api.db.insert(Subscription).values({
+        userId: owner.user.id,
+        trialEndsAt: new Date(Date.now() + DAY),
+      });
+
+      const result = await call(
+        adminRouter.users.remove,
+        { id: owner.user.id, confirm: " To-Delete@test.local " },
+        { context: api.context(admin) },
+      );
+
+      expect(result).toEqual({ id: owner.user.id });
+      const gone = await api.db.query.user.findFirst({
+        where: eq(user.id, owner.user.id),
+      });
+      expect(gone).toBeUndefined();
+      const rest = await api.db.query.Practice.findFirst({
+        where: eq(Practice.id, practice.id),
+      });
+      expect(rest).toBeUndefined();
+      const sub = await api.db.query.Subscription.findFirst({
+        where: eq(Subscription.userId, owner.user.id),
+      });
+      expect(sub).toBeUndefined();
+    });
+
+    it("refuses without the right email, for admins and for oneself", async () => {
+      const admin = await createSession(api.db, {
+        role: "admin",
+        emailVerified: true,
+      });
+      const other = await createSession(api.db, {
+        role: "admin",
+        email: "other-admin@test.local",
+      });
+      const person = await createSession(api.db, {
+        email: "keep@test.local",
+      });
+      const context = { context: api.context(admin) };
+
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: person.user.id, confirm: "wrong@test.local" },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "CONFIRMATION_MISMATCH" });
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: other.user.id, confirm: other.user.email },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "IS_ADMIN" });
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: admin.user.id, confirm: admin.user.email },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "SELF" });
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: "missing", confirm: "x" },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+      const kept = await api.db.query.user.findFirst({
+        where: eq(user.id, person.user.id),
+      });
+      expect(kept).toBeDefined();
+    });
+
+    it("waits while a fresh payment is unpaid", async () => {
+      const admin = await createSession(api.db, {
+        role: "admin",
+        emailVerified: true,
+      });
+      const payer = await createSession(api.db);
+      const old = await createSession(api.db);
+      for (const id of [payer.user.id, old.user.id]) {
+        await api.db.insert(SubscriptionPayment).values({
+          userId: id,
+          period: "month",
+          amount: 14_900,
+          status: "pending",
+          createdAt:
+            id === old.user.id ? new Date(Date.now() - 2 * DAY) : undefined,
+        });
+      }
+      const context = { context: api.context(admin) };
+
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: payer.user.id, confirm: payer.user.email },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "PAYMENT_IN_PROGRESS" });
+      // An abandoned link from two days ago doesn't hold the deletion.
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: old.user.id, confirm: old.user.email },
+          context,
+        ),
+      ).resolves.toEqual({ id: old.user.id });
+    });
+
+    it("is for admins only", async () => {
+      const someone = await createSession(api.db);
+      const person = await createSession(api.db);
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: person.user.id, confirm: person.user.email },
+          { context: api.context(someone) },
+        ),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
   });
 });
