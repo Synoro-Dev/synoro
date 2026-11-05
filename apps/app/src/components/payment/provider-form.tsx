@@ -29,6 +29,8 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "../settings/save-state";
+import { FoldedBlock } from "./folded-block";
 
 type Settings = RouterOutputs["payment"]["settings"];
 type Provider = PaymentAccountFormValues["provider"];
@@ -55,18 +57,18 @@ const PROVIDERS: Record<
   yookassa: {
     name: "ЮKassa",
     description: "Карты, СБП, SberPay, ЮMoney",
-    merchantLabel: "shopId",
+    merchantLabel: "Номер магазина (shopId)",
     merchantPlaceholder: "123456",
     secretLabel: "Секретный ключ",
-    help: "Личный кабинет ЮKassa → Интеграция → Ключи API. Для проверки подойдёт тестовый магазин (ключ test_…).",
+    help: "Оба значения есть в личном кабинете ЮKassa: Интеграция → Ключи API. Для проверки подойдёт тестовый магазин, его ключ начинается с test_.",
   },
   tbank: {
     name: "Т-Банк",
-    description: "Интернет-эквайринг: карты, СБП, T-Pay",
-    merchantLabel: "TerminalKey",
+    description: "Карты, СБП, T-Pay",
+    merchantLabel: "Номер терминала (TerminalKey)",
     merchantPlaceholder: "1700000000000",
     secretLabel: "Пароль терминала",
-    help: "Личный кабинет Т-Бизнеса → Интернет-эквайринг → Магазины → Терминалы. Терминал должен быть одностадийным; для проверки — тестовый (…DEMO).",
+    help: "Оба значения есть в личном кабинете Т-Бизнеса: Интернет-эквайринг → Магазины → Терминалы. Терминал должен быть одностадийным. Для проверки подойдёт тестовый, его номер заканчивается на DEMO.",
   },
 };
 
@@ -86,15 +88,19 @@ export function ProviderForm({
   onCancel?: () => void;
 }) {
   const current = settings.account;
-  const [values, setValues] = useState<PaymentAccountFormValues>({
+  const [initial] = useState<PaymentAccountFormValues>({
     provider: current?.provider ?? "yookassa",
     merchantId: current?.merchantId ?? "",
     secret: "",
     receipts: current?.receipts ?? false,
     taxSystem: current?.taxSystem ?? null,
   });
+  const [values, setValues] = useState(initial);
   const [issues, setIssues] = useState<Record<string, string>>({});
+  // Receipts are the rare case: folded, unless something there needs fixing.
+  const [taxesOpen, setTaxesOpen] = useState(false);
   const meta = PROVIDERS[values.provider];
+  const dirty = JSON.stringify(values) !== JSON.stringify(initial);
   const keepsSecret =
     current?.provider === values.provider &&
     current.merchantId === values.merchantId.trim();
@@ -133,14 +139,14 @@ export function ProviderForm({
     event.preventDefault();
     const parsed = paymentAccountFormSchema.safeParse(values);
     if (!parsed.success) {
-      setIssues(
-        Object.fromEntries(
-          parsed.error.issues.map((issue) => [
-            String(issue.path[0]),
-            issue.message,
-          ]),
-        ),
+      const found = Object.fromEntries(
+        parsed.error.issues.map((issue) => [
+          String(issue.path[0]),
+          issue.message,
+        ]),
       );
+      setIssues(found);
+      if (found.taxSystem) setTaxesOpen(true);
       return;
     }
     if (!parsed.data.secret && !keepsSecret) {
@@ -215,7 +221,11 @@ export function ProviderForm({
       </div>
       <FieldDescription className="-mt-2">{meta.help}</FieldDescription>
 
-      <div className="flex flex-col gap-3 rounded-md border p-3">
+      <FoldedBlock
+        title="Чеки и налоги"
+        open={taxesOpen}
+        onOpenChange={setTaxesOpen}
+      >
         <Field orientation="horizontal">
           <Switch
             id="payment-receipts"
@@ -223,13 +233,13 @@ export function ProviderForm({
             onCheckedChange={(checked) => set("receipts", checked)}
           />
           <FieldLabel htmlFor="payment-receipts" className="font-normal">
-            Отправлять чеки по 54-ФЗ
+            Отправлять чеки клиентам
           </FieldLabel>
         </Field>
         <FieldDescription>
           {values.provider === "yookassa"
-            ? "Включите, если в ЮKassa подключены «Чеки от ЮKassa» или онлайн-касса. Самозанятым не нужно — чек формируется в «Мой налог»."
-            : "Включите, если к терминалу подключена онлайн-касса. Самозанятым не нужно — чек формируется в «Мой налог»."}
+            ? "Включите, если в ЮKassa подключены «Чеки от ЮKassa» или онлайн-касса. Самозанятым не нужно: чек формируется в «Мой налог»."
+            : "Включите, если к терминалу подключена онлайн-касса. Самозанятым не нужно: чек формируется в «Мой налог»."}
         </FieldDescription>
         {values.receipts && (
           <Field data-invalid={!!issues.taxSystem} className="max-w-xs">
@@ -258,9 +268,9 @@ export function ProviderForm({
             <FieldError>{issues.taxSystem}</FieldError>
           </Field>
         )}
-      </div>
+      </FoldedBlock>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={connect.isPending}>
           {current ? "Сохранить" : "Подключить"}
         </Button>
@@ -269,6 +279,7 @@ export function ProviderForm({
             Отмена
           </Button>
         )}
+        <SaveState dirty={dirty} savedAt={null} />
       </div>
     </form>
   );

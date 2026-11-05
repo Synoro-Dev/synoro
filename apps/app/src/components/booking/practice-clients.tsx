@@ -33,7 +33,6 @@ import {
 import {
   ChevronRightIcon,
   SearchIcon,
-  ShieldIcon,
   UserPlusIcon,
   UsersIcon,
 } from "lucide-react";
@@ -42,7 +41,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
-import { ROLE_LABELS } from "../sidebar/types";
 import { ClientCard } from "./client-card";
 import { AddMemberDialog, CreditDialog } from "./client-dialogs";
 import { dataGridI18n } from "./data-grid-i18n";
@@ -156,16 +154,14 @@ function getColumns(
 /**
  * The practice's clients: search, balances, and a card per client with
  * booking and crediting. Phones get a list of rows, wide screens a table.
- * The team (owner, administrators) is listed apart, below.
+ * The team is in the settings (`PracticeTeam`).
  */
 export function PracticeClients({
   practiceId,
   timezone,
-  isOwner,
 }: {
   practiceId: string;
   timezone: string;
-  isOwner: boolean;
 }) {
   const terms = useTerms();
   const members = useQuery(
@@ -193,11 +189,9 @@ export function PracticeClients({
     intent: "grant" | "adjust";
   } | null>(null);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
-  const [adding, setAdding] = useState<"client" | "admin" | null>(null);
+  const [adding, setAdding] = useState(false);
 
-  const all = members.data ?? [];
-  const clients = all.filter((m) => m.role === "client");
-  const team = all.filter((m) => m.role !== "client");
+  const clients = (members.data ?? []).filter((m) => m.role === "client");
   // The open card follows fresh data (a new balance after crediting).
   const open = clients.find((m) => m.id === openId) ?? null;
 
@@ -227,7 +221,7 @@ export function PracticeClients({
         title="Клиенты"
         description={`Контакты, записи и баланс оплаченных ${terms.credit[2]}`}
         actions={
-          <Button onClick={() => setAdding("client")}>
+          <Button onClick={() => setAdding(true)}>
             <UserPlusIcon />
             Пригласить клиента
           </Button>
@@ -250,7 +244,7 @@ export function PracticeClients({
               title="Клиентов пока нет"
               description="Они появятся, когда запишутся по вашей ссылке. Или пригласите человека по почте."
               action={
-                <Button onClick={() => setAdding("client")}>
+                <Button onClick={() => setAdding(true)}>
                   <UserPlusIcon />
                   Пригласить клиента
                 </Button>
@@ -345,43 +339,6 @@ export function PracticeClients({
         </div>
       )}
 
-      {team.length > 0 && (
-        <section className="flex flex-col gap-3" aria-labelledby="team">
-          <h2 id="team" className="text-base font-medium">
-            Команда
-          </h2>
-          <ul className="flex flex-col divide-y rounded-xl border bg-card">
-            {team.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <ShieldIcon
-                  className="size-4 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">{m.name}</span>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {m.email}
-                  </span>
-                </span>
-                <Badge variant="outline">{ROLE_LABELS[m.role]}</Badge>
-              </li>
-            ))}
-          </ul>
-          {isOwner && (
-            <div className="flex flex-col items-start gap-2">
-              <p className="text-sm text-muted-foreground">
-                Администратор ведёт записи, балансы и рабочие часы. Аналитику,
-                оплату и сообщения клиентам он не видит.
-              </p>
-              <Button variant="outline" onClick={() => setAdding("admin")}>
-                <ShieldIcon />
-                Пригласить администратора
-              </Button>
-            </div>
-          )}
-        </section>
-      )}
-
       <ClientCard
         practiceId={practiceId}
         timezone={timezone}
@@ -416,10 +373,9 @@ export function PracticeClients({
       />
       <AddMemberDialog
         practiceId={practiceId}
-        isOwner={isOwner}
-        invite={adding ?? undefined}
-        open={adding !== null}
-        onClose={() => setAdding(null)}
+        invite="client"
+        open={adding}
+        onClose={() => setAdding(false)}
       />
     </div>
   );

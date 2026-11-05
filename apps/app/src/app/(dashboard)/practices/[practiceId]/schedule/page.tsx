@@ -1,12 +1,11 @@
-import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
 import { AvailabilityEditor } from "~/components/booking/availability-editor";
+import { ClosedDates } from "~/components/booking/closed-dates";
 import { GoogleCalendarSync } from "~/components/booking/google-calendar-sync";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
-import { TermsProvider } from "~/components/booking/terms";
-import { SiteHeader } from "~/components/layout";
+import { PracticeSettingsShell } from "~/components/settings/practice-settings-shell";
 
 export default function PracticeSchedulePage({
   params,
@@ -23,23 +22,15 @@ async function Schedule({
 }: Pick<PageProps<"/practices/[practiceId]/schedule">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <TermsProvider profession={practice.profession}>
-      <SiteHeader
-        title="Рабочие часы"
-        parent={{
-          label: practice.name,
-          href: paths.booking.practice(practice.id),
-        }}
+    <PracticeSettingsShell practice={practice} title="Рабочие часы">
+      <AvailabilityEditor
+        practiceId={practice.id}
+        timezone={practice.timezone}
+        introMinutes={practice.introMinutes}
+        isOwner={practice.membership.role === "owner"}
       />
-      <main className="flex min-w-0 flex-col gap-6 p-4 lg:p-6">
-        <AvailabilityEditor
-          practiceId={practice.id}
-          timezone={practice.timezone}
-          introMinutes={practice.introMinutes}
-          isOwner={practice.membership.role === "owner"}
-        />
-        <GoogleCalendarSync practiceId={practice.id} />
-      </main>
-    </TermsProvider>
+      <ClosedDates practiceId={practice.id} timezone={practice.timezone} />
+      <GoogleCalendarSync practiceId={practice.id} />
+    </PracticeSettingsShell>
   );
 }

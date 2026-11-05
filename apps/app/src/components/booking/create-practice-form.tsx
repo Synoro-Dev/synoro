@@ -92,17 +92,18 @@ const PROFESSION_LABELS = Object.fromEntries(
 
 /**
  * Start a practice: the signed-in user becomes its owner (specialist). Then
- * on to its schedule, or to «Про» billing (`next="billing"`) when the
- * specialist signed up for «Про».
+ * on to the first setup, or to «Про» billing (`next="billing"`) when the
+ * specialist signed up for «Про». The only time the setup opens by itself:
+ * after this «Сегодня» offers it (`SetupProgress`).
  */
 export function CreatePracticeDialog({
   open,
   onOpenChange,
-  next = "schedule",
+  next = "setup",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  next?: "schedule" | "billing";
+  next?: "setup" | "billing";
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -138,7 +139,7 @@ export function CreatePracticeDialog({
       router.push(
         next === "billing"
           ? paths.settings.billing
-          : paths.booking.schedule(practice.id),
+          : paths.booking.setup(practice.id),
       );
       // The sidebar's practice list is rendered on the server.
       router.refresh();

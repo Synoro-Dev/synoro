@@ -23,10 +23,13 @@ export function PracticeFreeBooking({
   practiceId,
   enabled,
   introMinutes,
+  onEnabledChange,
 }: {
   practiceId: string;
   enabled: boolean;
   introMinutes: number;
+  /** Follows the switch, for a preview beside it. */
+  onEnabledChange?: (enabled: boolean) => void;
 }) {
   const terms = useTerms();
   const queryClient = useQueryClient();
@@ -34,6 +37,14 @@ export function PracticeFreeBooking({
   const [minutes, setMinutes] = useState(introMinutes);
   /** The length last saved, to go back to when a change fails. */
   const [savedMinutes, setSavedMinutes] = useState(introMinutes);
+  // The first setup refetches the practice: a mount can precede fresh values.
+  const [seen, setSeen] = useState({ enabled, introMinutes });
+  if (seen.enabled !== enabled || seen.introMinutes !== introMinutes) {
+    setSeen({ enabled, introMinutes });
+    setOn(enabled);
+    setMinutes(introMinutes);
+    setSavedMinutes(introMinutes);
+  }
   const save = useMutation({
     ...orpc.practice.setFreeBooking.mutationOptions(),
     onSuccess: async (result, input) => {
@@ -48,7 +59,10 @@ export function PracticeFreeBooking({
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
     onError: (error, input) => {
-      if (input.enabled !== undefined) setOn(!input.enabled);
+      if (input.enabled !== undefined) {
+        setOn(!input.enabled);
+        onEnabledChange?.(!input.enabled);
+      }
       if (input.introMinutes !== undefined) setMinutes(savedMinutes);
       toast.error(error.message);
     },
@@ -70,6 +84,7 @@ export function PracticeFreeBooking({
           disabled={save.isPending}
           onCheckedChange={(checked) => {
             setOn(checked);
+            onEnabledChange?.(checked);
             save.mutate({ practiceId, enabled: checked });
           }}
         />

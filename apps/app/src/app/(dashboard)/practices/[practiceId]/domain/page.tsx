@@ -1,11 +1,9 @@
-import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
 import { PracticeDomain } from "~/components/booking/practice-domain";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
-import { TermsProvider } from "~/components/booking/terms";
-import { SiteHeader } from "~/components/layout";
+import { PracticeSettingsShell } from "~/components/settings/practice-settings-shell";
 
 export default function PracticeDomainPage({
   params,
@@ -22,21 +20,12 @@ async function Domain({
 }: Pick<PageProps<"/practices/[practiceId]/domain">, "params">) {
   const practice = await loadStaffPractice((await params).practiceId);
   return (
-    <TermsProvider profession={practice.profession}>
-      <SiteHeader
-        title="Свой домен"
-        parent={{
-          label: practice.name,
-          href: paths.booking.practice(practice.id),
-        }}
+    <PracticeSettingsShell practice={practice} title="Свой домен">
+      <PracticeDomain
+        practiceId={practice.id}
+        bookingUrl={practice.bookingUrl}
+        isOwner={practice.membership.role === "owner"}
       />
-      <main className="flex min-w-0 flex-col p-4 lg:p-6">
-        <PracticeDomain
-          practiceId={practice.id}
-          bookingUrl={practice.bookingUrl}
-          isOwner={practice.membership.role === "owner"}
-        />
-      </main>
-    </TermsProvider>
+    </PracticeSettingsShell>
   );
 }

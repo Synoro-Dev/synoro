@@ -11,8 +11,6 @@ import {
   Input,
   Label,
   Skeleton,
-  ToggleGroup,
-  ToggleGroupItem,
   toast,
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
@@ -257,25 +255,20 @@ export function HistoryList({ memberId }: { memberId: string }) {
   );
 }
 
-/** Add a registered user as a client (or, for the owner, an administrator). */
+/** Invite a registered user as a client or, for the owner, an administrator. */
 export function AddMemberDialog({
   practiceId,
-  isOwner,
-  invite,
+  invite: role,
   open,
   onClose,
 }: {
   practiceId: string;
-  isOwner: boolean;
-  /** Fixes the role: no choice in the form. */
-  invite?: MemberInviteFormValues["role"];
+  invite: MemberInviteFormValues["role"];
   open: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [picked, setRole] = useState<MemberInviteFormValues["role"]>("client");
-  const role = invite ?? picked;
 
   const add = useMutation({
     ...orpc.practice.addMember.mutationOptions(),
@@ -306,11 +299,9 @@ export function AddMemberDialog({
         <form onSubmit={submit} className="flex flex-col gap-5">
           <DialogHeader>
             <DialogTitle>
-              {invite === "admin"
+              {role === "admin"
                 ? "Пригласить администратора"
-                : invite === "client"
-                  ? "Пригласить клиента"
-                  : "Пригласить в практику"}
+                : "Пригласить клиента"}
             </DialogTitle>
             <DialogDescription>
               Приглашение действует 7 дней и принимается с подтверждённой почты.
@@ -327,22 +318,6 @@ export function AddMemberDialog({
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          {isOwner && !invite && (
-            <div className="flex flex-col gap-1.5">
-              <Label>Роль</Label>
-              <ToggleGroup
-                variant="outline"
-                value={[role]}
-                onValueChange={(value) => {
-                  const next = value[0];
-                  if (next === "client" || next === "admin") setRole(next);
-                }}
-              >
-                <ToggleGroupItem value="client">Клиент</ToggleGroupItem>
-                <ToggleGroupItem value="admin">Администратор</ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Отмена

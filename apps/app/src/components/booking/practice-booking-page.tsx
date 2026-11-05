@@ -1,7 +1,10 @@
 "use client";
 
-import { paths } from "@synoro/config";
-import { Button, Input, toast } from "@synoro/ui";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@synoro/ui";
 import {
   Frame,
   FrameDescription,
@@ -15,21 +18,14 @@ import {
   DEFAULT_BOOKING_THEME,
 } from "@synoro/validators";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ChevronRightIcon,
-  CodeIcon,
-  CopyIcon,
-  ExternalLinkIcon,
-  GlobeIcon,
-} from "lucide-react";
-import Link from "next/link";
+import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 
+import { BookingLinkActions } from "./booking-link";
 import { PracticeAddress } from "./practice-address";
 import { PracticeAvatar } from "./practice-avatar";
-import { PracticeBookingQuestions } from "./practice-booking-questions";
 import {
   BookingThemePreview,
   PracticeBookingTheme,
@@ -40,10 +36,11 @@ import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
 /**
- * Where the practice's public page is edited: photo, link, address, free intro,
- * video room, the contact for clients, the questionnaire clients fill in when
- * booking and the page's look, previewed beside the settings. Administrators
- * share the link and design the page; the rest is the owner's.
+ * Where the practice's public page is edited: photo, link, address, free
+ * intro, video room, the contact for clients and the page's look, with a live
+ * preview «как видит клиент» — beside the settings where they fit, on a narrow
+ * screen a panel that stays in view. Administrators share the link and design
+ * the page; the rest is the owner's.
  */
 export function PracticeBookingPage({
   practice,
@@ -65,6 +62,7 @@ export function PracticeBookingPage({
   const terms = useTerms();
   const isOwner = practice.membership.role === "owner";
   const [imageUrl, setImageUrl] = useState(practice.imageUrl);
+  const [freeEnabled, setFreeEnabled] = useState(practice.freeBookingEnabled);
   const saved = useQuery(
     orpc.practice.theme.queryOptions({ input: { practiceId: practice.id } }),
   );
@@ -75,173 +73,137 @@ export function PracticeBookingPage({
     draft ??
     (saved.data?.pro ? saved.data.theme : null) ??
     DEFAULT_BOOKING_THEME;
-  const publicUrl = practice.bookingUrl;
 
-  async function copy(text: string, done: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(done);
-    } catch {
-      toast.info(text);
-    }
-  }
-
-  /** The booking page in an iframe, to paste into the practice's own site. */
-  const embed = `<iframe src="${publicUrl}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`;
+  const preview = (
+    <>
+      <BookingThemePreview
+        theme={theme}
+        name={practice.name}
+        imageUrl={imageUrl}
+        what={capitalize(terms.credit[0])}
+        free={freeEnabled ? terms.free : null}
+      />
+      <p className="text-xs text-muted-foreground">
+        {draft && JSON.stringify(draft) !== JSON.stringify(saved.data?.theme)
+          ? "Это ещё не сохранено: клиенты видят прежнее оформление."
+          : "Фото сохраняется сразу после загрузки."}
+      </p>
+      <a
+        href={practice.bookingUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="flex min-h-8 w-fit items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:underline"
+      >
+        <ExternalLinkIcon className="size-3.5" aria-hidden="true" />
+        Открыть настоящую страницу
+      </a>
+    </>
+  );
 
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="flex min-w-0 flex-col gap-6">
-        {isOwner && (
+    <div className="@container min-w-0">
+      <div className="grid min-w-0 gap-6 @[52rem]:grid-cols-[minmax(0,1fr)_20rem]">
+        <Collapsible className="sticky top-14 z-[5] rounded-xl border bg-card @[52rem]:hidden">
+          <CollapsibleTrigger className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl px-4 text-sm font-medium outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&[data-panel-open]>svg]:rotate-180">
+            Как видит клиент
+            <ChevronDownIcon
+              className="size-4 text-muted-foreground transition-transform"
+              aria-hidden="true"
+            />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="max-h-[60svh] overflow-y-auto">
+            <div className="flex flex-col gap-2 px-4 pb-4">{preview}</div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="flex min-w-0 flex-col gap-6">
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <FramePanel className="flex flex-col gap-4">
+                <FrameHeader className="p-0">
+                  <FrameTitle>Фото специалиста</FrameTitle>
+                  <FrameDescription>
+                    Показывается слева на странице записи
+                  </FrameDescription>
+                </FrameHeader>
+                <PracticeAvatar
+                  practiceId={practice.id}
+                  name={practice.name}
+                  imageUrl={imageUrl}
+                  onChange={setImageUrl}
+                />
+              </FramePanel>
+            </Frame>
+          )}
+
           <Frame spacing="default" className="min-w-0">
             <FramePanel className="flex flex-col gap-4">
               <FrameHeader className="p-0">
-                <FrameTitle>Фото специалиста</FrameTitle>
+                <FrameTitle>Ссылка для клиентов</FrameTitle>
                 <FrameDescription>
-                  Показывается слева на странице записи
+                  Записаться можно без регистрации — отправьте ссылку или
+                  встройте форму на свой сайт
                 </FrameDescription>
               </FrameHeader>
-              <PracticeAvatar
-                practiceId={practice.id}
-                name={practice.name}
-                imageUrl={imageUrl}
-                onChange={setImageUrl}
-              />
+              <BookingLinkActions url={practice.bookingUrl} />
             </FramePanel>
           </Frame>
-        )}
 
-        <Frame spacing="default" className="min-w-0">
-          <FramePanel className="flex flex-col gap-4">
-            <FrameHeader className="p-0">
-              <FrameTitle>Ссылка для клиентов</FrameTitle>
-              <FrameDescription>
-                Записаться можно без регистрации — отправьте ссылку или встройте
-                форму на свой сайт
-              </FrameDescription>
-            </FrameHeader>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={publicUrl}
-                aria-label="Ссылка для записи"
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticeAddress
+                practiceId={practice.id}
+                slug={practice.slug}
+                formerSlugs={practice.formerSlugs}
+                bookingUrl={practice.bookingUrl}
               />
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Скопировать ссылку"
-                onClick={() => copy(publicUrl, "Ссылка скопирована")}
-              >
-                <CopyIcon />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Открыть страницу записи"
-                nativeButton={false}
-                render={<a href={publicUrl} target="_blank" rel="noreferrer" />}
-              >
-                <ExternalLinkIcon />
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              className="self-start"
-              onClick={() =>
-                copy(embed, "Код скопирован — вставьте его на свой сайт")
-              }
-            >
-              <CodeIcon />
-              Скопировать код для сайта
-            </Button>
-          </FramePanel>
-        </Frame>
+            </Frame>
+          )}
 
-        {isOwner && (
           <Frame spacing="default" className="min-w-0">
-            <PracticeAddress
+            <PracticeBookingTheme
               practiceId={practice.id}
-              slug={practice.slug}
-              formerSlugs={practice.formerSlugs}
-              bookingUrl={publicUrl}
+              name={practice.name}
+              draft={draft}
+              setDraft={setDraft}
             />
           </Frame>
-        )}
 
-        <Frame spacing="default" className="min-w-0">
-          <PracticeBookingTheme
-            practiceId={practice.id}
-            name={practice.name}
-            draft={draft}
-            setDraft={setDraft}
-          />
-        </Frame>
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticeFreeBooking
+                practiceId={practice.id}
+                enabled={practice.freeBookingEnabled}
+                introMinutes={practice.introMinutes}
+                onEnabledChange={setFreeEnabled}
+              />
+            </Frame>
+          )}
 
-        {isOwner && (
-          <Frame spacing="default" className="min-w-0">
-            <PracticeFreeBooking
-              practiceId={practice.id}
-              enabled={practice.freeBookingEnabled}
-              introMinutes={practice.introMinutes}
-            />
-          </Frame>
-        )}
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticeVideoLink
+                practiceId={practice.id}
+                videoUrl={practice.videoUrl}
+              />
+            </Frame>
+          )}
 
-        {isOwner && (
-          <Frame spacing="default" className="min-w-0">
-            <PracticeVideoLink
-              practiceId={practice.id}
-              videoUrl={practice.videoUrl}
-            />
-          </Frame>
-        )}
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticeContact
+                practiceId={practice.id}
+                contact={practice.clientContact}
+              />
+            </Frame>
+          )}
+        </div>
 
-        {isOwner && (
-          <Frame spacing="default" className="min-w-0">
-            <PracticeContact
-              practiceId={practice.id}
-              contact={practice.clientContact}
-            />
-          </Frame>
-        )}
-
-        {isOwner && (
-          <Frame spacing="default" className="min-w-0">
-            <PracticeBookingQuestions practiceId={practice.id} />
-          </Frame>
-        )}
-
-        {isOwner && (
-          <Link
-            href={paths.booking.domain(practice.id)}
-            className="flex items-center gap-3 rounded-xl border p-4 transition-colors hover:bg-muted dark:hover:bg-muted/50"
-          >
-            <GlobeIcon className="size-5 text-muted-foreground" />
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-sm font-medium">Свой домен</span>
-              <span className="text-xs text-muted-foreground">
-                Страница записи по вашему адресу, например anna-psy.ru
-              </span>
-            </div>
-            <ChevronRightIcon className="size-4 text-muted-foreground" />
-          </Link>
-        )}
+        <aside className="hidden min-w-0 flex-col gap-2 @[52rem]:sticky @[52rem]:top-20 @[52rem]:flex @[52rem]:self-start">
+          <span className="text-sm font-medium">Как видит клиент</span>
+          {preview}
+        </aside>
       </div>
-
-      <aside className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20 lg:self-start">
-        <span className="text-sm font-medium">Так видят клиенты</span>
-        <BookingThemePreview
-          theme={theme}
-          name={practice.name}
-          imageUrl={imageUrl}
-          what={capitalize(terms.credit[0])}
-        />
-        <p className="text-xs text-muted-foreground">
-          {draft && JSON.stringify(draft) !== JSON.stringify(saved.data?.theme)
-            ? "Это ещё не сохранено: клиенты видят прежнее оформление."
-            : "Фото сохраняется сразу после загрузки."}
-        </p>
-      </aside>
     </div>
   );
 }

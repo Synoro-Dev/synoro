@@ -155,6 +155,13 @@ and run `tsc` by hand, build them first.
   the landing's routes: a new top-level route goes into `RESERVED_SLUGS`
   (`@synoro/validators`) and, for the app, `APP_ROOTS` first — tests
   (`page-routes.test.ts`) fail otherwise.
+- **Practice settings and first setup**: sections, by role, are listed in
+  `practiceSections` (`components/settings/practice-sections.ts`) and shown on
+  `/practices/<id>/settings`; each section keeps its own address and wraps its
+  page in `PracticeSettingsShell`. Forms save with a button and `SaveState`,
+  single switches apply at once. The first setup
+  (`/practices/<id>/setup?step=`) opens once, after creating a practice; it
+  stores nothing of its own, and `SetupProgress` on «Сегодня» leads back to it.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when
@@ -187,9 +194,9 @@ and run `tsc` by hand, build them first.
   `claimNotice` (`notice-claims.ts`, keys `wf:<rule>:…` in `sent_notices`), only
   while the owner has `hasPro`.
 - **Booking questionnaire («Про»)** (`docs/booking-questions.md`): up to 10
-  questions in `practices.booking_questions` (owner edits them on the booking
-  page settings, `question.*` router, schema and `checkBookingAnswers` in
-  `@synoro/validators/booking-questions`). Clients answer in `booking.book` /
+  questions in `practices.booking_questions` (owner edits them at
+  `/practices/<id>/questions`, `question.*` router, schema and
+  `checkBookingAnswers` in `@synoro/validators/booking-questions`). Clients answer in `booking.book` /
   `bookSeries` / `reserve` (`ANSWERS_INVALID` per question id); answers are
   kept with the question's wording in `bookings.answers` and shown to staff in
   `booking.calendar`. Not asked without `hasPro` (`askedQuestions`).

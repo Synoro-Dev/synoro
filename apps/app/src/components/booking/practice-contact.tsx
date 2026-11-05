@@ -12,6 +12,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "../settings/save-state";
 
 /**
  * How clients reach the specialist when they can no longer change a booking
@@ -28,11 +29,13 @@ export function PracticeContact({
   const [draft, setDraft] = useState(contact ?? "");
   // The `contact` prop comes from the server page and stays as first loaded.
   const [saved, setSaved] = useState(contact ?? "");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const dirty = draft.trim() !== saved;
   const save = useMutation({
     ...orpc.practice.setContact.mutationOptions(),
     onSuccess: async (result) => {
       setSaved(result.contact ?? "");
+      setSavedAt(Date.now());
       toast.success(result.contact ? "Контакт сохранён" : "Контакт удалён");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     },
@@ -59,17 +62,20 @@ export function PracticeContact({
           до начала меньше 24 часов.
         </FrameDescription>
       </FrameHeader>
-      <form onSubmit={submit} className="flex gap-2">
-        <Input
-          type="text"
-          aria-label="Контакт для клиентов"
-          placeholder="+7 900 123-45-67 или @anna"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <Button type="submit" disabled={save.isPending || !dirty}>
-          Сохранить
-        </Button>
+      <form onSubmit={submit} className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            aria-label="Контакт для клиентов"
+            placeholder="+7 900 123-45-67 или @anna"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <Button type="submit" disabled={save.isPending || !dirty}>
+            Сохранить
+          </Button>
+        </div>
+        <SaveState dirty={dirty} savedAt={savedAt} />
       </form>
     </FramePanel>
   );

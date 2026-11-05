@@ -29,3 +29,12 @@ export async function loadStaffPractice(practiceId: string) {
   }
   return practice;
 }
+
+/** A page only the owner has any use for: administrators go to the settings. */
+export async function loadOwnerPractice(practiceId: string) {
+  const practice = await loadStaffPractice(practiceId);
+  if (practice.membership.role !== "owner") {
+    redirect(paths.booking.settings(practice.id));
+  }
+  return practice;
+}

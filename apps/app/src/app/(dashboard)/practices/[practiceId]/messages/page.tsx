@@ -1,11 +1,9 @@
-import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 import { PracticeNotifications } from "~/components/booking/practice-notifications";
 import { PracticeWorkflows } from "~/components/booking/practice-workflows";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
-import { TermsProvider } from "~/components/booking/terms";
-import { SiteHeader } from "~/components/layout";
+import { PracticeSettingsShell } from "~/components/settings/practice-settings-shell";
 
 export default function PracticeMessagesPage({
   params,
@@ -23,15 +21,8 @@ async function Messages({
   const practice = await loadStaffPractice((await params).practiceId);
   const isOwner = practice.membership.role === "owner";
   return (
-    <TermsProvider profession={practice.profession}>
-      <SiteHeader
-        title="Сообщения клиентам"
-        parent={{
-          label: practice.name,
-          href: paths.booking.practice(practice.id),
-        }}
-      />
-      <main className="flex min-w-0 max-w-3xl flex-col gap-6 p-4 lg:p-6">
+    <PracticeSettingsShell practice={practice} title="Сообщения клиентам">
+      <div className="flex max-w-3xl min-w-0 flex-col gap-6">
         {isOwner ? (
           <PracticeNotifications
             practiceId={practice.id}
@@ -48,7 +39,7 @@ async function Messages({
           bookingUrl={practice.bookingUrl}
           isOwner={isOwner}
         />
-      </main>
-    </TermsProvider>
+      </div>
+    </PracticeSettingsShell>
   );
 }

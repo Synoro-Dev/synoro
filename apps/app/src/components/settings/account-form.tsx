@@ -13,9 +13,11 @@ import {
 } from "@synoro/ui";
 import { type AccountFormValues, accountFormSchema } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { orpc } from "~/orpc/react";
+import { SaveState } from "./save-state";
 
 export function AccountForm({
   initialData,
@@ -31,9 +33,13 @@ export function AccountForm({
     },
   });
 
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+
   const updateAccount = useMutation({
     ...orpc.user.updateAccount.mutationOptions(),
-    onSuccess: async () => {
+    onSuccess: async (_, data) => {
+      form.reset(data);
+      setSavedAt(Date.now());
       toast.success("Аккаунт успешно обновлён");
       await queryClient.invalidateQueries({
         queryKey: orpc.user.key(),
@@ -50,30 +56,38 @@ export function AccountForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        {/* Name Field */}
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="text-foreground font-medium">Имя</FormLabel>
-              <Input placeholder="Ваше имя" {...field} />
-              <p className="text-sm text-amber-700/70">
-                Это имя будет отображаться в вашем профиле и в письмах.
-              </p>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <form onSubmit={form.handleSubmit(onSubmit)}>
+        {/* Locked while saving: an edit made meanwhile would be reset away. */}
+        <fieldset disabled={updateAccount.isPending} className="space-y-6">
+          {/* Name Field */}
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-foreground font-medium">
+                  Имя
+                </FormLabel>
+                <Input placeholder="Ваше имя" {...field} />
+                <p className="text-sm text-amber-700/70">
+                  Это имя будет отображаться в вашем профиле и в письмах.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        <Button
-          type="submit"
-          className="bg-foreground text-background hover:bg-foreground/90"
-          disabled={updateAccount.isPending}
-        >
-          {updateAccount.isPending ? "Обновление…" : "Обновить аккаунт"}
-        </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="submit"
+              className="bg-foreground text-background hover:bg-foreground/90"
+              disabled={updateAccount.isPending}
+            >
+              {updateAccount.isPending ? "Обновление…" : "Обновить аккаунт"}
+            </Button>
+            <SaveState dirty={form.formState.isDirty} savedAt={savedAt} />
+          </div>
+        </fieldset>
       </form>
     </Form>
   );
