@@ -1,5 +1,4 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import { render } from "@react-email/components";
 import { logger } from "@synoro/config";
 import nodemailer from "nodemailer";
 import type { ReactNode } from "react";
@@ -7,6 +6,7 @@ import { Resend } from "resend";
 
 import { env } from "./env";
 import { type Provider, sendWithFallback } from "./fallback";
+import { postboxBody, renderParts, resendPayload } from "./message";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -87,12 +87,7 @@ if (postbox) {
           Content: {
             Simple: {
               Subject: { Data: email.subject, Charset: "UTF-8" },
-              Body: {
-                Html: { Data: email.html, Charset: "UTF-8" },
-                ...(email.text && {
-                  Text: { Data: email.text, Charset: "UTF-8" },
-                }),
-              },
+              Body: postboxBody(email),
             },
           },
         }),
@@ -106,16 +101,9 @@ if (resend) {
     name: "resend",
     send: async (email) => {
       // With Postbox's ~15 s, inside the `send-email` task's 60 s.
-      const { error } = await resend.emails.send(
-        {
-          from: email.from,
-          to: email.to,
-          subject: email.subject,
-          html: email.html,
-          ...(email.text && { text: email.text }),
-        },
-        { signal: AbortSignal.timeout(40_000) },
-      );
+      const { error } = await resend.emails.send(resendPayload(email), {
+        signal: AbortSignal.timeout(40_000),
+      });
       // Resend reports a refusal in `error` instead of throwing.
       if (error) throw new Error(`${error.name}: ${error.message}`);
     },
@@ -151,11 +139,7 @@ async function deliver(email: EmailHtml) {
 
 export const sendEmail = async (email: Emails) => {
   const { react, ...rest } = email;
-  const [html, text] = await Promise.all([
-    render(react),
-    render(react, { plainText: true }),
-  ]);
-  await deliver({ ...rest, html, text });
+  await deliver({ ...rest, ...(await renderParts(react)) });
 };
 
 export const sendEmailHtml = (email: EmailHtml) => deliver(email);
