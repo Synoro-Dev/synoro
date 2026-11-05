@@ -1,5 +1,4 @@
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2";
-import { render } from "@react-email/components";
 import { logger } from "@synoro/config";
 import nodemailer from "nodemailer";
 import type { ReactNode } from "react";
@@ -7,6 +6,7 @@ import { Resend } from "resend";
 
 import { env } from "./env";
 import { type Provider, sendWithFallback } from "./fallback";
+import { postboxBody, renderParts, resendPayload } from "./message";
 
 const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
@@ -48,12 +48,16 @@ export interface Emails {
 
 export type EmailHtml = {
   html: string;
+  /** Plain-text twin of `html`: a mail with only HTML scores worse on spam filters. */
+  text?: string;
   subject: string;
   to: string[];
   from?: string;
 };
 
-const providers: Provider<Required<EmailHtml>>[] = [];
+type Message = EmailHtml & { from: string };
+
+const providers: Provider<Message>[] = [];
 if (postboxHalfConfigured) {
   providers.push({
     name: "postbox",
@@ -83,7 +87,7 @@ if (postbox) {
           Content: {
             Simple: {
               Subject: { Data: email.subject, Charset: "UTF-8" },
-              Body: { Html: { Data: email.html, Charset: "UTF-8" } },
+              Body: postboxBody(email),
             },
           },
         }),
@@ -97,7 +101,7 @@ if (resend) {
     name: "resend",
     send: async (email) => {
       // With Postbox's ~15 s, inside the `send-email` task's 60 s.
-      const { error } = await resend.emails.send(email, {
+      const { error } = await resend.emails.send(resendPayload(email), {
         signal: AbortSignal.timeout(40_000),
       });
       // Resend reports a refusal in `error` instead of throwing.
@@ -135,7 +139,7 @@ async function deliver(email: EmailHtml) {
 
 export const sendEmail = async (email: Emails) => {
   const { react, ...rest } = email;
-  await deliver({ ...rest, html: await render(react) });
+  await deliver({ ...rest, ...(await renderParts(react)) });
 };
 
 export const sendEmailHtml = (email: EmailHtml) => deliver(email);
