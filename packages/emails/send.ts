@@ -48,12 +48,16 @@ export interface Emails {
 
 export type EmailHtml = {
   html: string;
+  /** Plain-text twin of `html`: a mail with only HTML scores worse on spam filters. */
+  text?: string;
   subject: string;
   to: string[];
   from?: string;
 };
 
-const providers: Provider<Required<EmailHtml>>[] = [];
+type Message = EmailHtml & { from: string };
+
+const providers: Provider<Message>[] = [];
 if (postboxHalfConfigured) {
   providers.push({
     name: "postbox",
@@ -83,7 +87,12 @@ if (postbox) {
           Content: {
             Simple: {
               Subject: { Data: email.subject, Charset: "UTF-8" },
-              Body: { Html: { Data: email.html, Charset: "UTF-8" } },
+              Body: {
+                Html: { Data: email.html, Charset: "UTF-8" },
+                ...(email.text && {
+                  Text: { Data: email.text, Charset: "UTF-8" },
+                }),
+              },
             },
           },
         }),
@@ -97,9 +106,16 @@ if (resend) {
     name: "resend",
     send: async (email) => {
       // With Postbox's ~15 s, inside the `send-email` task's 60 s.
-      const { error } = await resend.emails.send(email, {
-        signal: AbortSignal.timeout(40_000),
-      });
+      const { error } = await resend.emails.send(
+        {
+          from: email.from,
+          to: email.to,
+          subject: email.subject,
+          html: email.html,
+          ...(email.text && { text: email.text }),
+        },
+        { signal: AbortSignal.timeout(40_000) },
+      );
       // Resend reports a refusal in `error` instead of throwing.
       if (error) throw new Error(`${error.name}: ${error.message}`);
     },
@@ -135,7 +151,11 @@ async function deliver(email: EmailHtml) {
 
 export const sendEmail = async (email: Emails) => {
   const { react, ...rest } = email;
-  await deliver({ ...rest, html: await render(react) });
+  const [html, text] = await Promise.all([
+    render(react),
+    render(react, { plainText: true }),
+  ]);
+  await deliver({ ...rest, html, text });
 };
 
 export const sendEmailHtml = (email: EmailHtml) => deliver(email);

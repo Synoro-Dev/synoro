@@ -66,11 +66,12 @@ export const auth = initAuth({
       await dispatchEmail({
         template: "otp-sign-in",
         to: [email],
-        // The code in the subject is readable from the notification alone.
+        // No code in the subject: Mail.ru flagged a digit-led one as
+        // PROBABLE_SPAM. The code stays in the preheader and the body.
         subject:
           type === "sign-in"
-            ? `${otp} — код для входа`
-            : `${otp} — код подтверждения почты`,
+            ? "Код для входа в Synoro"
+            : "Код подтверждения почты Synoro",
         props: { otp, isSignUp: type !== "sign-in" },
       });
     }

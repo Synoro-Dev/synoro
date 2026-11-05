@@ -53,7 +53,7 @@ export const auth = initAuth({
     await dispatchEmail({
       template: "otp-sign-in",
       to: [email],
-      subject: `${otp} — код для входа в админку`,
+      subject: "Код для входа в админку Synoro",
       props: { otp, isSignUp: false },
     });
   },
