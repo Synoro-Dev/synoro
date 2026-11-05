@@ -268,6 +268,42 @@ describe("admin", () => {
       expect(kept).toBeDefined();
     });
 
+    it("waits while a fresh payment is unpaid", async () => {
+      const admin = await createSession(api.db, {
+        role: "admin",
+        emailVerified: true,
+      });
+      const payer = await createSession(api.db);
+      const old = await createSession(api.db);
+      for (const id of [payer.user.id, old.user.id]) {
+        await api.db.insert(SubscriptionPayment).values({
+          userId: id,
+          period: "month",
+          amount: 14_900,
+          status: "pending",
+          createdAt:
+            id === old.user.id ? new Date(Date.now() - 2 * DAY) : undefined,
+        });
+      }
+      const context = { context: api.context(admin) };
+
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: payer.user.id, confirm: payer.user.email },
+          context,
+        ),
+      ).rejects.toMatchObject({ code: "PAYMENT_IN_PROGRESS" });
+      // An abandoned link from two days ago doesn't hold the deletion.
+      await expect(
+        call(
+          adminRouter.users.remove,
+          { id: old.user.id, confirm: old.user.email },
+          context,
+        ),
+      ).resolves.toEqual({ id: old.user.id });
+    });
+
     it("is for admins only", async () => {
       const someone = await createSession(api.db);
       const person = await createSession(api.db);

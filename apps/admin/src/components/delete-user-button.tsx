@@ -67,9 +67,16 @@ export function DeleteUserButton({
             if (!matches || pending) return;
             setError(null);
             startTransition(async () => {
-              const result = await deleteUser(id, confirm);
-              // On success the action redirects; only a refusal returns.
-              setError(result.error);
+              try {
+                const result = await deleteUser(id, confirm);
+                // On success the action redirects; only a refusal returns.
+                setError(result.error);
+              } catch {
+                // The reply may be lost after the user is already gone.
+                setError(
+                  "Не удалось получить ответ. Обновите страницу и проверьте, удалён ли пользователь, прежде чем повторять.",
+                );
+              }
             });
           }}
         >

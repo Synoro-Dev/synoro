@@ -73,9 +73,6 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
   ]);
   const { user, plan } = card;
   const { user: me } = await requireAdmin();
-  const ownedPractices = card.practices.filter(
-    (practice) => practice.role === "owner",
-  ).length;
   // The procedure refuses these too; no button rather than a dead end.
   const canDelete = user.id !== me.id && !isAdmin(user);
 
@@ -119,7 +116,7 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
               <DeleteUserButton
                 id={user.id}
                 email={user.email}
-                ownedPractices={ownedPractices}
+                ownedPractices={card.ownedPractices}
               />
             </div>
           )}
