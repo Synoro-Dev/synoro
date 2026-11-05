@@ -6,7 +6,7 @@
 #   docker build -f apps/web/Dockerfile -t ghcr.io/synoro-dev/synoro-landing:<tag> \
 #     --build-arg NEXT_PUBLIC_SITE_URL=https://synoro.ru \
 #     --build-arg NEXT_PUBLIC_APP_URL=https://app.synoro.ru \
-#     --build-arg NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru/klyuev .
+#     --build-arg NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru .
 #
 # Next.js `standalone` server (`node apps/web/server.js`, PORT 8080), UID 1001
 # (infra/synoro pins it with `runAsUser`).
