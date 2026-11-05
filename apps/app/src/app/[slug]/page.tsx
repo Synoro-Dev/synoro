@@ -5,14 +5,31 @@ import { isPracticeSlug } from "@synoro/validators";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 
 import { getSession } from "~/auth/server";
 import { PublicBooking } from "~/components/booking";
 import { bookingUrl } from "~/lib/hosts";
+import { practiceMetadata } from "~/lib/page-metadata";
 import { api } from "~/orpc/server";
 
-export const metadata: Metadata = { title: "Онлайн-запись" };
+/** One lookup per request: the metadata and the page both need it. */
+const practiceBySlug = cache((slug: string) =>
+  api.practice.bySlug({ slug }).catch((error: unknown) => {
+    if (isDefinedError(error)) notFound();
+    throw error;
+  }),
+);
+
+export async function generateMetadata({
+  params,
+}: PageProps<"/[slug]">): Promise<Metadata> {
+  const slug = (await params).slug.toLowerCase();
+  if (!isPracticeSlug(slug)) notFound();
+  await connection();
+  const practice = await practiceBySlug(slug);
+  return practiceMetadata(practice.name, bookingUrl(practice.slug));
+}
 
 /**
  * Public booking page of a practice, the main address `synoro.ru/<slug>`
@@ -38,28 +55,20 @@ export default function PublicBookingPage({ params }: PageProps<"/[slug]">) {
 async function PublicBookingWithData({
   params,
 }: Pick<PageProps<"/[slug]">, "params">) {
-  const { slug } = await params;
+  const slug = (await params).slug.toLowerCase();
   // Names that cannot be a slug (/robots.txt, /favicon.ico) skip the database.
-  if (!isPracticeSlug(slug.toLowerCase())) notFound();
+  if (!isPracticeSlug(slug)) notFound();
   // At request time: nothing below can be prerendered, including the tracing
   // span around the API call.
   await connection();
   const [practice, session] = await Promise.all([
-    api.practice.bySlug({ slug }).catch((error: unknown) => {
-      if (isDefinedError(error)) notFound();
-      throw error;
-    }),
+    practiceBySlug(slug),
     getSession(),
   ]);
   // A former address: clients' old links lead to the current one.
-  if (practice.slug !== slug.toLowerCase()) {
+  if (practice.slug !== slug) {
     redirect(paths.booking.public(practice.slug));
   }
 
-  return (
-    <>
-      <link rel="canonical" href={bookingUrl(practice.slug)} />
-      <PublicBooking practice={practice} signedIn={!!session?.user} />
-    </>
-  );
+  return <PublicBooking practice={practice} signedIn={!!session?.user} />;
 }

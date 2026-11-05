@@ -18,6 +18,7 @@ import {
   professionPages,
   professionPath,
 } from "~/lib/professions";
+import { openGraph } from "~/lib/seo";
 import { site } from "~/lib/site";
 
 export function generateStaticParams() {
@@ -34,14 +35,12 @@ export async function generateMetadata(
     title: page.title,
     description: page.description,
     alternates: { canonical: path },
-    openGraph: {
+    openGraph: openGraph({
       title: page.title,
       description: page.description,
       url: path,
-      siteName: site.name,
-      locale: "ru_RU",
-      type: "website",
-    },
+      card: page.slug,
+    }),
   };
 }
 

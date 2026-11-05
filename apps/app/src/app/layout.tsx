@@ -3,6 +3,7 @@ import { cn, ThemeProvider, Toaster } from "@synoro/ui";
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Onest } from "next/font/google";
 import { YandexMetrika } from "~/components/yandex-metrika";
+import { APP_DESCRIPTION } from "~/lib/page-metadata";
 import { ORPCReactProvider } from "~/orpc/react";
 
 import "~/app/styles.css";
@@ -10,8 +11,7 @@ import "~/app/styles.css";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_CONFIG.url),
   title: "Synoro",
-  description:
-    "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
+  description: APP_DESCRIPTION,
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -21,8 +21,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Synoro",
-    description:
-      "Простой монорепозиторий с общим бэкендом для веб- и мобильных приложений",
+    description: APP_DESCRIPTION,
     url: APP_CONFIG.url,
     siteName: "Synoro",
   },

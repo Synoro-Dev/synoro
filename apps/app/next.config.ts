@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 import { env } from "./src/env";
-import { EMBEDDABLE_SOURCE, SECURE_SOURCE } from "./src/lib/page-routes";
+import {
+  EMBEDDABLE_SOURCE,
+  NOINDEX_SOURCE,
+  SECURE_SOURCE,
+} from "./src/lib/page-routes";
 
 /**
  * Browser analytics goes through `/ingest` on our own origin (ad blockers
@@ -117,6 +121,10 @@ export default async function createNextConfig(): Promise<NextConfig> {
       return [
         { source: SECURE_SOURCE, headers: securityHeaders },
         { source: EMBEDDABLE_SOURCE, headers: embeddableHeaders },
+        {
+          source: NOINDEX_SOURCE,
+          headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+        },
       ];
     },
   };

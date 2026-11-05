@@ -30,3 +30,13 @@ const PAGE_SEGMENT = `(?!(?:${APP_ROOTS.join("|")})$)${SLUG_SEGMENT}`;
  */
 export const EMBEDDABLE_SOURCE = `/:slug(${PAGE_SEGMENT})`;
 export const SECURE_SOURCE = `/:path((?!${PAGE_SEGMENT}$).*)`;
+
+/**
+ * What search engines must not index: the cabinet, sign-in, and the booking
+ * pages on `synoro.ru/<slug>`, which would compete with the landing on its own
+ * host. `/` is left out: on a practice's own domain it is the page to find
+ * (proxy.ts rewrites it after this header is decided); on the app host it
+ * only redirects.
+ */
+export const NOINDEX_SOURCE =
+  "/:path((?!_next/|favicon\\.ico$|icon\\.svg$|apple-touch-icon\\.png$|robots\\.txt$).+)";

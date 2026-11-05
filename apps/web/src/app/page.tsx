@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+
+import { JsonLd } from "~/components/json-ld";
 import { Audience } from "~/components/landing/audience";
 import { Bento } from "~/components/landing/bento";
 import { Domain } from "~/components/landing/domain";
@@ -10,12 +13,26 @@ import { Section } from "~/components/landing/primitives";
 import { Scheduling } from "~/components/landing/scheduling";
 import { Steps } from "~/components/landing/steps";
 import { StickyCta } from "~/components/landing/sticky-cta";
+import { homeTitle, openGraph } from "~/lib/seo";
 import { site } from "~/lib/site";
+import { organization, softwareApplication } from "~/lib/structured-data";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: openGraph({
+    title: homeTitle,
+    description: site.description,
+    url: "/",
+    card: "home",
+  }),
+};
 
 export default function HomePage() {
   const { links } = site;
   return (
     <>
+      <JsonLd data={organization} />
+      <JsonLd data={softwareApplication} />
       <Header links={links} />
       <main>
         <Hero links={links} />

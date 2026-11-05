@@ -3,14 +3,31 @@ import { Skeleton } from "@synoro/ui";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 
 import { getSession } from "~/auth/server";
 import { PublicBooking } from "~/components/booking";
 import { bookingUrl } from "~/lib/hosts";
+import { practiceMetadata } from "~/lib/page-metadata";
 import { api } from "~/orpc/server";
 
-export const metadata: Metadata = { title: "Онлайн-запись" };
+/** One lookup per request: the metadata and the page both need it. */
+const practiceByHost = cache((host: string) =>
+  api.practice.byHost({ host }).catch((error: unknown) => {
+    if (isDefinedError(error)) notFound();
+    throw error;
+  }),
+);
+
+/** The specialist's own domain is the address of this page, not synoro.ru. */
+export async function generateMetadata({
+  params,
+}: PageProps<"/site/[host]">): Promise<Metadata> {
+  await connection();
+  const { host } = await params;
+  const practice = await practiceByHost(host);
+  return practiceMetadata(practice.name, `https://${host}/`);
+}
 
 /**
  * The booking page on a practice's own host (`anna.<root>`, `anna-ivanova.ru`):
@@ -39,21 +56,15 @@ async function PracticeSiteWithData({
   await connection();
   const { host } = await params;
   const [practice, session] = await Promise.all([
-    api.practice.byHost({ host }).catch((error: unknown) => {
-      if (isDefinedError(error)) notFound();
-      throw error;
-    }),
+    practiceByHost(host),
     getSession(),
   ]);
 
   return (
-    <>
-      <link rel="canonical" href={bookingUrl(practice.slug)} />
-      <PublicBooking
-        practice={practice}
-        signedIn={!!session?.user}
-        bookingUrl={bookingUrl(practice.slug)}
-      />
-    </>
+    <PublicBooking
+      practice={practice}
+      signedIn={!!session?.user}
+      bookingUrl={bookingUrl(practice.slug)}
+    />
   );
 }

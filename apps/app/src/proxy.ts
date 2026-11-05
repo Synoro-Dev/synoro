@@ -110,6 +110,6 @@ export const config = {
     // A literal (Next reads it statically): same as `paths.api.auth`.
     "/api/account/:path*",
     // `demo/`: the demo practice's photo, shown on its public booking page.
-    "/((?!api|ingest|_next/static|_next/image|demo/|favicon.ico|icon.svg|apple-touch-icon.png).*)",
+    "/((?!api|ingest|_next/static|_next/image|demo/|favicon.ico|icon.svg|apple-touch-icon.png|robots.txt).*)",
   ],
 };

@@ -4,14 +4,16 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@synoro/ui";
+import { JsonLd } from "~/components/json-ld";
 import { paidPlan, rubles } from "~/lib/pricing";
+import { faqPage } from "~/lib/structured-data";
 
 import { Lead, Section, SectionHeading } from "./primitives";
 
 const questions = [
   {
     q: "Подойдёт ли Synoro репетитору или другому специалисту?",
-    a: "Да. Synoro для всех, кто принимает клиентов лично: психологов, коучей, репетиторов, тренеров, юристов, врачей частной практики. При создании практики выберите, чем занимаетесь, — и страница записи, пакеты и кабинет клиента будут говорить вашими словами: консультации, занятия, тренировки или приёмы.",
+    a: "Да. Synoro для всех, кто работает с клиентами один на один: психологов, коучей, репетиторов, тренеров, юристов, врачей частной практики. При создании практики выберите, чем занимаетесь, — и страница записи, пакеты и кабинет клиента будут говорить вашими словами: консультации, занятия, тренировки или приёмы.",
   },
   {
     q: "Это правда бесплатно?",
@@ -51,7 +53,7 @@ const questions = [
   },
   {
     q: "Подходит ли сервис, если клиенты в разных часовых поясах?",
-    a: "Да. Расписание ведётся по времени вашего города, поэтому записи не путаются при переездах и смене времени.",
+    a: "Да. Расписание ведётся по времени вашего города, а клиент видит время в часовом поясе, который выбрал на странице записи.",
   },
 ];
 
@@ -63,6 +65,7 @@ export function Faq({ first }: { first?: (typeof questions)[number] }) {
       id="faq"
       containerClassName="grid gap-10 px-4 py-16 sm:px-10 sm:py-24 lg:grid-cols-[1fr_1.4fr]"
     >
+      <JsonLd data={faqPage(items)} />
       <div className="flex flex-col gap-5 lg:sticky lg:top-24 lg:self-start">
         <SectionHeading>Частые вопросы</SectionHeading>
         <Lead>
@@ -76,7 +79,11 @@ export function Faq({ first }: { first?: (typeof questions)[number] }) {
             <AccordionTrigger className="py-5 text-base hover:no-underline">
               {item.q}
             </AccordionTrigger>
-            <AccordionContent className="text-muted-foreground pr-8 text-[15px] leading-relaxed">
+            {/* Mounted while closed: search engines read the answers. */}
+            <AccordionContent
+              keepMounted
+              className="text-muted-foreground pr-8 text-[15px] leading-relaxed"
+            >
               {item.a}
             </AccordionContent>
           </AccordionItem>
