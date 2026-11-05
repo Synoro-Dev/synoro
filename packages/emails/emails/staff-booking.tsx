@@ -8,12 +8,24 @@ import {
   EmailText,
 } from "../components/email-ui";
 
-/** booked — someone booked (or was booked); cancelled — it was cancelled. */
-export type StaffBookingNotice = "booked" | "cancelled";
+/**
+ * booked — someone booked (or was booked); moved — it got another time;
+ * cancelled — it was cancelled.
+ */
+export type StaffBookingNotice = "booked" | "moved" | "cancelled";
+
+const COPY: Record<
+  StaffBookingNotice,
+  { title: string; tone: "success" | "info" | "warning" }
+> = {
+  booked: { title: "Новая запись", tone: "success" },
+  moved: { title: "Запись перенесена", tone: "info" },
+  cancelled: { title: "Запись отменена", tone: "warning" },
+};
 
 /**
  * Sent to the specialist and the administrators of a practice when a booking
- * is made or cancelled by someone else.
+ * is made, moved or cancelled by someone else.
  */
 export default function StaffBookingEmail({
   notice = "booked",
@@ -24,6 +36,8 @@ export default function StaffBookingEmail({
   free = false,
   cancelledBy = null,
   refunded = false,
+  movedFrom = null,
+  movedBy = null,
   calendarUrl = "https://app.synoro.ru/practices/1/calendar",
   dates = [],
 }: {
@@ -39,6 +53,10 @@ export default function StaffBookingEmail({
   cancelledBy?: "client" | "staff" | null;
   /** The consultation went back to the client's balance, for `cancelled`. */
   refunded?: boolean;
+  /** The old time, formatted like `when`, for `moved`. */
+  movedFrom?: string | null;
+  /** Who moved it, for `moved`. */
+  movedBy?: "client" | "staff" | null;
   calendarUrl: string;
   /**
    * Every date of a recurring booking, formatted like `when`; `when` then
@@ -47,8 +65,9 @@ export default function StaffBookingEmail({
   dates?: string[];
 }) {
   const booked = notice === "booked";
+  const cancelled = notice === "cancelled";
   const series = dates.length > 1;
-  const title = booked ? "Новая запись" : "Запись отменена";
+  const { title, tone } = COPY[notice];
   const kind = free
     ? "Бесплатная встреча"
     : series
@@ -60,14 +79,14 @@ export default function StaffBookingEmail({
       footnote={`Вы получили это письмо, потому что ведёте практику «${practiceName}» в ${APP_CONFIG.shortName}.`}
     >
       <EmailHeader
-        badge={
-          <EmailBadge tone={booked ? "success" : "warning"}>{title}</EmailBadge>
-        }
+        badge={<EmailBadge tone={tone}>{title}</EmailBadge>}
         title={`${clientName} — ${when}`}
         description={
           booked
             ? `${kind} в практике «${practiceName}».`
-            : `${kind} в практике «${practiceName}» отменена${cancelledBy === "client" ? " клиентом" : ""}.`
+            : cancelled
+              ? `${kind} в практике «${practiceName}» отменена${cancelledBy === "client" ? " клиентом" : ""}.`
+              : `${kind} в практике «${practiceName}» перенесена${movedBy === "client" ? " клиентом" : ""}. Прежнее время: ${movedFrom}.`
         }
       />
       {clientPhone ? <EmailText>Телефон: {clientPhone}</EmailText> : null}
@@ -83,7 +102,7 @@ export default function StaffBookingEmail({
           ))}
         </EmailText>
       ) : null}
-      {!booked && !free ? (
+      {cancelled && !free ? (
         <EmailText muted>
           {refunded
             ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`

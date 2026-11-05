@@ -279,6 +279,39 @@ export async function freeBusy(
   return { busy, failed };
 }
 
+/**
+ * Whether `calendarId` has an event overlapping [start, end) that makes the
+ * time busy, other than `exceptEventId`. Unlike free/busy this tells events
+ * apart. It errs towards busy: an event the owner declined counts too.
+ */
+export async function hasOtherEvent(
+  accessToken: string,
+  calendarId: string,
+  exceptEventId: string,
+  start: Date,
+  end: Date,
+) {
+  const query = new URLSearchParams({
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+    singleEvents: "true",
+    fields: "items(id,status,transparency)",
+  });
+  const data = await api<{
+    items?: { id: string; status?: string; transparency?: string }[];
+  }>(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events?${query}`,
+    { what: "Google events.list" },
+  );
+  return (data?.items ?? []).some(
+    (event) =>
+      event.id !== exceptEventId &&
+      event.status !== "cancelled" &&
+      event.transparency !== "transparent",
+  );
+}
+
 export interface GoogleEvent {
   /** base32hex (a–v, 0–9), 5–1024 chars: lets a retry find the same event. */
   id: string;
@@ -313,6 +346,31 @@ export async function insertEvent(
         },
         end: { dateTime: event.endsAt.toISOString(), timeZone: event.timeZone },
         extendedProperties: { private: { synoroBookingId: event.bookingId } },
+      }),
+    },
+  );
+}
+
+/** Give the event a new time; one deleted in the calendar stays deleted. */
+export async function moveEvent(
+  accessToken: string,
+  calendarId: string,
+  eventId: string,
+  time: Pick<GoogleEvent, "startsAt" | "endsAt" | "timeZone">,
+) {
+  await api(
+    accessToken,
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=none`,
+    {
+      what: "Google events.patch",
+      method: "PATCH",
+      allow: [404, 410],
+      body: JSON.stringify({
+        start: {
+          dateTime: time.startsAt.toISOString(),
+          timeZone: time.timeZone,
+        },
+        end: { dateTime: time.endsAt.toISOString(), timeZone: time.timeZone },
       }),
     },
   );

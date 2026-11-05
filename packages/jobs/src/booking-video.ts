@@ -89,6 +89,7 @@ async function send(
   notice: Notice,
   cancellation?: { by: "client" | "specialist"; refunded: boolean },
   series?: Date[],
+  moved?: { by: "client" | "specialist"; from: Date },
 ) {
   const { when, dates } = describeDates(
     series ?? [row.startsAt],
@@ -103,6 +104,7 @@ async function send(
     "reminder-day": `Напоминание: встреча завтра — ${row.practiceName}`,
     "reminder-hour": `Напоминание: встреча через час — ${row.practiceName}`,
     cancelled: `Запись отменена: ${row.practiceName}`,
+    moved: `Запись перенесена: ${row.practiceName}`,
   };
   await deliver(
     {
@@ -119,6 +121,10 @@ async function send(
         cabinetUrl: cabinetUrl(),
         cancelledBy: cancellation?.by ?? null,
         refunded: cancellation?.refunded ?? false,
+        movedBy: moved?.by ?? null,
+        movedFrom: moved
+          ? describeDates([moved.from], clientZone(row), { named: true }).when
+          : null,
         free: row.kind === "free",
       },
     },
@@ -152,7 +158,8 @@ async function markDueReminders(db: Database, row: Row) {
       reminderHourSentAt:
         left <= HOUR_MS ? (row.reminderHourSentAt ?? now) : null,
     })
-    .where(eq(Booking.id, row.id));
+    // Moved since `row` was read: these marks aren't about its new time.
+    .where(and(eq(Booking.id, row.id), eq(Booking.startsAt, row.startsAt)));
 }
 
 function settled(bookingId: string, notice: Notice, error: unknown) {
@@ -254,6 +261,45 @@ export async function notifyBookingCancelled(
   }
   // Staff are told even when the client's mail failed.
   await notifyStaff(db, bookingId, "cancelled", options, deliver);
+}
+
+/**
+ * After a booking moved from `from` to its current time: tell the client and
+ * the practice's staff (but not the one who moved it). A guest booked by phone
+ * has no account: staff tell them themselves. The mail names the new time, so
+ * the reminders already due for it are covered.
+ */
+export async function notifyBookingMoved(
+  db: Database,
+  bookingId: string,
+  options: { from: Date; movedById: string },
+  deliver: Deliver = noticeSender(db),
+) {
+  const { from, movedById } = options;
+  try {
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.status, "active"),
+        isNull(Booking.holdUntil),
+      ),
+    );
+    if (row) {
+      const by = row.clientId === movedById ? "client" : "specialist";
+      await send(deliver, row, "moved", undefined, undefined, { by, from });
+      await markDueReminders(db, row);
+    }
+  } catch (error) {
+    settled(bookingId, "moved", error);
+  }
+  await notifyStaff(
+    db,
+    bookingId,
+    "moved",
+    { from, actorId: movedById },
+    deliver,
+  );
 }
 
 /**
@@ -476,19 +522,22 @@ export async function sendBookingReminders(
           }
           if (!daytime) continue;
         }
+        // Moved or cancelled since it was read: not due, and the marks belong
+        // to its new time.
+        const same = and(
+          eq(Booking.id, row.id),
+          eq(Booking.startsAt, row.startsAt),
+        );
         const claimed = await db
           .update(Booking)
           .set(window.claim())
-          .where(and(eq(Booking.id, row.id), window.pending))
+          .where(and(same, eq(Booking.status, "active"), window.pending))
           .returning({ id: Booking.id });
         if (claimed.length === 0) continue;
         try {
           await send(deliver, row, window.notice);
         } catch (error) {
-          await db
-            .update(Booking)
-            .set(window.release)
-            .where(eq(Booking.id, row.id));
+          await db.update(Booking).set(window.release).where(same);
           settled(row.id, window.notice, error);
         }
       }

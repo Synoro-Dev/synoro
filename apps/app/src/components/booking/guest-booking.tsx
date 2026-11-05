@@ -138,6 +138,16 @@ export function GuestBooking({ token }: { token: string }) {
                 <dt className="text-muted-foreground">На имя</dt>
                 <dd className="text-right font-medium">{data.name}</dd>
               </div>
+              {data.contact && (
+                <div className="flex justify-between gap-4">
+                  <dt className="shrink-0 text-muted-foreground">
+                    Связаться со специалистом
+                  </dt>
+                  <dd className="min-w-0 text-right font-medium break-words">
+                    {data.contact}
+                  </dd>
+                </div>
+              )}
             </dl>
 
             {data.state === "confirmed" && data.videoUrl && (

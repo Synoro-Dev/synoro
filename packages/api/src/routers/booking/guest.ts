@@ -35,6 +35,7 @@ function findByToken(db: Database, token: string) {
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
       practiceVideoUrl: Practice.videoUrl,
+      practiceContact: Practice.clientContact,
       startsAt: Booking.startsAt,
       endsAt: Booking.endsAt,
       clientTimezone: Booking.clientTimezone,
@@ -129,6 +130,8 @@ export const guest = publicProcedure
         state === "confirmed"
           ? (found.meetingUrl ?? found.practiceVideoUrl)
           : null,
+      /** How to reach the specialist, only once the booking is confirmed. */
+      contact: state === "confirmed" ? found.practiceContact : null,
       balance: found.credits,
       name: found.clientName,
       email: maskEmail(found.clientEmail),
@@ -174,7 +177,15 @@ export const cancelGuest = publicProcedure
       cancelledById: null,
       refund: true,
       reason: "client",
+      startsAt: found.startsAt,
     });
-    if (!result) throw errors.NOT_FOUND();
+    if (!result) {
+      // Moved meanwhile: the 24-hour rule is asked again for the new time.
+      const now = await findByToken(context.db, input.token);
+      if (now?.status === "active" && !clientMayCancel(now, Date.now())) {
+        throw errors.TOO_LATE();
+      }
+      throw errors.NOT_FOUND();
+    }
     return { refunded: result.refunded };
   });

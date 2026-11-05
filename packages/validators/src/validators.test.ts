@@ -9,6 +9,7 @@ import {
   introMinutesSchema,
   legacyPracticePath,
   normalizeHostname,
+  practiceContactSchema,
   practiceFormSchema,
   practiceSlugOfPath,
 } from "./booking";
@@ -82,6 +83,24 @@ describe("videoServiceName", () => {
       "Видеовстреча",
     );
     expect(videoServiceName("https://evilktalk.ru/room")).toBe("Видеовстреча");
+  });
+});
+
+describe("practiceContactSchema", () => {
+  test("keeps the text, trimmed", () => {
+    expect(practiceContactSchema.parse("  @anna, +7 900 123-45-67 ")).toBe(
+      "@anna, +7 900 123-45-67",
+    );
+  });
+
+  test("empty input means no contact", () => {
+    expect(practiceContactSchema.parse("   ")).toBeNull();
+  });
+
+  test("refuses a very long one", () => {
+    expect(practiceContactSchema.safeParse("x".repeat(201)).success).toBe(
+      false,
+    );
   });
 });
 

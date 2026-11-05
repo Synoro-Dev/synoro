@@ -214,3 +214,100 @@ test("client cancels in time (credit back) but not within 24 hours", async ({
 
   await clientContext.close();
 });
+
+test("client moves a booking to a new time without losing the credit", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  // Two sign-ups, each of which may wait out the rate limit.
+  test.setTimeout(180_000);
+  const base = baseURL ?? "";
+  const { api: owner, practiceId } = await ownerWithPractice(page, base);
+  await owner.availability.replace({
+    practiceId,
+    rules: [1, 2, 3, 4, 5, 6, 7].map((weekday) => ({
+      weekday,
+      startMinute: 0,
+      endMinute: 1440,
+    })),
+  });
+
+  // The owner leaves a contact on the booking page's settings.
+  const contact = "@anna-e2e";
+  await page.goto(`/practices/${practiceId}/booking-page`);
+  await page.getByLabel("Контакт для клиентов").fill(contact);
+  await page
+    .locator("form")
+    .filter({ has: page.getByLabel("Контакт для клиентов") })
+    .getByRole("button", { name: "Сохранить" })
+    .click();
+  await expect(page.getByText("Контакт сохранён")).toBeVisible();
+
+  const clientContext = await browser.newContext();
+  const clientPage = await clientContext.newPage();
+  await signUp(clientPage);
+  const client = await apiFor(clientContext, base);
+  await client.user.updatePhone({ phone: "+79161234567" });
+  await client.practice.join({ practiceId });
+
+  const members = await owner.practice.members({ practiceId });
+  const member = members.find((m) => m.role === "client");
+  if (!member) throw new Error("the client did not join");
+  await owner.credit.grant({ practiceId, memberId: member.id, delta: 3 });
+  const inTime = hourAfter(72 * HOUR);
+  await owner.booking.book({
+    practiceId,
+    memberId: member.id,
+    startsAt: inTime,
+  });
+
+  await clientPage.goto("/bookings");
+  await expect(clientPage.getByText(/Осталось 2 занятия/)).toBeVisible();
+
+  // Next week is sure to have free times, this week's may be over.
+  await clientPage.getByRole("button", { name: "Перенести" }).click();
+  const dialog = clientPage.getByRole("alertdialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Перенести запись" }),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Следующая неделя" }).click();
+  await dialog
+    .getByRole("button", { name: /^\d\d:\d\d$/ })
+    .first()
+    .click();
+  await dialog.getByRole("button", { name: /^Перенести на / }).click();
+  await expect(clientPage.getByText(/^Запись перенесена/)).toBeVisible();
+
+  // One booking, at another time, and the same balance: nothing was cancelled.
+  await expect(clientPage.getByText(/Осталось 2 занятия/)).toBeVisible();
+  const bookings = await client.booking.mine();
+  expect(bookings).toHaveLength(1);
+  expect(bookings[0]?.status).toBe("active");
+  const movedTo = bookings[0]?.startsAt.getTime();
+  expect(movedTo).not.toBe(inTime.getTime());
+  // `from` is a day in the practice's zone: a day either side covers any zone.
+  const slots = await client.booking.slots({
+    practiceId,
+    from: new Date(inTime.getTime() - 24 * HOUR).toISOString().slice(0, 10),
+    days: 3,
+  });
+  expect(slots.slots.map((s) => s.startsAt.getTime())).toContain(
+    inTime.getTime(),
+  );
+
+  // Closer than 24 hours only the specialist can move it: their contact shows.
+  await owner.booking.book({
+    practiceId,
+    memberId: member.id,
+    startsAt: hourAfter(3 * HOUR),
+  });
+  await clientPage.reload();
+  await clientPage.getByRole("button", { name: "Перенести" }).click();
+  await expect(
+    clientPage.getByRole("heading", { name: "Перенести уже нельзя" }),
+  ).toBeVisible();
+  await expect(clientPage.getByText(contact)).toBeVisible();
+
+  await clientContext.close();
+});

@@ -103,6 +103,8 @@ export async function cancelActiveBooking(
     refund: boolean;
     reason: BookingCancelReason;
     notify?: boolean;
+    /** Only if it still starts then (see `cancelBookingRows`). */
+    startsAt?: Date;
   },
 ) {
   const result = await cancelBookingRows(db, bookingId, options);
@@ -153,9 +155,32 @@ export async function checkCancel(
 }
 
 /**
+ * Whether `userId` may move `bookingId` now: the rules of `checkCancel`, for
+ * confirmed bookings only — closed time and unpaid holds are NOT_FOUND. A
+ * booking keeps its length (`minutes`), whatever the practice's intro is now.
+ */
+export async function checkMove(
+  db: Database,
+  bookingId: string,
+  userId: string,
+) {
+  const check = await checkCancel(db, bookingId, userId);
+  if ("refusal" in check) return check;
+  const { booking, staff } = check;
+  if (booking.kind === "blocked" || booking.holdUntil !== null) {
+    return { refusal: "NOT_FOUND" } satisfies Refused;
+  }
+  const minutes =
+    (booking.endsAt.getTime() - booking.startsAt.getTime()) / 60_000;
+  return { booking, kind: booking.kind, staff, minutes };
+}
+
+/**
  * Cancel `bookingId` for `userId` by the rules of `checkCancel`. A client
  * always gets the consultation back; staff unless `refund` is false (a late
  * cancellation). The client and staff are told as by `cancelActiveBooking`.
+ * A client's verdict holds for the time it was given at: if staff moved the
+ * booking meanwhile, the rules are asked again and nothing is cancelled.
  */
 export async function cancelBookingAs(
   db: Database,
@@ -170,8 +195,12 @@ export async function cancelBookingAs(
     cancelledById: userId,
     refund: (options.refund ?? true) || !staff,
     reason: staff ? "staff" : "client",
+    startsAt: staff ? undefined : booking.startsAt,
   });
-  if (!result) return { refusal: "NOT_FOUND" };
+  if (!result) {
+    const again = await checkCancel(db, bookingId, userId);
+    return "refusal" in again ? again : { refusal: "NOT_FOUND" };
+  }
   return { booking: result.booking, refunded: result.refunded };
 }
 
@@ -179,7 +208,8 @@ export async function cancelBookingAs(
  * The database half of `cancelActiveBooking`: the booking, the balance and
  * the credit log — nothing outside the database, so it can run in a
  * transaction (pass `tx` as `db`) and be rolled back as a whole. The caller
- * removes the calendar event and sends the mails after the commit.
+ * removes the calendar event and sends the mails after the commit. `startsAt`:
+ * the time a client's 24-hour check was made for; a booking moved since stays.
  */
 export async function cancelBookingRows(
   db: Database,
@@ -188,6 +218,7 @@ export async function cancelBookingRows(
     cancelledById: string | null;
     refund: boolean;
     reason: BookingCancelReason;
+    startsAt?: Date;
   },
 ) {
   const [cancelled] = await db
@@ -198,7 +229,13 @@ export async function cancelBookingRows(
       cancelledById: options.cancelledById,
       cancelReason: options.reason,
     })
-    .where(and(eq(Booking.id, bookingId), eq(Booking.status, "active")))
+    .where(
+      and(
+        eq(Booking.id, bookingId),
+        eq(Booking.status, "active"),
+        options.startsAt ? eq(Booking.startsAt, options.startsAt) : undefined,
+      ),
+    )
     .returning();
   if (!cancelled) return undefined;
 

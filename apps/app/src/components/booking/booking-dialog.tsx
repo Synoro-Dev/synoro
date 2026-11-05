@@ -20,6 +20,7 @@ import {
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarSyncIcon,
   ClipboardListIcon,
   Clock3Icon,
   LockIcon,
@@ -30,10 +31,11 @@ import {
   UserRoundIcon,
   UserRoundXIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ConfirmButton } from "./confirm-button";
+import { SlotPicker } from "./slot-picker";
 import { useTerms } from "./terms";
 import { formatDateTime, formatTime } from "./time";
 import { VideoLinkButton, VideoLinkForm, VideoServiceName } from "./video-link";
@@ -144,6 +146,69 @@ function MeetingLink({
   );
 }
 
+/**
+ * Staff move a booking to another free time; the 24-hour rule is the client's
+ * only. Times read in the viewer's own zone, like the calendar. The booking
+ * stays where it is if the time was taken meanwhile.
+ */
+function MoveBooking({
+  booking,
+  onBack,
+  onMoved,
+}: {
+  booking: CalendarBooking;
+  onBack: () => void;
+  onMoved: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [picked, setPicked] = useState<Date | null>(null);
+  const move = useMutation({
+    ...orpc.booking.reschedule.mutationOptions(),
+    onSuccess: async () => {
+      // Mails are best effort: nothing here knows that the client got one.
+      toast.success(
+        booking.memberId
+          ? "Запись перенесена"
+          : "Запись перенесена — сообщите гостю новое время",
+      );
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),
+      ]);
+      onMoved();
+    },
+    onError: async (error) => {
+      toast.error(error.message);
+      setPicked(null);
+      await queryClient.invalidateQueries({ queryKey: orpc.booking.key() });
+    },
+  });
+
+  return (
+    <>
+      <SlotPicker
+        bookingId={booking.id}
+        selected={picked}
+        onSelect={setPicked}
+        disabled={move.isPending}
+      />
+      <DialogFooter className="flex-wrap">
+        <Button variant="outline" disabled={move.isPending} onClick={onBack}>
+          Назад
+        </Button>
+        <Button
+          disabled={move.isPending || !picked}
+          onClick={() =>
+            picked && move.mutate({ bookingId: booking.id, startsAt: picked })
+          }
+        >
+          {picked ? `Перенести на ${formatDateTime(picked)}` : "Перенести"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
 /** Details of a booking, free booking or block, with staff actions. */
 export function BookingDialog({
   booking,
@@ -154,6 +219,18 @@ export function BookingDialog({
 }) {
   const queryClient = useQueryClient();
   const terms = useTerms();
+  /** The booking whose new time is being picked. */
+  const [movingId, setMovingId] = useState<string | null>(null);
+  // Unpaid holds aren't bookings yet; closed time is opened and closed anew.
+  const movable =
+    booking !== null && booking.kind !== "blocked" && !booking.holdUntil;
+  const moving = movable && movingId === booking.id;
+
+  function close() {
+    setMovingId(null);
+    onClose();
+  }
+
   const cancel = useMutation({
     ...orpc.booking.cancel.mutationOptions(),
     onSuccess: async (result) => {
@@ -208,7 +285,7 @@ export function BookingDialog({
     booking.startsAt.getTime() <= Date.now();
 
   return (
-    <Dialog open={booking !== null} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={booking !== null} onOpenChange={(open) => !open && close()}>
       {/* Long questionnaire answers can outgrow the screen: scroll. */}
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         {booking && (
@@ -229,7 +306,19 @@ export function BookingDialog({
                 {formatDateTime(booking.startsAt)}–{formatTime(booking.endsAt)}
               </DialogDescription>
             </DialogHeader>
-
+          </>
+        )}
+        {booking && moving && (
+          <MoveBooking
+            // A new booking starts its own pick.
+            key={booking.id}
+            booking={booking}
+            onBack={() => setMovingId(null)}
+            onMoved={close}
+          />
+        )}
+        {booking && !moving && (
+          <>
             <div className="flex flex-col gap-3">
               <Fact icon={<Clock3Icon />}>
                 {Math.round(
@@ -292,6 +381,16 @@ export function BookingDialog({
             )}
 
             <DialogFooter className="flex-wrap">
+              {movable && (
+                <Button
+                  variant="outline"
+                  disabled={pending}
+                  onClick={() => setMovingId(booking.id)}
+                >
+                  <CalendarSyncIcon />
+                  Перенести
+                </Button>
+              )}
               {booking.seriesId && (
                 <ConfirmButton
                   size="default"

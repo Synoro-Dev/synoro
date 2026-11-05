@@ -15,14 +15,16 @@ import {
  * - link          — the specialist set or changed the video link;
  * - reminder-day  — the meeting is within a day;
  * - reminder-hour — the meeting is within the hour;
- * - cancelled     — the client or the specialist cancelled it.
+ * - cancelled     — the client or the specialist cancelled it;
+ * - moved         — the client or the specialist moved it to another time.
  */
 export type BookingNotice =
   | "confirmed"
   | "link"
   | "reminder-day"
   | "reminder-hour"
-  | "cancelled";
+  | "cancelled"
+  | "moved";
 
 const COPY: Record<
   BookingNotice,
@@ -53,11 +55,16 @@ const COPY: Record<
     tone: "warning",
     title: "Запись отменена",
   },
+  moved: {
+    badge: "Запись перенесена",
+    tone: "info",
+    title: "Запись перенесена",
+  },
 };
 
 /**
  * Sent to a client about their booking: confirmation, the video link (set or
- * changed by the specialist), reminders and cancellation. The link is
+ * changed by the specialist), reminders, a move and cancellation. The link is
  * optional — the other mails go out without it — and never shown once the
  * booking is cancelled.
  */
@@ -70,6 +77,8 @@ export default function BookingNoticeEmail({
   cabinetUrl = "https://synoro.ru/bookings",
   cancelledBy = null,
   refunded = false,
+  movedBy = null,
+  movedFrom = null,
   free = false,
   dates = [],
 }: {
@@ -85,6 +94,10 @@ export default function BookingNoticeEmail({
   cancelledBy?: "client" | "specialist" | null;
   /** The consultation went back to the balance, for `cancelled`. */
   refunded?: boolean;
+  /** Who moved it, for `moved`. */
+  movedBy?: "client" | "specialist" | null;
+  /** The old time, formatted like `when`, for `moved`. */
+  movedFrom?: string | null;
   /** A free intro: nothing was paid, so nothing is said of the balance. */
   free?: boolean;
   /**
@@ -95,6 +108,7 @@ export default function BookingNoticeEmail({
 }) {
   const copy = COPY[notice];
   const cancelled = notice === "cancelled";
+  const moved = notice === "moved";
   const series = dates.length > 1;
   return (
     <EmailLayout
@@ -107,9 +121,16 @@ export default function BookingNoticeEmail({
         description={
           cancelled
             ? `Здравствуйте, ${name}! ${cancelledBy === "specialist" ? "Специалист отменил" : "Вы отменили"} запись: ${practiceName}, ${when}.`
-            : `Здравствуйте, ${name}! Встреча с ${practiceName} — ${when}.`
+            : moved
+              ? `Здравствуйте, ${name}! ${movedBy === "specialist" ? "Специалист перенёс" : "Вы перенесли"} запись: ${practiceName}, ${when}.`
+              : `Здравствуйте, ${name}! Встреча с ${practiceName} — ${when}.`
         }
       />
+      {moved && movedFrom ? (
+        <EmailText>
+          Прежнее время: {movedFrom}.{free ? "" : " Баланс не изменился."}
+        </EmailText>
+      ) : null}
       {series ? (
         <EmailText>
           Все даты:
