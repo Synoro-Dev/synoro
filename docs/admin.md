@@ -40,7 +40,9 @@ of sign-ins, see `sign-in-history.md`). Lists take `query`, `limit`,
 user's email as confirmation, then deletes the account; foreign keys remove
 sessions, sign-ins, memberships, the «Про» plan with its auto-renewal and the
 practices the user owns with all their bookings (`created_by`-style columns turn
-null). Refused for yourself and for admins (take the role away first). Pages
+null). Refused for yourself, for admins (take the role away first) and while a
+payment from the last 24 h is unpaid (the bank's answer would find no row).
+Pages
 here are Server Components, so the button calls the procedure through a server
 action (`users/[id]/actions.ts`) that starts with `requireAdmin()`.
 
