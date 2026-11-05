@@ -59,6 +59,7 @@ interface PracticeSummary {
   bookingUrl: string;
   timezone: string;
   videoUrl: string | null;
+  freeBookingEnabled: boolean;
   membership: { role: MemberRole };
 }
 
@@ -492,8 +493,9 @@ function SetupProgress({
       href: setupStepHref(practice.id, "hours"),
     },
     {
-      title: "Укажите цены",
-      done: (offer.data?.packages.length ?? 0) > 0,
+      title: "Укажите цены или включите бесплатную запись",
+      done:
+        (offer.data?.packages.length ?? 0) > 0 || practice.freeBookingEnabled,
       shown: canPay,
       href: setupStepHref(practice.id, "prices"),
     },
