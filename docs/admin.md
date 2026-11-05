@@ -1,7 +1,8 @@
 # Admin site (admin.synoro.ru)
 
 `apps/admin` is a separate Next.js app for the Synoro team: an overview of the
-platform, users, practices and «Про» payments. Read-only for now.
+platform, users, practices and «Про» payments. Read-only, except that an
+admin can delete a user (see below).
 
 ## Access
 
@@ -30,10 +31,18 @@ Pages are Server Components calling `appRouter.admin` in-process
 (`src/orpc/server.ts`). The admin host has no `/api/orpc`: nothing but the
 admin procedures and the auth handler is reachable there. Procedures live in
 `packages/api/src/routers/admin/` (`stats.overview`, `users.list`,
-`users.byId`, `practices.list`, `payments.list`, `signIns.list` — the history
+`users.byId`, `users.remove`, `practices.list`, `payments.list`, `signIns.list` — the history
 of sign-ins, see `sign-in-history.md`). Lists take `query`, `limit`,
 `offset` and return `{ items, total }`; filters are URL params (`?q=`,
 `?page=`, `?status=`), so a filtered list is a link.
+
+**Deleting a user** (`users.remove`, button on the user's card): asks for the
+user's email as confirmation, then deletes the account; foreign keys remove
+sessions, sign-ins, memberships, the «Про» plan with its auto-renewal and the
+practices the user owns with all their bookings (`created_by`-style columns turn
+null). Refused for yourself and for admins (take the role away first). Pages
+here are Server Components, so the button calls the procedure through a server
+action (`users/[id]/actions.ts`) that starts with `requireAdmin()`.
 
 ## Running
 
