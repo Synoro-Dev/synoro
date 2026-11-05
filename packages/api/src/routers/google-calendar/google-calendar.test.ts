@@ -45,6 +45,9 @@ const google = {
   busy: [] as { start: string; end: string }[],
   down: false,
   events: new Map<string, { calendarId: string; summary: string }>(),
+  moved: [] as { id: string; start: { dateTime: string } }[],
+  /** What `events.list` answers. */
+  listed: [] as { id: string; status?: string; transparency?: string }[],
   calls: [] as string[],
   intercept: undefined as
     | ((url: URL, init?: RequestInit) => Promise<Response | undefined>)
@@ -53,6 +56,8 @@ const google = {
   reset() {
     this.busy = [];
     this.down = false;
+    this.moved = [];
+    this.listed = [];
     this.calls = [];
     this.intercept = undefined;
     this.afterInsert = undefined;
@@ -115,6 +120,9 @@ async function fakeGoogle(input: RequestInfo | URL, init?: RequestInit) {
     });
   }
   const event = /^\/calendars\/([^/]+)\/events(?:\/([^/]+))?$/.exec(path);
+  if (event && !event[2] && method === "GET") {
+    return json({ items: google.listed });
+  }
   if (event && method === "POST") {
     const body = JSON.parse(init?.body as string) as {
       id: string;
@@ -131,6 +139,13 @@ async function fakeGoogle(input: RequestInfo | URL, init?: RequestInit) {
   if (event?.[2] && method === "DELETE") {
     const existed = google.events.delete(event[2]);
     return new Response(null, { status: existed ? 204 : 410 });
+  }
+  if (event?.[2] && method === "PATCH") {
+    google.moved.push({
+      id: event[2],
+      ...(JSON.parse(init?.body as string) as { start: { dateTime: string } }),
+    });
+    return json({ id: event[2] });
   }
   return json({ error: { message: "Not found" } }, 404);
 }
@@ -355,6 +370,166 @@ describe("bookings in Google", () => {
       { context: api.context(client) },
     );
     expect(google.events.has(eventId)).toBe(false);
+  });
+
+  it("takes the event along when a booking moves", async () => {
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("08:00") },
+      { context: api.context(client) },
+    );
+    await call(
+      bookingRouter.reschedule,
+      { bookingId: booking.id, startsAt: at("09:00") },
+      { context: api.context(client) },
+    );
+    const eventId = booking.id.replaceAll("-", "");
+    expect(google.moved).toEqual([
+      expect.objectContaining({
+        id: eventId,
+        start: expect.objectContaining({
+          dateTime: at("09:00").toISOString(),
+        }),
+      }),
+    ]);
+
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(client) },
+    );
+    expect(google.events.has(eventId)).toBe(false);
+  });
+
+  it("ends on the latest time when moves reach Google out of order", async () => {
+    const booking = await call(
+      bookingRouter.book,
+      { practiceId, startsAt: at("08:00") },
+      { context: api.context(client) },
+    );
+    // Another move lands while the first is on its way to Google.
+    let raced = false;
+    google.intercept = async (_url, init) => {
+      if (init?.method === "PATCH" && !raced) {
+        raced = true;
+        await api.db
+          .update(Booking)
+          .set({ startsAt: at("07:00"), endsAt: at("08:00") })
+          .where(eq(Booking.id, booking.id));
+      }
+      return undefined;
+    };
+    await call(
+      bookingRouter.reschedule,
+      { bookingId: booking.id, startsAt: at("09:00") },
+      { context: api.context(client) },
+    );
+    expect(google.moved.map((m) => m.start.dateTime)).toEqual([
+      at("09:00").toISOString(),
+      at("07:00").toISOString(),
+    ]);
+    await call(
+      bookingRouter.cancel,
+      { bookingId: booking.id },
+      { context: api.context(owner) },
+    );
+  });
+
+  describe("a booking's own event when it moves", () => {
+    /** A free intro, 08:00–09:00, with its event in Google. */
+    async function intro() {
+      const member = await call(
+        practiceRouter.join,
+        { practiceId },
+        { context: api.context(client) },
+      );
+      const [booking] = await api.db
+        .insert(Booking)
+        .values({
+          practiceId,
+          kind: "free",
+          startsAt: at("08:00"),
+          endsAt: at("09:00"),
+          memberId: member.id,
+          googleCalendarId: "primary",
+          googleEventId: "ownevent",
+        })
+        .returning();
+      if (!booking) throw new Error("no booking");
+      return booking;
+    }
+
+    /** Half an hour later is neither allowed nor offered. */
+    async function expectRefused(bookingId: string) {
+      const error = await call(
+        bookingRouter.reschedule,
+        { bookingId, startsAt: at("08:30") },
+        { context: api.context(client) },
+      ).catch((e) => e);
+      expect(error).toMatchObject({ code: "SLOT_UNAVAILABLE" });
+
+      const { slots } = await call(
+        bookingRouter.rescheduleSlots,
+        { bookingId, from: MONDAY, days: 1 },
+        { context: api.context(client) },
+      );
+      expect(slots.map((s) => s.startsAt)).not.toContainEqual(at("08:30"));
+      await api.db.delete(Booking).where(eq(Booking.id, bookingId));
+    }
+
+    it.each([
+      ["alone", [{ id: "ownevent" }]],
+      [
+        "with a cancelled event",
+        [{ id: "ownevent" }, { id: "gone", status: "cancelled" }],
+      ],
+      [
+        "with an event that doesn't block time",
+        [{ id: "ownevent" }, { id: "free", transparency: "transparent" }],
+      ],
+    ])("doesn't count as busy %s", async (_name, listed) => {
+      const booking = await intro();
+      google.busy = [busyAt("08:00", "09:00")];
+      google.listed = listed;
+
+      await call(
+        bookingRouter.reschedule,
+        { bookingId: booking.id, startsAt: at("08:30") },
+        { context: api.context(client) },
+      );
+
+      const row = await api.db.query.Booking.findFirst({
+        where: eq(Booking.id, booking.id),
+      });
+      expect(row?.startsAt).toEqual(at("08:30"));
+      await api.db.delete(Booking).where(eq(Booking.id, booking.id));
+    });
+
+    it("stays busy with another event running past it", async () => {
+      const booking = await intro();
+      // Google merges the two into one block.
+      google.busy = [busyAt("08:00", "09:30")];
+      google.listed = [{ id: "ownevent" }];
+      await expectRefused(booking.id);
+    });
+
+    it("stays busy with another event hidden inside its time", async () => {
+      const booking = await intro();
+      // The block is exactly the booking's: only the list tells them apart.
+      google.busy = [busyAt("08:00", "09:00")];
+      google.listed = [{ id: "ownevent" }, { id: "dentist" }];
+      await expectRefused(booking.id);
+    });
+
+    it("stays busy when the list can't be read", async () => {
+      const booking = await intro();
+      google.busy = [busyAt("08:00", "09:00")];
+      google.intercept = async (url, init) =>
+        url.pathname.endsWith("/events") && (init?.method ?? "GET") === "GET"
+          ? json({ error: { message: "Backend Error" } }, 503)
+          : undefined;
+      await expectRefused(booking.id);
+    });
   });
 
   it("lets staff book over Google time and shows only the rest", async () => {

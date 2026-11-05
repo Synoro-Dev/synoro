@@ -56,6 +56,44 @@ already exists, so their bookings and balance are there. Booking while signed
 in needs a phone on the profile (`PHONE_REQUIRED`; the booking page and the
 cabinet ask for it).
 
+## Moving a booking
+
+`booking.reschedule` moves a confirmed booking (`consultation` or `free`) to
+another time: same id, link, video room and length, the balance and its journal
+untouched. One `UPDATE` does it and `bookings_no_overlap` decides races, so a
+taken time (`SLOT_UNAVAILABLE`) leaves the booking where it was. The rules are
+those of cancelling (`checkMove`, `clientMayCancel`): a client up to 24 h
+before the start (a free intro until it starts), later `TOO_LATE`; staff at any
+time. Of a series only that booking moves. Closed time and unpaid holds don't
+move, and there is no moving by the `/b/<token>` link: a visitor signs in.
+
+The dialogs (`components/booking/slot-picker.tsx`) offer the times of
+`booking.rescheduleSlots`: `booking.slots` for this booking, with its own length
+and without counting its own time (and Google event) as busy. Free/busy has no
+event ids, so a Google block of exactly the booking's time is checked against
+`events.list`; unless that says it is the booking's event alone, or when a block
+is wider than the booking, the time stays busy (`googleBusyForMove`).
+
+After the move the reminders start over, the Google Calendar event gets the new
+time (`moveBookingEvent`), and the client and staff are told (`booking-notice`
+and `staff-booking` with `notice: moved`), but not the one who moved it. A guest
+booked by phone has no account: staff tell them themselves.
+
+Anything that read the booking before a move holds only for the time it read:
+a client's cancel (`cancelBookingRows` with `startsAt`) and the reminder cron's
+claims are conditional on `starts_at`, and `moveBookingEvent` reads the booking
+again after writing to Google, so moves arriving out of order end on the latest
+time.
+
+## Contact for clients
+
+`practices.client_contact` is free text (a phone, Telegram…) the owner sets on
+the booking page's settings (`practice.setContact`). Clients see it on a
+**confirmed** booking only (`booking.mine.contact`, `booking.guest.contact`):
+in the cabinet's dialog when it is too late to change a booking themselves, and
+on `/b/<token>`. Never in public procedures (`slots`, `bySlug`), and not in
+`practice.get` for clients, because anyone can join a practice.
+
 ## Video meetings
 
 The specialist gives clients a video link (Толк, Телемост, Google Meet, Zoom —

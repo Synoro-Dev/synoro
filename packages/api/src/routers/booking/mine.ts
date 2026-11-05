@@ -21,7 +21,7 @@ const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
  * The caller's bookings in every practice — paid ones and free intros
  * (`kind`): upcoming ones and those of the last 30 days, including cancelled
  * and those awaiting payment. `canCancel` tells whether the client may still
- * cancel it themselves (24 h rule; an intro until it starts).
+ * cancel or move it themselves (24 h rule; an intro until it starts).
  *
  * @example client.booking.mine()
  */
@@ -40,6 +40,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       /** Set when the booking is part of a recurring booking. */
       seriesId: Booking.seriesId,
       practiceVideoUrl: Practice.videoUrl,
+      practiceContact: Practice.clientContact,
       practiceId: Practice.id,
       practiceName: Practice.name,
       practiceSlug: Practice.slug,
@@ -60,18 +61,19 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     )
     .orderBy(asc(Booking.startsAt));
 
-  return rows.map(({ holdUntil, meetingUrl, practiceVideoUrl, ...row }) => ({
-    ...row,
-    /** The video room of a confirmed booking; null while unpaid or cancelled. */
-    videoUrl:
-      row.status === "active" && holdUntil === null
-        ? (meetingUrl ?? practiceVideoUrl)
-        : null,
-    /** Reserved, the online payment not finished yet. */
-    awaitingPayment: holdUntil !== null && row.status === "active",
-    canCancel:
-      row.status === "active" &&
-      holdUntil === null &&
-      clientMayCancel(row, now),
-  }));
+  return rows.map(
+    ({ holdUntil, meetingUrl, practiceVideoUrl, practiceContact, ...row }) => {
+      const confirmed = row.status === "active" && holdUntil === null;
+      return {
+        ...row,
+        /** The video room of a confirmed booking; null while unpaid or cancelled. */
+        videoUrl: confirmed ? (meetingUrl ?? practiceVideoUrl) : null,
+        /** How to reach the specialist, on a confirmed booking only. */
+        contact: confirmed ? practiceContact : null,
+        /** Reserved, the online payment not finished yet. */
+        awaitingPayment: holdUntil !== null && row.status === "active",
+        canCancel: confirmed && clientMayCancel(row, now),
+      };
+    },
+  );
 });

@@ -22,8 +22,10 @@ export {
   freeBusy,
   type GoogleCalendarInfo,
   GoogleError,
+  hasOtherEvent,
   insertEvent,
   listCalendars,
+  moveEvent,
   revokeToken,
 } from "./google";
 

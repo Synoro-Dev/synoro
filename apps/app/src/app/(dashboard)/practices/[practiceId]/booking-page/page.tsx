@@ -24,7 +24,7 @@ async function BookingPage({
     <PracticeSettingsShell practice={practice} title="Страница записи">
       <PageHeading
         title="Страница записи"
-        description="Фото, оформление, ссылка и видеовстреча — то, что видят ваши клиенты"
+        description="Фото, оформление, ссылка, видеовстреча и контакт — то, что видят ваши клиенты"
       />
       <PracticeBookingPage practice={practice} />
     </PracticeSettingsShell>

@@ -14,7 +14,9 @@ import {
   freeBusy,
   GoogleError,
   googleCalendarAvailable,
+  hasOtherEvent,
   insertEvent,
+  moveEvent,
   removeBookingEvent,
   revokeToken,
   withGoogle,
@@ -154,6 +156,70 @@ export async function isBusyInGoogle(
   return busy.some((b) => overlaps(b, range));
 }
 
+/**
+ * Busy time for moving `booking`: its own event reads as busy in Google, but
+ * goes away with the booking, so it doesn't count. Free/busy has no event ids,
+ * so a block of exactly the booking's time may be its event alone, or hide
+ * another one inside: the calendars are asked, and unless they say it is alone
+ * the block stays busy — a booking must not land on another event. An event
+ * running past the booking widens the block, which then stays busy anyway.
+ * Google clips blocks to the range asked for, so the range takes in the
+ * booking's whole time.
+ */
+export async function googleBusyForMove(
+  db: Database,
+  booking: BookingRow,
+  start: Date,
+  end: Date,
+) {
+  const { practiceId, startsAt, endsAt, googleEventId } = booking;
+  const window = { startsAt: start, endsAt: end };
+  if (!googleEventId || !overlaps(booking, window)) {
+    return googleBusy(db, practiceId, start, end);
+  }
+  const busy = await googleBusy(
+    db,
+    practiceId,
+    startsAt < start ? startsAt : start,
+    endsAt > end ? endsAt : end,
+  );
+  const own = (b: TimeRange) =>
+    b.startsAt.getTime() === startsAt.getTime() &&
+    b.endsAt.getTime() === endsAt.getTime();
+  if (!busy.some(own)) return busy;
+  const alone = await isAloneInGoogle(db, booking, googleEventId);
+  return alone ? busy.filter((b) => !own(b)) : busy;
+}
+
+/** Whether nothing but its own event makes the booking's time busy. */
+async function isAloneInGoogle(
+  db: Database,
+  booking: BookingRow,
+  eventId: string,
+) {
+  try {
+    const connection = await findConnection(db, booking.practiceId);
+    if (!connection) return false;
+    const others = await withGoogle(db, connection, (token) =>
+      Promise.all(
+        connection.busyCalendarIds.map((calendarId: string) =>
+          hasOtherEvent(
+            token,
+            calendarId,
+            eventId,
+            booking.startsAt,
+            booking.endsAt,
+          ),
+        ),
+      ),
+    );
+    return !others.includes(true);
+  } catch {
+    // Recorded by withGoogle. Not known: the time stays busy.
+    return false;
+  }
+}
+
 /** Google event ids are base32hex; a UUID's hex digits fit as they are. */
 function eventIdFor(bookingId: string) {
   return bookingId.replaceAll("-", "");
@@ -250,6 +316,46 @@ export async function exportBooking(db: Database, bookingId: string) {
         googleCalendarId: connection.eventsCalendarId,
         googleEventId: eventId,
       });
+    }
+  } catch {
+    // Recorded by withGoogle.
+  }
+}
+
+/** How many times a move looks at the booking again after writing to Google. */
+const MOVE_EVENT_TRIES = 3;
+
+/**
+ * After a booking moved: take its Google Calendar event along, or add one if
+ * it never got there. Two moves can reach Google in the wrong order, so each
+ * reads the booking again after writing: the last write is its latest time.
+ * Best effort, like `exportBooking`.
+ */
+export async function moveBookingEvent(db: Database, booking: BookingRow) {
+  const { googleCalendarId, googleEventId } = booking;
+  if (!googleCalendarId || !googleEventId) {
+    await exportBooking(db, booking.id);
+    return;
+  }
+  if (!googleCalendarAvailable()) return;
+  try {
+    const [connection, practice] = await Promise.all([
+      findConnection(db, booking.practiceId),
+      findPractice(db, booking.practiceId),
+    ]);
+    if (!connection || !practice) return;
+    let { startsAt, endsAt } = booking;
+    for (let tries = 0; tries < MOVE_EVENT_TRIES; tries++) {
+      const time = { startsAt, endsAt, timeZone: practice.timezone };
+      await withGoogle(db, connection, (token) =>
+        moveEvent(token, googleCalendarId, googleEventId, time),
+      );
+      const latest = await db.query.Booking.findFirst({
+        where: and(eq(Booking.id, booking.id), eq(Booking.status, "active")),
+        columns: { startsAt: true, endsAt: true },
+      });
+      if (!latest || latest.startsAt.getTime() === startsAt.getTime()) return;
+      ({ startsAt, endsAt } = latest);
     }
   } catch {
     // Recorded by withGoogle.

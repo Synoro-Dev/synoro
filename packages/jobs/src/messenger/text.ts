@@ -26,6 +26,7 @@ function bookingNotice(
     "reminder-day": "Напоминание: встреча в ближайшие 24 часа",
     "reminder-hour": "Напоминание: встреча через час",
     cancelled: "Запись отменена",
+    moved: "Запись перенесена",
   } as const;
   const lines = [`${titles[p.notice]}`];
   if (p.notice === "cancelled") {
@@ -39,6 +40,11 @@ function bookingNotice(
           : `${series ? "Занятия не вернулись" : "Занятие не вернулось"} на баланс. Если это ошибка, свяжитесь со специалистом.`,
       );
     }
+  } else if (p.notice === "moved") {
+    lines.push(
+      `${p.movedBy === "specialist" ? "Специалист перенёс" : "Вы перенесли"} запись: ${p.practiceName}, ${p.when}.`,
+      `Прежнее время: ${p.movedFrom}.`,
+    );
   } else {
     lines.push(`${p.practiceName} — ${p.when}.`);
   }
@@ -59,23 +65,31 @@ function bookingNotice(
 
 function staffBooking(p: Props<"staff-booking">): MessengerMessage {
   const booked = p.notice === "booked";
+  const cancelled = p.notice === "cancelled";
   const series = (p.dates?.length ?? 0) > 1;
   const kind = p.free
     ? "Бесплатная встреча"
     : series
       ? "Повторная запись"
       : "Запись";
+  const titles = {
+    booked: "Новая запись",
+    moved: "Запись перенесена",
+    cancelled: "Запись отменена",
+  } as const;
   const lines = [
-    `${booked ? "Новая запись" : "Запись отменена"}: ${p.clientName} — ${p.when}`,
+    `${titles[p.notice]}: ${p.clientName} — ${p.when}`,
     booked
       ? `${kind} в практике «${p.practiceName}».`
-      : `${kind} в практике «${p.practiceName}» отменена${p.cancelledBy === "client" ? " клиентом" : ""}.`,
+      : cancelled
+        ? `${kind} в практике «${p.practiceName}» отменена${p.cancelledBy === "client" ? " клиентом" : ""}.`
+        : `${kind} в практике «${p.practiceName}» перенесена${p.movedBy === "client" ? " клиентом" : ""}. Прежнее время: ${p.movedFrom}.`,
   ];
   if (p.clientPhone) lines.push(`Телефон: ${p.clientPhone}`);
   if (series) {
     lines.push(`${booked ? "Даты" : "Отменены даты"}:\n${p.dates?.join("\n")}`);
   }
-  if (!booked && !p.free) {
+  if (cancelled && !p.free) {
     lines.push(
       p.refunded
         ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`

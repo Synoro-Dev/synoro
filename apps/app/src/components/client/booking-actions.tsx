@@ -1,7 +1,7 @@
 "use client";
 
+import { isDefinedError } from "@orpc/client";
 import type { RouterOutputs } from "@synoro/api";
-import { paths } from "@synoro/config";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -17,11 +17,11 @@ import { Alert, AlertDescription } from "@synoro/ui/reui/alert";
 import { formatCredits, professionTerms } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleAlertIcon } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
-import { formatDateTime } from "../booking/time";
+import { SlotPicker } from "../booking/slot-picker";
+import { formatDateTime, viewerTimeZoneName } from "../booking/time";
 
 type MyBooking = RouterOutputs["booking"]["mine"][number];
 
@@ -30,9 +30,9 @@ export type BookingAction = "cancel" | "move";
 
 /**
  * Cancel or move one booking, with the consequence spelled out before the
- * second tap. Moving is cancel-then-rebook (there is no atomic move yet):
- * the dialog says so and opens the booking page once the server agrees.
- * Nothing changes on screen until the server confirms.
+ * second tap. Moving picks a new time among the free ones; the booking stays
+ * where it is until the server has moved it, and stays there if the time was
+ * taken meanwhile. Nothing changes on screen until the server confirms.
  */
 export function BookingActionDialog({
   booking,
@@ -56,9 +56,10 @@ export function BookingActionDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const router = useRouter();
   const [failure, setFailure] = useState<string | null>(null);
   const [wholeSeries, setWholeSeries] = useState(false);
+  /** The new time being picked. */
+  const [picked, setPicked] = useState<Date | null>(null);
 
   async function refresh() {
     await Promise.all([
@@ -72,19 +73,32 @@ export function BookingActionDialog({
     ...orpc.booking.cancel.mutationOptions(),
     onSuccess: async (result) => {
       await refresh();
-      if (action === "move" && booking) {
-        toast.success("Запись отменена — выберите новое время");
-        router.push(paths.booking.public(booking.practiceSlug));
-      } else {
-        toast.success(
-          result.refunded
-            ? "Запись отменена, оплата вернулась на баланс"
-            : "Запись отменена",
-        );
-      }
+      toast.success(
+        result.refunded
+          ? "Запись отменена, оплата вернулась на баланс"
+          : "Запись отменена",
+      );
       close();
     },
     onError: (error) => setFailure(error.message),
+  });
+  const move = useMutation({
+    ...orpc.booking.reschedule.mutationOptions(),
+    onSuccess: async (result) => {
+      await refresh();
+      toast.success(
+        `Запись перенесена: ${formatDateTime(result.startsAt, timeZone)}`,
+      );
+      close();
+    },
+    onError: async (error) => {
+      setFailure(error.message);
+      // Someone took the time: the list shows what is free now.
+      if (isDefinedError(error) && error.code === "SLOT_UNAVAILABLE") {
+        setPicked(null);
+      }
+      await refresh();
+    },
   });
   const cancelSeries = useMutation({
     ...orpc.booking.cancelSeries.mutationOptions(),
@@ -103,10 +117,11 @@ export function BookingActionDialog({
   function close() {
     setFailure(null);
     setWholeSeries(false);
+    setPicked(null);
     onClose();
   }
 
-  const pending = cancel.isPending || cancelSeries.isPending;
+  const pending = cancel.isPending || cancelSeries.isPending || move.isPending;
   const terms = professionTerms(booking?.profession ?? "other");
   const free = booking?.kind === "free";
   const late = booking !== null && !booking.canCancel;
@@ -116,7 +131,8 @@ export function BookingActionDialog({
       open={booking !== null}
       onOpenChange={(open) => !open && !pending && close()}
     >
-      <AlertDialogContent>
+      {/* The time picker can outgrow a small screen: scroll. */}
+      <AlertDialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         {booking && late ? (
           <>
             <AlertDialogHeader>
@@ -125,31 +141,94 @@ export function BookingActionDialog({
                   ? "Перенести уже нельзя"
                   : "Отменить уже нельзя"}
               </AlertDialogTitle>
-              <AlertDialogDescription>
-                До начала меньше 24 часов. Изменить запись может только
-                специалист — свяжитесь с ним так, как вы договаривались.
+              <AlertDialogDescription className="flex flex-col gap-2">
+                {booking.contact ? (
+                  <>
+                    <span>
+                      До начала меньше 24 часов. Изменить запись может только
+                      специалист. Как связаться:
+                    </span>
+                    <span className="font-medium break-words text-foreground">
+                      {booking.contact}
+                    </span>
+                  </>
+                ) : (
+                  <span>
+                    До начала меньше 24 часов. Изменить запись может только
+                    специалист — свяжитесь с ним так, как вы договаривались.
+                  </span>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <Button onClick={close}>Понятно</Button>
             </AlertDialogFooter>
           </>
+        ) : booking && action === "move" ? (
+          <>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Перенести запись</AlertDialogTitle>
+              <AlertDialogDescription className="flex flex-col gap-1">
+                <span>
+                  Сейчас: {formatDateTime(booking.startsAt, timeZone)}
+                </span>
+                <span>
+                  Выберите новое время. Время указано по вашему поясу:{" "}
+                  {viewerTimeZoneName(timeZone)}.
+                  {free ? "" : " Баланс не изменится."}
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <SlotPicker
+              bookingId={booking.id}
+              timeZone={timeZone}
+              selected={picked}
+              onSelect={setPicked}
+              disabled={pending}
+            />
+            {failure && (
+              <Alert variant="destructive">
+                <CircleAlertIcon />
+                <AlertDescription>{failure}</AlertDescription>
+              </Alert>
+            )}
+            <AlertDialogFooter>
+              <Button variant="outline" disabled={pending} onClick={close}>
+                Оставить как есть
+              </Button>
+              <Button
+                disabled={pending || !picked}
+                onClick={() => {
+                  if (!picked) return;
+                  setFailure(null);
+                  move.mutate({
+                    bookingId: booking.id,
+                    startsAt: picked,
+                    timezone: timeZone,
+                  });
+                }}
+              >
+                {move.isPending && <Spinner />}
+                {picked
+                  ? `Перенести на ${formatDateTime(picked, timeZone)}`
+                  : "Перенести"}
+              </Button>
+            </AlertDialogFooter>
+          </>
         ) : booking ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {action === "move" ? "Перенести запись?" : "Отменить запись?"}
-              </AlertDialogTitle>
+              <AlertDialogTitle>Отменить запись?</AlertDialogTitle>
               <AlertDialogDescription className="flex flex-col gap-2">
                 <span className="font-medium text-foreground first-letter:uppercase">
                   {formatDateTime(booking.startsAt, timeZone)}
                 </span>
                 <span>
-                  {consequence({ action, free, balance, terms, wholeSeries })}
+                  {consequence({ free, balance, terms, wholeSeries })}
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            {action === "cancel" && booking.seriesId && seriesHead && (
+            {booking.seriesId && seriesHead && (
               <label className="flex min-h-11 items-center gap-3 text-sm">
                 <input
                   type="checkbox"
@@ -168,10 +247,10 @@ export function BookingActionDialog({
             )}
             <AlertDialogFooter>
               <Button variant="outline" disabled={pending} onClick={close}>
-                {action === "move" ? "Оставить как есть" : "Не отменять"}
+                Не отменять
               </Button>
               <Button
-                variant={action === "move" ? "default" : "destructive"}
+                variant="destructive"
                 disabled={pending}
                 onClick={() => {
                   setFailure(null);
@@ -183,7 +262,7 @@ export function BookingActionDialog({
                 }}
               >
                 {pending && <Spinner />}
-                {action === "move" ? "Выбрать новое время" : "Отменить запись"}
+                Отменить запись
               </Button>
             </AlertDialogFooter>
           </>
@@ -194,23 +273,16 @@ export function BookingActionDialog({
 }
 
 function consequence({
-  action,
   free,
   balance,
   terms,
   wholeSeries,
 }: {
-  action: BookingAction;
   free: boolean;
   balance: number;
   terms: ReturnType<typeof professionTerms>;
   wholeSeries: boolean;
 }) {
-  if (action === "move") {
-    return free
-      ? "Эта запись отменится, и откроется выбор нового времени. Текущее время сразу станет доступно другим."
-      : `Эта запись отменится, оплата вернётся на баланс, и откроется выбор нового времени. Текущее время сразу станет доступно другим.`;
-  }
   if (free) return "Время освободится для других.";
   if (wholeSeries) {
     return "Оплата за записи, до которых больше 24 часов, вернётся на баланс.";

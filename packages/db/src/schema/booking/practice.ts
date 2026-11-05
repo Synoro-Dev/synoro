@@ -60,6 +60,12 @@ export const Practice = pgTable("practices", (t) => ({
    */
   videoUrl: t.text(),
   /**
+   * How clients reach the specialist (a phone, Telegram…): free text, see
+   * `practiceContactSchema` in `@synoro/validators`. Shown to clients of
+   * confirmed bookings only, never on the public page.
+   */
+  clientContact: t.text(),
+  /**
    * The questionnaire clients fill in when booking («Про»), in the order
    * shown. Validated by `bookingQuestionsSchema` in `@synoro/validators`;
    * kept while the owner is on the free plan, but not asked.
