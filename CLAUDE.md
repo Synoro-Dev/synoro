@@ -157,8 +157,10 @@ and run `tsc` by hand, build them first.
   (`page-routes.test.ts`) fail otherwise.
 - **Practice settings and first setup**: sections, by role, are listed in
   `practiceSections` (`components/settings/practice-sections.ts`) and shown on
-  `/practices/<id>/settings`; each section keeps its own address and wraps its
-  page in `PracticeSettingsShell`. Forms save with a button and `SaveState`,
+  `/practices/<id>/settings` and, inside settings, in the main sidebar instead
+  of the daily sections (`isPracticeSettingsPage`; a new settings page goes
+  there too); each section keeps its own address and wraps its page in
+  `PracticeSettingsShell`. Forms save with a button and `SaveState`,
   single switches apply at once. The first setup
   (`/practices/<id>/setup?step=`) opens once, after creating a practice; it
   stores nothing of its own, and `SetupProgress` on «Сегодня» leads back to it.

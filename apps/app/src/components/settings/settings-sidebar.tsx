@@ -2,11 +2,11 @@
 
 import { paths } from "@synoro/config";
 import { cn } from "@synoro/ui";
-import { Bell, Circle, KeyRound, Sparkles, User } from "lucide-react";
+import { Bell, KeyRound, Settings, Sparkles, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const sidebarNavItems = [
+export const accountSections = [
   {
     title: "Профиль",
     href: paths.settings.profile,
@@ -15,7 +15,7 @@ const sidebarNavItems = [
   {
     title: "Аккаунт",
     href: paths.settings.root,
-    icon: Circle,
+    icon: Settings,
   },
   {
     title: "Безопасность",
@@ -34,12 +34,13 @@ const sidebarNavItems = [
   },
 ];
 
+/** The sections on a phone. From `md` the main sidebar lists them. */
 export function SettingsSidebar() {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col space-y-1">
-      {sidebarNavItems.map((item) => (
+      {accountSections.map((item) => (
         <Link
           key={item.href}
           href={item.href}

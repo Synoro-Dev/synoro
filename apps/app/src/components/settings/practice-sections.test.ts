@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { paths } from "@synoro/config";
 
-import { practiceSections } from "./practice-sections";
+import { isPracticeSettingsPage, practiceSections } from "./practice-sections";
 
 const ID = "00000000-0000-4000-8000-000000000000";
 const titles = (isOwner: boolean) =>
@@ -52,5 +52,31 @@ describe("practiceSections", () => {
     }
     expect(paths.booking.schedule(ID)).toBe(`/practices/${ID}/schedule`);
     expect(paths.booking.page(ID)).toBe(`/practices/${ID}/booking-page`);
+  });
+});
+
+describe("isPracticeSettingsPage", () => {
+  test("covers the settings, every section and the domain page", () => {
+    const sections = practiceSections(ID, true).flatMap((group) =>
+      group.sections.map((section) => section.href),
+    );
+    for (const href of [
+      paths.booking.settings(ID),
+      paths.booking.domain(ID),
+      ...sections,
+    ]) {
+      expect(isPracticeSettingsPage(ID, href)).toBe(true);
+    }
+  });
+
+  test("leaves the daily pages and other practices out", () => {
+    for (const href of [
+      paths.booking.practice(ID),
+      paths.booking.calendar(ID),
+      paths.booking.setup(ID),
+      paths.booking.settings("11111111-1111-4111-8111-111111111111"),
+    ]) {
+      expect(isPracticeSettingsPage(ID, href)).toBe(false);
+    }
   });
 });
