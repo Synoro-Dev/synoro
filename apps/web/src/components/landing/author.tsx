@@ -54,9 +54,6 @@ export function Author() {
               </a>
             </span>
           </Lead>
-          <p className="text-muted-foreground text-xs">
-            {operator.name}, ИНН {operator.inn}
-          </p>
         </div>
       </div>
     </Section>
