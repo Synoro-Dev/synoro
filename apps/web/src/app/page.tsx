@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { JsonLd } from "~/components/json-ld";
 import { Audience } from "~/components/landing/audience";
+import { Author } from "~/components/landing/author";
 import { Bento } from "~/components/landing/bento";
 import { Embed } from "~/components/landing/embed";
 import { Faq } from "~/components/landing/faq";
@@ -13,6 +14,7 @@ import { Section } from "~/components/landing/primitives";
 import { Scheduling } from "~/components/landing/scheduling";
 import { Steps } from "~/components/landing/steps";
 import { StickyCta } from "~/components/landing/sticky-cta";
+import { Trust } from "~/components/landing/trust";
 import { homeTitle, openGraph } from "~/lib/seo";
 import { site } from "~/lib/site";
 import { organization, softwareApplication } from "~/lib/structured-data";
@@ -44,6 +46,8 @@ export default function HomePage() {
         <Section id="pricing">
           <Pricing signupUrl={links.signup} />
         </Section>
+        <Trust />
+        <Author />
         <Faq />
         <FinalCta links={links} />
       </main>
