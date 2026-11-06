@@ -4,12 +4,15 @@ import {
   AccountDeletion,
   account,
   Booking,
+  BookingSeries,
   CalendarFeed,
+  CreditEntry,
   DataAuditEntry,
   DataExport,
   DeletionRecord,
   eq,
   Practice,
+  PracticeClient,
   PracticeMember,
   ReservedSlug,
   SlugOrder,
@@ -24,6 +27,7 @@ import {
   purgeDueAccounts,
 } from "@synoro/jobs/account-deletion";
 import { sendBookingReminders } from "@synoro/jobs/booking-video";
+import { collectAccount } from "@synoro/jobs/data-export";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { grantAccess } from "../../lib/data-access";
@@ -88,6 +92,19 @@ function request(session: Awaited<ReturnType<typeof createSession>>) {
     { confirm: session.user.email, cancelBookings: false },
     { context: api.context(session) },
   );
+}
+
+/** Delete an account whose 30 days are over, as the cron would. */
+async function purgeNow(userId: string, deps = fakeDeps().deps) {
+  const past = new Date(Date.now() - 1000);
+  await api.db
+    .insert(AccountDeletion)
+    .values({ userId, requestedAt: past, purgeAt: past })
+    .onConflictDoUpdate({
+      target: AccountDeletion.userId,
+      set: { purgeAt: past },
+    });
+  return purgeAccount(api.db, userId, deps);
 }
 
 function fakeDeps() {
@@ -231,6 +248,49 @@ describe("asking to delete", () => {
   });
 });
 
+describe("a request cut off halfway", () => {
+  it("is finished by asking again, with the first choice and date", async () => {
+    const { session, practice } = await makeOwner();
+    const { member } = await addClient(practice.id, { credits: 1 });
+    const at = new Date(Date.now() + 3 * DAY_MS);
+    const [booking] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId: practice.id,
+        kind: "consultation",
+        memberId: member.id,
+        startsAt: at,
+        endsAt: new Date(at.getTime() + 3_600_000),
+      })
+      .returning();
+    // As a failure leaves it: asked, chose to cancel, the rest didn't happen.
+    const purgeAt = new Date(Date.now() + 20 * DAY_MS);
+    await api.db.insert(AccountDeletion).values({
+      userId: session.user.id,
+      purgeAt,
+      cancelBookings: true,
+    });
+
+    const result = await request(session); // asks with cancelBookings: false
+    expect(result.purgeAt).toEqual(purgeAt);
+    expect(result.cancelled).toBe(1);
+    const after = await api.db.query.Booking.findFirst({
+      where: eq(Booking.id, booking?.id ?? ""),
+    });
+    expect(after?.status).toBe("cancelled");
+
+    const again = await request(session);
+    expect(again.cancelled).toBe(0);
+    const journal = await api.db
+      .select()
+      .from(DataAuditEntry)
+      .where(eq(DataAuditEntry.userId, session.user.id));
+    expect(
+      journal.filter((row) => row.action === "deletion_requested"),
+    ).toHaveLength(1);
+  });
+});
+
 describe("while it's on its way out", () => {
   it("closes the booking page and new bookings, and opens them on restore", async () => {
     const { session, practice } = await makeOwner();
@@ -306,6 +366,94 @@ describe("while it's on its way out", () => {
 });
 
 describe("the purge", () => {
+  it("doesn't touch an account brought back after the cron picked it", async () => {
+    const { session } = await makeOwner();
+    await request(session);
+    // The owner restores between the cron's selection and the delete: all the
+    // purge finds, in its own transaction, is no request.
+    await call(accountRouter.cancelDeletion, undefined, {
+      context: api.context(session),
+    });
+    const { deps, removed } = fakeDeps();
+    expect(await purgeAccount(api.db, session.user.id, deps)).toBe(false);
+    expect(removed).toEqual([]);
+    expect(
+      await api.db.query.user.findFirst({
+        where: eq(user.id, session.user.id),
+      }),
+    ).toBeDefined();
+  });
+
+  it("leaves other practices their client's card, balance and history", async () => {
+    const { session } = await makeOwner();
+    const other = await makeOwner();
+    const [member] = await api.db
+      .insert(PracticeMember)
+      .values({
+        practiceId: other.practice.id,
+        userId: session.user.id,
+        role: "client",
+        credits: 4,
+      })
+      .returning();
+    if (!member) throw new Error("no member");
+    const [series] = await api.db
+      .insert(BookingSeries)
+      .values({
+        practiceId: other.practice.id,
+        memberId: member.id,
+        intervalWeeks: 1,
+        count: 2,
+      })
+      .returning();
+    const [booking] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId: other.practice.id,
+        kind: "consultation",
+        memberId: member.id,
+        seriesId: series?.id,
+        startsAt: new Date("2027-01-10T10:00:00Z"),
+        endsAt: new Date("2027-01-10T11:00:00Z"),
+      })
+      .returning();
+    await api.db.insert(CreditEntry).values({
+      memberId: member.id,
+      delta: 4,
+      reason: "purchase",
+      note: "Пакет",
+    });
+
+    const status = await call(accountRouter.deletionStatus, undefined, {
+      context: api.context(session),
+    });
+    expect(status.clientElsewhere).toBe(1);
+
+    await purgeNow(session.user.id);
+
+    const [card] = await api.db
+      .select()
+      .from(PracticeClient)
+      .where(eq(PracticeClient.practiceId, other.practice.id));
+    expect(card?.name).toBe(session.user.name);
+    expect(card?.credits).toBe(4);
+
+    const kept = await api.db.query.Booking.findFirst({
+      where: eq(Booking.id, booking?.id ?? ""),
+    });
+    expect(kept?.clientId).toBe(card?.id ?? "");
+    expect(kept?.guestName).toBe(session.user.name);
+    expect(kept?.seriesId).toBe(series?.id ?? "");
+
+    const dump = await collectAccount(api.db, other.session.user.id);
+    expect(dump.practices[0]?.credit_entries[0]).toMatchObject({
+      delta: 4,
+      reason: "purchase",
+      client_id: card?.id,
+    });
+    expect(dump.practices[0]?.bookings[0]?.client_id).toBe(card?.id ?? "");
+  });
+
   it("waits for the term", async () => {
     const { session } = await makeOwner();
     await request(session);
@@ -434,7 +582,7 @@ describe("the purge", () => {
       role: "client",
     });
 
-    await purgeAccount(api.db, session.user.id, new Date(), fakeDeps().deps);
+    await purgeNow(session.user.id);
 
     const exists = async (id: string) =>
       (await api.db.query.user.findFirst({ where: eq(user.id, id) })) !==
@@ -447,7 +595,7 @@ describe("the purge", () => {
 
   it("closes the address to others for a year", async () => {
     const { session, practice } = await makeOwner();
-    await purgeAccount(api.db, session.user.id, new Date(), fakeDeps().deps);
+    await purgeNow(session.user.id);
 
     const reserved = await api.db.query.ReservedSlug.findFirst({
       where: eq(ReservedSlug.slug, practice.slug),
@@ -476,9 +624,7 @@ describe("the purge", () => {
     deps.removeFile = async () => {
       throw new Error("bucket down");
     };
-    expect(await purgeAccount(api.db, session.user.id, new Date(), deps)).toBe(
-      true,
-    );
+    expect(await purgeNow(session.user.id, deps)).toBe(true);
     expect(
       await api.db.query.user.findFirst({
         where: eq(user.id, session.user.id),

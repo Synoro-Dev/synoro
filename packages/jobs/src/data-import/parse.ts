@@ -253,11 +253,12 @@ function readXlsx(bytes: Uint8Array): Table {
   const relId = /<sheet\b[^>]*\br:id="([^"]+)"/.exec(
     text("xl/workbook.xml"),
   )?.[1];
-  const target = relId
-    ? new RegExp(`<Relationship\\b[^>]*\\bId="${relId}"[^>]*>`).exec(
-        text("xl/_rels/workbook.xml.rels"),
-      )?.[0]
-    : undefined;
+  // The id comes from the file, so it's compared, never put into a pattern.
+  const target = [
+    ...text("xl/_rels/workbook.xml.rels").matchAll(/<Relationship\b[^>]*>/g),
+  ]
+    .map(([tag]) => tag)
+    .find((tag) => relId && /\bId="([^"]*)"/.exec(tag)?.[1] === relId);
   const path = /\bTarget="([^"]+)"/
     .exec(target ?? "")?.[1]
     ?.replace(/^\/?xl\//, "");

@@ -120,6 +120,101 @@ describe("reading a calendar", () => {
     expect(events).toEqual([]);
   });
 
+  it("doesn't let old dates use up the limit, and COUNT counts them", () => {
+    // Daily for over four years: only what's ahead comes out.
+    const daily = readEvents(
+      bytes(
+        ics(
+          "UID:1\nDTSTART:20220101T100000Z\nDTEND:20220101T110000Z\nRRULE:FREQ=DAILY",
+        ),
+      ),
+      ZONE,
+      NOW,
+    );
+    expect(daily[0]?.startsAt.toISOString()).toBe("2026-11-07T10:00:00.000Z");
+    // Seven weekly dates from 6 October: only the last two are still ahead.
+    const counted = readEvents(
+      bytes(
+        ics(
+          "UID:1\nDTSTART:20261006T100000Z\nDTEND:20261006T110000Z\nRRULE:FREQ=WEEKLY;COUNT=7",
+        ),
+      ),
+      ZONE,
+      NOW,
+    );
+    expect(iso(counted)).toEqual([
+      "2026-11-10T10:00:00.000Z",
+      "2026-11-17T10:00:00.000Z",
+    ]);
+  });
+
+  it("skips months without the day, without counting them", () => {
+    const events = readEvents(
+      bytes(
+        ics(
+          "UID:1\nDTSTART:20270131T100000Z\nDTEND:20270131T110000Z\nRRULE:FREQ=MONTHLY;COUNT=3",
+        ),
+      ),
+      ZONE,
+      NOW,
+    );
+    expect(iso(events)).toEqual([
+      "2027-01-31T10:00:00.000Z",
+      "2027-03-31T10:00:00.000Z",
+      "2027-05-31T10:00:00.000Z",
+    ]);
+  });
+
+  it("gives up on a day that never comes", () => {
+    const events = readEvents(
+      bytes(
+        ics(
+          "UID:1\nDTSTART:20270229T100000Z\nDTEND:20270229T110000Z\nRRULE:FREQ=YEARLY;INTERVAL=4",
+        ),
+      ),
+      ZONE,
+      NOW,
+    );
+    expect(events.length).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps weeks by WKST, Monday when it isn't said", () => {
+    const rule = (wkst: string) =>
+      readEvents(
+        bytes(
+          ics(
+            `UID:1\nDTSTART:20261109T100000Z\nDTEND:20261109T110000Z\nRRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,SU;COUNT=3${wkst}`,
+          ),
+        ),
+        ZONE,
+        NOW,
+      );
+    // Monday 9 November: its week, from Monday, ends on Sunday the 15th.
+    expect(iso(rule(";WKST=MO"))).toEqual([
+      "2026-11-09T10:00:00.000Z",
+      "2026-11-15T10:00:00.000Z",
+      "2026-11-23T10:00:00.000Z",
+    ]);
+    expect(iso(rule(""))).toEqual(iso(rule(";WKST=MO")));
+    // From Sunday, the week's Sunday was the 8th, before the start.
+    expect(iso(rule(";WKST=SU"))).toEqual([
+      "2026-11-09T10:00:00.000Z",
+      "2026-11-22T10:00:00.000Z",
+      "2026-11-23T10:00:00.000Z",
+    ]);
+  });
+
+  it("ends a whole day at local midnight, on a clock change too", () => {
+    const [event] = readEvents(
+      bytes(ics("UID:1\nDTSTART;VALUE=DATE:20270328\nSUMMARY:День")),
+      "Europe/Berlin",
+      NOW,
+    );
+    // In Berlin that Sunday lasts 23 hours.
+    expect(event?.startsAt.toISOString()).toBe("2027-03-27T23:00:00.000Z");
+    expect(event?.endsAt.toISOString()).toBe("2027-03-28T22:00:00.000Z");
+  });
+
   it("writes out weekly repeats by wall clock, across the DST change", () => {
     const events = readEvents(
       bytes(
@@ -128,7 +223,7 @@ describe("reading a calendar", () => {
         ),
       ),
       ZONE,
-      NOW,
+      new Date("2026-10-01T00:00:00Z"),
     );
     // 25 October: Berlin moves from UTC+2 to UTC+1, the clock stays at 10:00.
     expect(iso(events)).toEqual([
@@ -480,5 +575,27 @@ describe("from Google", () => {
       owner.context,
     );
     expect(seen.samples.map((row) => row.title)).toEqual(["Запись из Google"]);
+  });
+
+  it("closes a whole day from midnight in the practice's zone", () => {
+    const [day] = readEvents(
+      bytes(
+        JSON.stringify({
+          events: [
+            {
+              title: "Отпуск",
+              startsAt: "2027-02-10",
+              endsAt: "2027-02-11",
+              allDay: true,
+            },
+          ],
+        }),
+      ),
+      ZONE,
+      NOW,
+    );
+    // Midnight in Moscow, not 03:00.
+    expect(day?.startsAt.toISOString()).toBe("2027-02-09T21:00:00.000Z");
+    expect(day?.endsAt.toISOString()).toBe("2027-02-10T21:00:00.000Z");
   });
 });

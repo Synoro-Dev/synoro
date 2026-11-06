@@ -1,6 +1,7 @@
 import { and, eq, ImportBatch } from "@synoro/db";
 import { dispatchImport } from "@synoro/jobs";
 import { recordDataAudit } from "@synoro/jobs/data-export";
+import { loadImportFile, readArchive } from "@synoro/jobs/data-import";
 import { z } from "zod";
 
 import { dataProcedure } from "../../lib/data-access";
@@ -40,11 +41,27 @@ export const commit = dataProcedure
       throw errors.MAPPING_REQUIRED();
     }
 
+    // An archive's size is in the practice picked from it, known only now.
+    let rowCount = batch.rowCount;
+    if (batch.source === "archive") {
+      const file = await loadImportFile(context.db, batch.id);
+      const practice =
+        file && readArchive(file).practices[input.archivePractice ?? 0];
+      if (!practice) throw errors.NOT_FOUND();
+      rowCount =
+        practice.clients.length +
+        practice.imported_clients.length +
+        practice.bookings.length +
+        practice.payments.length +
+        practice.credit_entries.length;
+    }
+
     const [claimed] = await context.db
       .update(ImportBatch)
       .set({
         status: "applying",
         progress: 0,
+        rowCount,
         options: {
           mapping: input.mapping ?? [],
           eventsAs: input.eventsAs,
@@ -62,9 +79,9 @@ export const commit = dataProcedure
       actorId: user.id,
       practiceId: batch.practiceId,
       action: "import_applied",
-      details: { rows: batch.rowCount, source: batch.source },
+      details: { rows: rowCount, source: batch.source },
     });
-    await dispatchImport(context.db, batch.id, batch.rowCount);
+    await dispatchImport(context.db, batch.id, rowCount);
 
     const after = await context.db.query.ImportBatch.findFirst({
       where: eq(ImportBatch.id, batch.id),

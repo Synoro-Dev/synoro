@@ -28,7 +28,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { z } from "zod";
 
 import { DATA_FORMAT_VERSION } from "../data-export/collect";
-import { loadImportFile } from "./apply-file";
+import { doneItems, loadImportFile } from "./apply-file";
 import { FileProblem } from "./parse";
 
 /**
@@ -43,7 +43,10 @@ const moment = z.iso.datetime({ offset: true });
 
 const clientSchema = z.object({
   id: z.string().max(64),
-  name: text(120).min(1),
+  // An account's name has no limit of its own, a card's does.
+  name: text(1000)
+    .min(1)
+    .transform((name) => name.slice(0, 120)),
   email: text(320).nullish(),
   phone: text(32).nullish(),
   credits: z.number().int().min(0).max(100_000).default(0),
@@ -108,7 +111,8 @@ const practiceSchema = z.object({
         })
         .refine((rule) => rule.start_minute < rule.end_minute),
     )
-    .max(100)
+    // As many as the working hours form allows (`availabilityFormSchema`).
+    .max(168)
     .default([]),
   team: z.array(clientSchema.extend({ role: z.string() })).default([]),
   clients: z.array(clientSchema).default([]),
@@ -135,8 +139,38 @@ const practiceSchema = z.object({
     )
     .default([]),
   bookings: z.array(bookingSchema).default([]),
-  credit_entries: z.array(z.record(z.string(), z.unknown())).default([]),
-  payments: z.array(z.record(z.string(), z.unknown())).default([]),
+  // History goes out again in the next export, so it's checked as strictly as
+  // what lives in tables: a bad date here would break that export.
+  credit_entries: z
+    .array(
+      z.object({
+        id: z.string().max(64),
+        client_id: z.string().max(64).nullish(),
+        delta: z.number().int().min(-100_000).max(100_000),
+        reason: z.enum(["purchase", "booking", "refund", "adjustment"]),
+        booking_id: z.string().max(64).nullish(),
+        payment_id: z.string().max(64).nullish(),
+        note: text(500).nullish(),
+        created_at: moment.nullish(),
+      }),
+    )
+    .default([]),
+  payments: z
+    .array(
+      z.object({
+        id: z.string().max(64),
+        client_id: z.string().max(64).nullish(),
+        booking_id: z.string().max(64).nullish(),
+        provider: z.enum(["yookassa", "tbank"]),
+        external_id: text(64).nullish(),
+        status: z.enum(["pending", "succeeded", "canceled"]),
+        credits: z.number().int().min(0).max(100_000),
+        amount_kopecks: z.number().int().min(0).max(100_000_000_000),
+        paid_at: moment.nullish(),
+        created_at: moment.nullish(),
+      }),
+    )
+    .default([]),
   messages: z
     .array(
       z
@@ -205,7 +239,13 @@ export function readArchive(bytes: Uint8Array) {
     throw new FileProblem("Это не похоже на архив Synoro");
   }
   const version = (raw as { format_version?: unknown } | null)?.format_version;
-  if (typeof version !== "number") {
+  // Before `upgrade`, which walks from this number: a huge negative one would
+  // keep it busy for good.
+  if (
+    typeof version !== "number" ||
+    !Number.isInteger(version) ||
+    version < 1
+  ) {
     throw new FileProblem("Это не похоже на архив Synoro");
   }
   if (version > DATA_FORMAT_VERSION) {
@@ -274,7 +314,18 @@ export async function applyArchive(
   if (!archive) throw new Error(`Import ${batchId} has no such practice`);
   const { practiceId } = batch;
 
-  const clean = await isCleanPractice(db, practiceId);
+  // Decided once and kept: on a rerun the practice is no longer empty.
+  const clean =
+    batch.options?.archiveClean ?? (await isCleanPractice(db, practiceId));
+  if (batch.options && batch.options.archiveClean === undefined) {
+    await db
+      .update(ImportBatch)
+      .set({ options: { ...batch.options, archiveClean: clean } })
+      .where(eq(ImportBatch.id, batchId));
+  }
+
+  // What an earlier attempt wrote, by where it came from in the file.
+  const done = await doneItems(db, batchId);
   let added = 0;
   let merged = 0;
   let skipped = 0;
@@ -283,29 +334,50 @@ export async function applyArchive(
     tx: Database,
     entity: typeof ImportBatchItem.$inferInsert.entity,
     entityId: string,
-    before?: Record<string, unknown>,
+    sourceKey: string,
+    change?: {
+      before: Record<string, unknown>;
+      after: Record<string, unknown>;
+    },
   ) =>
     tx.insert(ImportBatchItem).values({
       batchId,
       entity,
       entityId,
-      action: before ? "merged" : "added",
-      before: before ?? null,
+      sourceKey,
+      action: change ? "merged" : "added",
+      before: change?.before ?? null,
+      after: change?.after ?? null,
     });
+  const progress = (value: number) =>
+    db
+      .update(ImportBatch)
+      .set({ progress: value })
+      .where(eq(ImportBatch.id, batchId));
 
   // People: every client becomes a card, nobody is joined by their address.
   const cardOf = new Map<string, string>();
   const nameOf = new Map<string, string>();
+  const phoneOf = new Map<string, string>();
   for (const person of archive.team) nameOf.set(person.id, person.name);
+  const people = [...archive.clients, ...archive.imported_clients];
   await db.transaction(async (tx) => {
-    for (const person of [...archive.clients, ...archive.imported_clients]) {
+    for (const person of people) {
       nameOf.set(person.id, person.name);
+      const phone = person.phone ? normalizePhone(person.phone) : null;
+      if (phone) phoneOf.set(person.id, phone);
+      const sourceKey = `client:${person.id}`;
+      const written = done.get(sourceKey);
+      if (written) {
+        cardOf.set(person.id, written);
+        continue;
+      }
       const [card] = await tx
         .insert(PracticeClient)
         .values({
           practiceId,
           name: person.name,
-          phone: person.phone ? normalizePhone(person.phone) : null,
+          phone,
           email: person.email?.toLowerCase() || null,
           note: person.note ?? null,
           credits: person.credits,
@@ -319,14 +391,21 @@ export async function applyArchive(
         continue;
       }
       cardOf.set(person.id, card.id);
-      await note(tx as unknown as Database, "client", card.id);
+      await note(tx as unknown as Database, "client", card.id, sourceKey);
       added++;
     }
   });
+  await progress(people.length);
 
   const seriesOf = new Map<string, string>();
   await db.transaction(async (tx) => {
     for (const row of archive.series) {
+      const sourceKey = `series:${row.id}`;
+      const written = done.get(sourceKey);
+      if (written) {
+        seriesOf.set(row.id, written);
+        continue;
+      }
       const clientId = row.client_id ? cardOf.get(row.client_id) : undefined;
       if (!clientId) {
         skipped++;
@@ -345,20 +424,33 @@ export async function applyArchive(
         .returning({ id: BookingSeries.id });
       if (!series) continue;
       seriesOf.set(row.id, series.id);
-      await note(tx as unknown as Database, "series", series.id);
+      await note(tx as unknown as Database, "series", series.id, sourceKey);
     }
   });
 
   const bookingOf = new Map<string, string>();
-  for (const row of archive.bookings) {
+  for (const [index, row] of archive.bookings.entries()) {
+    // Often enough to show it's alive, and to tell a worker from a dead one.
+    if (index % 100 === 0) await progress(people.length + index);
     // An unpaid hold, not a booking.
     if (row.hold_until) {
       skipped++;
       continue;
     }
+    const sourceKey = `booking:${row.id}`;
+    const written = done.get(sourceKey);
+    if (written) {
+      bookingOf.set(row.id, written);
+      continue;
+    }
     const clientId = row.client_id ? cardOf.get(row.client_id) : undefined;
     const person = row.client_id ? nameOf.get(row.client_id) : undefined;
-    const guestPhone = row.guest_phone ? normalizePhone(row.guest_phone) : null;
+    // Staff reach the client through these: a card has no account to ask.
+    const guestPhone = row.guest_phone
+      ? normalizePhone(row.guest_phone)
+      : row.client_id
+        ? (phoneOf.get(row.client_id) ?? null)
+        : null;
     try {
       await db.transaction(async (tx) => {
         const [booking] = await tx
@@ -393,7 +485,7 @@ export async function applyArchive(
           .returning({ id: Booking.id });
         if (!booking) throw new Error("Failed to insert booking");
         bookingOf.set(row.id, booking.id);
-        await note(tx as unknown as Database, "booking", booking.id);
+        await note(tx as unknown as Database, "booking", booking.id, sourceKey);
       });
       added++;
     } catch (error) {
@@ -403,21 +495,16 @@ export async function applyArchive(
   }
 
   // History: as it was, with the ids it points to changed to the new ones.
-  const remap = (record: Record<string, unknown>) => ({
+  const remap = (record: {
+    client_id?: string | null;
+    booking_id?: string | null;
+  }) => ({
     ...record,
-    client_id:
-      typeof record.client_id === "string"
-        ? (cardOf.get(record.client_id) ?? null)
-        : null,
-    booking_id:
-      typeof record.booking_id === "string"
-        ? (bookingOf.get(record.booking_id) ?? null)
-        : null,
+    client_id: record.client_id ? (cardOf.get(record.client_id) ?? null) : null,
+    booking_id: record.booking_id
+      ? (bookingOf.get(record.booking_id) ?? null)
+      : null,
   });
-  const stampOf = (record: Record<string, unknown>) => {
-    const at = new Date(String(record.created_at));
-    return Number.isNaN(at.getTime()) ? new Date() : at;
-  };
   await db.transaction(async (tx) => {
     const records = [
       ...archive.payments.map((data) => ({ kind: "payment" as const, data })),
@@ -427,21 +514,25 @@ export async function applyArchive(
       })),
     ];
     for (const { kind, data } of records) {
+      const sourceKey = `${kind}:${data.id}`;
+      if (done.has(sourceKey)) continue;
       const [record] = await tx
         .insert(ArchivedRecord)
         .values({
           practiceId,
           kind,
           data: remap(data),
-          createdAt: stampOf(data),
+          createdAt: date(data.created_at) ?? new Date(),
         })
         .returning({ id: ArchivedRecord.id });
-      if (record) await note(tx as unknown as Database, "record", record.id);
+      if (record) {
+        await note(tx as unknown as Database, "record", record.id, sourceKey);
+      }
     }
   });
 
   // Settings only into an empty practice: never over what someone already set.
-  if (clean) {
+  if (clean && !done.has("settings")) {
     await db.transaction(async (tx) => {
       const db_ = tx as unknown as Database;
       const practice = await tx.query.Practice.findFirst({
@@ -451,38 +542,44 @@ export async function applyArchive(
       const questions = bookingQuestionsSchema.safeParse(
         archive.booking_questions,
       );
+      const settings = {
+        name: archive.name,
+        timezone: canonicalTimeZone(archive.timezone) ?? practice.timezone,
+        profession: archive.profession,
+        videoUrl: archive.video_url
+          ? normalizeVideoUrl(archive.video_url)
+          : null,
+        clientContact: archive.client_contact ?? null,
+        bookingQuestions: questions.success
+          ? questions.data
+          : practice.bookingQuestions,
+        bookingTheme: readBookingTheme(archive.booking_theme),
+        freeBookingEnabled: archive.free_booking_enabled,
+        introMinutes: archive.intro_minutes,
+        remindClients: archive.remind_clients,
+        notifyStaff: archive.notify_staff,
+        dailyAgenda: archive.daily_agenda,
+      };
       await tx
         .update(Practice)
-        .set({
-          name: archive.name,
-          timezone: canonicalTimeZone(archive.timezone) ?? practice.timezone,
-          profession: archive.profession,
-          videoUrl: archive.video_url
-            ? normalizeVideoUrl(archive.video_url)
-            : null,
-          clientContact: archive.client_contact ?? null,
-          ...(questions.success ? { bookingQuestions: questions.data } : {}),
-          bookingTheme: readBookingTheme(archive.booking_theme),
-          freeBookingEnabled: archive.free_booking_enabled,
-          introMinutes: archive.intro_minutes,
-          remindClients: archive.remind_clients,
-          notifyStaff: archive.notify_staff,
-          dailyAgenda: archive.daily_agenda,
-        })
+        .set(settings)
         .where(eq(Practice.id, practiceId));
-      await note(db_, "settings", practiceId, {
-        name: practice.name,
-        timezone: practice.timezone,
-        profession: practice.profession,
-        videoUrl: practice.videoUrl,
-        clientContact: practice.clientContact,
-        bookingQuestions: practice.bookingQuestions,
-        bookingTheme: practice.bookingTheme,
-        freeBookingEnabled: practice.freeBookingEnabled,
-        introMinutes: practice.introMinutes,
-        remindClients: practice.remindClients,
-        notifyStaff: practice.notifyStaff,
-        dailyAgenda: practice.dailyAgenda,
+      await note(db_, "settings", practiceId, "settings", {
+        before: {
+          name: practice.name,
+          timezone: practice.timezone,
+          profession: practice.profession,
+          videoUrl: practice.videoUrl,
+          clientContact: practice.clientContact,
+          bookingQuestions: practice.bookingQuestions,
+          bookingTheme: practice.bookingTheme,
+          freeBookingEnabled: practice.freeBookingEnabled,
+          introMinutes: practice.introMinutes,
+          remindClients: practice.remindClients,
+          notifyStaff: practice.notifyStaff,
+          dailyAgenda: practice.dailyAgenda,
+        },
+        after: settings,
       });
       merged++;
 
@@ -492,7 +589,7 @@ export async function applyArchive(
         .where(eq(AvailabilityRule.practiceId, practiceId))
         .limit(1);
       if (hours.length === 0) {
-        for (const rule of archive.working_hours) {
+        for (const [index, rule] of archive.working_hours.entries()) {
           const [row] = await tx
             .insert(AvailabilityRule)
             .values({
@@ -502,7 +599,7 @@ export async function applyArchive(
               endMinute: rule.end_minute,
             })
             .returning({ id: AvailabilityRule.id });
-          if (row) await note(db_, "hours", row.id);
+          if (row) await note(db_, "hours", row.id, `hours:${index}`);
         }
       }
       for (const pack of archive.packages) {
@@ -515,14 +612,14 @@ export async function applyArchive(
           })
           .onConflictDoNothing()
           .returning({ id: PaymentPackage.id });
-        if (row) await note(db_, "package", row.id);
+        if (row) await note(db_, "package", row.id, `package:${pack.credits}`);
       }
-      for (const message of archive.messages) {
+      for (const [index, message] of archive.messages.entries()) {
         const [row] = await tx
           .insert(Workflow)
           .values({ practiceId, ...message })
           .returning({ id: Workflow.id });
-        if (row) await note(db_, "message", row.id);
+        if (row) await note(db_, "message", row.id, `message:${index}`);
       }
     });
   }

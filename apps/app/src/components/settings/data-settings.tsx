@@ -310,7 +310,7 @@ function BackupSection({ enabled }: { enabled: boolean }) {
     onSuccess: async (result) => {
       toast.success(
         result.enabled
-          ? "Каждый понедельник будем присылать ссылку на копию"
+          ? "Раз в неделю будем присылать ссылку на копию"
           : "Копия отключена",
       );
       await queryClient.invalidateQueries({ queryKey: orpc.data.key() });
@@ -335,9 +335,8 @@ function BackupSection({ enabled }: { enabled: boolean }) {
         <div className="flex flex-col gap-1">
           <Label htmlFor="client-backup">Присылать копию раз в неделю</Label>
           <p className="text-xs text-muted-foreground">
-            По понедельникам придёт письмо со ссылкой на таблицу клиентов. Сами
-            данные в письмо не вкладываем: скачать таблицу можно только после
-            входа в аккаунт.
+            Придёт письмо со ссылкой на таблицу клиентов. Сами данные в письмо
+            не вкладываем: скачать таблицу можно только после входа в аккаунт.
           </p>
         </div>
       </div>
@@ -354,6 +353,8 @@ const AUDIT_LABELS: Record<AuditRow["action"], string> = {
   feed_enabled: "Включена подписка на календарь",
   feed_rotated: "Выпущена новая ссылка на календарь",
   feed_disabled: "Отключена подписка на календарь",
+  feed_names_enabled: "В календаре включены имена клиентов",
+  feed_names_disabled: "В календаре отключены имена клиентов",
   backup_enabled: "Включена недельная копия",
   backup_disabled: "Отключена недельная копия",
   import_applied: "Загружены данные",

@@ -4,8 +4,10 @@ import { z } from "zod";
 
 import {
   checkAccessCode,
+  clearPasswordTries,
   dataProcedure,
   grantAccess,
+  reservePasswordTry,
 } from "../../lib/data-access";
 
 /**
@@ -18,6 +20,10 @@ export const confirmAccess = dataProcedure
   .errors({
     WRONG_PASSWORD: { message: "Неверный пароль" },
     WRONG_CODE: { message: "Неверный или устаревший код" },
+    TOO_MANY_ATTEMPTS: {
+      message:
+        "Слишком много попыток. Подтвердите кодом из письма или попробуйте через 15 минут",
+    },
   })
   .input(
     z.union([
@@ -28,12 +34,16 @@ export const confirmAccess = dataProcedure
   .handler(async ({ context, input, errors }) => {
     const { session, user } = context.session;
     if ("password" in input) {
+      if (!(await reservePasswordTry(context.db, user.id))) {
+        throw errors.TOO_MANY_ATTEMPTS();
+      }
       const right = await checkAccountPassword(
         context.db,
         user.id,
         input.password,
       );
       if (!right) throw errors.WRONG_PASSWORD();
+      await clearPasswordTries(context.db, user.id);
     } else if (!(await checkAccessCode(context.db, session.id, input.code))) {
       throw errors.WRONG_CODE();
     }

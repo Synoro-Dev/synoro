@@ -26,7 +26,15 @@ const E164 = /^\+\d{8,15}$/;
  */
 export function phoneCell(phone: string | null | undefined): Cell {
   if (!phone) return null;
-  return E164.test(phone) ? { trusted: formatPhone(phone) } : phone;
+  if (!E164.test(phone)) return phone;
+  const formatted = formatPhone(phone);
+  // Only Russian numbers get spaces from `formatPhone`; any space keeps it text.
+  return {
+    trusted:
+      formatted === phone
+        ? `${phone.slice(0, 3)} ${phone.slice(3)}`
+        : formatted,
+  };
 }
 
 function text(cell: Cell) {

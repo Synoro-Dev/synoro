@@ -42,10 +42,14 @@ dataExportsCleanupWorkflow.task({
   },
 });
 
-/** Mondays at 06:00 Moscow time: the weekly copies of client bases. */
+/**
+ * The weekly copies of client bases. Runs daily at 06:00 Moscow time: each run
+ * takes whoever is due, longest waiting first, so a big week spills over into
+ * the next day rather than skipping anyone.
+ */
 export const clientBackupWorkflow = hatchet.workflow({
   name: "client-backup",
-  on: { cron: "0 3 * * 1" },
+  on: { cron: "0 3 * * *" },
 });
 
 clientBackupWorkflow.task({

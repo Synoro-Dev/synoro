@@ -8,6 +8,7 @@ import {
   eq,
   gt,
   Practice,
+  sql,
   verification,
 } from "@synoro/db";
 
@@ -25,6 +26,8 @@ const ACCESS_MS = 15 * 60 * 1000;
 const CODE_MS = 10 * 60 * 1000;
 const CODE_RESEND_MS = 60 * 1000;
 const CODE_ATTEMPTS = 5;
+const PASSWORD_TRIES = 5;
+const PASSWORD_WINDOW_MS = 15 * 60 * 1000;
 
 interface DataSession {
   user: { email: string };
@@ -126,30 +129,74 @@ export async function issueAccessCode(db: Database, sessionId: string) {
   return code;
 }
 
-/** Whether the code is right. Five wrong tries burn it. */
-export async function checkAccessCode(
+/** One at a time per key, so parallel tries can't all read the same count. */
+function withLock<T>(
   db: Database,
-  sessionId: string,
-  code: string,
+  key: string,
+  run: (tx: Database) => Promise<T>,
 ) {
-  const current = await latest(db, codeKey(sessionId));
-  if (!current) return false;
-  const stored = JSON.parse(current.value) as {
-    hash: string;
-    attempts: number;
-  };
-  if (stored.hash === hashCode(sessionId, code)) return true;
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${key}))`);
+    return run(tx as unknown as Database);
+  });
+}
 
-  const attempts = stored.attempts + 1;
-  if (attempts >= CODE_ATTEMPTS) {
-    await db.delete(verification).where(eq(verification.id, current.id));
-  } else {
-    await db
-      .update(verification)
-      .set({ value: JSON.stringify({ ...stored, attempts }) })
-      .where(eq(verification.id, current.id));
-  }
-  return false;
+/** Whether the code is right. Five wrong tries burn it. */
+export function checkAccessCode(db: Database, sessionId: string, code: string) {
+  const key = codeKey(sessionId);
+  return withLock(db, key, async (tx) => {
+    const current = await latest(tx, key);
+    if (!current) return false;
+    const stored = JSON.parse(current.value) as {
+      hash: string;
+      attempts: number;
+    };
+    if (stored.hash === hashCode(sessionId, code)) return true;
+
+    const attempts = stored.attempts + 1;
+    if (attempts >= CODE_ATTEMPTS) {
+      await tx.delete(verification).where(eq(verification.id, current.id));
+    } else {
+      await tx
+        .update(verification)
+        .set({ value: JSON.stringify({ ...stored, attempts }) })
+        .where(eq(verification.id, current.id));
+    }
+    return false;
+  });
+}
+
+function passwordKey(userId: string) {
+  return `data-access-password:${userId}`;
+}
+
+/**
+ * Counts a password try before it's checked, so a guess in flight already uses
+ * one up. False: five in 15 minutes, per account, however many sessions ask.
+ */
+export function reservePasswordTry(db: Database, userId: string) {
+  const key = passwordKey(userId);
+  return withLock(db, key, async (tx) => {
+    const current = await latest(tx, key);
+    const tries = current ? Number(current.value) : 0;
+    if (tries >= PASSWORD_TRIES) return false;
+    if (current) {
+      await tx
+        .update(verification)
+        .set({ value: String(tries + 1) })
+        .where(eq(verification.id, current.id));
+    } else {
+      await replace(tx, key, "1", PASSWORD_WINDOW_MS);
+    }
+    return true;
+  });
+}
+
+/** The right password: the count starts over. */
+export async function clearPasswordTries(db: Database, userId: string) {
+  await db
+    .delete(verification)
+    .where(eq(verification.identifier, passwordKey(userId)));
 }
 
 /** The practice if `userId` owns it. */

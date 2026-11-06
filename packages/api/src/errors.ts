@@ -39,4 +39,5 @@ export const errorStatusMap: Record<string, number> = {
   NOT_APPLIED: 409,
   NOT_CONNECTED: 409,
   MAPPING_REQUIRED: 422,
+  TOO_MANY_ATTEMPTS: 429,
 };

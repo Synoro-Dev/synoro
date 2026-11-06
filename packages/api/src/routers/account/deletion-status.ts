@@ -23,7 +23,7 @@ import { dataProcedure } from "../../lib/data-access";
 export const deletionStatus = dataProcedure.handler(async ({ context }) => {
   const userId = context.session.user.id;
   const now = new Date();
-  const [pending, practices] = await Promise.all([
+  const [pending, practices, elsewhere] = await Promise.all([
     context.db.query.AccountDeletion.findFirst({
       where: eq(AccountDeletion.userId, userId),
     }),
@@ -32,6 +32,18 @@ export const deletionStatus = dataProcedure.handler(async ({ context }) => {
       .from(Practice)
       .where(eq(Practice.ownerId, userId))
       .orderBy(asc(Practice.createdAt)),
+    // Where this person is a client themselves: those practices keep a card.
+    context.db
+      .select({ id: PracticeMember.id })
+      .from(PracticeMember)
+      .innerJoin(Practice, eq(Practice.id, PracticeMember.practiceId))
+      .where(
+        and(
+          eq(PracticeMember.userId, userId),
+          eq(PracticeMember.role, "client"),
+          ne(Practice.ownerId, userId),
+        ),
+      ),
   ]);
 
   const counts = await Promise.all(
@@ -64,6 +76,7 @@ export const deletionStatus = dataProcedure.handler(async ({ context }) => {
 
   return {
     graceDays: DELETION_GRACE_DAYS,
+    clientElsewhere: elsewhere.length,
     pending: pending
       ? { requestedAt: pending.requestedAt, purgeAt: pending.purgeAt }
       : null,

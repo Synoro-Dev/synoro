@@ -16,6 +16,10 @@ export const AccountDeletion = pgTable("account_deletions", (t) => ({
     .references(() => user.id, { onDelete: "cascade" }),
   requestedAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   purgeAt: t.timestamp({ withTimezone: true }).notNull(),
+  /** The owner's choice, kept so that a repeat finishes what a failure cut off. */
+  cancelBookings: t.boolean().notNull().default(false),
+  /** Bookings cancelled, the owner mailed, the journal written. */
+  completedAt: t.timestamp({ withTimezone: true }),
 }));
 
 /**

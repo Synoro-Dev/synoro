@@ -374,6 +374,57 @@ describe("confirming access", () => {
     expect(overview.access).toEqual({ fresh: true, hasPassword: true });
   });
 
+  it("stops password guessing after five tries, in parallel too", async () => {
+    const { session } = await makeOwner();
+    await api.db.insert(account).values({
+      id: crypto.randomUUID(),
+      accountId: session.user.id,
+      providerId: "credential",
+      userId: session.user.id,
+      password: await hashPassword("correct horse battery"),
+      updatedAt: new Date(),
+    });
+    const attempt = (password: string) =>
+      call(
+        dataRouter.confirmAccess,
+        { password },
+        { context: api.context(session) },
+      ).catch((error: { code: string }) => error.code);
+    const codes = await Promise.all(
+      Array.from({ length: 7 }, () => attempt("wrong one here")),
+    );
+    expect(codes.filter((code) => code === "WRONG_PASSWORD")).toHaveLength(5);
+    expect(codes.filter((code) => code === "TOO_MANY_ATTEMPTS")).toHaveLength(
+      2,
+    );
+    // Even the right one now, until the window passes: a code still works.
+    expect(await attempt("correct horse battery")).toBe("TOO_MANY_ATTEMPTS");
+  });
+
+  it("counts wrong codes in parallel without losing any", async () => {
+    const { session } = await makeOwner();
+    const { issueAccessCode } = await import("../../lib/data-access");
+    const code = await issueAccessCode(api.db, session.session.id);
+    if (!code) throw new Error("no code");
+    const wrong = code === "000000" ? "000001" : "000000";
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        call(
+          dataRouter.confirmAccess,
+          { code: wrong },
+          { context: api.context(session) },
+        ).catch(() => undefined),
+      ),
+    );
+    await expect(
+      call(
+        dataRouter.confirmAccess,
+        { code },
+        { context: api.context(session) },
+      ),
+    ).rejects.toMatchObject({ code: "WRONG_CODE" });
+  });
+
   it("burns a code after five wrong tries", async () => {
     const { session } = await makeOwner();
     const { issueAccessCode } = await import("../../lib/data-access");
@@ -671,6 +722,63 @@ describe("what runs on its own", () => {
         where: eq(ClientBackup.userId, session.user.id),
       }),
     ).toBeUndefined();
+  });
+
+  it("serves those who waited longest first, and everyone in one run", async () => {
+    const owners = await Promise.all([makeOwner(), makeOwner()]);
+    const [fresh, waiting] = owners;
+    if (!fresh || !waiting) throw new Error("no owners");
+    const longAgo = new Date(Date.now() - 30 * 86_400_000);
+    await api.db.insert(ClientBackup).values([
+      {
+        userId: fresh.session.user.id,
+        lastRunAt: new Date(Date.now() - 7 * 86_400_000),
+      },
+      { userId: waiting.session.user.id, lastRunAt: longAgo },
+    ]);
+    const { deps, sent } = fakeDeps();
+    await runClientBackups(api.db, deps);
+    const order = sent.map((mail) => mail.to);
+    expect(order.indexOf(waiting.session.user.email)).toBeLessThan(
+      order.indexOf(fresh.session.user.email),
+    );
+    expect(order).toContain(fresh.session.user.email);
+  });
+
+  it("keeps foreign phones as text in a table", async () => {
+    const { session, practice } = await makeOwner();
+    await addClient(practice.id, "Ганс", "+4915112345678");
+    await confirm(session);
+    const { csv } = await call(
+      dataRouter.exportPart,
+      { what: "clients", practiceId: practice.id },
+      { context: api.context(session) },
+    );
+    expect(csv).toContain("+49 15112345678");
+  });
+
+  it("notes turning names on and off in the feed", async () => {
+    const { session, practice } = await makeOwner();
+    await confirm(session);
+    const context = { context: api.context(session) };
+    await call(dataRouter.issueFeed, { practiceId: practice.id }, context);
+    await call(
+      dataRouter.setFeedNames,
+      { practiceId: practice.id, showNames: true },
+      context,
+    );
+    await call(
+      dataRouter.setFeedNames,
+      { practiceId: practice.id, showNames: false },
+      context,
+    );
+    const journal = await api.db
+      .select({ action: DataAuditEntry.action })
+      .from(DataAuditEntry)
+      .where(eq(DataAuditEntry.userId, session.user.id));
+    const actions = journal.map((row) => row.action);
+    expect(actions).toContain("feed_names_enabled");
+    expect(actions).toContain("feed_names_disabled");
   });
 
   it("goes away with the account", async () => {

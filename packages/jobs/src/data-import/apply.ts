@@ -17,17 +17,20 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  sql,
   Workflow,
 } from "@synoro/db";
 
 import { toCsv } from "../data-export/csv";
 import { analyzeRows, type CleanClient, loadExisting } from "./analyze";
-import { loadImportFile } from "./apply-file";
+import { doneItems, loadImportFile } from "./apply-file";
 import { applyArchive } from "./archive";
 import { applyCalendar } from "./calendar";
 import { readTable } from "./parse";
 
 const CHUNK = 200;
+/** No progress for this long: the worker isn't coming back to it. */
+const STUCK_AFTER_MS = 60 * 60 * 1000;
 
 /**
  * What the card lacks. It never overwrites what the specialist has, and leaves
@@ -72,6 +75,7 @@ async function applyTable(
   // Later rows of the file that repeat an earlier one merge into its card.
   const cardByPhone = new Map<string, string>();
   const cardByEmail = new Map<string, string>();
+  const done = await doneItems(db, batchId);
 
   let skipped = 0;
   for (let start = 0; start < results.length; start += CHUNK) {
@@ -83,6 +87,13 @@ async function applyTable(
           : { ...row.client, note: null };
 
         if (row.status === "new") {
+          const sourceKey = `row:${row.index}`;
+          const written = done.get(sourceKey);
+          if (written) {
+            if (client.phone) cardByPhone.set(client.phone, written);
+            if (client.email) cardByEmail.set(client.email, written);
+            continue;
+          }
           const [card] = await tx
             .insert(PracticeClient)
             .values({ ...client, practiceId: batch.practiceId, batchId })
@@ -97,6 +108,7 @@ async function applyTable(
             entity: "client",
             entityId: card.id,
             action: "added",
+            sourceKey,
           });
           if (client.phone) cardByPhone.set(client.phone, card.id);
           if (client.email) cardByEmail.set(client.email, card.id);
@@ -148,6 +160,7 @@ async function applyTable(
             before: Object.fromEntries(
               fields.map((field) => [field, card[field]]),
             ),
+            after: set,
           });
         }
       }
@@ -187,18 +200,56 @@ export function rejectedCsv(file: Uint8Array, mapping: (string | null)[]) {
   return toCsv([...table.headers, "Ошибка"], rows);
 }
 
-/**
- * Remove exactly what this import did. What it added goes, what it filled in on
- * existing cards is put back. Its file
- * goes too. One transaction, so it's all or nothing.
- */
-export async function undoImport(db: Database, batchId: string) {
-  const items = await db
-    .select()
-    .from(ImportBatchItem)
-    .where(eq(ImportBatchItem.batchId, batchId));
+/** Equal as JSON: key order means nothing, and jsonb keeps none. */
+function sameValue(a: unknown, b: unknown): boolean {
+  const norm = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(norm)
+      : value && typeof value === "object"
+        ? Object.entries(value)
+            .sort(([x], [y]) => x.localeCompare(y))
+            .map(([key, item]) => [key, norm(item)])
+        : (value ?? null);
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+}
 
-  await db.transaction(async (tx) => {
+/** The fields still holding what the import wrote: what's safe to put back. */
+function untouched(
+  current: Record<string, unknown>,
+  item: { before: Record<string, unknown> | null; after: unknown },
+) {
+  const after = (item.after ?? {}) as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(item.before ?? {}).filter(([field]) =>
+      sameValue(current[field], after[field]),
+    ),
+  );
+}
+
+/**
+ * Remove exactly what this import did. What it added goes; what it filled in on
+ * cards or in settings is put back, unless someone changed that field since. Its
+ * file goes too. One transaction, so it's all or nothing, and taking the status
+ * first means two tabs can't both do it. Null: it isn't applied, or is undone.
+ */
+export function undoImport(db: Database, batchId: string) {
+  return db.transaction(async (tx) => {
+    const [claimed] = await tx
+      .update(ImportBatch)
+      .set({ status: "undone", undoneAt: new Date() })
+      .where(
+        and(
+          eq(ImportBatch.id, batchId),
+          inArray(ImportBatch.status, ["applied", "failed"]),
+        ),
+      )
+      .returning({ id: ImportBatch.id });
+    if (!claimed) return null;
+
+    const items = await tx
+      .select()
+      .from(ImportBatchItem)
+      .where(eq(ImportBatchItem.batchId, batchId));
     const added = (entity: (typeof items)[number]["entity"]) =>
       items
         .filter((item) => item.action === "added" && item.entity === entity)
@@ -219,31 +270,47 @@ export async function undoImport(db: Database, batchId: string) {
     for (const item of items) {
       if (item.action !== "merged" || !item.before) continue;
       if (item.entity === "settings") {
-        await tx
-          .update(Practice)
-          .set(item.before)
-          .where(eq(Practice.id, item.entityId));
+        const current = await tx.query.Practice.findFirst({
+          where: eq(Practice.id, item.entityId),
+        });
+        const set = current && untouched(current, item);
+        if (set && Object.keys(set).length > 0) {
+          await tx
+            .update(Practice)
+            .set(set)
+            .where(eq(Practice.id, item.entityId));
+        }
       } else {
-        await tx
-          .update(PracticeClient)
-          .set(item.before)
-          .where(eq(PracticeClient.id, item.entityId));
+        const current = await tx.query.PracticeClient.findFirst({
+          where: eq(PracticeClient.id, item.entityId),
+        });
+        const set = current && untouched(current, item);
+        if (set && Object.keys(set).length > 0) {
+          await tx
+            .update(PracticeClient)
+            .set(set)
+            .where(eq(PracticeClient.id, item.entityId));
+        }
       }
     }
     await tx.delete(ImportFile).where(eq(ImportFile.batchId, batchId));
     await tx
       .delete(ImportBatchItem)
       .where(eq(ImportBatchItem.batchId, batchId));
-    await tx
-      .update(ImportBatch)
-      .set({ status: "undone", undoneAt: new Date() })
-      .where(eq(ImportBatch.id, batchId));
+    return { removed: items.filter((item) => item.action === "added").length };
   });
-  return { removed: items.filter((item) => item.action === "added").length };
 }
 
-/** A failure on the way marks the batch; what's written can still be undone. */
-export async function runImport(db: Database, batchId: string) {
+/**
+ * Write the import. An attempt that fails stays `applying` if another is coming
+ * (`final` false), so the retry can pick up where it stopped; the last failure
+ * marks the batch, and what's written can still be undone.
+ */
+export async function runImport(
+  db: Database,
+  batchId: string,
+  { final = true }: { final?: boolean } = {},
+) {
   const batch = await db.query.ImportBatch.findFirst({
     where: eq(ImportBatch.id, batchId),
   });
@@ -265,16 +332,31 @@ export async function runImport(db: Database, batchId: string) {
       // The message may quote a value from the file: its kind is enough here.
       error: error instanceof Error ? error.name : "unknown",
     });
-    await db
-      .update(ImportBatch)
-      .set({ status: "failed" })
-      .where(eq(ImportBatch.id, batchId));
+    if (final) {
+      await db
+        .update(ImportBatch)
+        .set({ status: "failed" })
+        .where(eq(ImportBatch.id, batchId));
+    }
     throw error;
   }
 }
 
-/** Files past their term, and drafts nobody finished. */
+/**
+ * Files past their term, drafts nobody finished, and imports whose worker died:
+ * marked failed, so that what they wrote can be undone and the page stops waiting.
+ */
 export async function cleanupImports(db: Database, now = new Date()) {
+  await db
+    .update(ImportBatch)
+    .set({ status: "failed" })
+    .where(
+      and(
+        eq(ImportBatch.status, "applying"),
+        sql`coalesce(${ImportBatch.updatedAt}, ${ImportBatch.createdAt}) < ${new Date(now.getTime() - STUCK_AFTER_MS).toISOString()}::timestamptz`,
+      ),
+    );
+
   const gone = await db
     .delete(ImportFile)
     .where(lte(ImportFile.expiresAt, now))

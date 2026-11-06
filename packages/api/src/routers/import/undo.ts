@@ -1,4 +1,3 @@
-import { and, eq, ImportBatch, inArray } from "@synoro/db";
 import { recordDataAudit } from "@synoro/jobs/data-export";
 import { undoImport } from "@synoro/jobs/data-import";
 import { z } from "zod";
@@ -23,16 +22,9 @@ export const undo = dataProcedure
     const batch = await findOwnedBatch(context.db, input.batchId, user.id);
     if (!batch) throw errors.NOT_FOUND();
 
-    const open = await context.db.query.ImportBatch.findFirst({
-      where: and(
-        eq(ImportBatch.id, batch.id),
-        inArray(ImportBatch.status, ["applied", "failed"]),
-      ),
-      columns: { id: true },
-    });
-    if (!open) throw errors.NOT_APPLIED();
-
-    const { removed } = await undoImport(context.db, batch.id);
+    const undone = await undoImport(context.db, batch.id);
+    if (!undone) throw errors.NOT_APPLIED();
+    const { removed } = undone;
     await recordDataAudit(context.db, {
       userId: user.id,
       actorId: user.id,

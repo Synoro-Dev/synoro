@@ -362,12 +362,14 @@ export async function listEvents(
       const from = item.start?.dateTime ?? item.start?.date;
       const to = item.end?.dateTime ?? item.end?.date;
       if (!from || !to) continue;
+      const allDay = !item.start?.dateTime;
       events.push({
         id: item.id,
         title: (item.summary ?? "").slice(0, 120),
-        startsAt: new Date(from).toISOString(),
-        endsAt: new Date(to).toISOString(),
-        allDay: !item.start?.dateTime,
+        // A day is a date, not a moment: whose midnight is for the importer.
+        startsAt: allDay ? from : new Date(from).toISOString(),
+        endsAt: allDay ? to : new Date(to).toISOString(),
+        allDay,
       });
     }
     pageToken = data?.nextPageToken;

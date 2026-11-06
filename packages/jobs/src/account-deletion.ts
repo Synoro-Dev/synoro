@@ -2,9 +2,12 @@ import { env, logger, paths } from "@synoro/config";
 import { decryptSecret } from "@synoro/config/secrets";
 import {
   AccountDeletion,
+  ArchivedRecord,
   account,
   and,
   Booking,
+  BookingSeries,
+  CreditEntry,
   count,
   type Database,
   DataExport,
@@ -15,7 +18,10 @@ import {
   inArray,
   isNotNull,
   lte,
+  ne,
+  or,
   Practice,
+  PracticeClient,
   PracticeMember,
   PracticeSlugAlias,
   ReservedSlug,
@@ -146,11 +152,114 @@ async function passiveClients(db: Database, practiceIds: string[]) {
   return rows.map((row) => row.id);
 }
 
-/** Delete one account for good. False: a payment is in flight, try tomorrow. */
+/**
+ * A specialist leaving may also be someone else's client. That practice keeps
+ * what it holds as the operator of its own client's data: a card with the
+ * balance, the bookings pointing to it, the balance journal as history. Without
+ * this the cascade from the user would take them from a practice that isn't
+ * leaving. Call it in the transaction that deletes the user.
+ */
+async function keepForOtherPractices(tx: Database, userId: string) {
+  const person = await tx.query.user.findFirst({ where: eq(user.id, userId) });
+  if (!person) return;
+  const memberships = await tx
+    .select({
+      id: PracticeMember.id,
+      practiceId: PracticeMember.practiceId,
+      credits: PracticeMember.credits,
+    })
+    .from(PracticeMember)
+    .innerJoin(Practice, eq(Practice.id, PracticeMember.practiceId))
+    .where(
+      and(
+        eq(PracticeMember.userId, userId),
+        eq(PracticeMember.role, "client"),
+        ne(Practice.ownerId, userId),
+      ),
+    );
+
+  const name = person.name.slice(0, 120);
+  const email = person.email.toLowerCase();
+  for (const member of memberships) {
+    const contacts = {
+      name,
+      phone: person.phone,
+      email,
+      credits: member.credits,
+      practiceId: member.practiceId,
+    };
+    const [created] = await tx
+      .insert(PracticeClient)
+      .values(contacts)
+      .onConflictDoNothing()
+      .returning({ id: PracticeClient.id });
+    let cardId = created?.id;
+    if (!cardId) {
+      // Already known there, from an import: the balance joins that card.
+      const [known] = await tx
+        .update(PracticeClient)
+        .set({ credits: sql`${PracticeClient.credits} + ${member.credits}` })
+        .where(
+          and(
+            eq(PracticeClient.practiceId, member.practiceId),
+            or(
+              eq(PracticeClient.email, email),
+              person.phone ? eq(PracticeClient.phone, person.phone) : undefined,
+            ),
+          ),
+        )
+        .returning({ id: PracticeClient.id });
+      cardId = known?.id;
+    }
+    if (!cardId) continue;
+
+    await tx
+      .update(Booking)
+      .set({
+        clientId: cardId,
+        guestName: sql`coalesce(${Booking.guestName}, ${name})`,
+        guestPhone: sql`coalesce(${Booking.guestPhone}, ${person.phone})`,
+      })
+      .where(eq(Booking.memberId, member.id));
+    // A series goes with its member by cascade: this one stays with the card.
+    await tx
+      .update(BookingSeries)
+      .set({ clientId: cardId, memberId: null })
+      .where(eq(BookingSeries.memberId, member.id));
+
+    const entries = await tx
+      .select()
+      .from(CreditEntry)
+      .where(eq(CreditEntry.memberId, member.id));
+    if (entries.length > 0) {
+      await tx.insert(ArchivedRecord).values(
+        entries.map((entry) => ({
+          practiceId: member.practiceId,
+          kind: "credit_entry" as const,
+          createdAt: entry.createdAt,
+          data: {
+            id: entry.id,
+            client_id: cardId,
+            delta: entry.delta,
+            reason: entry.reason,
+            booking_id: entry.bookingId,
+            payment_id: entry.paymentId,
+            note: entry.note,
+            created_at: entry.createdAt.toISOString(),
+          },
+        })),
+      );
+    }
+  }
+}
+
+/**
+ * Delete one account for good, if its request is still there and due. False:
+ * the owner came back, or a payment is in flight and it waits till tomorrow.
+ */
 export async function purgeAccount(
   db: Database,
   userId: string,
-  requestedAt: Date,
   deps: PurgeDeps = defaultPurgeDeps,
   now = new Date(),
 ) {
@@ -208,7 +317,22 @@ export async function purgeAccount(
     ...aliases.map((alias) => alias.slug),
   ];
 
-  await db.transaction(async (tx) => {
+  const purged = await db.transaction(async (tx) => {
+    // Taken here, in the transaction that deletes: if the owner came back a
+    // moment ago the row is gone and nothing happens, and a restore arriving
+    // now waits and finds nothing to restore.
+    const [request] = await tx
+      .delete(AccountDeletion)
+      .where(
+        and(
+          eq(AccountDeletion.userId, userId),
+          lte(AccountDeletion.purgeAt, now),
+        ),
+      )
+      .returning({ requestedAt: AccountDeletion.requestedAt });
+    if (!request) return false;
+
+    await keepForOtherPractices(tx as unknown as Database, userId);
     if (slugs.length > 0) {
       await tx
         .insert(ReservedSlug)
@@ -245,10 +369,12 @@ export async function purgeAccount(
       practices: practices.length,
       clients: members[0]?.value ?? 0,
       bookings: bookings[0]?.value ?? 0,
-      requestedAt,
+      requestedAt: request.requestedAt,
       purgedAt: now,
     });
+    return true;
   });
+  if (!purged) return false;
 
   // The rows are gone; files and tokens outside are best effort, and logged by
   // count only: their names hold the ids this just erased.
@@ -283,9 +409,7 @@ export async function purgeDueAccounts(
   let purged = 0;
   for (const row of due) {
     try {
-      if (await purgeAccount(db, row.userId, row.requestedAt, deps, now)) {
-        purged++;
-      }
+      if (await purgeAccount(db, row.userId, deps, now)) purged++;
     } catch (error) {
       logger.error("account.purge_failed", error);
     }

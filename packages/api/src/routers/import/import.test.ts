@@ -171,6 +171,24 @@ describe("reading a file", () => {
     expect(detectKind(strToU8('{"format_version":1}'))).toBe("json");
   });
 
+  it("doesn't build a pattern from a sheet id in the file", () => {
+    const sheet = (id: string) =>
+      zipSync({
+        "xl/workbook.xml": strToU8(
+          `<workbook><sheets><sheet name="A" sheetId="1" r:id="${id}"/></sheets></workbook>`,
+        ),
+        "xl/_rels/workbook.xml.rels": strToU8(
+          "<Relationships><Relationship Id='other' Target='x'/></Relationships>",
+        ),
+        "xl/worksheets/sheet1.xml": strToU8(
+          '<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Имя</t></is></c></row></sheetData>',
+        ),
+      });
+    // A bad pattern would throw; a catastrophic one would hang.
+    expect(readTable(sheet("(")).headers).toEqual(["Имя"]);
+    expect(readTable(sheet("(a+)+$")).headers).toEqual(["Имя"]);
+  });
+
   it("refuses a ZIP that unpacks to too much", () => {
     const bomb = zipSync({
       "xl/workbook.xml": strToU8("<workbook/>"),

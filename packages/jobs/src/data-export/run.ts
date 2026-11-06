@@ -11,6 +11,7 @@ import {
   isNull,
   lt,
   lte,
+  notInArray,
   or,
   Practice,
   sql,
@@ -31,6 +32,8 @@ const STUCK_AFTER_MS = HOUR_MS;
 /** The privacy policy: security logs live no longer than 12 months. */
 const AUDIT_KEEP_MS = 365 * DAY_MS;
 const MAX_BATCH = 200;
+/** Stops before the task's own timeout; the next day's run takes the rest. */
+const BACKUP_BUDGET_MS = 8 * 60 * 1000;
 
 /** What leaves the process: replaced in tests. */
 export interface ExportDeps {
@@ -217,46 +220,57 @@ export async function runClientBackups(
   deps: ExportDeps = defaultExportDeps,
   now = new Date(),
 ) {
-  const due = await db
-    .select({ userId: ClientBackup.userId })
-    .from(ClientBackup)
-    .where(
-      and(
-        or(
-          isNull(ClientBackup.lastRunAt),
-          lt(ClientBackup.lastRunAt, new Date(now.getTime() - 6 * DAY_MS)),
-        ),
-        sql`exists (select 1 from ${Practice} where ${Practice.ownerId} = ${ClientBackup.userId})`,
-        ownerStaying(ClientBackup.userId),
-      ),
-    )
-    .limit(MAX_BATCH);
-
+  const startedAt = Date.now();
+  // Those who failed in this run aren't tried again until the next one.
+  const tried: string[] = [];
   let made = 0;
-  for (const { userId } of due) {
-    try {
-      const [row] = await db
-        .insert(DataExport)
-        .values({ userId, kind: "weekly" })
-        .returning({ id: DataExport.id });
-      if (!row) continue;
-      await runDataExport(db, row.id, deps, now);
-      await db
-        .update(ClientBackup)
-        .set({ lastRunAt: now })
-        .where(eq(ClientBackup.userId, userId));
-      await recordDataAudit(db, {
-        userId,
-        actorId: null,
-        action: "export_requested",
-        details: { kind: "weekly" },
-      });
-      made++;
-    } catch (error) {
-      logger.warn("data_export.backup_failed", {
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  while (Date.now() - startedAt < BACKUP_BUDGET_MS) {
+    const due = await db
+      .select({ userId: ClientBackup.userId })
+      .from(ClientBackup)
+      .where(
+        and(
+          or(
+            isNull(ClientBackup.lastRunAt),
+            lt(ClientBackup.lastRunAt, new Date(now.getTime() - 6 * DAY_MS)),
+          ),
+          sql`exists (select 1 from ${Practice} where ${Practice.ownerId} = ${ClientBackup.userId})`,
+          ownerStaying(ClientBackup.userId),
+          tried.length > 0 ? notInArray(ClientBackup.userId, tried) : undefined,
+        ),
+      )
+      // Whoever has waited longest, never-served first.
+      .orderBy(sql`${ClientBackup.lastRunAt} asc nulls first`)
+      .limit(MAX_BATCH);
+    if (due.length === 0) break;
+
+    for (const { userId } of due) {
+      if (Date.now() - startedAt >= BACKUP_BUDGET_MS) break;
+      tried.push(userId);
+      try {
+        const [row] = await db
+          .insert(DataExport)
+          .values({ userId, kind: "weekly" })
+          .returning({ id: DataExport.id });
+        if (!row) continue;
+        await runDataExport(db, row.id, deps, now);
+        await db
+          .update(ClientBackup)
+          .set({ lastRunAt: now })
+          .where(eq(ClientBackup.userId, userId));
+        await recordDataAudit(db, {
+          userId,
+          actorId: null,
+          action: "export_requested",
+          details: { kind: "weekly" },
+        });
+        made++;
+      } catch (error) {
+        logger.warn("data_export.backup_failed", {
+          userId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
   return { made };

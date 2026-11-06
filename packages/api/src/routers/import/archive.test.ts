@@ -6,6 +6,8 @@ import {
   BookingSeries,
   CreditEntry,
   eq,
+  ImportBatch,
+  ImportFile,
   Payment,
   PaymentAccount,
   PaymentPackage,
@@ -16,6 +18,7 @@ import {
   Workflow,
 } from "@synoro/db";
 import { type AccountDump, collectAccount } from "@synoro/jobs/data-export";
+import { cleanupImports, runImport } from "@synoro/jobs/data-import";
 import { readBookingTheme } from "@synoro/validators";
 import { strToU8, zipSync } from "fflate";
 
@@ -394,6 +397,118 @@ describe("the round trip", () => {
   });
 });
 
+describe("an attempt that stopped halfway", () => {
+  it("is picked up without doubling cards that have no contacts", async () => {
+    const source = await makeOwner();
+    await api.db.insert(PracticeClient).values([
+      { practiceId: source.practice.id, name: "Без контактов 1" },
+      { practiceId: source.practice.id, name: "Без контактов 2" },
+    ]);
+    const dump = await collectAccount(api.db, source.session.user.id);
+
+    const target = await makeOwner();
+    const { uploaded } = await restore(target, JSON.stringify(dump));
+    // A rerun, as Hatchet makes after a crash.
+    await api.db
+      .update(ImportBatch)
+      .set({ status: "applying" })
+      .where(eq(ImportBatch.id, uploaded.id));
+    await runImport(api.db, uploaded.id);
+
+    const cards = await api.db
+      .select({ name: PracticeClient.name })
+      .from(PracticeClient)
+      .where(eq(PracticeClient.practiceId, target.practice.id));
+    expect(cards.map((row) => row.name).sort()).toEqual([
+      "Без контактов 1",
+      "Без контактов 2",
+    ]);
+  });
+
+  it("stays open for the retry, and fails only on the last attempt", async () => {
+    const target = await makeOwner();
+    const uploaded = await call(
+      importRouter.upload,
+      {
+        practiceId: target.practice.id,
+        file: new File([strToU8("Имя\nАнна\n")], "a.csv"),
+      },
+      target.context,
+    );
+    // The file is gone, so the attempt fails.
+    await api.db.delete(ImportFile).where(eq(ImportFile.batchId, uploaded.id));
+    await api.db
+      .update(ImportBatch)
+      .set({
+        status: "applying",
+        options: {
+          mapping: ["name"],
+          duplicates: "skip",
+          importNotes: false,
+        },
+      })
+      .where(eq(ImportBatch.id, uploaded.id));
+    const status = async () =>
+      (
+        await api.db.query.ImportBatch.findFirst({
+          where: eq(ImportBatch.id, uploaded.id),
+        })
+      )?.status;
+
+    await expect(
+      runImport(api.db, uploaded.id, { final: false }),
+    ).rejects.toThrow();
+    expect(await status()).toBe("applying");
+    await expect(
+      runImport(api.db, uploaded.id, { final: true }),
+    ).rejects.toThrow();
+    expect(await status()).toBe("failed");
+  });
+
+  it("is marked failed if the worker never came back", async () => {
+    const target = await makeOwner();
+    const uploaded = await call(
+      importRouter.upload,
+      {
+        practiceId: target.practice.id,
+        file: new File([strToU8("Имя\nАнна\n")], "a.csv"),
+      },
+      target.context,
+    );
+    await api.db
+      .update(ImportBatch)
+      .set({ status: "applying" })
+      .where(eq(ImportBatch.id, uploaded.id));
+    await cleanupImports(api.db, new Date(Date.now() + 2 * 3_600_000));
+    const batch = await api.db.query.ImportBatch.findFirst({
+      where: eq(ImportBatch.id, uploaded.id),
+    });
+    expect(batch?.status).toBe("failed");
+  });
+});
+
+describe("undoing with changes made since", () => {
+  it("puts back only the settings nobody touched after the import", async () => {
+    const source = await richPractice();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const target = await makeOwner();
+    const { uploaded } = await restore(target, JSON.stringify(dump));
+
+    await api.db
+      .update(Practice)
+      .set({ clientContact: "Новый контакт, после импорта" })
+      .where(eq(Practice.id, target.practice.id));
+    await call(importRouter.undo, { batchId: uploaded.id }, target.context);
+
+    const stored = await api.db.query.Practice.findFirst({
+      where: eq(Practice.id, target.practice.id),
+    });
+    expect(stored?.clientContact).toBe("Новый контакт, после импорта");
+    expect(stored?.name).toBe("Новая практика");
+    expect(stored?.timezone).toBe("Europe/Moscow");
+  });
+});
+
 describe("what an archive can't do", () => {
   it("attaches nobody, whatever addresses it names", async () => {
     const stranger = await createSession(api.db, {
@@ -444,6 +559,83 @@ describe("what an archive can't do", () => {
     expect(stored?.videoUrl).toBeNull();
     expect(stored?.bookingQuestions).toEqual([]);
     expect(stored?.bookingTheme.accent).not.toBe("<script>");
+  });
+
+  it("won't take history that would break the next export", async () => {
+    const source = await makeOwner();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const forged = structuredClone(dump) as unknown as {
+      practices: { payments: unknown[] }[];
+    };
+    forged.practices[0]?.payments.push({
+      id: "x",
+      provider: "yookassa",
+      status: "succeeded",
+      credits: 1,
+      amount_kopecks: 100,
+      paid_at: "not-a-date",
+      created_at: "2026-01-01T00:00:00.000Z",
+    });
+    const target = await makeOwner();
+    await expect(restore(target, JSON.stringify(forged))).rejects.toMatchObject(
+      { code: "FILE_PROBLEM" },
+    );
+  });
+
+  it("sizes the job by the practice picked, not the number of practices", async () => {
+    const source = await makeOwner();
+    await api.db.insert(PracticeClient).values(
+      Array.from({ length: 3 }, (_, index) => ({
+        practiceId: source.practice.id,
+        name: `Клиент ${index}`,
+      })),
+    );
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const target = await makeOwner();
+    const { uploaded } = await restore(target, JSON.stringify(dump));
+    const batch = await api.db.query.ImportBatch.findFirst({
+      where: eq(ImportBatch.id, uploaded.id),
+    });
+    expect(batch?.rowCount).toBe(3);
+  });
+
+  it("takes as many working hours as the form allows", async () => {
+    const source = await makeOwner();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const row = dump.practices[0];
+    if (!row) throw new Error("no practice");
+    row.working_hours = Array.from({ length: 168 }, (_, index) => ({
+      weekday: (index % 7) + 1,
+      start_minute: (index % 24) * 60,
+      end_minute: (index % 24) * 60 + 30,
+    }));
+    const target = await makeOwner();
+    const { committed } = await restore(target, JSON.stringify(dump));
+    expect(committed.status).toBe("applied");
+    const stored = await api.db
+      .select()
+      .from(AvailabilityRule)
+      .where(eq(AvailabilityRule.practiceId, target.practice.id));
+    expect(stored).toHaveLength(168);
+  });
+
+  it("refuses a version it would spend forever walking up from", async () => {
+    const target = await makeOwner();
+    const started = Date.now();
+    await expect(
+      call(
+        importRouter.upload,
+        {
+          practiceId: target.practice.id,
+          file: new File(
+            [strToU8('{"format_version":-1000000000000000,"practices":[]}')],
+            "data.json",
+          ),
+        },
+        target.context,
+      ),
+    ).rejects.toMatchObject({ code: "FILE_PROBLEM" });
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 
   it("refuses what isn't ours, and what's from the future", async () => {

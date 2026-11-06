@@ -12,6 +12,8 @@ export const dataAuditAction = pgEnum("data_audit_action", [
   "feed_enabled",
   "feed_rotated",
   "feed_disabled",
+  "feed_names_enabled",
+  "feed_names_disabled",
   "backup_enabled",
   "backup_disabled",
   "import_applied",

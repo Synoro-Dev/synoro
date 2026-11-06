@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { customType, index, pgEnum, pgTable } from "drizzle-orm/pg-core";
+import {
+  customType,
+  index,
+  pgEnum,
+  pgTable,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
 import { Practice } from "../booking/practice";
@@ -45,6 +51,8 @@ export interface ImportOptions {
   eventsAs?: "bookings" | "blocked";
   /** Which practice of an archive goes into this one. */
   archivePractice?: number;
+  /** Decided once: on a rerun the practice is no longer empty. */
+  archiveClean?: boolean;
 }
 
 /**
@@ -138,8 +146,20 @@ export const ImportBatchItem = pgTable(
     entityId: t.uuid().notNull(),
     action: importItemAction().notNull(),
     before: t.jsonb().$type<Record<string, unknown>>(),
+    /** What it wrote there: undoing leaves a field changed since then alone. */
+    after: t.jsonb().$type<Record<string, unknown>>(),
+    /**
+     * Which part of the file this came from. A rerun after a crash skips what
+     * is already here, which contacts alone can't tell for a card without any.
+     */
+    sourceKey: t.text(),
   }),
-  (table) => [index("import_batch_items_batch_idx").on(table.batchId)],
+  (table) => [
+    index("import_batch_items_batch_idx").on(table.batchId),
+    uniqueIndex("import_batch_items_source_idx")
+      .on(table.batchId, table.sourceKey)
+      .where(sql`${table.sourceKey} is not null`),
+  ],
 );
 
 export type ImportStatus = (typeof importStatus.enumValues)[number];

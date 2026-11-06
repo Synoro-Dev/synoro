@@ -36,6 +36,7 @@ import { useRef, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { saveTextFile } from "../settings/data-access";
+import { ConfirmButton } from "./confirm-button";
 import { ErrorState, PageHeading } from "./states";
 
 type Upload = RouterOutputs["import"]["upload"];
@@ -763,14 +764,15 @@ function History({ practiceId }: { practiceId: string }) {
                   </Button>
                 )}
               {(batch.status === "applied" || batch.status === "failed") && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <ConfirmButton
+                  title="Отменить этот импорт?"
+                  description="Удалим всё, что он добавил, и вернём то, что он дописал к существующим клиентам. Клиенты и записи из этой загрузки исчезнут, и вернуть их можно будет только новой загрузкой."
+                  confirmLabel="Отменить импорт"
                   disabled={undo.isPending}
-                  onClick={() => undo.mutate({ batchId: batch.id })}
+                  onConfirm={() => undo.mutate({ batchId: batch.id })}
                 >
                   Отменить этот импорт
-                </Button>
+                </ConfirmButton>
               )}
             </div>
           </li>

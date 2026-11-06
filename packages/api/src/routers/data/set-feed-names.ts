@@ -1,4 +1,5 @@
 import { CalendarFeed, eq } from "@synoro/db";
+import { recordDataAudit } from "@synoro/jobs/data-export";
 import { z } from "zod";
 
 import {
@@ -31,5 +32,11 @@ export const setFeedNames = dataProcedure
       .update(CalendarFeed)
       .set({ showNames: input.showNames })
       .where(eq(CalendarFeed.practiceId, practice.id));
+    await recordDataAudit(context.db, {
+      userId: user.id,
+      actorId: user.id,
+      practiceId: practice.id,
+      action: input.showNames ? "feed_names_enabled" : "feed_names_disabled",
+    });
     return { showNames: input.showNames };
   });

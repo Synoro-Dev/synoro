@@ -32,6 +32,10 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** Repeats are written out this far ahead. */
 const HORIZON_MS = 366 * DAY_MS;
 const MAX_REPEATS = 400;
+/** Dates looked at across one file. */
+const MAX_RULE_STEPS = 200_000;
+/** Forty years of months, for a rule whose date rarely or never comes. */
+const MAX_MONTH_STEPS = 480;
 const MAX_EVENTS = 20_000;
 /** Longer than this is a trip or a mistake, not a meeting. */
 const MAX_LENGTH_MS = 24 * 60 * 60 * 1000;
@@ -159,16 +163,13 @@ function addDays(wall: Wall, days: number): Wall {
   };
 }
 
-function addMonths(wall: Wall, months: number): Wall {
-  const at = new Date(
-    Date.UTC(
-      wall.year,
-      wall.month - 1 + months,
-      wall.day,
-      wall.hour,
-      wall.minute,
-    ),
-  );
+/**
+ * The same day some months on, or null if that month has no such day: RFC 5545
+ * skips those, so the 31st repeats in March and May, never in April.
+ */
+function addMonths(wall: Wall, months: number): Wall | null {
+  const at = new Date(Date.UTC(wall.year, wall.month - 1 + months, wall.day));
+  if (at.getUTCDate() !== wall.day) return null;
   return { ...wall, year: at.getUTCFullYear(), month: at.getUTCMonth() + 1 };
 }
 
@@ -177,11 +178,17 @@ function addMonths(wall: Wall, months: number): Wall {
  * YEARLY on the start's date, with INTERVAL, COUNT and UNTIL: what calendars
  * write for a standing appointment. Anything fancier is null, and the caller
  * takes the first date and says so.
+ *
+ * COUNT counts from the start, past dates too, as the rule means it; what comes
+ * out is only what's still ahead of `now`, however long ago the series began.
  */
 function expandRule(
   rule: string,
   start: { wall: Wall; zone: string; at: Date },
+  now: Date,
   until: Date,
+  lengthMs: number,
+  budget: { steps: number },
 ): Date[] | null {
   const parts = new Map(
     rule.split(";").map((part) => part.split("=") as [string, string]),
@@ -198,10 +205,15 @@ function expandRule(
 
   const freq = parts.get("FREQ");
   const interval = Number(parts.get("INTERVAL") ?? 1);
-  const limit = Number(parts.get("COUNT") ?? MAX_REPEATS);
+  const limit = parts.has("COUNT") ? Number(parts.get("COUNT")) : null;
   const byDay = parts.get("BYDAY")?.split(",");
+  // The week's start decides which days share a week when INTERVAL skips some.
+  const weekStart = WEEKDAYS.indexOf(parts.get("WKST") ?? "MO");
   if (!(interval >= 1) || (byDay && freq !== "WEEKLY")) return null;
-  if (byDay?.some((day) => !WEEKDAYS.includes(day))) return null;
+  if (limit !== null && !(limit >= 1)) return null;
+  if (weekStart < 0 || byDay?.some((day) => !WEEKDAYS.includes(day))) {
+    return null;
+  }
 
   const end = parts.get("UNTIL")
     ? parseWhen({ value: parts.get("UNTIL") ?? "", params: {} }, start.zone)?.at
@@ -209,33 +221,33 @@ function expandRule(
   const stop = end && end < until ? end : until;
 
   const out: Date[] = [];
+  let seen = 0;
+  /** False once there's nothing more to look for. */
   const push = (wall: Wall) => {
+    // Shared across the file: thousands of ancient rules must not stall a request.
+    if (--budget.steps < 0) return false;
     const at = wallToDate(wall, start.zone);
-    if (
-      at >= start.at &&
-      at <= stop &&
-      out.length < Math.min(limit, MAX_REPEATS)
-    ) {
-      out.push(at);
-    }
-    return at <= stop && out.length < Math.min(limit, MAX_REPEATS);
+    if (at > stop) return false;
+    if (at < start.at) return true;
+    seen++;
+    if (limit !== null && seen > limit) return false;
+    // One still going counts as ahead; one that ended stays behind.
+    if (at.getTime() + lengthMs > now.getTime()) out.push(at);
+    return out.length < MAX_REPEATS;
   };
 
   if (freq === "WEEKLY") {
-    const days = byDay?.map((day) => WEEKDAYS.indexOf(day)) ?? [
-      new Date(
-        Date.UTC(start.wall.year, start.wall.month - 1, start.wall.day),
-      ).getUTCDay(),
-    ];
-    const sorted = [...new Set(days)].sort((a, b) => a - b);
     const startDay = new Date(
       Date.UTC(start.wall.year, start.wall.month - 1, start.wall.day),
     ).getUTCDay();
-    // From the Sunday of the start's week, so BYDAY lands right.
-    let week = addDays(start.wall, -startDay);
+    // Days as offsets from the first day of the week, whichever that is.
+    const fromWeekStart = (day: number) => (day - weekStart + 7) % 7;
+    const days = byDay?.map((day) => WEEKDAYS.indexOf(day)) ?? [startDay];
+    const sorted = [...new Set(days.map(fromWeekStart))].sort((a, b) => a - b);
+    let week = addDays(start.wall, -fromWeekStart(startDay));
     while (true) {
-      for (const day of sorted) {
-        if (!push(addDays(week, day))) return out;
+      for (const offset of sorted) {
+        if (!push(addDays(week, offset))) return out;
       }
       week = addDays(week, 7 * interval);
     }
@@ -248,16 +260,38 @@ function expandRule(
   if (freq === "MONTHLY" || freq === "YEARLY") {
     const step = freq === "YEARLY" ? 12 : 1;
     for (let n = 0; ; n++) {
-      if (!push(addMonths(start.wall, n * interval * step))) return out;
+      const wall = addMonths(start.wall, n * interval * step);
+      // A long way past any date: a day that never comes can't loop forever.
+      if (n > MAX_MONTH_STEPS) return out;
+      if (wall && !push(wall)) return out;
     }
   }
   return null;
+}
+
+/** The start of the day `days` after the one `at` falls on, in `zone`. */
+function dayAfter(at: Date, zone: string, days: number) {
+  const local = new Date(at.getTime() + offsetAt(at, zone));
+  return wallToDate(
+    addDays(
+      {
+        year: local.getUTCFullYear(),
+        month: local.getUTCMonth() + 1,
+        day: local.getUTCDate(),
+        hour: 0,
+        minute: 0,
+      },
+      days,
+    ),
+    zone,
+  );
 }
 
 /** Every event of an ICS text, repeats written out, cancelled ones left out. */
 function parseIcs(text: string, zone: string, now: Date): ImportEvent[] {
   const lines = text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
   const until = new Date(now.getTime() + HORIZON_MS);
+  const budget = { steps: MAX_RULE_STEPS };
 
   const blocks: Map<string, Prop[]>[] = [];
   let current: Map<string, Prop[]> | null = null;
@@ -333,14 +367,20 @@ function parseIcs(text: string, zone: string, now: Date): ImportEvent[] {
     const rule = block.get("RRULE")?.[0]?.value;
     const isOverride = block.has("RECURRENCE-ID");
     const starts =
-      rule && !isOverride ? expandRule(rule, start, until) : [start.at];
+      rule && !isOverride
+        ? expandRule(rule, start, now, until, length, budget)
+        : [start.at];
     const partial = rule !== undefined && starts === null;
+    // Whole days end at a local midnight: a day with a clock change isn't 24 h.
+    const days = Math.max(1, Math.round(length / DAY_MS));
     for (const at of starts ?? [start.at]) {
       if (!isOverride && skip.has(at.getTime())) continue;
       events.push({
         title,
         startsAt: at,
-        endsAt: new Date(at.getTime() + length),
+        endsAt: start.allDay
+          ? dayAfter(at, start.zone, days)
+          : new Date(at.getTime() + length),
         allDay: start.allDay,
         ...(partial ? { partial } : {}),
       });
@@ -363,10 +403,26 @@ export function readEvents(bytes: Uint8Array, zone: string, now: Date) {
         allDay: boolean;
       }[];
     };
+    // A whole day comes as a date, and starts at midnight in the practice's zone.
+    const moment = (value: string, allDay: boolean) => {
+      const match = allDay ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+      return match
+        ? wallToDate(
+            {
+              year: Number(match[1]),
+              month: Number(match[2]),
+              day: Number(match[3]),
+              hour: 0,
+              minute: 0,
+            },
+            zone,
+          )
+        : new Date(value);
+    };
     return events.map((event) => ({
       ...event,
-      startsAt: new Date(event.startsAt),
-      endsAt: new Date(event.endsAt),
+      startsAt: moment(event.startsAt, event.allDay),
+      endsAt: moment(event.endsAt, event.allDay),
     }));
   } catch {
     throw new FileProblem("Не получилось прочитать календарь");
@@ -463,11 +519,15 @@ export async function applyCalendar(
   );
 
   const cards = await db
-    .select({ id: PracticeClient.id, name: PracticeClient.name })
+    .select({
+      id: PracticeClient.id,
+      name: PracticeClient.name,
+      phone: PracticeClient.phone,
+    })
     .from(PracticeClient)
     .where(eq(PracticeClient.practiceId, batch.practiceId));
   const cardByName = new Map(
-    cards.map((card) => [card.name.toLowerCase(), card.id]),
+    cards.map((card) => [card.name.toLowerCase(), card]),
   );
 
   let added = 0;
@@ -479,7 +539,7 @@ export async function applyCalendar(
       skipped++;
       continue;
     }
-    const clientId = cardByName.get(event.title.toLowerCase());
+    const card = cardByName.get(event.title.toLowerCase());
     try {
       await db.transaction(async (tx) => {
         const [booking] = await tx
@@ -500,7 +560,8 @@ export async function applyCalendar(
                   startsAt: event.startsAt,
                   endsAt: event.endsAt,
                   guestName: event.title || "Запись из календаря",
-                  clientId: clientId ?? null,
+                  clientId: card?.id ?? null,
+                  guestPhone: card?.phone ?? null,
                   createdById: batch.createdById,
                 },
           )
