@@ -160,7 +160,9 @@ The code comes from `embedCode` (`~/lib/embed`). The framed page reports its
 height (`reportFrameHeight`, a `postMessage` with the height only), and the
 script resizes the frame that sent it. A site builder that strips scripts leaves
 the frame at 720px, scrolling inside. On a tall frame anything `fixed` on the
-page (a dialog, a toast) sits relative to the frame, not the visitor's screen.
+page (a dialog, a toast) sits relative to the frame, not the visitor's screen;
+on a short one, dialogs must scroll inside (`max-h-[calc(100dvh-2rem)]`), since
+the height reported is the page's, without them.
 
 In a cross-site frame the visitor is a guest (the session cookie is
 `SameSite=Lax`, so it isn't sent cross-site). A same-site frame can retain the
