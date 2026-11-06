@@ -84,14 +84,6 @@ export function Author() {
           </p>
         </div>
       </div>
-
-      <div className="flex flex-col gap-2 border-t px-4 py-8 sm:px-10">
-        <p className="font-medium">Четыре принципа, из которых сделан Synoro</p>
-        <p className="text-muted-foreground text-sm text-pretty">
-          Это числа даты рождения основателя по нумерологии: путь 22/4, день 6,
-          месяц 9, год 7. Мы не гадаем на них, но принципы нам подошли.
-        </p>
-      </div>
       <ol className="grid border-t sm:grid-cols-2 lg:grid-cols-4">
         {principles.map((item) => (
           <li
