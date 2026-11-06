@@ -55,7 +55,7 @@ export function Trust() {
         {guarantees.map((item) => (
           <li
             key={item.title}
-            className="flex flex-col gap-3 border-b p-6 last:border-b-0 sm:p-8 sm:odd:border-r sm:[&:nth-last-child(-n+2)]:border-b-0 lg:border-r lg:last:border-r-0"
+            className="flex flex-col gap-3 border-b p-6 last:border-b-0 sm:p-8 sm:odd:border-r sm:[&:nth-last-child(-n+2)]:border-b-0 lg:border-r lg:border-b-0 lg:last:border-r-0"
           >
             <IconTile icon={item.icon} className="size-8" />
             <p className="mt-2 font-medium">{item.title}</p>
