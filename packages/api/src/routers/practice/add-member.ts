@@ -81,16 +81,25 @@ export const addMember = practiceProcedure
         },
       });
 
-    // Inside the cooldown the invitation is extended, but no second mail goes.
-    const mailRight = await claimInviteMail(context.db, {
-      userId: context.session.user.id,
-      practiceId: input.practiceId,
-      role: input.role,
-      email,
-    });
-    if (!mailRight.claimed) return { invited: true, mail: "recent" as const };
-
+    // The invitation is saved by now, so nothing below may fail the request:
+    // a mail problem is reported as `mail: "failed"`. Inside the cooldown the
+    // invitation is extended, but no second mail goes.
+    let mailRight: Awaited<ReturnType<typeof claimInviteMail>> | undefined;
+    const giveBack = () =>
+      mailRight?.release().catch(() => {
+        logger.warn("practice.invitation_release_failed", {
+          practiceId: input.practiceId,
+        });
+      });
     try {
+      mailRight = await claimInviteMail(context.db, {
+        userId: context.session.user.id,
+        practiceId: input.practiceId,
+        role: input.role,
+        email,
+      });
+      if (!mailRight.claimed) return { invited: true, mail: "recent" as const };
+
       const practice = await context.db.query.Practice.findFirst({
         columns: { name: true },
         where: eq(Practice.id, input.practiceId),
@@ -107,7 +116,7 @@ export const addMember = practiceProcedure
         },
       });
       if (outcome === "skipped") {
-        await mailRight.release();
+        await giveBack();
         return { invited: true, mail: "failed" as const };
       }
       return { invited: true, mail: outcome };
@@ -116,7 +125,7 @@ export const addMember = practiceProcedure
       logger.warn("practice.invitation_email_failed", {
         practiceId: input.practiceId,
       });
-      await mailRight.release();
+      await giveBack();
       return { invited: true, mail: "failed" as const };
     }
   });
