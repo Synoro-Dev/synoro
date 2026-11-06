@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { Booking, eq, Service, user, WaitlistEntry } from "@synoro/db";
+import { Booking, eq, Service, sql, user, WaitlistEntry } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
 import { notifyWaitlist } from "@synoro/jobs/waitlist";
 
@@ -737,5 +737,37 @@ describe("notifyWaitlist: reading wishes in pages", () => {
     ).toBe(5);
     const told = await Promise.all(entries.map((e) => notifiedAt(e.id)));
     expect(told.every((t) => t !== null)).toBe(true);
+  });
+});
+
+describe("notifyWaitlist: wishes written within one millisecond", () => {
+  it("pages past wishes that differ only in microseconds", async () => {
+    const day = "2030-04-22";
+    const { session: evening } = await waiting({}, "micro@wait.test");
+    // 60 wishes for the evening, all inside one millisecond of 2027-02-01.
+    await api.db.insert(WaitlistEntry).values(
+      Array.from({ length: 60 }, (_, i) => ({
+        practiceId,
+        userId: evening.user.id,
+        fromDate: day,
+        toDate: day,
+        fromMinute: 1080,
+        createdAt: sql`('2027-02-01 00:00:00.000' || lpad(${i + 1}::text, 3, '0') || '+00')::timestamptz`,
+      })),
+    );
+    // One that fits, a few microseconds after all of them.
+    const { entry } = await waiting({
+      fromDate: day,
+      toDate: day,
+      createdAt: sql`'2027-02-01 00:00:00.000900+00'::timestamptz`,
+    });
+    const { deliver } = recorder();
+
+    // Read with a millisecond cursor, the first 50 would come back page after
+    // page and the wish behind them would never be reached.
+    expect(
+      await notifyWaitlist(api.db, freed("07:00", "08:00", day), deliver),
+    ).toBe(1);
+    expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
   });
 });

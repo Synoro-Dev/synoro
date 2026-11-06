@@ -14,6 +14,7 @@ import {
   or,
   Practice,
   Service,
+  sql,
   user,
   WaitlistEntry,
 } from "@synoro/db";
@@ -157,14 +158,17 @@ export async function notifyWaitlist(
       // Wishes are read page by page until enough of them fit: the oldest
       // ones may all want another time of the day. The next page starts after
       // the last wish seen (`createdAt`, `id`), not at an offset: wishes
-      // claimed from this page leave the query and would shift an offset.
-      let after: { createdAt: Date; id: string } | undefined;
+      // claimed from this page leave the query and would shift an offset. The
+      // cursor keeps `createdAt` as the database wrote it, in microseconds: a
+      // JavaScript `Date` has milliseconds, and rows within one of them would
+      // come back page after page.
+      let after: { createdAt: string; id: string } | undefined;
       for (let page = 0; page < MAX_PAGES; page++) {
         if (claimed.length >= MAX_NOTIFIED) break;
         const entries = await db
           .select({
             id: WaitlistEntry.id,
-            createdAt: WaitlistEntry.createdAt,
+            cursor: sql<string>`${WaitlistEntry.createdAt}::text`,
             userId: WaitlistEntry.userId,
             fromDate: WaitlistEntry.fromDate,
             toDate: WaitlistEntry.toDate,
@@ -190,13 +194,7 @@ export async function notifyWaitlist(
                 ? ne(WaitlistEntry.userId, freed.exceptUserId)
                 : undefined,
               after
-                ? or(
-                    gt(WaitlistEntry.createdAt, after.createdAt),
-                    and(
-                      eq(WaitlistEntry.createdAt, after.createdAt),
-                      gt(WaitlistEntry.id, after.id),
-                    ),
-                  )
+                ? sql`(${WaitlistEntry.createdAt}, ${WaitlistEntry.id}) > (${after.createdAt}::timestamptz, ${after.id}::uuid)`
                 : undefined,
             ),
           )
@@ -235,7 +233,7 @@ export async function notifyWaitlist(
         }
         const last = entries.at(-1);
         if (entries.length < PAGE || !last) break;
-        after = { createdAt: last.createdAt, id: last.id };
+        after = { createdAt: last.cursor, id: last.id };
       }
     }
 
