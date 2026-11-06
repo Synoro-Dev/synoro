@@ -21,7 +21,7 @@ import { track } from "../../lib/analytics";
 import { findOrCreateGuestMember } from "../../lib/guests";
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   isStaff,
 } from "../../lib/practice-access";
 import { addDays, toZonedDate } from "../../lib/schedule";
@@ -63,7 +63,7 @@ export const join = publicProcedure
   })
   .input(waitlistJoinSchema.and(z.object({ practiceId: z.uuid() })))
   .handler(async ({ context, input, errors }) => {
-    const practice = await findPractice(context.db, input.practiceId);
+    const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
 
     const today = toZonedDate(new Date(), practice.timezone);

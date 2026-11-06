@@ -15,7 +15,7 @@ import { adjustCredits, releaseExpiredHolds } from "../../lib/bookings";
 import { exportBooking } from "../../lib/google-calendar";
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   practiceProcedure,
 } from "../../lib/practice-access";
 import { previewSeries, SERIES_MAX, seriesMember } from "../../lib/series";
@@ -71,7 +71,7 @@ export const bookSeries = practiceProcedure
     const userId = context.session.user.id;
     const [caller, practice] = await Promise.all([
       findMembership(context.db, input.practiceId, userId),
-      findPractice(context.db, input.practiceId),
+      findOpenPractice(context.db, input.practiceId),
     ]);
     if (!caller || !practice) throw errors.FORBIDDEN();
     const who = await seriesMember(

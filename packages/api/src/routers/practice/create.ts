@@ -19,7 +19,11 @@ import {
   startSlugOrder,
 } from "../../lib/billing/slug-orders";
 import { ProviderError } from "../../lib/payments";
-import { findPracticeIdBySlug, lockSlugs } from "../../lib/practice-slugs";
+import {
+  findPracticeIdBySlug,
+  isSlugReserved,
+  lockSlugs,
+} from "../../lib/practice-slugs";
 import { protectedProcedure } from "../../orpc";
 
 /**
@@ -62,7 +66,10 @@ export const create = protectedProcedure
     try {
       practice = await context.db.transaction(async (tx) => {
         await lockSlugs(tx, [input.slug]);
-        if (await findPracticeIdBySlug(tx, input.slug)) {
+        if (
+          (await findPracticeIdBySlug(tx, input.slug)) ||
+          (await isSlugReserved(tx, input.slug))
+        ) {
           throw errors.CONFLICT({ data: { field: "slug" } });
         }
         const [inserted] = await tx

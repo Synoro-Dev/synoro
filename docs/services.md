@@ -12,7 +12,7 @@ paid hours.
   replaces the whole list; administrators read it with `service.list`).
 - **Every practice starts with one**: an hour for one credit, named in the
   profession's words («Консультация», «Занятие»…). `practice.create` makes it,
-  migration `0012` made it for the practices that existed. With one service the
+  migration `0018` made it for the practices that existed. With one service the
   booking page shows no picker; with more, a select under the toolbar.
 - **A service is never lost with its history**: leaving one out of `save`
   deletes it — or, when bookings (`bookings.service_id`) or waiting-list wishes

@@ -2,7 +2,14 @@
 
 import { paths } from "@synoro/config";
 import { cn } from "@synoro/ui";
-import { Bell, KeyRound, Settings, Sparkles, User } from "lucide-react";
+import {
+  Bell,
+  DatabaseIcon,
+  KeyRound,
+  Settings,
+  Sparkles,
+  User,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -31,6 +38,11 @@ export const accountSections = [
     title: "Тариф",
     href: paths.settings.billing,
     icon: Sparkles,
+  },
+  {
+    title: "Ваши данные",
+    href: paths.settings.data,
+    icon: DatabaseIcon,
   },
 ];
 

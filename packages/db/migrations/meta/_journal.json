@@ -89,22 +89,50 @@
     {
       "idx": 12,
       "version": "7",
-      "when": 1793981023629,
-      "tag": "0012_services",
+      "when": 1793969587373,
+      "tag": "0012_data_export",
       "breakpoints": true
     },
     {
       "idx": 13,
       "version": "7",
-      "when": 1793981889709,
-      "tag": "0013_waitlist",
+      "when": 1793972887625,
+      "tag": "0013_account_deletion",
       "breakpoints": true
     },
     {
       "idx": 14,
       "version": "7",
-      "when": 1793986682368,
-      "tag": "0014_service_archive",
+      "when": 1793975312214,
+      "tag": "0014_practice_clients_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793976881801,
+      "tag": "0015_booking_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793979838896,
+      "tag": "0016_archive_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793985461127,
+      "tag": "0017_import_resume",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793988534913,
+      "tag": "0018_services_waitlist",
       "breakpoints": true
     }
   ]

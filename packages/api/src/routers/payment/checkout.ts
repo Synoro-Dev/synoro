@@ -11,7 +11,7 @@ import {
 } from "../../lib/payments";
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   practiceProcedure,
 } from "../../lib/practice-access";
 
@@ -36,7 +36,7 @@ export const checkout = practiceProcedure
   .input(z.object({ practiceId: z.uuid(), packageId: z.uuid() }))
   .handler(async ({ context, input, errors }) => {
     const { user } = context.session;
-    const practice = await findPractice(context.db, input.practiceId);
+    const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.FORBIDDEN();
 
     await context.db

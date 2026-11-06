@@ -34,6 +34,7 @@
     "@synoro/tsconfig": "workspace:*",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.6",
+    "fflate": "0.8.2",
     "typescript": "7.0.2"
   }
 }

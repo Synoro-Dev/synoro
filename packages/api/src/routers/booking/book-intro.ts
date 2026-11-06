@@ -32,7 +32,7 @@ import {
 } from "../../lib/guests";
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   isStaff,
 } from "../../lib/practice-access";
 import { isScheduledSlot } from "../../lib/schedule";
@@ -93,7 +93,7 @@ export const bookIntro = publicProcedure
     }),
   )
   .handler(async ({ context, input, errors }) => {
-    const practice = await findPractice(context.db, input.practiceId);
+    const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
     if (!practice.freeBookingEnabled) throw errors.FREE_BOOKING_OFF();
 

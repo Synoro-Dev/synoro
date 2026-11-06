@@ -1,6 +1,6 @@
 {
-  "id": "a95a29ff-2502-4714-b0c7-d6066b7c962c",
-  "prevId": "b50ce9fb-21f8-49da-95c3-b0dfde2222e8",
+  "id": "e8771c9c-870e-461f-b06c-7e6fe816ca4e",
+  "prevId": "cd280ac4-f21a-4ab0-9265-22ca71a8e3e2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -632,13 +632,13 @@
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "practice_id": {
           "name": "practice_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "slug": {
           "name": "slug",
@@ -748,7 +748,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "slug_orders_practice_id_practices_id_fk": {
@@ -761,7 +761,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1033,7 +1033,7 @@
           "name": "user_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "period": {
           "name": "period",
@@ -1198,7 +1198,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -1341,19 +1341,6 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
-        },
-        "service_id": {
-          "name": "service_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "credits": {
-          "name": "credits",
-          "type": "smallint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "status": {
           "name": "status",
@@ -1571,19 +1558,6 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "bookings_service_id_services_id_fk": {
-          "name": "bookings_service_id_services_id_fk",
-          "tableFrom": "bookings",
-          "tableTo": "services",
-          "columnsFrom": [
-            "service_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
         "bookings_member_id_practice_members_id_fk": {
           "name": "bookings_member_id_practice_members_id_fk",
           "tableFrom": "bookings",
@@ -1658,6 +1632,169 @@
           "value": "(\"bookings\".\"status\" = 'cancelled') = (\"bookings\".\"cancel_reason\" is not null)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.practice_clients": {
+      "name": "practice_clients",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(2000)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "credits": {
+          "name": "credits",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "practice_clients_practice_idx": {
+          "name": "practice_clients_practice_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_clients_practice_phone_idx": {
+          "name": "practice_clients_practice_phone_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "phone",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"practice_clients\".\"phone\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "practice_clients_practice_email_idx": {
+          "name": "practice_clients_practice_email_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"practice_clients\".\"email\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "practice_clients_practice_id_practices_id_fk": {
+          "name": "practice_clients_practice_id_practices_id_fk",
+          "tableFrom": "practice_clients",
+          "tableTo": "practices",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "practice_clients_batch_id_import_batches_id_fk": {
+          "name": "practice_clients_batch_id_import_batches_id_fk",
+          "tableFrom": "practice_clients",
+          "tableTo": "import_batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.credit_entries": {
@@ -2598,8 +2735,8 @@
       },
       "isRLSEnabled": false
     },
-    "public.services": {
-      "name": "services",
+    "public.data_audit_log": {
+      "name": "data_audit_log",
       "schema": "",
       "columns": {
         "id": {
@@ -2609,52 +2746,427 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "practice_id": {
           "name": "practice_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
-        "name": {
-          "name": "name",
-          "type": "varchar(80)",
+        "action": {
+          "name": "action",
+          "type": "data_audit_action",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "minutes": {
-          "name": "minutes",
-          "type": "smallint",
+        "details": {
+          "name": "details",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": 60
+          "default": "'{}'::jsonb"
         },
-        "credits": {
-          "name": "credits",
-          "type": "smallint",
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": 1
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "data_audit_log_user_created_idx": {
+          "name": "data_audit_log_user_created_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         },
-        "position": {
-          "name": "position",
-          "type": "smallint",
+        "data_audit_log_created_idx": {
+          "name": "data_audit_log_created_idx",
+          "columns": [
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "data_audit_log_user_id_users_id_fk": {
+          "name": "data_audit_log_user_id_users_id_fk",
+          "tableFrom": "data_audit_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "data_audit_log_actor_id_users_id_fk": {
+          "name": "data_audit_log_actor_id_users_id_fk",
+          "tableFrom": "data_audit_log",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "data_audit_log_practice_id_practices_id_fk": {
+          "name": "data_audit_log_practice_id_practices_id_fk",
+          "tableFrom": "data_audit_log",
+          "tableTo": "practices",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.calendar_feeds": {
+      "name": "calendar_feeds",
+      "schema": "",
+      "columns": {
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true,
-          "default": 0
+          "notNull": true
         },
-        "active": {
-          "name": "active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "archived": {
-          "name": "archived",
+        "show_names": {
+          "name": "show_names",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "last_fetched_at": {
+          "name": "last_fetched_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "calendar_feeds_practice_id_practices_id_fk": {
+          "name": "calendar_feeds_practice_id_practices_id_fk",
+          "tableFrom": "calendar_feeds",
+          "tableTo": "practices",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "calendar_feeds_tokenHash_unique": {
+          "name": "calendar_feeds_tokenHash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.account_deletions": {
+      "name": "account_deletions",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "purge_at": {
+          "name": "purge_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "account_deletions_user_id_users_id_fk": {
+          "name": "account_deletions_user_id_users_id_fk",
+          "tableFrom": "account_deletions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.deletion_records": {
+      "name": "deletion_records",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practices": {
+          "name": "practices",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clients": {
+          "name": "clients",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bookings": {
+          "name": "bookings",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purged_at": {
+          "name": "purged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reserved_slugs": {
+      "name": "reserved_slugs",
+      "schema": "",
+      "columns": {
+        "slug": {
+          "name": "slug",
+          "type": "varchar(48)",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "until": {
+          "name": "until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.client_backups": {
+      "name": "client_backups",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "last_run_at": {
+          "name": "last_run_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "client_backups_user_id_users_id_fk": {
+          "name": "client_backups_user_id_users_id_fk",
+          "tableFrom": "client_backups",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.data_exports": {
+      "name": "data_exports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "data_export_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "data_export_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "file_key": {
+          "name": "file_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "size_bytes": {
+          "name": "size_bytes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "format_version": {
+          "name": "format_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -2671,17 +3183,38 @@
         }
       },
       "indexes": {
-        "services_practice_idx": {
-          "name": "services_practice_idx",
+        "data_exports_user_created_idx": {
+          "name": "data_exports_user_created_idx",
           "columns": [
             {
-              "expression": "practice_id",
+              "expression": "user_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             },
             {
-              "expression": "position",
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "data_exports_status_expires_idx": {
+          "name": "data_exports_status_expires_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2694,12 +3227,12 @@
         }
       },
       "foreignKeys": {
-        "services_practice_id_practices_id_fk": {
-          "name": "services_practice_id_practices_id_fk",
-          "tableFrom": "services",
-          "tableTo": "practices",
+        "data_exports_user_id_users_id_fk": {
+          "name": "data_exports_user_id_users_id_fk",
+          "tableFrom": "data_exports",
+          "tableTo": "users",
           "columnsFrom": [
-            "practice_id"
+            "user_id"
           ],
           "columnsTo": [
             "id"
@@ -2711,24 +3244,11 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "services_minutes_valid": {
-          "name": "services_minutes_valid",
-          "value": "\"services\".\"minutes\" between 15 and 240 and \"services\".\"minutes\" % 5 = 0"
-        },
-        "services_credits_range": {
-          "name": "services_credits_range",
-          "value": "\"services\".\"credits\" between 1 and 10"
-        },
-        "services_archived_inactive": {
-          "name": "services_archived_inactive",
-          "value": "\"services\".\"archived\" = false or \"services\".\"active\" = false"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.waitlist_entries": {
-      "name": "waitlist_entries",
+    "public.import_batches": {
+      "name": "import_batches",
       "schema": "",
       "columns": {
         "id": {
@@ -2744,44 +3264,67 @@
           "primaryKey": false,
           "notNull": true
         },
-        "user_id": {
-          "name": "user_id",
+        "created_by_id": {
+          "name": "created_by_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
-        },
-        "service_id": {
-          "name": "service_id",
-          "type": "uuid",
-          "primaryKey": false,
           "notNull": false
         },
-        "from_date": {
-          "name": "from_date",
-          "type": "date",
+        "source": {
+          "name": "source",
+          "type": "import_source",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
-        "to_date": {
-          "name": "to_date",
-          "type": "date",
+        "status": {
+          "name": "status",
+          "type": "import_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "varchar(255)",
           "primaryKey": false,
           "notNull": true
         },
-        "from_minute": {
-          "name": "from_minute",
-          "type": "smallint",
+        "options": {
+          "name": "options",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "to_minute": {
-          "name": "to_minute",
-          "type": "smallint",
+        "totals": {
+          "name": "totals",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },
-        "notified_at": {
-          "name": "notified_at",
+        "row_count": {
+          "name": "row_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "progress": {
+          "name": "progress",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "undone_at": {
+          "name": "undone_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -2792,11 +3335,17 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
-        "waitlist_entries_practice_idx": {
-          "name": "waitlist_entries_practice_idx",
+        "import_batches_practice_created_idx": {
+          "name": "import_batches_practice_created_idx",
           "columns": [
             {
               "expression": "practice_id",
@@ -2805,22 +3354,7 @@
               "nulls": "last"
             },
             {
-              "expression": "to_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "waitlist_entries_user_idx": {
-          "name": "waitlist_entries_user_idx",
-          "columns": [
-            {
-              "expression": "user_id",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -2833,9 +3367,9 @@
         }
       },
       "foreignKeys": {
-        "waitlist_entries_practice_id_practices_id_fk": {
-          "name": "waitlist_entries_practice_id_practices_id_fk",
-          "tableFrom": "waitlist_entries",
+        "import_batches_practice_id_practices_id_fk": {
+          "name": "import_batches_practice_id_practices_id_fk",
+          "tableFrom": "import_batches",
           "tableTo": "practices",
           "columnsFrom": [
             "practice_id"
@@ -2846,25 +3380,12 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "waitlist_entries_user_id_users_id_fk": {
-          "name": "waitlist_entries_user_id_users_id_fk",
-          "tableFrom": "waitlist_entries",
+        "import_batches_created_by_id_users_id_fk": {
+          "name": "import_batches_created_by_id_users_id_fk",
+          "tableFrom": "import_batches",
           "tableTo": "users",
           "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "waitlist_entries_service_id_services_id_fk": {
-          "name": "waitlist_entries_service_id_services_id_fk",
-          "tableFrom": "waitlist_entries",
-          "tableTo": "services",
-          "columnsFrom": [
-            "service_id"
+            "created_by_id"
           ],
           "columnsTo": [
             "id"
@@ -2876,16 +3397,150 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "waitlist_entries_dates_ordered": {
-          "name": "waitlist_entries_dates_ordered",
-          "value": "\"waitlist_entries\".\"from_date\" <= \"waitlist_entries\".\"to_date\""
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.import_batch_items": {
+      "name": "import_batch_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
         },
-        "waitlist_entries_minutes_valid": {
-          "name": "waitlist_entries_minutes_valid",
-          "value": "(\"waitlist_entries\".\"from_minute\" is null or (\"waitlist_entries\".\"from_minute\" between 0 and 1410 and \"waitlist_entries\".\"from_minute\" % 30 = 0)) and (\"waitlist_entries\".\"to_minute\" is null or (\"waitlist_entries\".\"to_minute\" between 30 and 1440 and \"waitlist_entries\".\"to_minute\" % 30 = 0)) and (\"waitlist_entries\".\"from_minute\" is null or \"waitlist_entries\".\"to_minute\" is null or \"waitlist_entries\".\"from_minute\" < \"waitlist_entries\".\"to_minute\")"
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity": {
+          "name": "entity",
+          "type": "import_item_entity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "import_item_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         }
       },
+      "indexes": {
+        "import_batch_items_batch_idx": {
+          "name": "import_batch_items_batch_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "import_batch_items_batch_id_import_batches_id_fk": {
+          "name": "import_batch_items_batch_id_import_batches_id_fk",
+          "tableFrom": "import_batch_items",
+          "tableTo": "import_batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.import_files": {
+      "name": "import_files",
+      "schema": "",
+      "columns": {
+        "batch_id": {
+          "name": "batch_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "import_files_expires_idx": {
+          "name": "import_files_expires_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "import_files_batch_id_import_batches_id_fk": {
+          "name": "import_files_batch_id_import_batches_id_fk",
+          "tableFrom": "import_files",
+          "tableTo": "import_batches",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.messenger_chats": {
@@ -3766,6 +4421,81 @@
         "health",
         "legal",
         "other"
+      ]
+    },
+    "public.data_audit_action": {
+      "name": "data_audit_action",
+      "schema": "public",
+      "values": [
+        "access_confirmed",
+        "export_requested",
+        "export_downloaded",
+        "partial_export",
+        "feed_enabled",
+        "feed_rotated",
+        "feed_disabled",
+        "backup_enabled",
+        "backup_disabled",
+        "import_applied",
+        "import_undone",
+        "deletion_requested",
+        "deletion_cancelled"
+      ]
+    },
+    "public.data_export_kind": {
+      "name": "data_export_kind",
+      "schema": "public",
+      "values": [
+        "full",
+        "weekly"
+      ]
+    },
+    "public.data_export_status": {
+      "name": "data_export_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "running",
+        "ready",
+        "failed",
+        "expired"
+      ]
+    },
+    "public.import_item_action": {
+      "name": "import_item_action",
+      "schema": "public",
+      "values": [
+        "added",
+        "merged"
+      ]
+    },
+    "public.import_item_entity": {
+      "name": "import_item_entity",
+      "schema": "public",
+      "values": [
+        "client",
+        "booking"
+      ]
+    },
+    "public.import_source": {
+      "name": "import_source",
+      "schema": "public",
+      "values": [
+        "table",
+        "calendar",
+        "archive"
+      ]
+    },
+    "public.import_status": {
+      "name": "import_status",
+      "schema": "public",
+      "values": [
+        "draft",
+        "applying",
+        "applied",
+        "failed",
+        "undone",
+        "expired"
       ]
     },
     "public.messenger": {

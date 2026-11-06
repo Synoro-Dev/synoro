@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { check, index, pgTable } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
+import { PracticeClient } from "./client";
 import { Practice, PracticeMember } from "./practice";
 
 /**
@@ -19,10 +20,13 @@ export const BookingSeries = pgTable(
       .uuid()
       .notNull()
       .references(() => Practice.id, { onDelete: "cascade" }),
+    /** Null for a series brought in by an import: then `clientId` says whose. */
     memberId: t
       .uuid()
-      .notNull()
       .references(() => PracticeMember.id, { onDelete: "cascade" }),
+    clientId: t
+      .uuid()
+      .references(() => PracticeClient.id, { onDelete: "cascade" }),
     /** 1 — every week, 2 — every other week. */
     intervalWeeks: t.smallint().notNull(),
     /** Bookings created with the series (dates skipped on purpose excluded). */

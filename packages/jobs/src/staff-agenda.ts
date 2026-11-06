@@ -14,6 +14,7 @@ import {
   user,
 } from "@synoro/db";
 
+import { ownerStaying } from "./account-deletion";
 import { type Deliver, noticeSender } from "./messenger/deliver";
 import { claimNotice } from "./notice-claims";
 import { formatDay, formatTime, localDate, localHour } from "./when";
@@ -160,7 +161,7 @@ export async function sendStaffAgendas(
       timezone: Practice.timezone,
     })
     .from(Practice)
-    .where(eq(Practice.dailyAgenda, true));
+    .where(and(eq(Practice.dailyAgenda, true), ownerStaying(Practice.ownerId)));
 
   for (const practice of practices) {
     try {

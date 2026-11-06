@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./roles": "./src/roles.ts",
     "./demo": "./src/demo-accounts.ts",
+    "./password": "./src/password.ts",
     "./env": "./env.ts"
   },
   "license": "MIT",

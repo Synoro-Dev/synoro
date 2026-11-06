@@ -1,5 +1,6 @@
 export * from "./availability";
 export * from "./booking";
+export * from "./client";
 export * from "./credit";
 export * from "./domain";
 export * from "./google-calendar";

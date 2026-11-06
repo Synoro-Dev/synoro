@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   practiceProcedure,
 } from "../../lib/practice-access";
 import { previewSeries, SERIES_MAX, seriesMember } from "../../lib/series";
@@ -38,7 +38,7 @@ export const seriesPreview = practiceProcedure
   .handler(async ({ context, input, errors }) => {
     const [caller, practice] = await Promise.all([
       findMembership(context.db, input.practiceId, context.session.user.id),
-      findPractice(context.db, input.practiceId),
+      findOpenPractice(context.db, input.practiceId),
     ]);
     if (!caller || !practice) throw errors.FORBIDDEN();
     const who = await seriesMember(

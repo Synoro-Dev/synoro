@@ -290,6 +290,26 @@ and run `tsc` by hand, build them first.
   (`readVisitSource`; the writer is `AdClick` in `apps/web` — keep them in
   sync). Admins read it via `admin.signIns.list` at `/sign-ins` and on the
   user's card.
+- **Taking the data out** (`docs/data-export.md`, format in
+  `docs/data-format.md`): `/settings/data`, `data.*` router, on any plan. Only
+  the owner, in person (`dataProcedure`: no impersonation, no demo accounts) and
+  with a confirmed password or code (`ACCESS_REQUIRED`, `useDataAccess`). The
+  archive is built by the `data-export` task; its input is an id, never data.
+  It's downloaded through the app, not a signed bucket link. A new table or
+  field of a practice goes into `collectPractice` and the format doc; secrets
+  never do. Screens with client data carry `ph-no-capture`. What we promise is
+  on the landing's «Ваши данные — ваши» (`/legal/your-data`): keep it true.
+- **Bringing data in** (`docs/data-import.md`): `/practices/<id>/import`,
+  `import.*`, owner only. Imported clients are `practice_clients` cards, never
+  accounts: nobody is joined to a practice by an address in a file, and cards
+  get no mail, because mail goes through `practice_members`. Every import is a
+  batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
+  `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
+- **Deleting an account** (`docs/account-deletion.md`): `account.*`, owners
+  only; 30 days to change one's mind (`account_deletions`), then the
+  `account-purge` cron. While it lasts the practice is closed: what lets someone
+  book, pay or join uses `findOpenPractice`, and a cron that writes on a
+  practice's behalf filters by `ownerStaying`. A new such cron needs it too.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes

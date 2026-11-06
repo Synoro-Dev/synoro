@@ -39,16 +39,24 @@
  *                     busy time on the practice calendar (staff)
  *   messenger.*     – the caller's Telegram / MAX chat for notices on
  *                     «Про»: status, start link, unlink    (any signed-in)
+ *   data.*          – taking the data out: archive, tables, calendar feed,
+ *                     weekly copy, journal      (owner, confirmed access)
+ *   account.*       – deleting the account and changing one's mind  (owner)
+ *   import.*        – bringing clients in from a table: upload, preview,
+ *                     apply, undo (owner), the cards (staff)
  */
 
+import { accountRouter } from "./account";
 import { adminRouter } from "./admin";
 import { analyticsRouter } from "./analytics";
 import { availabilityRouter } from "./availability";
 import { billingRouter } from "./billing";
 import { bookingRouter } from "./booking";
 import { creditRouter } from "./credit";
+import { dataRouter } from "./data";
 import { domainRouter } from "./domain";
 import { googleCalendarRouter } from "./google-calendar";
+import { importRouter } from "./import";
 import { messengerRouter } from "./messenger";
 import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
@@ -77,6 +85,9 @@ export const appRouter = {
   waitlist: waitlistRouter,
   analytics: analyticsRouter,
   messenger: messengerRouter,
+  data: dataRouter,
+  account: accountRouter,
+  import: importRouter,
 };
 
 export type AppRouter = typeof appRouter;
