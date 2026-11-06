@@ -10,6 +10,7 @@ export const errorStatusMap: Record<string, number> = {
   SLOT_UNAVAILABLE: 409,
   SIGN_IN_REQUIRED: 403,
   TOO_MANY_HOLDS: 429,
+  TOO_MANY_INVITES: 429,
   PHONE_REQUIRED: 422,
   TOO_LATE: 409,
   NOT_STARTED: 409,

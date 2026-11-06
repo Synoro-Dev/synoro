@@ -110,8 +110,11 @@ if (resend) {
   });
 }
 
-/** Postbox first, Resend if it fails (see `sendWithFallback`). */
-async function deliver(email: EmailHtml) {
+/**
+ * Postbox first, Resend if it fails (see `sendWithFallback`). `"skipped"`:
+ * no provider is configured, so nothing was sent and nothing failed.
+ */
+async function deliver(email: EmailHtml): Promise<"sent" | "skipped"> {
   const message = { ...email, from: email.from ?? env.EMAIL_FROM };
   if (env.EMAIL_SANDBOX_ENABLED) {
     const transporter = nodemailer.createTransport({
@@ -120,13 +123,13 @@ async function deliver(email: EmailHtml) {
       port: 2500,
     });
     await transporter.sendMail(message);
-    return;
+    return "sent";
   }
   if (providers.length === 0) {
     logger.warn("email.not_configured", {
       hint: "Add the POSTBOX_* access key or RESEND_API_KEY to .env",
     });
-    return;
+    return "skipped";
   }
   await sendWithFallback(providers, message, (provider, fallback, error) =>
     logger.warn("email.provider_failed", {
@@ -135,11 +138,12 @@ async function deliver(email: EmailHtml) {
       error: error instanceof Error ? error.message : String(error),
     }),
   );
+  return "sent";
 }
 
 export const sendEmail = async (email: Emails) => {
   const { react, ...rest } = email;
-  await deliver({ ...rest, ...(await renderParts(react)) });
+  return deliver({ ...rest, ...(await renderParts(react)) });
 };
 
 export const sendEmailHtml = (email: EmailHtml) => deliver(email);

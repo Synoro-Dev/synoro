@@ -1,10 +1,14 @@
 import { logger } from "@synoro/config";
 import { eq, Practice, PracticeInvitation, sql } from "@synoro/db";
-import { dispatchEmail } from "@synoro/jobs";
+import { sendOrQueueEmail } from "@synoro/jobs";
 import { memberInviteFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { hasPro } from "../../lib/billing";
+import {
+  claimInviteMail,
+  inviteMailsExhausted,
+} from "../../lib/invitation-mail";
 import {
   findStaffMembership,
   practiceProcedure,
@@ -13,9 +17,13 @@ import { practicesUrl } from "../../lib/urls";
 
 /**
  * Invite by email without looking up or disclosing the recipient's account;
- * the address gets a mail with the way to accept. A mail failure keeps the
- * invitation (it is shown under «Практики» after signing in) and is reported
- * as `emailed: false`. Membership (including promotion to administrator) requires acceptance.
+ * the address gets a mail with the way to accept. `mail` says what happened
+ * to it: `sent`, `queued` (a worker sends it, and may still fail), `failed`
+ * (not sent — the invitation stays and shows under «Практики» after signing
+ * in, so the inviter should tell the recipient) or `recent` (the same
+ * invitation was mailed within the hour). One account causes at most
+ * `MAX_INVITE_MAILS_PER_DAY` mails a day.
+ * Membership (including promotion to administrator) requires acceptance.
  * Only the owner may invite administrators, and only on «Про».
  *
  * @example client.practice.addMember({ practiceId, email, role: "client" })
@@ -24,6 +32,9 @@ export const addMember = practiceProcedure
   .errors({
     PLAN_REQUIRED: {
       message: "Доступно на тарифе «Про» — оплатите его в настройках",
+    },
+    TOO_MANY_INVITES: {
+      message: "Слишком много приглашений за сутки — попробуйте завтра",
     },
   })
   .input(memberInviteFormSchema.extend({ practiceId: z.uuid() }))
@@ -43,6 +54,10 @@ export const addMember = practiceProcedure
       throw errors.PLAN_REQUIRED({
         message: "Администраторы доступны на тарифе «Про»",
       });
+    }
+
+    if (await inviteMailsExhausted(context.db, staff.userId)) {
+      throw errors.TOO_MANY_INVITES();
     }
 
     const email = input.email.toLowerCase();
@@ -66,12 +81,21 @@ export const addMember = practiceProcedure
         },
       });
 
-    const practice = await context.db.query.Practice.findFirst({
-      columns: { name: true },
-      where: eq(Practice.id, input.practiceId),
+    // Inside the cooldown the invitation is extended, but no second mail goes.
+    const mailRight = await claimInviteMail(context.db, {
+      userId: context.session.user.id,
+      practiceId: input.practiceId,
+      role: input.role,
+      email,
     });
+    if (!mailRight.claimed) return { invited: true, mail: "recent" as const };
+
     try {
-      await dispatchEmail({
+      const practice = await context.db.query.Practice.findFirst({
+        columns: { name: true },
+        where: eq(Practice.id, input.practiceId),
+      });
+      const outcome = await sendOrQueueEmail({
         template: "practice-invitation",
         to: [email],
         subject: `Приглашение в практику «${practice?.name ?? "Synoro"}»`,
@@ -82,12 +106,17 @@ export const addMember = practiceProcedure
           acceptUrl: practicesUrl(),
         },
       });
-    } catch (error) {
+      if (outcome === "skipped") {
+        await mailRight.release();
+        return { invited: true, mail: "failed" as const };
+      }
+      return { invited: true, mail: outcome };
+    } catch {
+      // The provider's error text may repeat the recipient's address.
       logger.warn("practice.invitation_email_failed", {
-        error: error instanceof Error ? error.message : String(error),
+        practiceId: input.practiceId,
       });
-      return { invited: true, emailed: false };
+      await mailRight.release();
+      return { invited: true, mail: "failed" as const };
     }
-
-    return { invited: true, emailed: true };
   });
