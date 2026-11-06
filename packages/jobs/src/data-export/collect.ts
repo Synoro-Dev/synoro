@@ -1,4 +1,5 @@
 import {
+  ArchivedRecord,
   AvailabilityRule,
   and,
   asc,
@@ -32,6 +33,30 @@ export const DATA_FORMAT_VERSION = 1;
 
 function iso(at: Date | null | undefined) {
   return at ? at.toISOString() : null;
+}
+
+interface CreditEntryDump {
+  id: string;
+  client_id: string | null;
+  delta: number;
+  reason: string;
+  booking_id: string | null;
+  payment_id: string | null;
+  note: string | null;
+  created_at: string | null;
+}
+
+interface PaymentDump {
+  id: string;
+  client_id: string | null;
+  booking_id: string | null;
+  provider: "yookassa" | "tbank";
+  external_id: string | null;
+  status: "pending" | "succeeded" | "canceled";
+  credits: number;
+  amount_kopecks: number;
+  paid_at: string | null;
+  created_at: string | null;
 }
 
 /** Everyone in the practice: clients and staff, each with their account's contacts. */
@@ -79,9 +104,10 @@ async function loadBookings(db: Database, practiceId: string, since?: Date) {
     status: row.status,
     starts_at: iso(row.startsAt) as string,
     ends_at: iso(row.endsAt) as string,
-    client_id: row.memberId,
-    guest_name: row.guestName,
-    guest_phone: row.guestPhone,
+    client_id: row.memberId ?? row.clientId,
+    // On a booking of a card these only repeat the card, for the calendar.
+    guest_name: row.clientId ? null : row.guestName,
+    guest_phone: row.clientId ? null : row.guestPhone,
     guest_contact: row.guestContact,
     note: row.note,
     client_timezone: row.clientTimezone,
@@ -118,6 +144,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     workflows,
     credits,
     cards,
+    archived,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -189,7 +216,16 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(PracticeClient)
       .where(eq(PracticeClient.practiceId, practice.id))
       .orderBy(asc(PracticeClient.createdAt), asc(PracticeClient.id)),
+    db
+      .select({ kind: ArchivedRecord.kind, data: ArchivedRecord.data })
+      .from(ArchivedRecord)
+      .where(eq(ArchivedRecord.practiceId, practice.id))
+      .orderBy(asc(ArchivedRecord.createdAt), asc(ArchivedRecord.id)),
   ]);
+
+  // History from an earlier archive goes out with the live rows, in their form.
+  const archivedOf = <T>(kind: "payment" | "credit_entry") =>
+    archived.filter((row) => row.kind === kind).map((row) => row.data as T);
 
   return {
     id: practice.id,
@@ -233,35 +269,45 @@ export async function collectPractice(db: Database, practiceId: string) {
     })),
     series: series.map((row) => ({
       id: row.id,
-      client_id: row.memberId,
+      client_id: row.memberId ?? row.clientId,
       interval_weeks: row.intervalWeeks,
       count: row.count,
       cancelled_at: iso(row.cancelledAt),
       created_at: iso(row.createdAt),
     })),
     bookings,
-    credit_entries: credits.map((row) => ({
-      id: row.id,
-      client_id: row.memberId,
-      delta: row.delta,
-      reason: row.reason,
-      booking_id: row.bookingId,
-      payment_id: row.paymentId,
-      note: row.note,
-      created_at: iso(row.createdAt),
-    })),
-    payments: payments.map((row) => ({
-      id: row.id,
-      client_id: row.memberId,
-      booking_id: row.bookingId,
-      provider: row.provider,
-      external_id: row.externalId,
-      status: row.status,
-      credits: row.credits,
-      amount_kopecks: row.amount,
-      paid_at: iso(row.paidAt),
-      created_at: iso(row.createdAt),
-    })),
+    credit_entries: [
+      ...archivedOf<CreditEntryDump>("credit_entry"),
+      ...credits.map(
+        (row): CreditEntryDump => ({
+          id: row.id,
+          client_id: row.memberId,
+          delta: row.delta,
+          reason: row.reason,
+          booking_id: row.bookingId,
+          payment_id: row.paymentId,
+          note: row.note,
+          created_at: iso(row.createdAt),
+        }),
+      ),
+    ],
+    payments: [
+      ...archivedOf<PaymentDump>("payment"),
+      ...payments.map(
+        (row): PaymentDump => ({
+          id: row.id,
+          client_id: row.memberId,
+          booking_id: row.bookingId,
+          provider: row.provider,
+          external_id: row.externalId,
+          status: row.status,
+          credits: row.credits,
+          amount_kopecks: row.amount,
+          paid_at: iso(row.paidAt),
+          created_at: iso(row.createdAt),
+        }),
+      ),
+    ],
     payment_accounts: accounts.map((row) => ({
       provider: row.provider,
       active: row.active,
@@ -366,9 +412,18 @@ export async function collectForFeed(
   practiceId: string,
   since: Date,
 ) {
-  const [people, bookings] = await Promise.all([
+  const [people, cards, bookings] = await Promise.all([
     loadPeople(db, practiceId),
+    db
+      .select({
+        id: PracticeClient.id,
+        name: PracticeClient.name,
+        phone: PracticeClient.phone,
+        email: PracticeClient.email,
+      })
+      .from(PracticeClient)
+      .where(eq(PracticeClient.practiceId, practiceId)),
     loadBookings(db, practiceId, since),
   ]);
-  return { people, bookings };
+  return { people: [...people, ...cards], bookings };
 }

@@ -41,6 +41,7 @@ import { ErrorState, PageHeading } from "./states";
 type Upload = RouterOutputs["import"]["upload"];
 type Uploaded = Extract<Upload, { kind: "table" }>;
 type CalendarDraft = { kind: "calendar"; id: string; events: number };
+type ArchiveDraft = Extract<Upload, { kind: "archive" }>;
 type Preview = RouterOutputs["import"]["preview"];
 type Batch = RouterOutputs["import"]["list"][number];
 
@@ -90,15 +91,15 @@ function UploadStep({
           Загрузите файл
         </h2>
         <p className="text-sm text-muted-foreground">
-          Таблица с клиентами (CSV или XLSX) или календарь (ICS), до 10 МБ. Пока
-          вы не подтвердите, ничего не изменится. Клиенты ничего не получат: ни
-          писем, ни сообщений.
+          Таблица с клиентами (CSV или XLSX), календарь (ICS) или архив из
+          Synoro, до 10 МБ. Пока вы не подтвердите, ничего не изменится. Клиенты
+          ничего не получат: ни писем, ни сообщений.
         </p>
       </div>
       <input
         ref={input}
         type="file"
-        accept=".csv,.txt,.xlsx,.ics,text/csv,text/calendar,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,.txt,.xlsx,.ics,.json,.zip,text/csv,text/calendar,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="sr-only"
         aria-label="Файл с клиентами"
         onChange={(event) => {
@@ -271,6 +272,120 @@ function CalendarStep({
               eventsAs,
               duplicates: "skip",
               importNotes: false,
+              consent: true,
+            })
+          }
+        >
+          {commit.isPending && <Spinner />}
+          Загрузить
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * An archive downloaded from Synoro. It can hold several practices; one goes
+ * into this practice at a time. Settings come along only into an empty one.
+ */
+function ArchiveStep({
+  draft,
+  onBack,
+  onApplied,
+}: {
+  draft: ArchiveDraft;
+  onBack: () => void;
+  onApplied: () => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const [consent, setConsent] = useState(false);
+  const preview = useQuery(
+    orpc.import.previewArchive.queryOptions({
+      input: { batchId: draft.id, practiceIndex: index },
+    }),
+  );
+  const commit = useMutation({
+    ...orpc.import.commit.mutationOptions(),
+    onSuccess: onApplied,
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-base font-semibold tracking-tight">
+          Архив из Synoro
+        </h2>
+        {draft.practices.length > 1 && (
+          <RadioGroup
+            value={String(index)}
+            onValueChange={(value) => setIndex(Number(value))}
+          >
+            {draft.practices.map((practice, i) => (
+              <Label
+                key={`${practice.name}-${practice.clients}-${practice.bookings}`}
+                className="flex items-start gap-2 font-normal"
+              >
+                <RadioGroupItem value={String(i)} />
+                {practice.name}
+              </Label>
+            ))}
+          </RadioGroup>
+        )}
+      </div>
+
+      {preview.isError ? (
+        <ErrorState onRetry={() => preview.refetch()} />
+      ) : preview.isPending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <div className="flex flex-col gap-2 text-sm">
+          <ul className="flex flex-col gap-1">
+            <li>Клиенты: {preview.data.clients}</li>
+            <li>Записи: {preview.data.bookings}</li>
+            <li>
+              История оплат и баланса:{" "}
+              {preview.data.payments + preview.data.creditEntries}
+            </li>
+          </ul>
+          <p className="text-muted-foreground">
+            {preview.data.clean
+              ? `Настройки практики тоже загрузятся: название «${preview.data.name}», рабочие часы, анкета, пакеты и сообщения клиентам.`
+              : "В этой практике уже есть данные, поэтому её настройки мы не меняем: добавим только клиентов и записи."}
+          </p>
+          <p className="text-muted-foreground">
+            Клиенты с личным кабинетом перенесутся как карточки: кабинет
+            появится, когда они сами запишутся. Ключи оплаты, подключение Google
+            Календаря и адрес страницы не переносятся, их нужно будет настроить
+            заново.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-start gap-3">
+        <Checkbox
+          id="archive-consent"
+          checked={consent}
+          onCheckedChange={setConsent}
+          className="mt-0.5"
+        />
+        <Label htmlFor="archive-consent" className="font-normal">
+          Эти люди — мои клиенты, и я вправе хранить их данные в Synoro
+        </Label>
+      </div>
+
+      <div className="flex flex-wrap justify-between gap-2">
+        <Button variant="ghost" onClick={onBack}>
+          Другой файл
+        </Button>
+        <Button
+          disabled={commit.isPending || !consent || !preview.data}
+          onClick={() =>
+            commit.mutate({
+              batchId: draft.id,
+              archivePractice: index,
+              duplicates: "skip",
+              importNotes: true,
               consent: true,
             })
           }
@@ -680,6 +795,7 @@ export function PracticeImport({
   const queryClient = useQueryClient();
   const [uploaded, setUploaded] = useState<Uploaded | null>(null);
   const [calendar, setCalendar] = useState<CalendarDraft | null>(null);
+  const [archive, setArchive] = useState<ArchiveDraft | null>(null);
   const [mapping, setMapping] = useState<(ImportField | null)[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
 
@@ -692,6 +808,7 @@ export function PracticeImport({
   function reset() {
     setUploaded(null);
     setCalendar(null);
+    setArchive(null);
     setMapping([]);
     setPreview(null);
   }
@@ -717,12 +834,16 @@ export function PracticeImport({
               onBack={reset}
               onApplied={done}
             />
+          ) : archive ? (
+            <ArchiveStep draft={archive} onBack={reset} onApplied={done} />
           ) : !uploaded ? (
             <UploadStep
               practiceId={practiceId}
               onDone={(file) => {
                 if (file.kind === "calendar") {
                   setCalendar(file);
+                } else if (file.kind === "archive") {
+                  setArchive(file);
                 } else {
                   setUploaded(file);
                   setMapping(file.mapping);

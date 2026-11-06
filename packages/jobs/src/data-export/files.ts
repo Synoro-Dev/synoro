@@ -8,6 +8,12 @@ import { README_CLIENTS, README_FULL } from "./readme";
 
 type Booking = PracticeDump["bookings"][number];
 
+interface Person {
+  name: string;
+  phone: string | null;
+  email: string | null;
+}
+
 function capitalize(word: string) {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -41,7 +47,7 @@ function bookingPerson(
     Booking,
     "client_id" | "guest_name" | "guest_phone" | "guest_contact"
   >,
-  people: Map<string, { name: string; phone: string | null; email: string }>,
+  people: Map<string, Person>,
 ) {
   const person = booking.client_id ? people.get(booking.client_id) : undefined;
   return {
@@ -52,12 +58,13 @@ function bookingPerson(
   };
 }
 
-function peopleOf(practice: Pick<PracticeDump, "clients" | "team">) {
-  return new Map(
-    [...practice.clients, ...practice.team].map((person) => [
-      person.id,
-      person,
-    ]),
+function peopleOf(
+  practice: Pick<PracticeDump, "clients" | "team" | "imported_clients">,
+) {
+  return new Map<string, Person>(
+    [...practice.clients, ...practice.team, ...practice.imported_clients].map(
+      (person) => [person.id, person],
+    ),
   );
 }
 
@@ -299,7 +306,7 @@ export function bookingEvents(
     video_url?: string | null;
   },
   bookings: Booking[],
-  people: Map<string, { name: string; phone: string | null; email: string }>,
+  people: Map<string, Person>,
   showNames: boolean,
 ): CalendarEvent[] {
   return bookings.map((booking) => {

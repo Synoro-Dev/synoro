@@ -3,6 +3,7 @@ import {
   detectKind,
   FileProblem,
   MAX_FILE_BYTES,
+  readArchive,
   readEvents,
   readTable,
   saveImportFile,
@@ -59,7 +60,10 @@ export const upload = dataProcedure
     const bytes = new Uint8Array(await input.file.arrayBuffer());
 
     const practiceId = practice.id;
-    async function saveDraft(source: "table" | "calendar", rowCount: number) {
+    async function saveDraft(
+      source: "table" | "calendar" | "archive",
+      rowCount: number,
+    ) {
       const [batch] = await context.db
         .insert(ImportBatch)
         .values({
@@ -77,6 +81,19 @@ export const upload = dataProcedure
 
     try {
       const kind = detectKind(bytes);
+      if (kind === "json") {
+        const archive = readArchive(bytes);
+        return {
+          kind: "archive" as const,
+          id: await saveDraft("archive", archive.practices.length),
+          formatVersion: archive.format_version,
+          practices: archive.practices.map((row) => ({
+            name: row.name,
+            clients: row.clients.length + row.imported_clients.length,
+            bookings: row.bookings.length,
+          })),
+        };
+      }
       if (kind === "ics") {
         const events = readEvents(bytes, practice.timezone, new Date());
         if (events.length === 0) {

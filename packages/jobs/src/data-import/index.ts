@@ -6,6 +6,7 @@ export {
   undoImport,
 } from "./apply";
 export { loadImportFile, saveImportFile } from "./apply-file";
+export { isCleanPractice, readArchive } from "./archive";
 export {
   analyzeEvents,
   type EventResult,

@@ -109,6 +109,12 @@ export const ImportFile = pgTable(
 export const importItemEntity = pgEnum("import_item_entity", [
   "client",
   "booking",
+  "series",
+  "record",
+  "hours",
+  "package",
+  "message",
+  "settings",
 ]);
 
 /**
@@ -131,9 +137,37 @@ export const ImportBatchItem = pgTable(
     entity: importItemEntity().notNull(),
     entityId: t.uuid().notNull(),
     action: importItemAction().notNull(),
-    before: t.jsonb().$type<Record<string, string | null>>(),
+    before: t.jsonb().$type<Record<string, unknown>>(),
   }),
   (table) => [index("import_batch_items_batch_idx").on(table.batchId)],
 );
 
 export type ImportStatus = (typeof importStatus.enumValues)[number];
+
+/**
+ * History from an archive that has no live place here: old online payments and
+ * balance journal lines. A payment needs a merchant account with its key, which
+ * an archive never holds, and a journal line an account. Kept as it was and
+ * given back in the next export, so nothing is lost on the way through.
+ */
+export const archivedRecordKind = pgEnum("archived_record_kind", [
+  "payment",
+  "credit_entry",
+]);
+
+export const ArchivedRecord = pgTable(
+  "archived_records",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    practiceId: t
+      .uuid()
+      .notNull()
+      .references(() => Practice.id, { onDelete: "cascade" }),
+    kind: archivedRecordKind().notNull(),
+    data: t.jsonb().$type<Record<string, unknown>>().notNull(),
+    createdAt: t.timestamp({ withTimezone: true }).notNull(),
+  }),
+  (table) => [
+    index("archived_records_practice_idx").on(table.practiceId, table.kind),
+  ],
+);

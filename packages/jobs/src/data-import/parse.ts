@@ -32,7 +32,9 @@ export function detectKind(bytes: Uint8Array): FileKind {
   if (bytes.length > MAX_FILE_BYTES) {
     throw new FileProblem("Файл больше 10 МБ. Разделите его на несколько");
   }
-  if (bytes[0] === 0x50 && bytes[1] === 0x4b) return "xlsx";
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
+    return hasZipEntry(bytes, "data.json") ? "json" : "xlsx";
+  }
   const start = new Set(bytes.subarray(0, 8192));
   if (start.has(0)) {
     throw new FileProblem(
@@ -43,6 +45,22 @@ export function detectKind(bytes: Uint8Array): FileKind {
   if (text.startsWith("BEGIN:VCALENDAR")) return "ics";
   if (text.startsWith("{")) return "json";
   return "csv";
+}
+
+/** Looks at the names in a ZIP without unpacking anything. */
+function hasZipEntry(bytes: Uint8Array, name: string) {
+  let found = false;
+  try {
+    unzipSync(bytes, {
+      filter(file) {
+        if (file.name === name) found = true;
+        return false;
+      },
+    });
+  } catch {
+    throw new FileProblem("Не получилось прочитать файл. Он не повреждён?");
+  }
+  return found;
 }
 
 /** A BOM decides; then strict UTF-8; whatever fails that is Windows-1251. */

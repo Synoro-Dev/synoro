@@ -1,7 +1,10 @@
 import { logger } from "@synoro/config";
 import {
+  ArchivedRecord,
+  AvailabilityRule,
   and,
   Booking,
+  BookingSeries,
   count,
   type Database,
   eq,
@@ -11,12 +14,16 @@ import {
   type ImportOptions,
   inArray,
   lte,
+  PaymentPackage,
+  Practice,
   PracticeClient,
+  Workflow,
 } from "@synoro/db";
 
 import { toCsv } from "../data-export/csv";
 import { analyzeRows, type CleanClient, loadExisting } from "./analyze";
 import { loadImportFile } from "./apply-file";
+import { applyArchive } from "./archive";
 import { applyCalendar } from "./calendar";
 import { readTable } from "./parse";
 
@@ -192,26 +199,36 @@ export async function undoImport(db: Database, batchId: string) {
     .where(eq(ImportBatchItem.batchId, batchId));
 
   await db.transaction(async (tx) => {
-    const added = (entity: "client" | "booking") =>
+    const added = (entity: (typeof items)[number]["entity"]) =>
       items
         .filter((item) => item.action === "added" && item.entity === entity)
         .map((item) => item.entityId);
-    const bookings = added("booking");
-    if (bookings.length > 0) {
-      await tx.delete(Booking).where(inArray(Booking.id, bookings));
-    }
-    const clients = added("client");
-    if (clients.length > 0) {
-      await tx
-        .delete(PracticeClient)
-        .where(inArray(PracticeClient.id, clients));
+    // Bookings before what they point to.
+    const drops = [
+      [Booking, Booking.id, added("booking")],
+      [BookingSeries, BookingSeries.id, added("series")],
+      [PracticeClient, PracticeClient.id, added("client")],
+      [ArchivedRecord, ArchivedRecord.id, added("record")],
+      [AvailabilityRule, AvailabilityRule.id, added("hours")],
+      [PaymentPackage, PaymentPackage.id, added("package")],
+      [Workflow, Workflow.id, added("message")],
+    ] as const;
+    for (const [table, column, ids] of drops) {
+      if (ids.length > 0) await tx.delete(table).where(inArray(column, ids));
     }
     for (const item of items) {
       if (item.action !== "merged" || !item.before) continue;
-      await tx
-        .update(PracticeClient)
-        .set(item.before)
-        .where(eq(PracticeClient.id, item.entityId));
+      if (item.entity === "settings") {
+        await tx
+          .update(Practice)
+          .set(item.before)
+          .where(eq(Practice.id, item.entityId));
+      } else {
+        await tx
+          .update(PracticeClient)
+          .set(item.before)
+          .where(eq(PracticeClient.id, item.entityId));
+      }
     }
     await tx.delete(ImportFile).where(eq(ImportFile.batchId, batchId));
     await tx
@@ -235,7 +252,9 @@ export async function runImport(db: Database, batchId: string) {
     const totals =
       batch.source === "calendar"
         ? await applyCalendar(db, batchId, batch.options.eventsAs ?? "bookings")
-        : await applyTable(db, batchId, batch.options);
+        : batch.source === "archive"
+          ? await applyArchive(db, batchId, batch.options.archivePractice ?? 0)
+          : await applyTable(db, batchId, batch.options);
     await db
       .update(ImportBatch)
       .set({ status: "applied", totals, appliedAt: new Date() })

@@ -26,6 +26,7 @@ export const commit = dataProcedure
       batchId: z.uuid(),
       mapping: mappingSchema.optional(),
       eventsAs: z.enum(["bookings", "blocked"]).optional(),
+      archivePractice: z.number().int().min(0).max(49).optional(),
       duplicates: z.enum(["merge", "skip"]),
       importNotes: z.boolean(),
       consent: z.literal(true),
@@ -47,6 +48,7 @@ export const commit = dataProcedure
         options: {
           mapping: input.mapping ?? [],
           eventsAs: input.eventsAs,
+          archivePractice: input.archivePractice,
           duplicates: input.duplicates,
           importNotes: input.importNotes,
         },
