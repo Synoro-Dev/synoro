@@ -46,6 +46,7 @@ import { ClientCard } from "./client-card";
 import { AddMemberDialog, CreditDialog } from "./client-dialogs";
 import { dataGridI18n } from "./data-grid-i18n";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
+import { ImportedClients } from "./practice-import";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 import { useTerms } from "./terms";
 
@@ -347,6 +348,8 @@ export function PracticeClients({
           </div>
         </div>
       )}
+
+      <ImportedClients practiceId={practiceId} search={search} />
 
       <ClientCard
         practiceId={practiceId}

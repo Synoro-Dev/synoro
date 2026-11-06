@@ -12,6 +12,7 @@ import {
   PaymentAccount,
   PaymentPackage,
   Practice,
+  PracticeClient,
   PracticeDomain,
   PracticeMember,
   PracticeSlugAlias,
@@ -116,6 +117,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     accounts,
     workflows,
     credits,
+    cards,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -182,6 +184,11 @@ export async function collectPractice(db: Database, practiceId: string) {
       .innerJoin(PracticeMember, eq(PracticeMember.id, CreditEntry.memberId))
       .where(eq(PracticeMember.practiceId, practice.id))
       .orderBy(asc(CreditEntry.createdAt), asc(CreditEntry.id)),
+    db
+      .select()
+      .from(PracticeClient)
+      .where(eq(PracticeClient.practiceId, practice.id))
+      .orderBy(asc(PracticeClient.createdAt), asc(PracticeClient.id)),
   ]);
 
   return {
@@ -211,6 +218,15 @@ export async function collectPractice(db: Database, practiceId: string) {
     clients: people
       .filter((person) => person.role === "client")
       .map(({ role: _, ...client }) => client),
+    imported_clients: cards.map((card) => ({
+      id: card.id,
+      name: card.name,
+      phone: card.phone,
+      email: card.email,
+      note: card.note,
+      credits: card.credits,
+      created_at: iso(card.createdAt),
+    })),
     packages: packages.map((row) => ({
       credits: row.credits,
       price_kopecks: row.price,

@@ -39,6 +39,8 @@
 - `team` — владелец и администраторы: `id`, `role`, `name`, `email`, `phone`,
   `credits`, `created_at`.
 - `clients` — клиенты с кабинетом: те же поля без `role`.
+- `imported_clients` — карточки клиентов, перенесённых из таблиц и других
+  сервисов: `id`, `name`, `phone`, `email`, `note`, `credits`, `created_at`.
 
 Гости, которых записывали по имени и телефону, отдельным списком не идут: они
 живут в полях записи (`guest_name`, `guest_phone`, `guest_contact`).

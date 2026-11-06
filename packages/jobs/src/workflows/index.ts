@@ -13,6 +13,7 @@ export {
   dataExportsCleanupWorkflow,
   dataExportTask,
 } from "./data-export";
+export { dataImportTask } from "./data-import";
 export { googleCalendarCleanupWorkflow } from "./google-calendar-cleanup";
 export type { HelloWorldInput } from "./hello-world";
 export { helloWorldTask } from "./hello-world";

@@ -79,6 +79,17 @@ export function clientsCsv(practices: PracticeDump[]) {
         "Клиент с кабинетом",
       ]);
     }
+    for (const card of practice.imported_clients) {
+      rows.push([
+        practice.name,
+        card.name,
+        phoneCell(card.phone),
+        card.email,
+        card.credits,
+        csvDate(card.created_at, practice.timezone),
+        "Перенесён из другого сервиса",
+      ]);
+    }
     const guests = new Map<string, Booking>();
     for (const booking of practice.bookings) {
       if (booking.client_id || !booking.guest_name) continue;

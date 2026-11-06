@@ -1,4 +1,5 @@
 import { env, logger } from "@synoro/config";
+import type { Database } from "@synoro/db";
 import { sendTemplateEmail, type TemplateEmail } from "@synoro/emails";
 
 /**
@@ -33,12 +34,46 @@ export async function dispatchEmail(message: TemplateEmail): Promise<void> {
   await sendTemplateEmail(message);
 }
 
+/** A table this long goes to the worker; a shorter one is written right away. */
+const IMPORT_INLINE_ROWS = 1000;
+
+/**
+ * Writes an import. A big one goes to the background when Hatchet is
+ * configured. Its input is the batch's id: the rows stay out of Hatchet.
+ */
+export async function dispatchImport(
+  db: Database,
+  batchId: string,
+  rowCount: number,
+): Promise<void> {
+  if (jobsEnabled && rowCount > IMPORT_INLINE_ROWS) {
+    try {
+      const { dataImportTask } = await import("./workflows/data-import");
+      await dataImportTask.runNoWait({ batchId });
+      return;
+    } catch (error) {
+      logger.warn("jobs.enqueue_failed", {
+        task: "data-import",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const { runImport } = await import("./data-import/apply");
+  await runImport(db, batchId).catch(() => {
+    // Marked as failed on the batch, where the specialist sees it.
+  });
+}
+
 /**
  * Builds a data archive in the background when Hatchet is configured;
  * otherwise, or if enqueueing fails, right here. A failure here only marks the
  * row: the specialist sees it in the settings and asks again.
  */
-export async function dispatchDataExport(exportId: string): Promise<void> {
+export async function dispatchDataExport(
+  db: Database,
+  exportId: string,
+): Promise<void> {
   if (jobsEnabled) {
     try {
       const { dataExportTask } = await import("./workflows/data-export");
@@ -52,10 +87,7 @@ export async function dispatchDataExport(exportId: string): Promise<void> {
     }
   }
 
-  const [{ db }, { runDataExport }] = await Promise.all([
-    import("@synoro/db"),
-    import("./data-export/run"),
-  ]);
+  const { runDataExport } = await import("./data-export/run");
   await runDataExport(db, exportId).catch((error: unknown) =>
     logger.warn("data_export.failed", {
       exportId,

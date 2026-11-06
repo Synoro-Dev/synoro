@@ -77,6 +77,6 @@ export const startExport = dataProcedure
       action: "export_requested",
       details: { kind: "full" },
     });
-    await dispatchDataExport(row.id);
+    await dispatchDataExport(context.db, row.id);
     return { id: row.id };
   });

@@ -5,6 +5,7 @@ import {
   runClientBackups,
   runDataExport,
 } from "../data-export";
+import { cleanupImports } from "../data-import/apply";
 import { hatchet } from "./client";
 
 /**
@@ -37,6 +38,7 @@ dataExportsCleanupWorkflow.task({
   executionTimeout: "120s",
   fn: async () => {
     await cleanupDataExports(db);
+    await cleanupImports(db);
   },
 });
 

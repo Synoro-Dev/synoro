@@ -285,6 +285,12 @@ and run `tsc` by hand, build them first.
   It's downloaded through the app, not a signed bucket link. A new table or
   field of a practice goes into `collectPractice` and the format doc; secrets
   never do. Screens with client data carry `ph-no-capture`.
+- **Bringing data in** (`docs/data-import.md`): `/practices/<id>/import`,
+  `import.*`, owner only. Imported clients are `practice_clients` cards, never
+  accounts: nobody is joined to a practice by an address in a file, and cards
+  get no mail, because mail goes through `practice_members`. Every import is a
+  batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
+  `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
 - **Deleting an account** (`docs/account-deletion.md`): `account.*`, owners
   only; 30 days to change one's mind (`account_deletions`), then the
   `account-purge` cron. While it lasts the practice is closed: what lets someone

@@ -32,4 +32,8 @@ export const errorStatusMap: Record<string, number> = {
   CONFIRMATION_MISMATCH: 422,
   IS_ADMIN: 409,
   PAYMENT_IN_PROGRESS: 409,
+  FILE_PROBLEM: 422,
+  TOO_MANY_UPLOADS: 429,
+  ALREADY_APPLIED: 409,
+  NOT_APPLIED: 409,
 };

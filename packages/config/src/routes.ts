@@ -78,6 +78,9 @@ export const paths = {
     /** The questionnaire clients fill in when booking («Про»). */
     questions: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/questions` as const,
+    /** Bringing clients in from a table or another service. Owner only. */
+    import: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/import` as const,
     /** Owner and administrators. */
     team: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/team` as const,
