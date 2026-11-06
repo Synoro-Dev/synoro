@@ -272,10 +272,24 @@ export function AddMemberDialog({
 
   const add = useMutation({
     ...orpc.practice.addMember.mutationOptions(),
-    onSuccess: async () => {
-      toast.success(
-        "Приглашение отправлено. Его примут в разделе «Практики» после входа с этой почтой.",
-      );
+    onSuccess: async ({ mail }) => {
+      if (mail === "failed") {
+        toast.warning(
+          "Приглашение сохранено, но письмо не ушло. Его увидят в разделе «Практики» после входа с этой почтой — сообщите об этом сами.",
+        );
+      } else if (mail === "queued") {
+        toast.success(
+          "Приглашение сохранено, письмо отправляется. Его примут в разделе «Практики» после входа с этой почтой.",
+        );
+      } else if (mail === "recent") {
+        toast.success(
+          "Приглашение продлено на 7 дней. Письмо на этот адрес уже отправляли недавно.",
+        );
+      } else {
+        toast.success(
+          "Приглашение отправлено на почту. Его примут в разделе «Практики» после входа с этой почтой.",
+        );
+      }
       setEmail("");
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       onClose();

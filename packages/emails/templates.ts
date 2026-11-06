@@ -4,6 +4,7 @@ import BookingNoticeEmail from "./emails/booking-notice";
 import DataAccessCodeEmail from "./emails/data-access-code";
 import DataExportReadyEmail from "./emails/data-export-ready";
 import OtpSignInEmail from "./emails/otp-sign-in";
+import PracticeInvitationEmail from "./emails/practice-invitation";
 import ProNoticeEmail from "./emails/pro-notice";
 import RenewalNoticeEmail from "./emails/renewal-notice";
 import ResetPasswordEmail from "./emails/reset-password";
@@ -20,6 +21,7 @@ const templates = {
   "data-access-code": DataAccessCodeEmail,
   "data-export-ready": DataExportReadyEmail,
   "otp-sign-in": OtpSignInEmail,
+  "practice-invitation": PracticeInvitationEmail,
   "pro-notice": ProNoticeEmail,
   "renewal-notice": RenewalNoticeEmail,
   "reset-password": ResetPasswordEmail,

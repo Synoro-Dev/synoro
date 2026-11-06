@@ -14,14 +14,18 @@ export const jobsEnabled = Boolean(env.HATCHET_CLIENT_TOKEN);
 /**
  * Sends a template email via the `send-email` Hatchet task (durable, with
  * retries) when Hatchet is configured; otherwise — or if enqueueing fails —
- * sends it right away in this process.
+ * sends it right away in this process. Says what happened: `"queued"` (the
+ * worker sends it later, and may still fail), `"sent"`, or `"skipped"` (no
+ * mail provider is configured here, nothing went out).
  */
-export async function dispatchEmail(message: TemplateEmail): Promise<void> {
+export async function sendOrQueueEmail(
+  message: TemplateEmail,
+): Promise<"queued" | "sent" | "skipped"> {
   if (jobsEnabled) {
     try {
       const { sendEmailTask } = await import("./workflows/send-email");
       await sendEmailTask.runNoWait(message);
-      return;
+      return "queued";
     } catch (error) {
       logger.warn("jobs.enqueue_failed", {
         task: "send-email",
@@ -31,7 +35,12 @@ export async function dispatchEmail(message: TemplateEmail): Promise<void> {
     }
   }
 
-  await sendTemplateEmail(message);
+  return sendTemplateEmail(message);
+}
+
+/** `sendOrQueueEmail` for callers that don't need to know what happened. */
+export async function dispatchEmail(message: TemplateEmail): Promise<void> {
+  await sendOrQueueEmail(message);
 }
 
 /** A table this long goes to the worker; a shorter one is written right away. */

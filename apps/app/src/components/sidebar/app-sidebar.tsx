@@ -13,8 +13,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@synoro/ui";
 import {
+  ArrowLeftIcon,
   CalendarCheckIcon,
   CalendarDaysIcon,
   CalendarSearchIcon,
@@ -32,8 +34,13 @@ import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type * as React from "react";
+import { useEffect } from "react";
 
-import { practiceSections } from "../settings/practice-sections";
+import {
+  isPracticeSettingsPage,
+  practiceSections,
+} from "../settings/practice-sections";
+import { accountSections } from "../settings/settings-sidebar";
 import { CommandMenu } from "./command-menu";
 import { DemoSwitcher } from "./demo-switcher";
 import { MobileTabBar } from "./mobile-tab-bar";
@@ -52,10 +59,10 @@ interface NavItem {
   external?: boolean;
 }
 
-function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
+function NavGroup({ label, items }: { label?: string; items: NavItem[] }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
       <SidebarMenu>
         {items.map((item) => (
           <SidebarMenuItem key={item.title}>
@@ -84,9 +91,9 @@ function NavGroup({ label, items }: { label: string; items: NavItem[] }) {
 
 /**
  * The practice's sections for the viewer's role. Daily work first, the
- * rarely touched settings below, behind one entry (`practiceSections`).
- * Administrators see only what they may do — never a page that would just
- * say «the owner sets this».
+ * rarely touched settings below, behind one entry: inside them the sidebar
+ * lists `settings` instead. Administrators see only what they may do — never
+ * a page that would just say «the owner sets this».
  */
 function practiceNav(practice: SidebarPractice, pathname: string) {
   const id = practice.practiceId;
@@ -112,8 +119,8 @@ function practiceNav(practice: SidebarPractice, pathname: string) {
       owner,
     ),
   ];
-  const sections = practiceSections(id, owner).flatMap((g) => g.sections);
-  const settings = paths.booking.settings(id);
+  const groups = practiceSections(id, owner);
+  const sections = groups.flatMap((g) => g.sections);
   const open: NavItem = {
     title: "Открыть страницу записи",
     href: paths.booking.public(practice.slug),
@@ -124,21 +131,29 @@ function practiceNav(practice: SidebarPractice, pathname: string) {
   const setup: NavItem[] = [
     {
       title: "Настройки практики",
-      href: settings,
+      href: paths.booking.settings(id),
       icon: SlidersHorizontalIcon,
-      active:
-        pathname === settings || sections.some((s) => s.href === pathname),
+      active: false,
     },
     open,
   ];
-  // ⌘K finds each section by name; the sidebar shows the one way into them.
+  const settings = groups.map((group) => ({
+    label: group.title,
+    items: group.sections.map(({ title, href, icon }) => ({
+      title,
+      href,
+      icon,
+      active: pathname === href,
+    })),
+  }));
+  // ⌘K finds each section by name, from anywhere in the console.
   const search = [
     ...work,
     ...setup.slice(0, 1),
     ...sections.map(({ title, href, icon }) => ({ title, href, icon })),
     open,
   ];
-  return { work, setup, search };
+  return { work, setup, settings, search };
 }
 
 export function AppSidebar({
@@ -153,6 +168,10 @@ export function AppSidebar({
   demoAccounts?: (DemoAccount & { key: string })[];
 }) {
   const pathname = usePathname();
+  const { setOpenMobile } = useSidebar();
+  // A link tapped in the phone's sheet: the page it opened should be in view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs per address.
+  useEffect(() => setOpenMobile(false), [pathname, setOpenMobile]);
   const staffPractices = practices.filter((p) => p.role !== "client");
   const fromPath = PRACTICE_PATH.exec(pathname)?.[1];
   const current =
@@ -161,6 +180,24 @@ export function AppSidebar({
   // «Про» is the owner's plan: admins and clients don't pay for it.
   const isOwner = practices.some((p) => p.role === "owner");
   const nav = current ? practiceNav(current, pathname) : null;
+  const inAccountSettings = pathname.startsWith(paths.settings.root);
+  // Settings have sections of their own: they take the sidebar's place, so a
+  // settings page has one navigation, not one beside another.
+  const settingsNav = inAccountSettings
+    ? [
+        {
+          label: "Настройки аккаунта",
+          items: accountSections.map(({ title, href, icon }) => ({
+            title,
+            href,
+            icon,
+            active: pathname === href,
+          })),
+        },
+      ]
+    : nav && current && isPracticeSettingsPage(current.practiceId, pathname)
+      ? nav.settings
+      : null;
 
   return (
     <>
@@ -186,7 +223,25 @@ export function AppSidebar({
           )}
         </SidebarHeader>
         <SidebarContent>
-          {nav ? (
+          {settingsNav ? (
+            <>
+              <NavGroup
+                items={[
+                  {
+                    title: "На главную",
+                    href: current
+                      ? paths.booking.practice(current.practiceId)
+                      : paths.dashboard.root,
+                    icon: ArrowLeftIcon,
+                    active: false,
+                  },
+                ]}
+              />
+              {settingsNav.map((group) => (
+                <NavGroup key={group.label} {...group} />
+              ))}
+            </>
+          ) : nav ? (
             <>
               <NavGroup label="Работа" items={nav.work} />
               <NavGroup label="Практика" items={nav.setup} />
@@ -204,7 +259,7 @@ export function AppSidebar({
               ]}
             />
           )}
-          {isClient && (
+          {isClient && !settingsNav && (
             <NavGroup
               label="Я клиент"
               items={[
@@ -223,18 +278,19 @@ export function AppSidebar({
         </SidebarContent>
         <SidebarFooter>
           {isOwner && <NavPlan />}
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                tooltip="Настройки аккаунта"
-                isActive={pathname.startsWith(paths.settings.root)}
-                render={<Link href={paths.settings.root} />}
-              >
-                <SettingsIcon />
-                <span>Настройки аккаунта</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
+          {!inAccountSettings && (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip="Настройки аккаунта"
+                  render={<Link href={paths.settings.root} />}
+                >
+                  <SettingsIcon />
+                  <span>Настройки аккаунта</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
           <NavUser user={user} />
         </SidebarFooter>
         <SidebarRail />

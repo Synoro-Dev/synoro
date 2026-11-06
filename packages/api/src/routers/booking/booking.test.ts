@@ -122,7 +122,7 @@ describe("practice", () => {
       { practiceId, email: "ADMIN@anna.test", role: "admin" },
       { context: api.context(owner) },
     );
-    expect(invited).toEqual({ invited: true });
+    expect(invited).toMatchObject({ invited: true });
     expect(
       await call(practiceRouter.mine, undefined, {
         context: api.context(admin),
@@ -160,7 +160,7 @@ describe("practice", () => {
         { practiceId, email: "other@anna.test", role: "client" },
         { context: api.context(admin) },
       ),
-    ).toEqual(invited);
+    ).toMatchObject({ invited: true });
   });
 
   it("invites unregistered emails without disclosure and hides profiles until acceptance", async () => {
@@ -173,7 +173,7 @@ describe("practice", () => {
       await call(practiceRouter.addMember, input, {
         context: api.context(owner),
       }),
-    ).toEqual({ invited: true });
+    ).toMatchObject({ invited: true });
     // Repeating the invitation is idempotent.
     await call(practiceRouter.addMember, input, {
       context: api.context(owner),

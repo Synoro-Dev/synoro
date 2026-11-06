@@ -99,7 +99,13 @@ export async function proxy(request: NextRequest) {
       demo.searchParams.set("next", `${pathname}${search}`);
       return NextResponse.redirect(demo);
     }
-    return NextResponse.redirect(new URL(paths.auth.login, appUrl));
+    const login = new URL(paths.auth.login, appUrl);
+    // The mailed invitation leads here: after signing in, come back to the
+    // practices (where it is accepted), not to home. See `homeAfterAuth`.
+    if (pathname === paths.booking.practices) {
+      login.searchParams.set("to", "practices");
+    }
+    return NextResponse.redirect(login);
   }
 
   return NextResponse.next();

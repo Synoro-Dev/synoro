@@ -28,6 +28,11 @@ export function guestBookingUrl(token: string) {
   return new URL(paths.booking.guest(token), bookingOrigin()).href;
 }
 
+/** «Практики» in the app: where a signed-in user accepts an invitation. */
+export function practicesUrl() {
+  return new URL(paths.booking.practices, env.APP_URL).href;
+}
+
 /** The cabinet; signed-out visitors are sent to the code sign-in first. */
 export function cabinetUrl() {
   return new URL(paths.booking.mine, bookingOrigin()).href;
