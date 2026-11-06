@@ -26,6 +26,7 @@ import { availabilityRouter } from "../availability";
 import { paymentRouter } from "../payment";
 import { practiceRouter } from "../practice";
 import { questionRouter } from "../question";
+import { serviceRouter } from "../service";
 import { bookingRouter } from ".";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
@@ -417,6 +418,84 @@ describe("booking as a visitor", () => {
         { context: api.context(owner) },
       );
     }
+  });
+
+  it("spends the price of a longer service when the payment succeeds", async () => {
+    const [hour] = (
+      await call(
+        serviceRouter.list,
+        { practiceId },
+        { context: api.context(owner) },
+      )
+    ).services;
+    if (!hour) throw new Error("no service");
+    const { services } = await call(
+      serviceRouter.save,
+      {
+        practiceId,
+        services: [
+          { ...hour, active: true },
+          { name: "Длинная сессия", minutes: 90, credits: 2, active: true },
+        ],
+      },
+      { context: api.context(owner) },
+    );
+    const long = services.find((x) => x.name === "Длинная сессия");
+    if (!long) throw new Error("no long service");
+
+    // A package of one cannot pay for a service of two.
+    await expect(
+      call(
+        bookingRouter.reserve,
+        {
+          practiceId,
+          packageId: await packageId(1),
+          startsAt: monday(20, "07:00"),
+          serviceId: long.id,
+          ...visitor("small@visitor.test"),
+        },
+        { context: api.context() },
+      ),
+    ).rejects.toMatchObject({ code: "PACKAGE_TOO_SMALL" });
+
+    acceptsPayment("g-long");
+    const email = "long@visitor.test";
+    const { token } = await call(
+      bookingRouter.reserve,
+      {
+        practiceId,
+        packageId: await packageId(5),
+        startsAt: monday(20, "07:00"),
+        serviceId: long.id,
+        ...visitor(email),
+      },
+      { context: api.context() },
+    );
+    const held = await api.db.query.Booking.findFirst({
+      where: eq(Booking.accessTokenHash, hashGuestToken(token)),
+    });
+    expect(held).toMatchObject({ serviceId: long.id, credits: 2 });
+    expect(
+      (held?.endsAt.getTime() ?? 0) - (held?.startsAt.getTime() ?? 0),
+    ).toBe(90 * 60_000);
+
+    remoteStatus({ id: "g-long", status: "succeeded" });
+    expect(await guest(token)).toMatchObject({
+      state: "confirmed",
+      balance: 3,
+    });
+    const memberId = (
+      await api.db.query.PracticeMember.findFirst({
+        where: eq(PracticeMember.credits, 3),
+      })
+    )?.id;
+    const entries = await api.db.query.CreditEntry.findMany({
+      where: eq(CreditEntry.memberId, memberId ?? ""),
+    });
+    expect(entries.map((e) => [e.reason, e.delta]).sort()).toEqual([
+      ["booking", -2],
+      ["purchase", 5],
+    ]);
   });
 
   it("does not open someone else's booking with a wrong token", async () => {

@@ -7,7 +7,8 @@ type ServerEvent =
   | "booking_reserved"
   | "intro_booked"
   | "messenger_linked"
-  | "payment_succeeded";
+  | "payment_succeeded"
+  | "waitlist_joined";
 
 let client: PostHog | null | undefined;
 

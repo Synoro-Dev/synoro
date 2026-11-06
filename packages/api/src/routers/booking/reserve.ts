@@ -34,7 +34,8 @@ import {
   startPayment,
 } from "../../lib/payments";
 import { findPractice } from "../../lib/practice-access";
-import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
+import { isScheduledSlot } from "../../lib/schedule";
+import { resolveService } from "../../lib/services";
 import { publicProcedure } from "../../orpc";
 
 /** One visitor cannot hold more unpaid times than this at once. */
@@ -60,6 +61,10 @@ export const reserve = publicProcedure
       message: "Специалист пока не принимает оплату онлайн",
     },
     SLOT_UNAVAILABLE: { message: "Это время недоступно для записи" },
+    SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
+    PACKAGE_TOO_SMALL: {
+      message: "В этом пакете не хватает занятий на выбранную услугу",
+    },
     SIGN_IN_REQUIRED: {
       message: "Эта почта принадлежит специалисту практики — войдите в аккаунт",
     },
@@ -76,6 +81,8 @@ export const reserve = publicProcedure
       practiceId: z.uuid(),
       packageId: z.uuid(),
       startsAt: z.date(),
+      /** What to book; the practice's first service when missing. */
+      serviceId: z.uuid().optional(),
       answers: bookingAnswersInput,
       /** The visitor's browser zone: the mails write the time in it. */
       timezone: clientTimeZoneInput,
@@ -96,6 +103,15 @@ export const reserve = publicProcedure
     ]);
     if (!account) throw errors.PAYMENTS_DISABLED();
     if (!pkg) throw errors.NOT_FOUND();
+    const service = await resolveService(
+      context.db,
+      practice.id,
+      input.serviceId,
+    );
+    if (!service) throw errors.SERVICE_NOT_FOUND();
+    // The payment spends the service's price on the booking; a smaller package
+    // would leave the balance below zero.
+    if (pkg.credits < service.credits) throw errors.PACKAGE_TOO_SMALL();
     const questionnaire = await bookingAnswers(
       context.db,
       practice,
@@ -111,11 +127,12 @@ export const reserve = publicProcedure
       startsAt: input.startsAt,
       timeZone: practice.timezone,
       kind: "consultation",
+      minutes: service.minutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
     const endsAt = new Date(
-      input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
+      input.startsAt.getTime() + service.minutes * 60_000,
     );
     const range = { startsAt: input.startsAt, endsAt };
     if (await isBusyInGoogle(context.db, practice.id, range)) {
@@ -148,6 +165,8 @@ export const reserve = publicProcedure
         .values({
           practiceId: practice.id,
           kind: "consultation",
+          serviceId: service.id,
+          credits: service.credits,
           startsAt: input.startsAt,
           endsAt,
           memberId: guest.memberId,

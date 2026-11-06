@@ -13,6 +13,7 @@ describe("practiceSections", () => {
   test("the owner sees every section", () => {
     expect(titles(true)).toEqual([
       "Страница записи",
+      "Услуги",
       "Рабочие часы",
       "Правила",
       "Анкета",

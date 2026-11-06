@@ -31,6 +31,7 @@ import {
   professionTerms,
 } from "./profession";
 import { profileFormSchema } from "./profile";
+import { serviceStepMinutes, servicesFormSchema } from "./service";
 import { canonicalTimeZone, clientTimeZoneInput } from "./timezone";
 import { normalizeVideoUrl, videoServiceName, videoUrlSchema } from "./video";
 import {
@@ -820,5 +821,39 @@ describe("clientTimeZoneInput", () => {
   test("canonicalTimeZone is undefined for garbage", () => {
     expect(canonicalTimeZone("not a zone")).toBeUndefined();
     expect(canonicalTimeZone("UTC")).toBe("UTC");
+  });
+});
+
+describe("services", () => {
+  test("steps whole hours and an hour with a break on the hour, the rest on the half hour", () => {
+    expect(serviceStepMinutes(60)).toBe(60);
+    expect(serviceStepMinutes(120)).toBe(60);
+    expect(serviceStepMinutes(50)).toBe(60);
+    expect(serviceStepMinutes(46)).toBe(60);
+    expect(serviceStepMinutes(30)).toBe(30);
+    expect(serviceStepMinutes(45)).toBe(30);
+    expect(serviceStepMinutes(90)).toBe(30);
+  });
+
+  test("needs a name, a length on the 5-minute step and one service on", () => {
+    const ok = { name: "Консультация", minutes: 60, credits: 1, active: true };
+    expect(servicesFormSchema.safeParse({ services: [ok] }).success).toBe(true);
+    expect(servicesFormSchema.safeParse({ services: [] }).success).toBe(false);
+    expect(
+      servicesFormSchema.safeParse({ services: [{ ...ok, name: " " }] })
+        .success,
+    ).toBe(false);
+    expect(
+      servicesFormSchema.safeParse({ services: [{ ...ok, minutes: 47 }] })
+        .success,
+    ).toBe(false);
+    expect(
+      servicesFormSchema.safeParse({ services: [{ ...ok, credits: 11 }] })
+        .success,
+    ).toBe(false);
+    expect(
+      servicesFormSchema.safeParse({ services: [{ ...ok, active: false }] })
+        .success,
+    ).toBe(false);
   });
 });

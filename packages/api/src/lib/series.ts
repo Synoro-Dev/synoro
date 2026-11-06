@@ -43,10 +43,16 @@ export const SERIES_MAX = 12;
 export async function previewSeries(
   db: Database,
   practice: { id: string; timezone: string },
-  series: { startsAt: Date; intervalWeeks: number; count: number },
+  series: {
+    startsAt: Date;
+    intervalWeeks: number;
+    count: number;
+    /** Length of the service booked; an hour when missing. */
+    minutes?: number;
+  },
   options: { checkGoogle: boolean },
 ) {
-  const length = SLOT_MINUTES.consultation * 60_000;
+  const length = (series.minutes ?? SLOT_MINUTES.consultation) * 60_000;
   const slots = seriesSlots(
     series.startsAt,
     series.intervalWeeks,
@@ -87,6 +93,7 @@ export async function previewSeries(
         startsAt: range.startsAt,
         timeZone: practice.timezone,
         kind: "consultation",
+        minutes: series.minutes,
         now,
       })
     ) {

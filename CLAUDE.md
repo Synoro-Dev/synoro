@@ -164,6 +164,17 @@ and run `tsc` by hand, build them first.
   single switches apply at once. The first setup
   (`/practices/<id>/setup?step=`) opens once, after creating a practice; it
   stores nothing of its own, and `SetupProgress` on «Сегодня» leads back to it.
+- **Services and the waiting list** (`docs/services.md`): `services` (name,
+  `minutes`, price in `credits`, `active`; owner edits at
+  `/practices/<id>/services`, `service.*` router) — every booking procedure takes
+  an optional `serviceId`, resolved by `resolveService` (`lib/services.ts`; none
+  — the first active, no rows — an hour for one credit). A booking stores what it
+  was charged (`bookings.credits`) and a refund returns that, never the service's
+  current price. Slot length and step: `computeSlots({ minutes })`,
+  `serviceStepMinutes`. Waiting list (`waitlist_entries`, `waitlist.*`): a wish
+  for days, hours and a service; `notifyWaitlist` (`@synoro/jobs/waitlist`)
+  tells fitting wishes once when a booking is cancelled or moved away — nothing
+  is held, first to book gets it.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when

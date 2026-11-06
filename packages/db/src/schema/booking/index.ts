@@ -6,3 +6,5 @@ export * from "./google-calendar";
 export * from "./invitation";
 export * from "./practice";
 export * from "./series";
+export * from "./service";
+export * from "./waitlist";

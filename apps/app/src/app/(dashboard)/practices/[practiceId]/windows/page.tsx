@@ -2,6 +2,7 @@ import { paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import { Suspense } from "react";
 
+import { PracticeWaitlist } from "~/components/booking/practice-waitlist";
 import { PracticeWindows } from "~/components/booking/practice-windows";
 import { loadStaffPractice } from "~/components/booking/staff-practice";
 import { TermsProvider } from "~/components/booking/terms";
@@ -30,13 +31,14 @@ async function Windows({
           href: paths.booking.practice(practice.id),
         }}
       />
-      <main className="flex min-w-0 flex-1 flex-col p-4 lg:p-6">
+      <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 lg:p-6">
         <PracticeWindows
           practiceId={practice.id}
           practiceName={practice.name}
           timezone={practice.timezone}
           introMinutes={practice.introMinutes}
         />
+        <PracticeWaitlist practiceId={practice.id} />
       </main>
     </TermsProvider>
   );

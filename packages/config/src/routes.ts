@@ -73,6 +73,9 @@ export const paths = {
     /** What clients may cancel and when, read-only. */
     rules: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/rules` as const,
+    /** What clients book: names, lengths, prices in credits. */
+    services: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/services` as const,
     /** The questionnaire clients fill in when booking («Про»). */
     questions: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/questions` as const,

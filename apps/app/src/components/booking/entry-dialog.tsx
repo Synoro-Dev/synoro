@@ -12,6 +12,11 @@ import {
   DialogTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Tabs,
   TabsList,
   TabsTrigger,
@@ -61,6 +66,8 @@ export interface EntryDraft {
   mode: EntryMode;
   start: Date;
   end: Date;
+  /** The service to start with; the first switched-on one when missing. */
+  serviceId?: string;
   /** Book this client (opened from their card). */
   client?: { id: string; name: string };
   /** Close whole days (a vacation) rather than hours of one day. */
@@ -156,6 +163,17 @@ function EntryForm({
   const practice = useQuery(
     orpc.practice.get.queryOptions({ input: { practiceId } }),
   );
+  // What is booked: the picked service, else the first switched-on one.
+  const serviceList = useQuery({
+    ...orpc.service.list.queryOptions({ input: { practiceId } }),
+    enabled: mode === "consultation",
+  });
+  const services = (serviceList.data?.services ?? []).filter((s) => s.active);
+  const [serviceId, setServiceId] = useState<string | null>(
+    draft.serviceId ?? null,
+  );
+  const service = services.find((s) => s.id === serviceId) ?? services[0];
+  const price = service?.credits ?? 1;
   const introLength = practice.data
     ? ` на ${formatMinutes(practice.data.introMinutes)}`
     : "";
@@ -173,6 +191,7 @@ function EntryForm({
     startsAt: series ? atMinute(date, start) : null,
     repeat: series,
     memberId: client?.id,
+    serviceId: service?.id,
   });
   const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
 
@@ -238,6 +257,7 @@ function EntryForm({
         bookSeries.mutate({
           practiceId,
           memberId,
+          serviceId: service?.id,
           startsAt: atMinute(date, start),
           ...series,
           skip,
@@ -248,6 +268,7 @@ function EntryForm({
       book.mutate({
         practiceId,
         memberId,
+        serviceId: service?.id,
         startsAt: atMinute(date, start),
         note: note || undefined,
       });
@@ -315,7 +336,7 @@ function EntryForm({
       <DialogHeader>
         <DialogTitle>Новая запись</DialogTitle>
         <DialogDescription>
-          {capitalize(terms.credit[0])} на час с баланса клиента,{" "}
+          {capitalize(terms.credit[0])} с баланса клиента,{" "}
           {terms.free.toLowerCase()}
           {introLength} для гостя или закрытое время.
         </DialogDescription>
@@ -398,6 +419,33 @@ function EntryForm({
           </div>
         )}
       </div>
+
+      {mode === "consultation" && services.length > 1 && service && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-service">Услуга</Label>
+          <Select
+            items={Object.fromEntries(services.map((s) => [s.id, s.name]))}
+            value={service.id}
+            onValueChange={(id) => {
+              setServiceId(String(id));
+              setRepeat(null);
+              setUnchecked(new Set());
+            }}
+          >
+            <SelectTrigger id="entry-service">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {services.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name} · {formatMinutes(s.minutes, true)} ·{" "}
+                  {formatCredits(s.credits, terms)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {mode === "consultation" && (
         <div className="flex flex-col gap-1.5">
@@ -495,7 +543,7 @@ function EntryForm({
                 setRepeat(next);
                 setUnchecked(new Set());
               }}
-              max={client.credits}
+              max={Math.floor(client.credits / price)}
               idPrefix="entry"
             />
           )}

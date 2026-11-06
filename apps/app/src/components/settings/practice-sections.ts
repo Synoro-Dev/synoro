@@ -1,5 +1,6 @@
 import { paths } from "@synoro/config";
 import {
+  ClipboardListIcon,
   Clock3Icon,
   CreditCardIcon,
   ListChecksIcon,
@@ -39,6 +40,13 @@ export function practiceSections(
           description: "Фото, оформление и ссылка: как вас видят клиенты",
           href: paths.booking.page(practiceId),
           icon: PanelTopIcon,
+        },
+        {
+          title: "Услуги",
+          description: "Что можно забронировать: длительность и цена",
+          href: paths.booking.services(practiceId),
+          icon: ClipboardListIcon,
+          ownerOnly: true,
         },
         {
           title: "Рабочие часы",

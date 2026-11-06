@@ -1,5 +1,6 @@
 import { and, Booking, eq, isExclusionViolation, isNull } from "@synoro/db";
 import { notifyBookingMoved } from "@synoro/jobs/booking-video";
+import { notifyWaitlist } from "@synoro/jobs/waitlist";
 import { clientTimeZoneInput } from "@synoro/validators";
 import { z } from "zod";
 
@@ -71,6 +72,7 @@ export const reschedule = protectedProcedure
       timeZone: practice.timezone,
       kind,
       introMinutes: minutes,
+      minutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
@@ -124,6 +126,13 @@ export const reschedule = protectedProcedure
     await notifyBookingMoved(context.db, moved.id, {
       from: booking.startsAt,
       movedById: userId,
+    });
+    // The time it left is free again for those waiting for one.
+    await notifyWaitlist(context.db, {
+      practiceId: booking.practiceId,
+      startsAt: booking.startsAt,
+      endsAt: booking.endsAt,
+      exceptUserId: userId,
     });
 
     return { id: moved.id, startsAt: moved.startsAt, endsAt: moved.endsAt };

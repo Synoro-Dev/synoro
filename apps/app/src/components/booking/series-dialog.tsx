@@ -34,6 +34,8 @@ export function SeriesDialog({
   startsAt,
   timeZone,
   credits,
+  serviceId,
+  price,
   terms,
   answers,
   onAnswersInvalid,
@@ -46,6 +48,10 @@ export function SeriesDialog({
   /** The zone the client reads times in; their mails use it too. */
   timeZone: string;
   credits: number;
+  /** The service being booked; the practice's first when missing. */
+  serviceId?: string;
+  /** What one booking of it costs, in credits. */
+  price: number;
   terms: ProfessionTerms;
   /** The questionnaire, already filled in on the booking page. */
   answers: Record<string, string>;
@@ -66,6 +72,8 @@ export function SeriesDialog({
             startsAt={startsAt}
             timeZone={timeZone}
             credits={credits}
+            serviceId={serviceId}
+            price={price}
             terms={terms}
             answers={answers}
             onAnswersInvalid={onAnswersInvalid}
@@ -83,6 +91,8 @@ function SeriesForm({
   startsAt,
   timeZone,
   credits,
+  serviceId,
+  price,
   terms,
   answers,
   onAnswersInvalid,
@@ -93,18 +103,27 @@ function SeriesForm({
   startsAt: Date;
   timeZone: string;
   credits: number;
+  serviceId?: string;
+  price: number;
   terms: ProfessionTerms;
   answers: Record<string, string>;
   onAnswersInvalid: (errors: Record<string, string>) => void;
   onBooked: (dates: Date[]) => void;
   onCancel: () => void;
 }) {
+  // How many dates the balance pays for.
+  const affordable = Math.floor(credits / price);
   const [repeat, setRepeat] = useState<Repeat | null>({
     intervalWeeks: 1,
-    count: Math.min(credits, 4),
+    count: Math.min(affordable, 4),
   });
   const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
-  const preview = useSeriesPreview({ practiceId, startsAt, repeat });
+  const preview = useSeriesPreview({
+    practiceId,
+    startsAt,
+    repeat,
+    serviceId,
+  });
   const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
 
   const book = useMutation({
@@ -131,6 +150,7 @@ function SeriesForm({
         book.mutate({
           practiceId,
           startsAt,
+          serviceId,
           ...repeat,
           skip,
           answers,
@@ -142,7 +162,7 @@ function SeriesForm({
         <DialogTitle>Повторять запись</DialogTitle>
         <DialogDescription>
           {formatDateTime(startsAt, timeZone)} — и дальше в то же время. За
-          каждую дату спишется {formatCredits(1, terms)}, на балансе{" "}
+          каждую дату спишется {formatCredits(price, terms)}, на балансе{" "}
           {formatCredits(credits, terms)}.
         </DialogDescription>
       </DialogHeader>
@@ -153,7 +173,7 @@ function SeriesForm({
           setRepeat(next);
           setUnchecked(new Set());
         }}
-        max={credits}
+        max={affordable}
         idPrefix="series"
       />
 
@@ -181,7 +201,7 @@ function SeriesForm({
           disabled={!repeat || chosen.length < 2 || book.isPending}
         >
           {chosen.length >= 2
-            ? `Записаться: ${formatCredits(chosen.length, terms)}`
+            ? `Записаться: ${formatCredits(chosen.length * price, terms)}`
             : "Выберите хотя бы две даты"}
         </Button>
       </DialogFooter>

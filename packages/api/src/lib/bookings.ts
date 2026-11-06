@@ -17,6 +17,7 @@ import {
 } from "@synoro/db";
 
 import { notifyBookingCancelled } from "@synoro/jobs/booking-video";
+import { notifyWaitlist } from "@synoro/jobs/waitlist";
 
 import { removeBookingEvent } from "./google-calendar";
 import { findMembership, isStaff } from "./practice-access";
@@ -92,7 +93,8 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
  * refund once. An unpaid hold has spent nothing, so it never refunds. The
  * booking's Google Calendar event, if any, is deleted, and the client and
  * staff are told (unless it was a no-show or a lapsed hold, or `notify` is
- * off — a series sends one mail for all its bookings).
+ * off — a series sends one mail for all its bookings), and so is the waiting
+ * list (`notifyWaitlist`) when the time is still ahead.
  * Returns undefined when the booking wasn't active any more.
  */
 export async function cancelActiveBooking(
@@ -115,6 +117,13 @@ export async function cancelActiveBooking(
       refunded: result.refunded,
     });
   }
+  // The freed time goes to those waiting for one; not to whoever gave it up.
+  await notifyWaitlist(db, {
+    practiceId: result.booking.practiceId,
+    startsAt: result.booking.startsAt,
+    endsAt: result.booking.endsAt,
+    exceptUserId: options.cancelledById,
+  });
   return result;
 }
 
@@ -242,13 +251,14 @@ export async function cancelBookingRows(
   const refunded =
     options.refund &&
     cancelled.kind === "consultation" &&
+    cancelled.credits > 0 &&
     cancelled.memberId !== null &&
     cancelled.holdUntil === null;
   if (refunded && cancelled.memberId) {
-    await adjustCredits(db, cancelled.memberId, 1);
+    await adjustCredits(db, cancelled.memberId, cancelled.credits);
     await recordCredit(db, {
       memberId: cancelled.memberId,
-      delta: 1,
+      delta: cancelled.credits,
       reason: "refund",
       bookingId: cancelled.id,
       createdById: options.cancelledById,

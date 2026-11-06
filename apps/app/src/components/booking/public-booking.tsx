@@ -12,6 +12,11 @@ import {
   cn,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Spinner,
   Tabs,
@@ -87,6 +92,7 @@ import {
   viewerTimeZoneName,
 } from "./time";
 import { TimeZoneSelect } from "./time-zone-select";
+import { WaitlistRow } from "./waitlist-dialog";
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
 type Slot = { startsAt: Date; endsAt: Date };
@@ -216,6 +222,10 @@ export function PublicBooking({
     endsAt: Date;
   } | null>(null);
   const [chosenKind, setChosenKind] = useState<Kind | null>(null);
+  /** The service picked on this visit; the first one until then. */
+  const [chosenServiceId, setChosenServiceId] = useState<string | null>(null);
+  /** How long the last booking is, for «Вы записаны». */
+  const [bookedMinutes, setBookedMinutes] = useState(60);
   /** How many bookings the last booking made: more than one for a series. */
   const [bookedCount, setBookedCount] = useState(1);
   const [seriesFrom, setSeriesFrom] = useState<Date | null>(null);
@@ -229,11 +239,17 @@ export function PublicBooking({
     ...orpc.practice.bySlug.queryOptions({ input: { slug: practice.slug } }),
     initialData: practice,
   });
+  // What is booked: the picked service, else the first one; a practice
+  // without services books an hour for one credit.
+  const services = info.services;
+  const service = services.find((s) => s.id === chosenServiceId) ?? services[0];
+  const price = service?.credits ?? 1;
+  const serviceMinutes = service?.minutes ?? 60;
   // Staff see their own page as a preview; only clients book here.
   const isStaff = !!info.membership && info.membership.role !== "client";
   const membership = isStaff ? null : info.membership;
   const credits = membership?.credits ?? 0;
-  const canBook = !!membership && credits > 0;
+  const canBook = !!membership && credits >= price;
   const offer = useQuery({
     ...orpc.payment.packages.queryOptions({
       input: { practiceId: practice.id },
@@ -322,6 +338,7 @@ export function PublicBooking({
         from: range.from,
         days: range.days,
         kind,
+        serviceId: kind === "consultation" ? service?.id : undefined,
       },
     }),
     placeholderData: (previous) => previous,
@@ -408,6 +425,9 @@ export function PublicBooking({
     onSuccess: async (booking) => {
       setBooked(booking.startsAt);
       setBookedCount(1);
+      setBookedMinutes(
+        (booking.endsAt.getTime() - booking.startsAt.getTime()) / 60_000,
+      );
       setPicked(null);
       setAnswers({});
       await refresh();
@@ -439,6 +459,7 @@ export function PublicBooking({
     book.mutate({
       practiceId: practice.id,
       startsAt: slot.startsAt,
+      serviceId: service?.id,
       answers,
       timezone: zone,
     });
@@ -518,9 +539,13 @@ export function PublicBooking({
             </div>
           </AlertDescription>
         </Alert>
-      ) : credits === 0 ? (
+      ) : credits < price ? (
         <Alert variant="warning">
-          <AlertTitle>Нет оплаченных {terms.credit[2]}</AlertTitle>
+          <AlertTitle>
+            {credits === 0
+              ? `Нет оплаченных ${terms.credit[2]}`
+              : `Не хватает ${terms.credit[2]}: нужно ${price}, на балансе ${credits}`}
+          </AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-2">
             {canPay ? (
               <>
@@ -570,7 +595,8 @@ export function PublicBooking({
                 </p>
               )}
               <p className="text-sm text-muted-foreground">
-                Запись на {terms.creditAccusative}, 1 час
+                Запись на {terms.creditAccusative}
+                {services.length <= 1 && `, ${formatMinutes(serviceMinutes)}`}
                 {info.freeBooking &&
                   ` · ${terms.free.toLowerCase()} бесплатно, ${introLength}`}
               </p>
@@ -688,7 +714,7 @@ export function PublicBooking({
                 <p className="first-letter:uppercase">
                   {bookedCount > 1
                     ? `${formatCredits(bookedCount, terms)}, начиная с ${formatDateTime(booked, zone)}`
-                    : `${formatDateTime(booked, zone)}, 1 час`}
+                    : `${formatDateTime(booked, zone)}, ${formatMinutes(bookedMinutes)}`}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   Осталось оплаченных: {formatCredits(credits, terms)}
@@ -714,7 +740,7 @@ export function PublicBooking({
                 startsAt={picked.startsAt}
                 endsAt={picked.endsAt}
                 timeZone={zone}
-                what={intro ? terms.free : what}
+                what={intro ? terms.free : (service?.name ?? what)}
                 onBack={() => choose(null)}
               />
               <section className="p-6 md:p-8 [&>*]:max-w-lg">
@@ -743,6 +769,7 @@ export function PublicBooking({
                     startsAt={picked.startsAt}
                     timeZone={zone}
                     offer={offer.data}
+                    service={service}
                     questions={questions}
                   />
                 ) : (
@@ -751,8 +778,8 @@ export function PublicBooking({
                       Подтвердите запись
                     </h2>
                     <p className="text-sm text-muted-foreground">
-                      С баланса спишется {formatCredits(1, terms)}, останется{" "}
-                      {formatCredits(credits - 1, terms)}.
+                      С баланса спишется {formatCredits(price, terms)},
+                      останется {formatCredits(credits - price, terms)}.
                     </p>
                     {questions.length > 0 && (
                       <BookingQuestionFields
@@ -785,7 +812,7 @@ export function PublicBooking({
                       {(book.isPending || savePhone.isPending) && <Spinner />}
                       Записаться
                     </Button>
-                    {credits >= 2 && !needsPhone && (
+                    {credits >= 2 * price && !needsPhone && (
                       <Button
                         variant="outline"
                         onClick={() =>
@@ -828,8 +855,14 @@ export function PublicBooking({
                           className="max-sm:h-auto max-sm:min-w-0 max-sm:whitespace-normal"
                         >
                           <CalendarCheckIcon />
-                          {what}
-                          <span className="max-sm:hidden">· 1 час</span>
+                          {services.length === 1 && service
+                            ? service.name
+                            : what}
+                          {services.length <= 1 && (
+                            <span className="max-sm:hidden">
+                              · {formatMinutes(serviceMinutes, true)}
+                            </span>
+                          )}
                         </TabsTrigger>
                         <TabsTrigger
                           value="free"
@@ -879,6 +912,41 @@ export function PublicBooking({
                   </ToggleGroupItem>
                 </ToggleGroup>
               </div>
+              {!intro && services.length > 1 && service && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-6 py-3">
+                  <Label htmlFor="booking-service" className="shrink-0">
+                    Услуга
+                  </Label>
+                  <Select
+                    items={Object.fromEntries(
+                      services.map((item) => [item.id, item.name]),
+                    )}
+                    value={service.id}
+                    onValueChange={(id) => {
+                      setChosenServiceId(String(id));
+                      setPicked(null);
+                    }}
+                  >
+                    <SelectTrigger
+                      id="booking-service"
+                      className="w-full sm:w-72"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name} · {formatMinutes(item.minutes, true)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">
+                    {formatMinutes(service.minutes)} ·{" "}
+                    {formatCredits(service.credits, terms)}
+                  </span>
+                </div>
+              )}
               {shown !== "month" ? (
                 <section className="flex min-h-80 flex-col gap-5 p-6">
                   <div className="flex items-center justify-between gap-4">
@@ -1062,6 +1130,17 @@ export function PublicBooking({
             </>
           )}
 
+          {!isStaff && !intro && !booked && !bookedIntro && !picked && (
+            <WaitlistRow
+              practiceId={practice.id}
+              timezone={practice.timezone}
+              services={services}
+              serviceId={service?.id}
+              signedIn={signedIn}
+              viewerZone={zone}
+            />
+          )}
+
           <footer className="flex flex-col gap-2 border-t bg-muted/40 px-6 py-4 text-xs text-muted-foreground sm:flex-row sm:gap-6 dark:bg-muted/20">
             <p className="flex items-start gap-2">
               <UndoDotIcon className="mt-px size-3.5 shrink-0" />
@@ -1102,6 +1181,8 @@ export function PublicBooking({
         startsAt={seriesFrom}
         timeZone={zone}
         credits={credits}
+        serviceId={service?.id}
+        price={price}
         terms={terms}
         answers={answers}
         onAnswersInvalid={async (errors) => {
@@ -1117,6 +1198,7 @@ export function PublicBooking({
           setAnswers({});
           setBooked(dates[0] ?? null);
           setBookedCount(dates.length);
+          setBookedMinutes(serviceMinutes);
           await refresh();
         }}
       />
