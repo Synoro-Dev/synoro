@@ -56,9 +56,12 @@ export interface HostConfig {
 }
 
 export function hostConfig(): HostConfig {
-  const hosts = [appUrl, env.NEXT_PUBLIC_APP_URL, ...trustedAppOrigins()].map(
-    hostnameOf,
-  );
+  const hosts = [
+    appUrl,
+    env.BOOKING_URL,
+    env.NEXT_PUBLIC_APP_URL,
+    ...trustedAppOrigins(),
+  ].map(hostnameOf);
   return {
     appHosts: new Set(
       [...hosts, "localhost", "127.0.0.1", "[::1]"].filter(

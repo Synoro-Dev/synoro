@@ -24,6 +24,7 @@ const code = [
   '  title="Онлайн-запись"',
   '  style="width:100%;height:720px;border:0"',
   '  loading="lazy"></iframe>',
+  "<script>/* подстройка высоты */</script>",
 ];
 
 function CodePanel() {
@@ -35,7 +36,9 @@ function CodePanel() {
         </span>
         <div className="flex-1">
           <p className="text-sm font-medium text-white">Код для сайта</p>
-          <p className="text-xs text-zinc-400">Копируется одной кнопкой</p>
+          <p className="text-xs text-zinc-400">
+            Сокращённо. Полный код — в настройках страницы записи
+          </p>
         </div>
       </div>
       <pre className="overflow-x-auto p-4 font-mono text-xs leading-relaxed text-zinc-300">

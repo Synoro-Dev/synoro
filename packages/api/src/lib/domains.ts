@@ -26,9 +26,11 @@ const trustedHosts = () =>
 
 /** The platform's own hosts and everything under them can't be claimed. */
 export function isPlatformHost(hostname: string) {
-  return [new URL(env.APP_URL).hostname, ...trustedHosts()].some(
-    (own) => hostname === own || hostname.endsWith(`.${own}`),
-  );
+  return [
+    new URL(env.APP_URL).hostname,
+    new URL(env.BOOKING_URL ?? env.APP_URL).hostname,
+    ...trustedHosts(),
+  ].some((own) => hostname === own || hostname.endsWith(`.${own}`));
 }
 
 export interface DnsTargets {

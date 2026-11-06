@@ -17,16 +17,17 @@ A practice's booking page opens at two kinds of address:
 ## How it works
 
 - `apps/app/src/proxy.ts` looks at `Host`. Anything that isn't the app's own
-  host (`APP_URL`, `NEXT_PUBLIC_APP_URL`, exact `AUTH_TRUSTED_ORIGINS`) is a
-  practice host: `/` is rewritten to `/site/<host>`, `/_next/*` and files are
-  served as is, every other path redirects to the same path on `APP_URL`.
+  host (`APP_URL`, `BOOKING_URL`, `NEXT_PUBLIC_APP_URL`, exact
+  `AUTH_TRUSTED_ORIGINS`) is a practice host: `/` is rewritten to
+  `/site/<host>`, `/_next/*` and files are served as is, every other path
+  redirects to the same path on `APP_URL`.
 - `/site/[host]` resolves the practice with `practice.byHost`: an **active**
   row in `practice_domains`.
 - Sign-in and the cabinet stay on the app host: the session cookie is never
   set for a specialist's domain. On a practice host the page is read-only for
   visitors; «Войти и записаться» leads to `/<slug>` on the app host.
-- Exact `AUTH_TRUSTED_ORIGINS` (e.g. `https://example.com`) count as app hosts
-  and can't be claimed, nor can anything under them.
+- `BOOKING_URL` and exact `AUTH_TRUSTED_ORIGINS` (e.g. `https://example.com`)
+  count as app hosts and can't be claimed, nor can anything under them.
 - Connecting a domain (`domain.connect`) stores it as `pending` with a random
   token. `domain.verify` looks up `TXT _booking-verification.<host>`; once the
   token is there the domain becomes `active`. Without that step anyone could

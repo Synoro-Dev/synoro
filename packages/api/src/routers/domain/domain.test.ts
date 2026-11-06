@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
+import { env } from "@synoro/config";
 import { eq, PracticeDomain } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -105,6 +106,22 @@ describe("domain.connect", () => {
       (e: unknown) => e,
     );
     expect(isDefinedError(error) && error.code).toBe("PLATFORM_DOMAIN");
+  });
+
+  it("refuses the main booking address and hosts under it", async () => {
+    const mutable = env as { BOOKING_URL?: string };
+    const saved = mutable.BOOKING_URL;
+    mutable.BOOKING_URL = "https://booking.example";
+    try {
+      for (const host of ["booking.example", "boris.booking.example"]) {
+        const error = await connect(owner, practiceId, host).catch(
+          (e: unknown) => e,
+        );
+        expect(isDefinedError(error) && error.code).toBe("PLATFORM_DOMAIN");
+      }
+    } finally {
+      mutable.BOOKING_URL = saved;
+    }
   });
 
   it("refuses a host another practice has", async () => {
