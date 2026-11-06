@@ -1,0 +1,1 @@
+ALTER TABLE "services" ADD COLUMN "archived" boolean DEFAULT false NOT NULL;

@@ -34,6 +34,7 @@ import { profileFormSchema } from "./profile";
 import { serviceStepMinutes, servicesFormSchema } from "./service";
 import { canonicalTimeZone, clientTimeZoneInput } from "./timezone";
 import { normalizeVideoUrl, videoServiceName, videoUrlSchema } from "./video";
+import { wishStart } from "./waitlist";
 import {
   renderWorkflowText,
   unknownWorkflowVariables,
@@ -855,5 +856,48 @@ describe("services", () => {
       servicesFormSchema.safeParse({ services: [{ ...ok, active: false }] })
         .success,
     ).toBe(false);
+  });
+});
+
+describe("wishStart", () => {
+  const wish = {
+    fromDate: "2030-01-07",
+    toDate: "2030-01-13",
+    fromMinute: null,
+    toMinute: null,
+  };
+  const slot = (
+    startMinute: number,
+    endMinute: number,
+    date = "2030-01-07",
+  ) => ({
+    date,
+    startMinute,
+    endMinute,
+  });
+
+  test("starts on the service's grid inside the window", () => {
+    // 10:00–12:00 is free: an hour starts at 10:00; for 11:00 on, at 11:00.
+    expect(wishStart(wish, slot(600, 720), 60)).toBe(600);
+    expect(wishStart({ ...wish, fromMinute: 660 }, slot(600, 720), 60)).toBe(
+      660,
+    );
+    // A freed 10:30–11:30 holds no whole hour starting on the hour.
+    expect(wishStart(wish, slot(630, 690), 60)).toBeNull();
+    // …but a half-hour or 90-minute service starts on the half hour.
+    expect(wishStart(wish, slot(630, 690), 30)).toBe(630);
+    expect(wishStart(wish, slot(630, 720), 90)).toBe(630);
+  });
+
+  test("honours the wished hours and days", () => {
+    expect(
+      wishStart({ ...wish, toMinute: 600 }, slot(660, 720), 60),
+    ).toBeNull();
+    expect(wishStart({ ...wish, toMinute: 720 }, slot(600, 780), 60)).toBe(600);
+    expect(
+      wishStart({ ...wish, fromMinute: 1080 }, slot(600, 780), 60),
+    ).toBeNull();
+    expect(wishStart(wish, slot(600, 720, "2030-01-14"), 60)).toBeNull();
+    expect(wishStart(wish, slot(600, 630), 60)).toBeNull();
   });
 });

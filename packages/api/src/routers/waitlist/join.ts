@@ -5,10 +5,15 @@ import {
   gte,
   isNull,
   PracticeMember,
+  sql,
   user,
   WaitlistEntry,
 } from "@synoro/db";
-import { WAITLIST_MAX_ENTRIES, waitlistJoinSchema } from "@synoro/validators";
+import {
+  WAITLIST_MAX_DAYS,
+  WAITLIST_MAX_ENTRIES,
+  waitlistJoinSchema,
+} from "@synoro/validators";
 import { z } from "zod";
 
 import { track } from "../../lib/analytics";
@@ -18,7 +23,7 @@ import {
   findPractice,
   isStaff,
 } from "../../lib/practice-access";
-import { toZonedDate } from "../../lib/schedule";
+import { addDays, toZonedDate } from "../../lib/schedule";
 import { resolveService } from "../../lib/services";
 import { publicProcedure } from "../../orpc";
 
@@ -41,6 +46,9 @@ export const join = publicProcedure
     NOT_FOUND: { message: "Практика не найдена — обновите страницу" },
     SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     DATES_PAST: { message: "Эти даты уже прошли — выберите другие" },
+    DATES_TOO_FAR: {
+      message: `Лист ожидания открыт на ${WAITLIST_MAX_DAYS} дней вперёд — выберите даты ближе`,
+    },
     STAFF: {
       message: "Вы ведёте эту практику: лист ожидания нужен её клиентам",
     },
@@ -58,6 +66,10 @@ export const join = publicProcedure
 
     const today = toZonedDate(new Date(), practice.timezone);
     if (input.toDate < today) throw errors.DATES_PAST();
+    // The window is counted from today, not from the first day asked for.
+    if (input.toDate > addDays(today, WAITLIST_MAX_DAYS)) {
+      throw errors.DATES_TOO_FAR();
+    }
 
     // A wish without a service is for the practice's first one (`serviceId`
     // stays null so it follows if the owner reorders them).
@@ -100,36 +112,45 @@ export const join = publicProcedure
       userId = guest.user.id;
     }
 
-    const [open] = await context.db
-      .select({ entries: count() })
-      .from(WaitlistEntry)
-      .where(
-        and(
-          eq(WaitlistEntry.practiceId, practice.id),
-          eq(WaitlistEntry.userId, userId),
-          isNull(WaitlistEntry.notifiedAt),
-          gte(WaitlistEntry.toDate, today),
-        ),
-      );
-    if ((open?.entries ?? 0) >= WAITLIST_MAX_ENTRIES) throw errors.TOO_MANY();
-
     // A wish never starts in the past.
     let startDate = input.fromDate;
     if (startDate < today) startDate = today;
 
-    const [entry] = await context.db
-      .insert(WaitlistEntry)
-      .values({
-        practiceId: practice.id,
-        userId,
-        serviceId: input.serviceId ?? null,
-        fromDate: startDate,
-        toDate: input.toDate,
-        fromMinute: input.fromMinute,
-        toMinute: input.toMinute,
-      })
-      .returning({ id: WaitlistEntry.id });
-    if (!entry) throw new Error("Failed to insert waitlist entry");
+    // Counting and inserting under one lock per person and practice: two
+    // requests at once can't both pass the limit.
+    const entry = await context.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`waitlist:${practice.id}:${userId}`}))`,
+      );
+      const [open] = await tx
+        .select({ entries: count() })
+        .from(WaitlistEntry)
+        .where(
+          and(
+            eq(WaitlistEntry.practiceId, practice.id),
+            eq(WaitlistEntry.userId, userId),
+            isNull(WaitlistEntry.notifiedAt),
+            gte(WaitlistEntry.toDate, today),
+          ),
+        );
+      if ((open?.entries ?? 0) >= WAITLIST_MAX_ENTRIES) {
+        throw errors.TOO_MANY();
+      }
+      const [inserted] = await tx
+        .insert(WaitlistEntry)
+        .values({
+          practiceId: practice.id,
+          userId,
+          serviceId: input.serviceId ?? null,
+          fromDate: startDate,
+          toDate: input.toDate,
+          fromMinute: input.fromMinute,
+          toMinute: input.toMinute,
+        })
+        .returning({ id: WaitlistEntry.id });
+      if (!inserted) throw new Error("Failed to insert waitlist entry");
+      return inserted;
+    });
 
     track("waitlist_joined", userId, {
       practiceId: practice.id,

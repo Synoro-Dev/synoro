@@ -1,4 +1,4 @@
-import { asc, eq, Service } from "@synoro/db";
+import { and, asc, eq, Service } from "@synoro/db";
 import { z } from "zod";
 
 import {
@@ -7,7 +7,7 @@ import {
 } from "../../lib/practice-access";
 
 /**
- * All services of the practice, switched-off ones too, in the order the
+ * The practice's services, switched-off ones too (not archived ones), in the order the
  * booking page shows them. Staff only; clients get the active ones with the
  * practice (`practice.bySlug`).
  *
@@ -32,7 +32,12 @@ export const list = practiceProcedure
         active: Service.active,
       })
       .from(Service)
-      .where(eq(Service.practiceId, input.practiceId))
+      .where(
+        and(
+          eq(Service.practiceId, input.practiceId),
+          eq(Service.archived, false),
+        ),
+      )
       .orderBy(asc(Service.position), asc(Service.createdAt));
     return { services };
   });

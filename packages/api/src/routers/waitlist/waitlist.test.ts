@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { eq, Service, user, WaitlistEntry } from "@synoro/db";
+import { Booking, eq, Service, user, WaitlistEntry } from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
 import { notifyWaitlist } from "@synoro/jobs/waitlist";
 
@@ -38,9 +38,16 @@ const visitor = (email: string) => ({
   email,
 });
 
+/** A week from today: `join` only takes dates up to 60 days ahead. */
+const TODAY = new Date().toISOString().slice(0, 10);
+const inDays = (days: number) =>
+  new Date(Date.parse(`${TODAY}T00:00:00Z`) + days * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
 const wish = (overrides: Partial<Parameters<typeof join>[0]> = {}) => ({
-  fromDate: MONDAY,
-  toDate: "2030-01-13",
+  fromDate: TODAY,
+  toDate: inDays(7),
   fromMinute: null,
   toMinute: null,
   ...overrides,
@@ -153,8 +160,8 @@ describe("waitlist.join", () => {
     });
     expect(entry).toMatchObject({
       practiceId,
-      fromDate: MONDAY,
-      toDate: "2030-01-13",
+      fromDate: TODAY,
+      toDate: inDays(7),
       fromMinute: null,
       notifiedAt: null,
     });
@@ -222,6 +229,13 @@ describe("waitlist.join", () => {
     await expect(
       join(wish({ fromDate: "2020-01-01", toDate: "2020-01-07" })),
     ).rejects.toMatchObject({ code: "DATES_PAST" });
+    // The window is 60 days from today, whatever the range's own length.
+    await expect(
+      join(wish({ fromDate: "2030-01-07", toDate: "2030-01-13" })),
+    ).rejects.toMatchObject({ code: "DATES_TOO_FAR" });
+    await expect(
+      join(wish({ fromDate: inDays(55), toDate: inDays(61) })),
+    ).rejects.toMatchObject({ code: "DATES_TOO_FAR" });
     await expect(
       join(wish({ serviceId: crypto.randomUUID() })),
     ).rejects.toMatchObject({ code: "SERVICE_NOT_FOUND" });
@@ -237,6 +251,23 @@ describe("waitlist.join", () => {
     await expect(join(wish(), client)).rejects.toMatchObject({
       code: "TOO_MANY",
     });
+  });
+
+  it("holds the limit when requests come at once", async () => {
+    const client = await createSession(api.db);
+    const results = await Promise.allSettled(
+      Array.from({ length: 6 }, () => join(wish(), client)),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(3);
+    expect(
+      (
+        await call(
+          waitlistRouter.mine,
+          { practiceId },
+          { context: api.context(client) },
+        )
+      ).entries,
+    ).toHaveLength(3);
   });
 
   it("asks the practice's staff to sign in instead of using their email", async () => {
@@ -475,6 +506,152 @@ describe("a wish without a service", () => {
     expect(first?.minutes).toBe(60);
     const { deliver } = recorder();
     await notifyWaitlist(api.db, freed("07:00", "08:00", day), deliver);
+    expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
+  });
+});
+
+describe("notifyWaitlist: where the wish starts, what is still free", () => {
+  it("offers the first start inside the freed window that suits the wish", async () => {
+    const day = "2030-03-04";
+    // 10:00–12:00 freed; the wish is for 11:00 on.
+    const { entry } = await waiting({
+      fromDate: day,
+      toDate: day,
+      fromMinute: 660,
+    });
+    const { sent, deliver } = recorder();
+
+    await notifyWaitlist(api.db, freed("07:00", "09:00", day), deliver);
+    expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
+    const props = (sent.at(-1)?.props ?? {}) as { when?: string };
+    // Not «10:00»: the hour that fits begins at 11:00.
+    expect(props.when).toContain("11:00");
+  });
+
+  it("starts a wished hour on the hour, not where the freed time began", async () => {
+    const day = "2030-03-11";
+    // A 10:30–11:30 intro was cancelled: no whole hour starts on the hour in it.
+    const { entry } = await waiting({ fromDate: day, toDate: day });
+    const { deliver } = recorder();
+
+    await notifyWaitlist(api.db, freed("07:30", "08:30", day), deliver);
+    expect(await notifiedAt(entry.id)).toBeNull();
+  });
+
+  it("tells only about the part of a moved booking's old time that is free", async () => {
+    const day = "2030-03-18";
+    const { services } = await call(
+      serviceRouter.list,
+      { practiceId },
+      { context: api.context(owner) },
+    );
+    const { services: withShort } = await call(
+      serviceRouter.save,
+      {
+        practiceId,
+        services: [
+          ...services,
+          { name: "Короткая", minutes: 30, credits: 1, active: true },
+        ].map((x) => ({ active: true, ...x })),
+      },
+      { context: api.context(owner) },
+    );
+    const short = withShort.find((x) => x.name === "Короткая");
+    if (!short) throw new Error("no short service");
+
+    // 10:00–11:30 was freed by moving to 10:30–12:00: only 10:00–10:30 is free.
+    await api.db.insert(Booking).values({
+      practiceId,
+      kind: "consultation",
+      startsAt: at(day, "07:30"),
+      endsAt: at(day, "09:00"),
+    });
+    const half = await waiting({
+      fromDate: day,
+      toDate: day,
+      serviceId: short.id,
+    });
+    const hour = await waiting({
+      fromDate: day,
+      toDate: day,
+      serviceId: hourId,
+    });
+    const { deliver } = recorder();
+
+    await notifyWaitlist(api.db, freed("07:00", "08:30", day), deliver);
+    expect(await notifiedAt(half.entry.id)).toBeInstanceOf(Date);
+    expect(await notifiedAt(hour.entry.id)).toBeNull();
+  });
+
+  it("leaves a wish for a switched-off service open", async () => {
+    const day = "2030-03-25";
+    const { services } = await call(
+      serviceRouter.list,
+      { practiceId },
+      { context: api.context(owner) },
+    );
+    const target = services.find((x) => x.name === "Длинная сессия");
+    if (!target) throw new Error("no service");
+    const { entry } = await waiting({
+      fromDate: day,
+      toDate: day,
+      serviceId: target.id,
+    });
+    await call(
+      serviceRouter.save,
+      {
+        practiceId,
+        services: services.map((x) => ({
+          ...x,
+          active: x.id === target.id ? false : x.active,
+        })),
+      },
+      { context: api.context(owner) },
+    );
+    const { sent, deliver } = recorder();
+
+    await notifyWaitlist(api.db, freed("07:00", "09:00", day), deliver);
+    expect(sent).toEqual([]);
+    expect(await notifiedAt(entry.id)).toBeNull();
+  });
+
+  it("finds a fitting wish behind more than a page of ones that don't fit", async () => {
+    const day = "2030-04-01";
+    const { session: evening } = await waiting({}, "evening@wait.test");
+    await api.db.insert(WaitlistEntry).values(
+      Array.from({ length: 60 }, (_, i) => ({
+        practiceId,
+        userId: evening.user.id,
+        fromDate: day,
+        toDate: day,
+        fromMinute: 1080,
+        createdAt: new Date(Date.UTC(2028, 0, 1, 0, i)),
+      })),
+    );
+    const { entry } = await waiting({ fromDate: day, toDate: day });
+    const { deliver } = recorder();
+
+    await notifyWaitlist(api.db, freed("07:00", "08:00", day), deliver);
+    expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
+  });
+
+  it("keeps the wish open when the notice could not be sent", async () => {
+    const day = "2030-04-08";
+    const { entry } = await waiting({ fromDate: day, toDate: day });
+
+    const told = await notifyWaitlist(
+      api.db,
+      freed("07:00", "08:00", day),
+      async () => {
+        throw new Error("mail is down");
+      },
+    );
+    expect(told).toBe(0);
+    expect(await notifiedAt(entry.id)).toBeNull();
+
+    // The next freed time reaches it.
+    const { deliver } = recorder();
+    await notifyWaitlist(api.db, freed("08:00", "09:00", day), deliver);
     expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
   });
 });

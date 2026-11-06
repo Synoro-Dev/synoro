@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { Booking, eq, PracticeMember } from "@synoro/db";
+import {
+  Booking,
+  eq,
+  PracticeMember,
+  Service,
+  WaitlistEntry,
+} from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { availabilityRouter } from "../availability";
@@ -177,33 +183,56 @@ describe("service.save", () => {
     ).rejects.toBeDefined();
   });
 
-  it("deletes an unused service and only switches off a used one", async () => {
+  it("deletes an unused service and archives one bookings or wishes point at", async () => {
     const current = (await list(owner)).services;
     const keep = current.find((s) => s.name === "Занятие");
     const long = current.find((s) => s.name === "Длинное занятие");
-    if (!keep || !long) throw new Error("services missing");
+    const hidden = current.find((s) => s.name === "Скрытое");
+    if (!keep || !long || !hidden) throw new Error("services missing");
 
+    // «Длинное занятие» has a booking, «Скрытое» only a wish.
     const { session } = await newClient(2);
     await call(
       bookingRouter.book,
       { practiceId, startsAt: at("07:00"), serviceId: long.id },
       { context: api.context(session) },
     );
+    await api.db.insert(WaitlistEntry).values({
+      practiceId,
+      userId: session.user.id,
+      serviceId: hidden.id,
+      fromDate: "2030-01-07",
+      toDate: "2030-01-13",
+    });
 
     const saved = await save(owner, [
       { id: keep.id, name: "Занятие", minutes: 60, credits: 1 },
     ]);
-    // «Скрытое» had no bookings and is gone; «Длинное занятие» has one and
-    // stays, switched off, after the listed ones.
-    expect(saved.services.map((s) => [s.name, s.active])).toEqual([
-      ["Занятие", true],
-      ["Длинное занятие", false],
+    // Archived services are out of the editor, and out of its limit.
+    expect(saved.services.map((s) => s.name)).toEqual(["Занятие"]);
+    expect((await list(owner)).services.map((s) => s.name)).toEqual([
+      "Занятие",
     ]);
 
-    // Put it back for the tests below.
+    // They are still there for the booking and the wish, never offered.
+    const rows = await api.db.query.Service.findMany({
+      where: eq(Service.practiceId, practiceId),
+    });
+    const archived = rows.filter((r) => r.archived);
+    expect(archived.map((r) => r.name).sort()).toEqual([
+      "Длинное занятие",
+      "Скрытое",
+    ]);
+    expect(archived.every((r) => !r.active)).toBe(true);
+    const wish = await api.db.query.WaitlistEntry.findFirst({
+      where: eq(WaitlistEntry.practiceId, practiceId),
+    });
+    expect(wish?.serviceId).toBe(hidden.id);
+
+    // Put the long one back for the tests below (as a new service).
     await save(owner, [
       { id: keep.id, name: "Занятие", minutes: 60, credits: 1 },
-      { id: long.id, name: "Длинное занятие", minutes: 90, credits: 2 },
+      { name: "Длинное занятие", minutes: 90, credits: 2 },
     ]);
   });
 });
@@ -254,8 +283,9 @@ describe("booking with a service", () => {
       { practiceId, startsAt: at("08:30"), serviceId: long.id },
       { context: api.context(session) },
     );
-    // `credits` of the answer is the balance left: 3 − 2.
-    expect(booking.credits).toBe(1);
+    // `balance` is what is left of the 3; `credits` the booking's price.
+    expect(booking.balance).toBe(1);
+    expect(booking.credits).toBe(2);
     expect(booking.endsAt.getTime() - booking.startsAt.getTime()).toBe(
       90 * 60_000,
     );

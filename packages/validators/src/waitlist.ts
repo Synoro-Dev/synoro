@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { guestBookingFormSchema } from "./booking";
+import { serviceStepMinutes } from "./service";
 
 /**
  * The waiting list (`waitlist_entries`): someone who found no suitable time
@@ -86,32 +87,30 @@ export type WaitlistJoinInput = z.input<typeof waitlistJoinSchema>;
 export type WaitlistJoinValues = z.infer<typeof waitlistJoinSchema>;
 
 /**
- * Whether a freed booking [`startsAt`, `endsAt`) fits a wish, given the
- * practice's local date and minutes for both ends and how long the wished
- * service takes. Pure, so the worker and tests share it.
+ * The first time a wished meeting could start inside a free stretch of the
+ * practice's day, or null when none fits. `slot` is the stretch as the
+ * practice's local date and minutes since midnight; `wishedMinutes` is the
+ * wished service's length. Starts are on the service's grid
+ * (`serviceStepMinutes`), so what is offered is what the booking page would
+ * offer, and the wish's hours (`fromMinute` for the start, `toMinute` for
+ * the end) are honoured. Pure, so the worker and tests share it.
  */
-export function wishFits(
+export function wishStart(
   wish: Pick<Wish, "fromDate" | "toDate" | "fromMinute" | "toMinute">,
-  slot: {
-    /** Local date (YYYY-MM-DD) and minutes since midnight of the start. */
-    date: string;
-    startMinute: number;
-    /** Minutes since the start's local midnight at the end (may pass 1440). */
-    endMinute: number;
-  },
+  slot: { date: string; startMinute: number; endMinute: number },
   wishedMinutes: number,
-) {
-  if (slot.date < wish.fromDate || slot.date > wish.toDate) return false;
-  if (slot.endMinute - slot.startMinute < wishedMinutes) return false;
-  if (wish.fromMinute !== null && slot.startMinute < wish.fromMinute) {
-    return false;
-  }
-  // The wished meeting must end by `toMinute`; it starts where the slot does.
-  if (
-    wish.toMinute !== null &&
-    slot.startMinute + wishedMinutes > wish.toMinute
+): number | null {
+  if (slot.date < wish.fromDate || slot.date > wish.toDate) return null;
+  const step = serviceStepMinutes(wishedMinutes);
+  for (
+    let start = Math.ceil(slot.startMinute / step) * step;
+    start + wishedMinutes <= slot.endMinute;
+    start += step
   ) {
-    return false;
+    if (wish.fromMinute !== null && start < wish.fromMinute) continue;
+    // Later starts only end later.
+    if (wish.toMinute !== null && start + wishedMinutes > wish.toMinute) break;
+    return start;
   }
-  return true;
+  return null;
 }

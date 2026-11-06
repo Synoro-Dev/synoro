@@ -33,6 +33,12 @@ export const Service = pgTable(
     position: t.smallint().notNull().default(0),
     /** Switched off: not offered, kept for the bookings that used it. */
     active: t.boolean().notNull().default(true),
+    /**
+     * Removed by the owner but still pointed at by bookings or waiting-list
+     * wishes: it stays for their history, is never offered and no longer
+     * shows in the editor or counts against the limit. Always `active = false`.
+     */
+    archived: t.boolean().notNull().default(false),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })

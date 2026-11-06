@@ -130,6 +130,9 @@ export function PracticeWindows({
     refetchInterval: 60_000,
   });
 
+  // After a change of service the windows of the previous one stay on screen
+  // until the new ones arrive: they must not be booked or copied meanwhile.
+  const stale = windows.isPlaceholderData;
   const lengthMinutes = kind === "consultation" ? serviceMinutes : introMinutes;
   const kindLabel =
     kind === "consultation"
@@ -145,6 +148,7 @@ export function PracticeWindows({
     `${time(range.startsAt)}–${time(range.endsAt)}`;
 
   function book(at: Date) {
+    if (stale) return;
     setDraft({
       mode: kind,
       serviceId: service?.id,
@@ -154,6 +158,7 @@ export function PracticeWindows({
   }
 
   async function copy() {
+    if (stale) return;
     const lines = days
       .filter((day) => day.slots[kind].length > 0)
       .map(
@@ -248,7 +253,7 @@ export function PracticeWindows({
               Сегодня
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={copy}>
+          <Button variant="outline" size="sm" disabled={stale} onClick={copy}>
             <CopyIcon />
             Скопировать
           </Button>
@@ -337,6 +342,7 @@ export function PracticeWindows({
                           variant="outline"
                           size="sm"
                           className="tabular-nums"
+                          disabled={stale}
                           onClick={() => book(at)}
                         >
                           {time(at)}

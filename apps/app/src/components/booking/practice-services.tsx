@@ -159,10 +159,20 @@ function Editor({ practiceId, saved }: { practiceId: string; saved: Saved[] }) {
     save.mutate(
       { practiceId, services: parsed.data.services },
       {
-        // Show what was stored, unless the owner kept editing meanwhile.
+        // Show what was stored. If the owner kept editing meanwhile, keep
+        // their edits but take over the ids of the rows just created: sent
+        // again without one, a row would be created a second time.
         onSuccess: ({ services }) =>
           setDrafts((current) =>
-            current === sent ? services.map(toDraft) : current,
+            current === sent
+              ? services.map(toDraft)
+              : current.map((draft) => {
+                  const at = sent.findIndex((s) => s.key === draft.key);
+                  const stored = at < 0 ? undefined : services[at];
+                  return stored && !draft.id
+                    ? { ...draft, id: stored.id }
+                    : draft;
+                }),
           ),
       },
     );

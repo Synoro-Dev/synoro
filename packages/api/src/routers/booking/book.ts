@@ -186,5 +186,6 @@ export const book = practiceProcedure
     await exportBooking(context.db, booking.id);
     await notifyBookingConfirmed(context.db, booking.id);
 
-    return { ...booking, credits };
+    // `credits` stays what this booking cost; `balance` is what is left.
+    return { ...booking, balance: credits };
   });

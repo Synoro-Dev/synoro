@@ -218,8 +218,13 @@ function WaitlistForm({
     },
   });
 
+  // A signed-in client's name, email and phone come from their account: the
+  // form can't be sent before it has loaded.
+  const accountPending = signedIn && !me.isSuccess;
+
   function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (accountPending) return;
     const wished = PARTS[part];
     const parsed = waitlistJoinSchema.safeParse({
       fromDate,
@@ -369,6 +374,19 @@ function WaitlistForm({
         </div>
       )}
 
+      {signedIn && me.isError && (
+        <p role="alert" className="text-sm text-destructive">
+          Не удалось загрузить ваши данные.{" "}
+          <button
+            type="button"
+            className="underline underline-offset-4"
+            onClick={() => me.refetch()}
+          >
+            Повторить
+          </button>
+        </p>
+      )}
+
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -379,7 +397,7 @@ function WaitlistForm({
         <Button type="button" variant="outline" onClick={onDone}>
           Отмена
         </Button>
-        <Button type="submit" disabled={join.isPending}>
+        <Button type="submit" disabled={join.isPending || accountPending}>
           {join.isPending && <Spinner />}
           Встать в лист
         </Button>

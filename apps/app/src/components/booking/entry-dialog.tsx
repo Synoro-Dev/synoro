@@ -28,6 +28,7 @@ import {
   formatCredits,
   formatMinutes,
   freeBookingFormSchema,
+  serviceStepMinutes,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -447,6 +448,13 @@ function EntryForm({
         </div>
       )}
 
+      {mode === "consultation" && serviceList.isError && (
+        <ErrorState
+          message="Не удалось загрузить услуги."
+          onRetry={() => serviceList.refetch()}
+        />
+      )}
+
       {mode === "consultation" && (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="entry-client">Клиент</Label>
@@ -534,7 +542,9 @@ function EntryForm({
           <p className="text-sm text-muted-foreground">
             {client && client.credits === 0
               ? `У ${client.name} нет оплаченных — начислите оплату на странице клиентов.`
-              : `Спишется ${formatCredits(1, terms)} с баланса клиента за каждую дату, только целые часы в рабочее время.`}
+              : client && client.credits < price
+                ? `На балансе ${client.name} ${formatCredits(client.credits, terms)}, а услуга стоит ${formatCredits(price, terms)} — начислите оплату на странице клиентов.`
+                : `Спишется ${formatCredits(price, terms)} с баланса клиента за каждую дату${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`}
           </p>
           {client && (
             <RepeatSelect
@@ -644,7 +654,12 @@ function EntryForm({
         </Button>
         <Button
           type="submit"
-          disabled={pending || (series !== null && chosen.length < 2)}
+          disabled={
+            pending ||
+            // Without the list the server would pick a service of its own.
+            (mode === "consultation" && !serviceList.isSuccess) ||
+            (series !== null && chosen.length < 2)
+          }
         >
           {mode === "block"
             ? wholeDays
