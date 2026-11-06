@@ -5,10 +5,7 @@ import { memberInviteFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
 import { hasPro } from "../../lib/billing";
-import {
-  claimInviteMail,
-  inviteMailsExhausted,
-} from "../../lib/invitation-mail";
+import { claimInviteMail } from "../../lib/invitation-mail";
 import {
   findStaffMembership,
   practiceProcedure,
@@ -56,50 +53,57 @@ export const addMember = practiceProcedure
       });
     }
 
-    if (await inviteMailsExhausted(context.db, staff.userId)) {
-      throw errors.TOO_MANY_INVITES();
-    }
-
     const email = input.email.toLowerCase();
-    await context.db
-      .insert(PracticeInvitation)
-      .values({
-        practiceId: input.practiceId,
-        email,
-        role: input.role,
-        invitedById: context.session.user.id,
-      })
-      .onConflictDoUpdate({
-        target: [
-          PracticeInvitation.practiceId,
-          PracticeInvitation.email,
-          PracticeInvitation.role,
-        ],
-        set: {
-          invitedById: context.session.user.id,
-          expiresAt: sql`now() + interval '7 days'`,
-        },
-      });
 
-    // The invitation is saved by now, so nothing below may fail the request:
-    // a mail problem is reported as `mail: "failed"`. Inside the cooldown the
-    // invitation is extended, but no second mail goes.
-    let mailRight: Awaited<ReturnType<typeof claimInviteMail>> | undefined;
+    // Before anything is saved: the account's daily maximum and the hourly
+    // cooldown of this invitation are settled in one step, so parallel
+    // requests cannot pass the maximum.
+    const mailRight = await claimInviteMail(context.db, {
+      userId: context.session.user.id,
+      practiceId: input.practiceId,
+      role: input.role,
+      email,
+    });
+    if (mailRight.status === "exhausted") throw errors.TOO_MANY_INVITES();
     const giveBack = () =>
-      mailRight?.release().catch(() => {
+      mailRight.release().catch(() => {
         logger.warn("practice.invitation_release_failed", {
           practiceId: input.practiceId,
         });
       });
-    try {
-      mailRight = await claimInviteMail(context.db, {
-        userId: context.session.user.id,
-        practiceId: input.practiceId,
-        role: input.role,
-        email,
-      });
-      if (!mailRight.claimed) return { invited: true, mail: "recent" as const };
 
+    try {
+      await context.db
+        .insert(PracticeInvitation)
+        .values({
+          practiceId: input.practiceId,
+          email,
+          role: input.role,
+          invitedById: context.session.user.id,
+        })
+        .onConflictDoUpdate({
+          target: [
+            PracticeInvitation.practiceId,
+            PracticeInvitation.email,
+            PracticeInvitation.role,
+          ],
+          set: {
+            invitedById: context.session.user.id,
+            expiresAt: sql`now() + interval '7 days'`,
+          },
+        });
+    } catch (error) {
+      await giveBack();
+      throw error;
+    }
+
+    // The invitation is saved by now, so nothing below may fail the request:
+    // a mail problem is reported as `mail: "failed"`. Inside the cooldown the
+    // invitation is extended, but no second mail goes.
+    if (mailRight.status === "recent") {
+      return { invited: true, mail: "recent" as const };
+    }
+    try {
       const practice = await context.db.query.Practice.findFirst({
         columns: { name: true },
         where: eq(Practice.id, input.practiceId),

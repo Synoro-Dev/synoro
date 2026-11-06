@@ -75,10 +75,18 @@ function authErrorMessage(
  * creation (or billing, if there is a practice already).
  */
 function homeAfterAuth(): Route {
-  const plan = new URLSearchParams(window.location.search).get("plan");
-  return plan === "pro"
+  const query = new URLSearchParams(window.location.search);
+  // `?to=practices` comes from the proxy for a link into the practices (the
+  // mailed invitation); only this one value is honoured, never a free path.
+  if (query.get("to") === "practices") return paths.booking.practices;
+  return query.get("plan") === "pro"
     ? `${paths.dashboard.root}?plan=pro`
     : paths.dashboard.root;
+}
+
+/** The other auth page, keeping the way back to the practices (`?to=`). */
+function withTarget(path: Route, toPractices: boolean): Route {
+  return (toPractices ? `${path}?to=practices` : path) as Route;
 }
 
 /**
@@ -97,7 +105,15 @@ export function UnifiedAuthForm({
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  // Read after mount, so the server and the first client render agree.
+  const [toPractices, setToPractices] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setToPractices(
+      new URLSearchParams(window.location.search).get("to") === "practices",
+    );
+  }, []);
 
   const emailForm = useForm<LoginFormData>({
     resolver: zodResolver(loginFormSchema),
@@ -440,7 +456,7 @@ export function UnifiedAuthForm({
                 <>
                   Уже есть аккаунт?{" "}
                   <Link
-                    href={paths.auth.login}
+                    href={withTarget(paths.auth.login, toPractices)}
                     className="text-primary underline-offset-4 hover:underline"
                   >
                     Войти
@@ -450,7 +466,7 @@ export function UnifiedAuthForm({
                 <>
                   Нет аккаунта?{" "}
                   <Link
-                    href={paths.auth.signup}
+                    href={withTarget(paths.auth.signup, toPractices)}
                     className="text-primary underline-offset-4 hover:underline"
                   >
                     Зарегистрироваться

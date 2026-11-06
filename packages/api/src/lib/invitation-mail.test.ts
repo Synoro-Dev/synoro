@@ -3,11 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { SentNotice, sql } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../test/helpers";
-import {
-  claimInviteMail,
-  inviteMailsExhausted,
-  MAX_INVITE_MAILS_PER_DAY,
-} from "./invitation-mail";
+import { claimInviteMail, MAX_INVITE_MAILS_PER_DAY } from "./invitation-mail";
 
 let api: Awaited<ReturnType<typeof setupTestApi>>;
 
@@ -34,16 +30,17 @@ describe("invitation mail limits", () => {
       claimInviteMail(api.db, input),
       claimInviteMail(api.db, input),
     ]);
-    expect(attempts.filter((a) => a.claimed)).toHaveLength(1);
+    expect(attempts.filter((a) => a.status === "claimed")).toHaveLength(1);
+    expect(attempts.filter((a) => a.status === "recent")).toHaveLength(2);
 
     // Another role is another invitation.
     expect(
-      (await claimInviteMail(api.db, { ...input, role: "admin" })).claimed,
-    ).toBe(true);
+      (await claimInviteMail(api.db, { ...input, role: "admin" })).status,
+    ).toBe("claimed");
 
     // A failed send gives the right back.
-    await attempts.find((a) => a.claimed)?.release();
-    expect((await claimInviteMail(api.db, input)).claimed).toBe(true);
+    await attempts.find((a) => a.status === "claimed")?.release();
+    expect((await claimInviteMail(api.db, input)).status).toBe("claimed");
   });
 
   it("counts a repeat to the same address after the cooldown", async () => {
@@ -68,27 +65,41 @@ describe("invitation mail limits", () => {
       .update(SentNotice)
       .set({ sentAt: sql`now() - interval '2 hours'` })
       .where(sql`${SentNotice.key} like 'invite:%'`);
-    expect((await claimInviteMail(api.db, input)).claimed).toBe(true);
+    expect((await claimInviteMail(api.db, input)).status).toBe("claimed");
 
     expect(await count()).toBe(2);
   });
 
-  it("stops an account after the daily maximum of mails", async () => {
+  it("stops an account at the daily maximum, parallel requests included", async () => {
     const sender = await createSession(api.db);
     const practiceId = crypto.randomUUID();
-    expect(await inviteMailsExhausted(api.db, sender.user.id)).toBe(false);
-
-    for (let i = 0; i < MAX_INVITE_MAILS_PER_DAY; i++) {
-      await claimInviteMail(api.db, {
+    const invite = (i: number) =>
+      claimInviteMail(api.db, {
         userId: sender.user.id,
         practiceId,
         role: "client",
         email: `guest${i}@anna.test`,
       });
-    }
 
-    expect(await inviteMailsExhausted(api.db, sender.user.id)).toBe(true);
+    for (let i = 0; i < MAX_INVITE_MAILS_PER_DAY - 2; i++) await invite(i);
+
+    // Five at once with room for two.
+    const burst = await Promise.all(
+      [1, 2, 3, 4, 5].map((i) => invite(MAX_INVITE_MAILS_PER_DAY + i)),
+    );
+    expect(burst.filter((a) => a.status === "claimed")).toHaveLength(2);
+    expect(burst.filter((a) => a.status === "exhausted")).toHaveLength(3);
+
     const other = await createSession(api.db);
-    expect(await inviteMailsExhausted(api.db, other.user.id)).toBe(false);
+    expect(
+      (
+        await claimInviteMail(api.db, {
+          userId: other.user.id,
+          practiceId,
+          role: "client",
+          email: "other@anna.test",
+        })
+      ).status,
+    ).toBe("claimed");
   });
 });
