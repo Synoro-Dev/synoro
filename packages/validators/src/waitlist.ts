@@ -72,14 +72,25 @@ function checkWish(wish: Wish, ctx: z.RefinementCtx) {
 /** The wish alone: what a signed-in client sends. */
 export const waitlistWishSchema = wishFields.superRefine(checkWish);
 
+/** What a visitor leaves besides the wish, as when booking. */
+export const waitlistGuestSchema = guestBookingFormSchema.pick({
+  name: true,
+  phone: true,
+  email: true,
+});
+
 /**
- * The wish and who is asking: a visitor leaves name, phone and email as when
- * booking; a signed-in client's own account is used and these are ignored.
+ * The wish and a phone. A signed-in client's own account is used, so their
+ * name and email are neither sent nor checked (an account may be named «a»);
+ * a visitor must send both, and `waitlist.join` checks them with
+ * `waitlistGuestSchema`.
  */
 export const waitlistJoinSchema = wishFields
-  .extend(
-    guestBookingFormSchema.pick({ name: true, phone: true, email: true }).shape,
-  )
+  .extend({
+    phone: guestBookingFormSchema.shape.phone,
+    name: z.string().optional(),
+    email: z.string().optional(),
+  })
   .superRefine(checkWish);
 
 export type WaitlistWish = z.infer<typeof waitlistWishSchema>;

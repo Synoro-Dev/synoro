@@ -1,5 +1,5 @@
 {
-  "id": "9bb9efdd-0267-4a8d-bbbe-bd9c3bf34414",
+  "id": "a95a29ff-2502-4714-b0c7-d6066b7c962c",
   "prevId": "b50ce9fb-21f8-49da-95c3-b0dfde2222e8",
   "version": "7",
   "dialect": "postgresql",
@@ -2719,6 +2719,10 @@
         "services_credits_range": {
           "name": "services_credits_range",
           "value": "\"services\".\"credits\" between 1 and 10"
+        },
+        "services_archived_inactive": {
+          "name": "services_archived_inactive",
+          "value": "\"services\".\"archived\" = false or \"services\".\"active\" = false"
         }
       },
       "isRLSEnabled": false

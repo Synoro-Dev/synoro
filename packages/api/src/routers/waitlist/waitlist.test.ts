@@ -6,6 +6,7 @@ import type { TemplateEmail } from "@synoro/emails";
 import { notifyWaitlist } from "@synoro/jobs/waitlist";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import { toZonedDate } from "../../lib/schedule";
 import { availabilityRouter } from "../availability";
 import { bookingRouter } from "../booking";
 import { creditRouter } from "../credit";
@@ -39,7 +40,8 @@ const visitor = (email: string) => ({
 });
 
 /** A week from today: `join` only takes dates up to 60 days ahead. */
-const TODAY = new Date().toISOString().slice(0, 10);
+// The practice's own zone: its date is a day ahead of UTC late in the evening.
+const TODAY = toZonedDate(new Date(), "Europe/Moscow");
 const inDays = (days: number) =>
   new Date(Date.parse(`${TODAY}T00:00:00Z`) + days * 86_400_000)
     .toISOString()
@@ -253,7 +255,7 @@ describe("waitlist.join", () => {
     });
   });
 
-  it("holds the limit when requests come at once", async () => {
+  it("holds the limit for concurrent requests (PGlite runs them in turn, so this does not test the lock itself)", async () => {
     const client = await createSession(api.db);
     const results = await Promise.allSettled(
       Array.from({ length: 6 }, () => join(wish(), client)),
@@ -653,5 +655,87 @@ describe("notifyWaitlist: where the wish starts, what is still free", () => {
     const { deliver } = recorder();
     await notifyWaitlist(api.db, freed("08:00", "09:00", day), deliver);
     expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
+  });
+});
+
+describe("waitlist.join: who is asking", () => {
+  it("takes a signed-in client by their account, whatever it is named", async () => {
+    // Signing up with «a@example.com» names the account «a»: one letter.
+    const client = await createSession(api.db, { name: "a" });
+    const { id } = await call(
+      waitlistRouter.join,
+      { practiceId, ...wish(), phone: "+7 900 123-45-67" },
+      { context: api.context(client) },
+    );
+    const entry = await api.db.query.WaitlistEntry.findFirst({
+      where: eq(WaitlistEntry.id, id),
+    });
+    expect(entry?.userId).toBe(client.user.id);
+  });
+
+  it("asks a visitor for a name and an email", async () => {
+    await expect(
+      call(
+        waitlistRouter.join,
+        { practiceId, ...wish(), phone: "+7 900 123-45-67" },
+        { context: api.context() },
+      ),
+    ).rejects.toMatchObject({ code: "GUEST_INVALID" });
+    await expect(
+      call(
+        waitlistRouter.join,
+        {
+          practiceId,
+          ...wish(),
+          phone: "+7 900 123-45-67",
+          name: "Иван Петров",
+          email: "not-an-email",
+        },
+        { context: api.context() },
+      ),
+    ).rejects.toMatchObject({ code: "GUEST_INVALID" });
+  });
+});
+
+describe("notifyWaitlist: reading wishes in pages", () => {
+  it("doesn't skip wishes right after a page when some on it were claimed", async () => {
+    const day = "2030-04-15";
+    const base = Date.UTC(2027, 0, 1);
+    const fitting = new Set([0, 1, 2, 50, 51]);
+    const { session: evening } = await waiting({}, "cursor@wait.test");
+    // 60 wishes in a line: five fit the freed hour, the rest want the evening.
+    await api.db.insert(WaitlistEntry).values(
+      Array.from({ length: 60 }, (_, i) => i)
+        .filter((i) => !fitting.has(i))
+        .map((i) => ({
+          practiceId,
+          userId: evening.user.id,
+          fromDate: day,
+          toDate: day,
+          fromMinute: 1080,
+          createdAt: new Date(base + i * 60_000),
+        })),
+    );
+    const entries = [];
+    for (const i of fitting) {
+      entries.push(
+        (
+          await waiting({
+            fromDate: day,
+            toDate: day,
+            createdAt: new Date(base + i * 60_000),
+          })
+        ).entry,
+      );
+    }
+    const { deliver } = recorder();
+
+    // Three of the first page are claimed before the next page is read: an
+    // offset of 50 would then jump over the wishes standing at 50 and 51.
+    expect(
+      await notifyWaitlist(api.db, freed("07:00", "08:00", day), deliver),
+    ).toBe(5);
+    const told = await Promise.all(entries.map((e) => notifiedAt(e.id)));
+    expect(told.every((t) => t !== null)).toBe(true);
   });
 });

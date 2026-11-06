@@ -282,7 +282,7 @@ export function PracticeWindows({
             {next ? (
               <>
                 <span>{kindLabel}. Нажмите на время, чтобы записать.</span>
-                <Button size="sm" onClick={() => book(next)}>
+                <Button size="sm" disabled={stale} onClick={() => book(next)}>
                   Записать на {time(next)}
                 </Button>
               </>

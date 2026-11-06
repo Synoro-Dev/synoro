@@ -51,5 +51,9 @@ export const Service = pgTable(
       sql`${table.minutes} between 15 and 240 and ${table.minutes} % 5 = 0`,
     ),
     check("services_credits_range", sql`${table.credits} between 1 and 10`),
+    check(
+      "services_archived_inactive",
+      sql`${table.archived} = false or ${table.active} = false`,
+    ),
   ],
 );

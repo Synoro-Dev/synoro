@@ -1,4 +1,4 @@
-import { and, Booking, count, eq, Service, WaitlistEntry } from "@synoro/db";
+import { and, eq, Service, sql } from "@synoro/db";
 import { servicesFormSchema } from "@synoro/validators";
 import { z } from "zod";
 
@@ -11,10 +11,12 @@ import { OWNER_ONLY } from "./owner";
 /**
  * Replace the practice's services, in the order given. A service with an `id`
  * is changed in place — bookings made earlier keep what they were charged —
- * one without is new. A service left out of the list is deleted, or archived
- * when bookings or waiting-list wishes still point at it, so the history and
- * the wishes stay whole; archived services leave the list and its limit.
- * At least one service stays on. Owner only.
+ * one without is new. A service left out of the list is archived, never
+ * deleted: a booking or a waiting-list wish may point at it (or be made while
+ * this runs), and the history must stay whole. Archived services leave the
+ * list and its limit and are never offered. Saves of one practice run one at
+ * a time, so a stale save can't bring an archived service back. At least one
+ * service stays on. Owner only.
  *
  * @example client.service.save({ practiceId, services: [{ name: "Консультация", minutes: 60, credits: 1, active: true }] })
  */
@@ -30,6 +32,9 @@ export const save = practiceProcedure
     if (!owner) throw errors.FORBIDDEN();
 
     await context.db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`services:${input.practiceId}`}))`,
+      );
       const existing = await tx
         .select({ id: Service.id })
         .from(Service)
@@ -71,28 +76,14 @@ export const save = practiceProcedure
       for (const [offset, { id }] of existing
         .filter((s) => !kept.has(s.id))
         .entries()) {
-        const [booked] = await tx
-          .select({ bookings: count() })
-          .from(Booking)
-          .where(eq(Booking.serviceId, id));
-        const [waited] = await tx
-          .select({ wishes: count() })
-          .from(WaitlistEntry)
-          .where(eq(WaitlistEntry.serviceId, id));
-        if (booked?.bookings || waited?.wishes) {
-          // History and wishes keep pointing at it, so it is archived, not
-          // deleted: out of the editor and its limit, never offered again.
-          await tx
-            .update(Service)
-            .set({
-              active: false,
-              archived: true,
-              position: input.services.length + offset,
-            })
-            .where(eq(Service.id, id));
-        } else {
-          await tx.delete(Service).where(eq(Service.id, id));
-        }
+        await tx
+          .update(Service)
+          .set({
+            active: false,
+            archived: true,
+            position: input.services.length + offset,
+          })
+          .where(eq(Service.id, id));
       }
     });
 

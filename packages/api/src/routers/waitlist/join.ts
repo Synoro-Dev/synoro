@@ -12,6 +12,7 @@ import {
 import {
   WAITLIST_MAX_DAYS,
   WAITLIST_MAX_ENTRIES,
+  waitlistGuestSchema,
   waitlistJoinSchema,
 } from "@synoro/validators";
 import { z } from "zod";
@@ -45,6 +46,7 @@ export const join = publicProcedure
   .errors({
     NOT_FOUND: { message: "Практика не найдена — обновите страницу" },
     SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
+    GUEST_INVALID: { message: "Проверьте имя, телефон и почту" },
     DATES_PAST: { message: "Эти даты уже прошли — выберите другие" },
     DATES_TOO_FAR: {
       message: `Лист ожидания открыт на ${WAITLIST_MAX_DAYS} дней вперёд — выберите даты ближе`,
@@ -103,10 +105,16 @@ export const join = publicProcedure
         .values({ practiceId: practice.id, userId, role: "client" })
         .onConflictDoNothing();
     } else {
+      const details = waitlistGuestSchema.safeParse(input);
+      if (!details.success) {
+        throw errors.GUEST_INVALID({
+          message: details.error.issues[0]?.message,
+        });
+      }
       const guest = await findOrCreateGuestMember(
         context.db,
         practice.id,
-        input,
+        details.data,
       );
       if (guest.staff) throw errors.SIGN_IN_REQUIRED();
       userId = guest.user.id;

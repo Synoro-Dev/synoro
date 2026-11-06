@@ -183,7 +183,7 @@ describe("service.save", () => {
     ).rejects.toBeDefined();
   });
 
-  it("deletes an unused service and archives one bookings or wishes point at", async () => {
+  it("archives a service left out of the list, with its bookings and wishes intact", async () => {
     const current = (await list(owner)).services;
     const keep = current.find((s) => s.name === "Занятие");
     const long = current.find((s) => s.name === "Длинное занятие");

@@ -22,6 +22,7 @@ import {
 import {
   formatMinutes,
   WAITLIST_MAX_DAYS,
+  waitlistGuestSchema,
   waitlistJoinSchema,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -232,14 +233,21 @@ function WaitlistForm({
       fromMinute: wished.fromMinute,
       toMinute: wished.toMinute,
       serviceId: chosenService || undefined,
-      // A signed-in client's account speaks for them; the server ignores these.
-      name: signedIn ? (me.data?.name ?? "Клиент") : name,
-      email: signedIn ? (me.data?.email ?? "") : email,
+      // A signed-in client's account speaks for them: no name or email.
+      name: signedIn ? undefined : name,
+      email: signedIn ? undefined : email,
       phone: signedIn ? (me.data?.phone ?? phone) : phone,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Проверьте данные");
       return;
+    }
+    if (!signedIn) {
+      const guest = waitlistGuestSchema.safeParse({ name, email, phone });
+      if (!guest.success) {
+        setError(guest.error.issues[0]?.message ?? "Проверьте данные");
+        return;
+      }
     }
     setError(undefined);
     join.mutate({ practiceId, ...parsed.data });

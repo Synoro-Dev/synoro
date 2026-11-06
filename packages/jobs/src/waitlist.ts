@@ -155,12 +155,16 @@ export async function notifyWaitlist(
       };
 
       // Wishes are read page by page until enough of them fit: the oldest
-      // ones may all want another time of the day.
+      // ones may all want another time of the day. The next page starts after
+      // the last wish seen (`createdAt`, `id`), not at an offset: wishes
+      // claimed from this page leave the query and would shift an offset.
+      let after: { createdAt: Date; id: string } | undefined;
       for (let page = 0; page < MAX_PAGES; page++) {
         if (claimed.length >= MAX_NOTIFIED) break;
         const entries = await db
           .select({
             id: WaitlistEntry.id,
+            createdAt: WaitlistEntry.createdAt,
             userId: WaitlistEntry.userId,
             fromDate: WaitlistEntry.fromDate,
             toDate: WaitlistEntry.toDate,
@@ -185,11 +189,19 @@ export async function notifyWaitlist(
               freed.exceptUserId
                 ? ne(WaitlistEntry.userId, freed.exceptUserId)
                 : undefined,
+              after
+                ? or(
+                    gt(WaitlistEntry.createdAt, after.createdAt),
+                    and(
+                      eq(WaitlistEntry.createdAt, after.createdAt),
+                      gt(WaitlistEntry.id, after.id),
+                    ),
+                  )
+                : undefined,
             ),
           )
           .orderBy(asc(WaitlistEntry.createdAt), asc(WaitlistEntry.id))
-          .limit(PAGE)
-          .offset(page * PAGE);
+          .limit(PAGE);
 
         for (const entry of entries) {
           if (claimed.length >= MAX_NOTIFIED) break;
@@ -221,7 +233,9 @@ export async function notifyWaitlist(
             ),
           });
         }
-        if (entries.length < PAGE) break;
+        const last = entries.at(-1);
+        if (entries.length < PAGE || !last) break;
+        after = { createdAt: last.createdAt, id: last.id };
       }
     }
 

@@ -1,1 +1,2 @@
-ALTER TABLE "services" ADD COLUMN "archived" boolean DEFAULT false NOT NULL;
+ALTER TABLE "services" ADD COLUMN "archived" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_archived_inactive" CHECK ("services"."archived" = false or "services"."active" = false);
