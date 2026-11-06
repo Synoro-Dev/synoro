@@ -66,8 +66,8 @@ describe("dueProNotice", () => {
   const at = (plan: ProPlan, endsAt: Date, offset: number) =>
     dueProNotice(plan, new Date(endsAt.getTime() + offset))?.notice;
 
-  it("gives the 14-day trial the 3-day and the ended notice only", () => {
-    expect(at(trial, trialEndsAt, -14 * DAY)).toBeUndefined();
+  it("gives the 15-day trial the 3-day and the ended notice only", () => {
+    expect(at(trial, trialEndsAt, -15 * DAY)).toBeUndefined();
     expect(at(trial, trialEndsAt, -10 * DAY)).toBeUndefined();
     expect(at(trial, trialEndsAt, -3 * DAY + HOUR)).toBe("ending");
     expect(at(trial, trialEndsAt, HOUR)).toBe("ended");

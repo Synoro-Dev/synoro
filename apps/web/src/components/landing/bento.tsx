@@ -37,8 +37,12 @@ function Card({
 const ledger = [
   { delta: "+10", label: "Пакет из 10 занятий", date: "1 нояб" },
   { delta: "−1", label: "Запись на 5 нояб, 10:00", date: "3 нояб" },
-  { delta: "+1", label: "Отмена за 2 дня — занятие вернулось", date: "4 нояб" },
   { delta: "−1", label: "Запись на 12 нояб, 13:00", date: "10 нояб" },
+  {
+    delta: "−1/+1",
+    label: "Отмена за 2 дня — занятие вернулось",
+    date: "18 нояб",
+  },
 ];
 
 function CreditsVisual() {
@@ -49,11 +53,11 @@ function CreditsVisual() {
         <div className="flex-1">
           <p className="text-sm font-medium">Ольга Петрова</p>
           <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-            <div className="bg-foreground h-full w-[90%] rounded-full" />
+            <div className="bg-foreground h-full w-[80%] rounded-full" />
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl leading-none font-medium tabular-nums">9</p>
+          <p className="text-2xl leading-none font-medium tabular-nums">8</p>
           <p className="text-muted-foreground text-xs">осталось</p>
         </div>
       </div>
@@ -65,7 +69,7 @@ function CreditsVisual() {
           >
             <span
               className={cn(
-                "w-8 font-mono text-xs font-medium tabular-nums",
+                "w-10 shrink-0 font-mono text-xs font-medium tabular-nums",
                 entry.delta.startsWith("+")
                   ? "text-emerald-600"
                   : "text-zinc-500",
@@ -104,6 +108,47 @@ function ConflictVisual() {
       <p className="text-muted-foreground text-center text-xs">
         двое выбрали одно время
       </p>
+    </div>
+  );
+}
+
+const notices = [
+  {
+    channel: "TG",
+    title: "Новая запись · Ольга Петрова",
+    note: "Вт, 24 нояб · 13:00",
+    fresh: true,
+  },
+  {
+    channel: "MAX",
+    title: "Напоминание клиенту отправлено",
+    note: "За 1 час до начала",
+    fresh: false,
+  },
+];
+
+function MessengerVisual() {
+  return (
+    <div className="flex w-full max-w-80 flex-col gap-2.5">
+      {notices.map((notice) => (
+        <div
+          key={notice.channel}
+          className="bg-background flex items-center gap-2.5 rounded-lg border p-2.5 shadow-sm"
+        >
+          <span className="bg-muted shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium">
+            {notice.channel}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm">{notice.title}</p>
+            <p className="text-muted-foreground text-xs tabular-nums">
+              {notice.note}
+            </p>
+          </div>
+          {notice.fresh && (
+            <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -182,11 +227,11 @@ function CabinetVisual() {
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium">Мои записи</p>
         <span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
-          Осталось 7
+          Осталось 8
         </span>
       </div>
       <div className="mt-3 flex flex-col gap-2">
-        {["Чт, 12 нояб · 13:00", "Чт, 19 нояб · 13:00"].map((when) => (
+        {["Вт, 24 нояб · 13:00", "Чт, 26 нояб · 13:00"].map((when) => (
           <div
             key={when}
             className="flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs"
@@ -211,7 +256,7 @@ export function Bento() {
         </SectionHeading>
       </div>
 
-      <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(2)]:border-r-0 md:[&>*:nth-child(5)]:border-r-0 md:[&>*:nth-child(n+3)]:border-b-0 [&>*:last-child]:border-b-0">
+      <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(even)]:border-r-0 md:[&>*:nth-child(n+5)]:border-b-0 [&>*:last-child]:border-b-0">
         <Card
           className="md:col-span-4"
           title="Пакеты с предоплатой"
@@ -227,21 +272,28 @@ export function Bento() {
           <ConflictVisual />
         </Card>
         <Card
-          className="md:col-span-2"
+          className="md:col-span-3"
+          title="Напоминания в Telegram и MAX"
+          text="Клиент вовремя получит напоминание о встрече со ссылкой на созвон, а вы — мгновенное уведомление о новой записи или отмене. В Telegram и MAX — на тарифе «Про» и с подключённым ботом, иначе на почту."
+        >
+          <MessengerVisual />
+        </Card>
+        <Card
+          className="md:col-span-3"
           title="Отмена без звонков"
           text="Клиент сам отменяет запись не позднее чем за 24 часа — занятие вернётся в пакет автоматически."
         >
           <CancelVisual />
         </Card>
         <Card
-          className="md:col-span-2"
+          className="md:col-span-3"
           title="Администратор в команде"
           text="Помощник ведёт расписание, добавляет занятия в пакеты и записывает новых клиентов на бесплатную встречу, а вы занимаетесь клиентами."
         >
           <TeamVisual />
         </Card>
         <Card
-          className="md:col-span-2"
+          className="md:col-span-3"
           title="Кабинет клиента"
           text="Клиент входит по коду из письма и видит свои записи и сколько занятий осталось."
         >

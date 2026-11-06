@@ -5,7 +5,7 @@ export const BILLING_PERIODS = ["month", "year"] as const;
 export type BillingPeriodId = (typeof BILLING_PERIODS)[number];
 
 /** Days of «Про» a new specialist gets before the first payment. */
-export const TRIAL_DAYS = 14;
+export const TRIAL_DAYS = 15;
 
 /**
  * «Про» prices in kopecks. A year costs ten months. Keep in sync with
@@ -15,8 +15,8 @@ export const PRO_PRICES: Record<
   BillingPeriodId,
   { amount: number; label: string; months: number }
 > = {
-  month: { amount: 149_00, label: "Месяц", months: 1 },
-  year: { amount: 1490_00, label: "Год", months: 12 },
+  month: { amount: 240_00, label: "Месяц", months: 1 },
+  year: { amount: 2400_00, label: "Год", months: 12 },
 };
 
 export const billingCheckoutSchema = z.object({

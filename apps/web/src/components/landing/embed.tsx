@@ -22,7 +22,7 @@ const code = [
   "<iframe data-synoro",
   `  src="https://${brand.rootDomain}/anna"`,
   '  title="Онлайн-запись"',
-  '  style="width:100%;height:720px;border:0"',
+  '  style="width:100%;height:640px;border:0"',
   '  loading="lazy"></iframe>',
   "<script>/* подстройка высоты */</script>",
 ];

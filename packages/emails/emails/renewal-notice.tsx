@@ -24,7 +24,7 @@ export type RenewalNotice = "charged" | "failed" | "canceled";
 export default function RenewalNoticeEmail({
   notice = "charged",
   name = "Анна",
-  amount = "149 ₽",
+  amount = "240 ₽",
   period = "месяц",
   until = "15 декабря 2026",
   endsOn = "15 ноября 2026",
@@ -32,7 +32,7 @@ export default function RenewalNoticeEmail({
 }: {
   notice: RenewalNotice;
   name: string;
-  /** What was (or could not be) charged, «149 ₽». */
+  /** What was (or could not be) charged, «240 ₽». */
   amount: string;
   /** «месяц» or «год». */
   period: string;

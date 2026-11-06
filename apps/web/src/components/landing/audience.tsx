@@ -4,12 +4,8 @@ import {
   BrainIcon,
   DumbbellIcon,
   GraduationCapIcon,
-  LanguagesIcon,
-  MessageCircleIcon,
   ScaleIcon,
   SparklesIcon,
-  StethoscopeIcon,
-  WalletIcon,
 } from "lucide-react";
 
 import { professionPages, professionPath } from "~/lib/professions";
@@ -23,11 +19,7 @@ const audience = [
   { icon: GraduationCapIcon, label: "Репетиторы", page: "tutors" },
   { icon: ScaleIcon, label: "Юристы", page: "lawyers" },
   { icon: AppleIcon, label: "Нутрициологи", page: "health" },
-  { icon: MessageCircleIcon, label: "Логопеды", page: "health" },
-  { icon: WalletIcon, label: "Финансовые консультанты", page: "lawyers" },
   { icon: DumbbellIcon, label: "Тренеры", page: "trainers" },
-  { icon: StethoscopeIcon, label: "Врачи частной практики", page: "health" },
-  { icon: LanguagesIcon, label: "Преподаватели языков", page: "tutors" },
 ];
 
 const chip =
