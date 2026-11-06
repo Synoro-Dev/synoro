@@ -62,5 +62,4 @@ Locally cookies ignore the port, so a session from the app on :3000 works on
   `deploy/synoro-admin` after the app (whose pods run the migrations).
 - `infra/synoro/admin.yaml`: Service, Deployment (`ADMIN_URL`, the rest from
   `synoro-config`) and the Traefik route for `admin.synoro.ru`.
-- DNS: `A admin.synoro.ru` → the node. `admin` is in `RESERVED_SLUGS`, so no
-  practice can take the subdomain.
+- DNS: `A admin.synoro.ru` → the node.

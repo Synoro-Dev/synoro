@@ -2,7 +2,6 @@ import { resolve4, resolveCname, resolveTxt } from "node:dns/promises";
 import { domainToUnicode } from "node:url";
 import { env } from "@synoro/config";
 import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
-import { RESERVED_SLUGS } from "@synoro/validators";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -18,30 +17,6 @@ export const DOMAIN_RESERVATION_MS = 24 * 60 * 60 * 1000;
 const verificationRecordName = (hostname: string) =>
   `${VERIFICATION_PREFIX}.${hostname}`;
 
-const platformRoot = () =>
-  env.PRACTICE_ROOT_DOMAIN?.trim().toLowerCase() || undefined;
-
-const appUrl = () => new URL(env.APP_URL);
-
-/** The slug a platform subdomain stands for: `anna` for `anna.<root>`. */
-export function slugFromPlatformHost(host: string, root = platformRoot()) {
-  if (!root || !host.endsWith(`.${root}`)) return undefined;
-  const label = host.slice(0, -root.length - 1);
-  if (!label || label.includes(".") || RESERVED_SLUGS.has(label)) {
-    return undefined;
-  }
-  return label;
-}
-
-/** `https://anna.<root>` (scheme and port follow APP_URL), if enabled. */
-function platformUrl(slug: string) {
-  const root = platformRoot();
-  if (!root) return null;
-  const url = appUrl();
-  url.hostname = `${slug}.${root}`;
-  return url.origin;
-}
-
 /** Hostnames of the exact (non-wildcard) AUTH_TRUSTED_ORIGINS. */
 const trustedHosts = () =>
   (env.AUTH_TRUSTED_ORIGINS ?? "")
@@ -51,9 +26,11 @@ const trustedHosts = () =>
 
 /** The platform's own hosts and everything under them can't be claimed. */
 export function isPlatformHost(hostname: string) {
-  return [platformRoot(), appUrl().hostname, ...trustedHosts()].some(
-    (own) => own && (hostname === own || hostname.endsWith(`.${own}`)),
-  );
+  return [
+    new URL(env.APP_URL).hostname,
+    new URL(env.BOOKING_URL ?? env.APP_URL).hostname,
+    ...trustedHosts(),
+  ].some((own) => hostname === own || hostname.endsWith(`.${own}`));
 }
 
 export interface DnsTargets {
@@ -174,7 +151,6 @@ export async function domainSettings(db: Database, practiceId: string) {
     /** Connecting an own domain is «Про». */
     pro: practice ? await hasPro(db, practice.ownerId) : false,
     bookingUrl: practice ? publicBookingUrl(practice.slug) : null,
-    platformUrl: practice ? platformUrl(practice.slug) : null,
     targetsConfigured: !!(targets.cname || targets.ip),
     domain: row
       ? {

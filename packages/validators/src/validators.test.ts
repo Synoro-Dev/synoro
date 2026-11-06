@@ -366,7 +366,7 @@ describe("practiceFormSchema reserved slugs", () => {
     expect(errorPaths("anna")).toEqual([]);
   });
 
-  test("rejects slugs reserved for platform subdomains", () => {
+  test("rejects slugs reserved for the platform", () => {
     expect(errorPaths("www")).toEqual(["slug"]);
     expect(errorPaths("API")).toEqual(["slug"]);
   });

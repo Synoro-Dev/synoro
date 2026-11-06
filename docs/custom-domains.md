@@ -1,30 +1,33 @@
 # Practice pages on their own domains
 
-A practice's booking page opens at three kinds of address:
+**Off sale.** Production has no `CUSTOM_DOMAIN_*`, no on-demand TLS and no route
+for foreign hosts, so a connected domain wouldn't open. The landing and plans
+don't offer it and `practiceSections` has no link to `/practices/<id>/domain`;
+the code stays for when the hosting side is set up. A specialist shares
+`synoro.ru/<slug>` or embeds it in their site (`docs/guest-booking.md`). There
+are no platform subdomains (`anna.synoro.ru`).
 
-| Address                                            | Setup                                                 |
-| -------------------------------------------------- | ----------------------------------------------------- |
-| `https://app.example.com/anna`                     | always                                                |
-| `https://anna.example.com`                         | `PRACTICE_ROOT_DOMAIN=example.com` + wildcard DNS/TLS |
-| `https://anna-psy.ru`, `https://zapis.anna-psy.ru` | owner connects it under **Практика → Домен**          |
+A practice's booking page opens at two kinds of address:
+
+| Address                                            | Setup                                        |
+| -------------------------------------------------- | -------------------------------------------- |
+| `https://example.com/anna`                         | always                                       |
+| `https://anna-psy.ru`, `https://zapis.anna-psy.ru` | owner connects it under **Практика → Домен** |
 
 ## How it works
 
 - `apps/app/src/proxy.ts` looks at `Host`. Anything that isn't the app's own
-  host (`APP_URL`, `NEXT_PUBLIC_APP_URL`, the bare root and
-  `www.` of `PRACTICE_ROOT_DOMAIN`) is a practice host: `/` is rewritten to
+  host (`APP_URL`, `BOOKING_URL`, `NEXT_PUBLIC_APP_URL`, exact
+  `AUTH_TRUSTED_ORIGINS`) is a practice host: `/` is rewritten to
   `/site/<host>`, `/_next/*` and files are served as is, every other path
   redirects to the same path on `APP_URL`.
-- `/site/[host]` resolves the practice with `practice.byHost`: `<slug>.<root>`
-  by slug, anything else by an **active** row in `practice_domains`.
+- `/site/[host]` resolves the practice with `practice.byHost`: an **active**
+  row in `practice_domains`.
 - Sign-in and the cabinet stay on the app host: the session cookie is never
   set for a specialist's domain. On a practice host the page is read-only for
-  visitors; «Войти и записаться» leads to `/<slug>` on the app host. With
-  `AUTH_COOKIE_DOMAIN=.example.com` the session also reaches platform
-  subdomains (`anna.example.com`), so signed-in clients book right there.
-- Exact `AUTH_TRUSTED_ORIGINS` (e.g. `https://example.com`) count as app hosts
-  and can't be claimed; wildcard patterns don't, since they'd cover practice
-  subdomains too.
+  visitors; «Войти и записаться» leads to `/<slug>` on the app host.
+- `BOOKING_URL` and exact `AUTH_TRUSTED_ORIGINS` (e.g. `https://example.com`)
+  count as app hosts and can't be claimed, nor can anything under them.
 - Connecting a domain (`domain.connect`) stores it as `pending` with a random
   token. `domain.verify` looks up `TXT _booking-verification.<host>`; once the
   token is there the domain becomes `active`. Without that step anyone could
@@ -37,13 +40,9 @@ A practice's booking page opens at three kinds of address:
 ## Environment
 
 ```bash
-PRACTICE_ROOT_DOMAIN=example.com        # anna.example.com; unset = no subdomains
 CUSTOM_DOMAIN_CNAME=domains.example.com # what subdomains CNAME to
 CUSTOM_DOMAIN_IP=203.0.113.10           # what apex domains point an A record to
 ```
-
-Locally `PRACTICE_ROOT_DOMAIN=localhost` works without DNS:
-`http://anna.localhost:3000` (browsers resolve `*.localhost` to loopback).
 
 ## Hosting
 
@@ -54,15 +53,12 @@ Specialists' domains need TLS certificates issued on demand.
 ```caddyfile
 {
   on_demand_tls {
-    # 200 only for platform subdomains and verified domains.
+    # 200 only for verified domains.
     ask http://app:3000/api/domains/tls
   }
 }
 
-example.com, app.example.com, *.example.com {
-  tls {
-    dns <provider> {env.DNS_API_TOKEN} # wildcard needs the DNS challenge
-  }
+example.com, app.example.com {
   reverse_proxy app:3000
 }
 
@@ -74,8 +70,8 @@ https:// {
 }
 ```
 
-DNS on the platform side: `A example.com`, `A *.example.com` and
-`A domains.example.com` → the server's IP (= `CUSTOM_DOMAIN_IP`).
+DNS on the platform side: `A example.com` and `A domains.example.com` → the
+server's IP (= `CUSTOM_DOMAIN_IP`).
 
 Records must point straight at our server: a domain proxied through a CDN
 can't pass the TLS challenge and its traffic never reaches Caddy, so the

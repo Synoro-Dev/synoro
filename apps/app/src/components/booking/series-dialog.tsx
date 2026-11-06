@@ -59,7 +59,7 @@ export function SeriesDialog({
       open={startsAt !== null}
       onOpenChange={(open) => !open && onClose()}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
         {startsAt && (
           <SeriesForm
             practiceId={practiceId}

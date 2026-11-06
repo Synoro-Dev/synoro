@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+import { brand } from "~/lib/brand";
 import type { ProfessionPage } from "~/lib/professions";
 
 import { Initials } from "./primitives";
@@ -66,7 +67,7 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
     <div className="bg-background relative overflow-hidden rounded-2xl shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_2px_4px_rgb(0_0_0/0.03),0_32px_64px_-24px_rgb(0_0_0/0.22)]">
       <div className="text-muted-foreground flex h-9 items-center justify-center gap-1.5 border-b text-xs">
         <LockIcon className="size-3" />
-        {demo?.host ?? "zapis.anna-ivanova.ru"}
+        {demo?.host ?? `${brand.rootDomain}/anna`}
       </div>
 
       <div className="flex items-center gap-3 border-b p-4 sm:px-5">

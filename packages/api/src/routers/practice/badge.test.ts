@@ -49,7 +49,7 @@ afterAll(async () => {
 describe("practice.bySlug / byHost showBadge", () => {
   it("hides the badge during the «Про» trial", async () => {
     expect((await bySlug("anna-i")).showBadge).toBe(false);
-    expect((await byHost("anna-i.pages.test")).showBadge).toBe(false);
+    expect((await byHost("anna-ivanova.ru")).showBadge).toBe(false);
   });
 
   it("shows the badge once «Про» lapses to the free plan", async () => {

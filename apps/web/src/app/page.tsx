@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { JsonLd } from "~/components/json-ld";
 import { Audience } from "~/components/landing/audience";
 import { Bento } from "~/components/landing/bento";
-import { Domain } from "~/components/landing/domain";
+import { Embed } from "~/components/landing/embed";
 import { Faq } from "~/components/landing/faq";
 import { FinalCta, Footer } from "~/components/landing/footer";
 import { Header } from "~/components/landing/header";
@@ -39,7 +39,7 @@ export default function HomePage() {
         <Audience />
         <Scheduling links={links} />
         <Bento />
-        <Domain />
+        <Embed />
         <Steps />
         <Section id="pricing">
           <Pricing signupUrl={links.signup} />

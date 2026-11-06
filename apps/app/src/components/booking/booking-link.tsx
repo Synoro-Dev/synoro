@@ -3,6 +3,8 @@
 import { Button, Input, toast } from "@synoro/ui";
 import { CodeIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
 
+import { embedCode } from "~/lib/embed";
+
 async function copy(text: string, done: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -41,10 +43,7 @@ export function BookingLinkActions({ url }: { url: string }) {
           variant="outline"
           size="sm"
           onClick={() =>
-            copy(
-              `<iframe src="${url}" title="Онлайн-запись" style="width:100%;height:720px;border:0" loading="lazy"></iframe>`,
-              "Код скопирован — вставьте его на свой сайт",
-            )
+            copy(embedCode(url), "Код скопирован — вставьте его на свой сайт")
           }
         >
           <CodeIcon />

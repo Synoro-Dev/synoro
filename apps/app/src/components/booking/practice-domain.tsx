@@ -92,9 +92,10 @@ function CheckMark({ ok }: { ok: boolean | undefined }) {
 }
 
 /**
- * Where the practice's booking page lives: the platform subdomain, and the
+ * Where the practice's booking page lives: the main address, and the
  * specialist's own domain — connected with a TXT record (ownership) plus a
- * CNAME or A record (routing). Owner only.
+ * CNAME or A record (routing). Owner only. Off sale until the hosting side is
+ * set up (docs/custom-domains.md): no link leads here.
  */
 export function PracticeDomain({
   practiceId,
@@ -177,9 +178,6 @@ export function PracticeDomain({
             Работает сразу, настраивать ничего не нужно
           </FrameDescription>
         </FrameHeader>
-        {settings.data?.platformUrl && (
-          <LinkRow value={settings.data.platformUrl} label="Поддомен" />
-        )}
         <LinkRow value={bookingUrl} label="Основной адрес" />
       </FramePanel>
     </Frame>

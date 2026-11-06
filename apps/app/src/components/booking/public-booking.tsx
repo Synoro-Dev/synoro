@@ -56,6 +56,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
 import { LegalFooter } from "~/components/legal-links";
+import { reportFrameHeight } from "~/lib/embed";
 import { orpc } from "~/orpc/react";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { BookingQuestionFields } from "./booking-question-fields";
@@ -540,10 +541,11 @@ export function PublicBooking({
 
   return (
     <main
+      ref={reportFrameHeight}
       {...bookingThemeAttributes(info.theme)}
       className={cn(
         displayFonts,
-        "flex min-h-svh flex-col items-center bg-background px-4 py-8 md:py-14",
+        "flex min-h-svh flex-col items-center bg-background px-4 py-8 md:py-14 [[data-framed]_&]:min-h-0",
       )}
     >
       <div className="flex w-full max-w-4xl flex-1 flex-col gap-8">

@@ -47,8 +47,6 @@ export const env = createEnv({
     BOOKING_URL: z.url().optional(),
 
     // Practice pages on their own hosts (see docs/custom-domains.md).
-    // `<slug>.<root>` serves a practice's booking page; unset: no subdomains.
-    PRACTICE_ROOT_DOMAIN: z.string().optional(),
     // DNS targets shown to specialists connecting their own domain:
     // CNAME for a subdomain, A record for an apex domain.
     CUSTOM_DOMAIN_CNAME: z.string().optional(),
@@ -209,7 +207,6 @@ export const env = createEnv({
     APP_URL: process.env.APP_URL,
     ADMIN_URL: process.env.ADMIN_URL,
     BOOKING_URL: process.env.BOOKING_URL,
-    PRACTICE_ROOT_DOMAIN: process.env.PRACTICE_ROOT_DOMAIN,
     CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
     CUSTOM_DOMAIN_IP: process.env.CUSTOM_DOMAIN_IP,
     POSTBOX_ACCESS_KEY_ID: process.env.POSTBOX_ACCESS_KEY_ID,

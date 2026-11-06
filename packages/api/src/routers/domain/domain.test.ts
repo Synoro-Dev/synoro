@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
+import { env } from "@synoro/config";
 import { eq, PracticeDomain } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
@@ -51,13 +52,13 @@ afterAll(async () => {
 });
 
 describe("domain.get", () => {
-  it("shows the platform subdomain before any domain is connected", async () => {
+  it("shows the main address before any domain is connected", async () => {
     const settings = await call(
       domainRouter.get,
       { practiceId },
       { context: api.context(owner) },
     );
-    expect(settings.platformUrl).toBe("http://anna-i.pages.test:3000");
+    expect(settings.bookingUrl).toBe("http://localhost:3000/anna-i");
     expect(settings.targetsConfigured).toBe(true);
     expect(settings.domain).toBeNull();
   });
@@ -101,11 +102,25 @@ describe("domain.connect", () => {
   });
 
   it("refuses the platform's own hosts", async () => {
-    for (const host of ["boris.pages.test", "pages.test"]) {
-      const error = await connect(owner, practiceId, host).catch(
-        (e: unknown) => e,
-      );
-      expect(isDefinedError(error) && error.code).toBe("PLATFORM_DOMAIN");
+    const error = await connect(owner, practiceId, "boris.localhost").catch(
+      (e: unknown) => e,
+    );
+    expect(isDefinedError(error) && error.code).toBe("PLATFORM_DOMAIN");
+  });
+
+  it("refuses the main booking address and hosts under it", async () => {
+    const mutable = env as { BOOKING_URL?: string };
+    const saved = mutable.BOOKING_URL;
+    mutable.BOOKING_URL = "https://booking.example";
+    try {
+      for (const host of ["booking.example", "boris.booking.example"]) {
+        const error = await connect(owner, practiceId, host).catch(
+          (e: unknown) => e,
+        );
+        expect(isDefinedError(error) && error.code).toBe("PLATFORM_DOMAIN");
+      }
+    } finally {
+      mutable.BOOKING_URL = saved;
     }
   });
 
@@ -121,22 +136,18 @@ describe("domain.connect", () => {
 });
 
 describe("practice.byHost", () => {
-  it("serves platform subdomains by slug", async () => {
-    const practice = await byHost("anna-i.pages.test");
-    expect(practice.id).toBe(practiceId);
-    expect(practice.membership).toBeNull();
-  });
-
   it("does not serve a domain until it is verified", async () => {
     const error = await byHost("anna-ivanova.ru").catch((e: unknown) => e);
     expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
 
     await activate("anna-ivanova.ru");
-    expect((await byHost("Anna-Ivanova.ru:443")).id).toBe(practiceId);
+    const practice = await byHost("Anna-Ivanova.ru:443");
+    expect(practice.id).toBe(practiceId);
+    expect(practice.membership).toBeNull();
   });
 
-  it("returns NOT_FOUND for reserved, nested and unknown hosts", async () => {
-    for (const host of ["www.pages.test", "a.anna.pages.test", "nope.ru"]) {
+  it("returns NOT_FOUND for a slug as a subdomain and unknown hosts", async () => {
+    for (const host of ["anna-i.synoro.ru", "anna-i", "nope.ru"]) {
       const error = await byHost(host).catch((e: unknown) => e);
       expect(isDefinedError(error) && error.code).toBe("NOT_FOUND");
     }
