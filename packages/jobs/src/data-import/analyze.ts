@@ -53,7 +53,7 @@ function firstPhone(value: string) {
 }
 
 /** One row against the mapping. Null: nothing in it, not worth a word. */
-export function cleanRow(
+function cleanRow(
   row: string[],
   mapping: (string | null)[],
 ): { client: CleanClient } | { reasons: string[] } | null {

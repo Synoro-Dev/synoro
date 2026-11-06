@@ -1,4 +1,4 @@
-import { legal } from "@synoro/config";
+import { legal, YOUR_DATA_PATH } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
 import {
   BadgePercentIcon,
@@ -195,6 +195,15 @@ export function Pricing({ signupUrl }: { signupUrl: string }) {
           </li>
         ))}
       </ul>
+      <p className="text-muted-foreground border-t p-6 text-center text-sm sm:px-8">
+        Ваши данные принадлежат вам: забрать всё можно в любой момент.{" "}
+        <a
+          href={YOUR_DATA_PATH}
+          className="text-foreground underline underline-offset-4"
+        >
+          Как это устроено
+        </a>
+      </p>
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { legal } from "@synoro/config";
+import { legal, YOUR_DATA_PATH } from "@synoro/config";
 import { buttonVariants, cn } from "@synoro/ui";
 import { MailIcon } from "lucide-react";
 
@@ -77,6 +77,7 @@ export async function Footer({ links }: { links: SiteLinks }) {
         { href: "/#embed", label: "На вашем сайте" },
         { href: "/#pricing", label: "Тарифы" },
         { href: "/#faq", label: "Вопросы" },
+        { href: YOUR_DATA_PATH, label: "Ваши данные — ваши" },
       ],
     },
     {

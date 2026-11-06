@@ -128,7 +128,7 @@ function splitCsv(text: string, delimiter: string) {
 const DELIMITERS = [";", ",", "\t", "|"];
 
 /** The separator that gives the most columns, the same number on most lines. */
-export function detectDelimiter(text: string) {
+function detectDelimiter(text: string) {
   const sample = text.slice(0, 64 * 1024);
   let best = ",";
   let bestScore = 0;

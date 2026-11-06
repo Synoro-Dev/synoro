@@ -117,7 +117,7 @@ function DataAccessForm({
               disabled={sendCode.isPending}
               onClick={() => sendCode.mutate()}
             >
-              Войти по коду из письма
+              Подтвердить кодом из письма
             </Button>
           </div>
         </div>

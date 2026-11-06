@@ -1,6 +1,6 @@
 "use client";
 
-import { paths } from "@synoro/config";
+import { legal, paths, YOUR_DATA_PATH } from "@synoro/config";
 import {
   Button,
   cn,
@@ -151,7 +151,15 @@ function ImportStep({ practiceId, nav }: { practiceId: string; nav: StepNav }) {
           <p className="text-sm text-muted-foreground">
             Клиенты ничего не получат: ни писем, ни сообщений. Любую загрузку
             можно отменить одной кнопкой, а забрать все данные обратно можно в
-            любой момент.
+            любой момент.{" "}
+            <a
+              href={`${legal.siteUrl}${YOUR_DATA_PATH}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Ваши данные — ваши
+            </a>
           </p>
           <div>
             <Button

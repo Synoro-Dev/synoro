@@ -284,7 +284,8 @@ and run `tsc` by hand, build them first.
   archive is built by the `data-export` task; its input is an id, never data.
   It's downloaded through the app, not a signed bucket link. A new table or
   field of a practice goes into `collectPractice` and the format doc; secrets
-  never do. Screens with client data carry `ph-no-capture`.
+  never do. Screens with client data carry `ph-no-capture`. What we promise is
+  on the landing's «Ваши данные — ваши» (`/legal/your-data`): keep it true.
 - **Bringing data in** (`docs/data-import.md`): `/practices/<id>/import`,
   `import.*`, owner only. Imported clients are `practice_clients` cards, never
   accounts: nobody is joined to a practice by an address in a file, and cards

@@ -164,8 +164,6 @@ const archiveSchema = z.object({
   practices: z.array(practiceSchema).min(1).max(50),
 });
 
-export type ArchivePractice = z.infer<typeof practiceSchema>;
-
 /**
  * Old archives must still load. A format change adds a step here that turns the
  * previous version's JSON into the next one's; version 1 needs none.

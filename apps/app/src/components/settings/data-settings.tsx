@@ -206,8 +206,8 @@ function FeedLine({ practice }: { practice: Overview["practices"][number] }) {
             {!feed
               ? "Подписка выключена"
               : feed.lastFetchedAt
-                ? `Календарь обращался ${formatMoment(feed.lastFetchedAt)}`
-                : "Подписка включена, календарь ещё не обращался"}
+                ? `Календарь обновлялся ${formatMoment(feed.lastFetchedAt)}`
+                : "Подписка включена, календарь пока не подключён"}
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -267,10 +267,10 @@ function FeedLine({ practice }: { practice: Overview["practices"][number] }) {
           </div>
           <p className="text-xs text-muted-foreground">
             Сохраните ссылку сейчас: мы показываем её один раз. Добавьте её в
-            Google Календарь («Другие календари» → «Добавить по URL») или в
-            Яндекс Календарь («Подписаться на календарь»). Календари обновляются
-            сами, но не сразу: Google, например, может обновить данные только
-            через несколько часов.
+            настройках календаря как подписку по ссылке: в Google Календаре это
+            «Другие календари» → «Добавить по URL». Календари обновляются сами,
+            но не сразу: Google, например, может обновить данные только через
+            несколько часов.
           </p>
         </div>
       )}

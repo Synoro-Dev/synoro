@@ -72,6 +72,9 @@ export const legal = {
   },
 } as const;
 
+/** «Ваши данные — ваши»: the promise in plain words, not a legal document. */
+export const YOUR_DATA_PATH = "/legal/your-data";
+
 export type LegalDocKey = keyof typeof legal.docs;
 
 /** Absolute address of a legal document. */

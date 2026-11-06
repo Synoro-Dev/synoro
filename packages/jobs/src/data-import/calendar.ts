@@ -255,7 +255,7 @@ function expandRule(
 }
 
 /** Every event of an ICS text, repeats written out, cancelled ones left out. */
-export function parseIcs(text: string, zone: string, now: Date): ImportEvent[] {
+function parseIcs(text: string, zone: string, now: Date): ImportEvent[] {
   const lines = text.replace(/\r?\n[ \t]/g, "").split(/\r?\n/);
   const until = new Date(now.getTime() + HORIZON_MS);
 

@@ -55,7 +55,7 @@ function missingFields(
  * added twice, and totals come from the journal of what was done. Writes no
  * mail and queues nothing: an imported client is told nothing, ever.
  */
-export async function applyTable(
+async function applyTable(
   db: Database,
   batchId: string,
   options: ImportOptions,
