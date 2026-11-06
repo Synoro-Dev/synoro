@@ -34,6 +34,7 @@ async function Calendar({
         <PracticeCalendar
           practiceId={practice.id}
           timezone={practice.timezone}
+          isOwner={practice.membership.role === "owner"}
         />
       </main>
     </TermsProvider>

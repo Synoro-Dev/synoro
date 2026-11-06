@@ -41,6 +41,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ExportPartButton } from "../settings/export-part-button";
 import { ClientCard } from "./client-card";
 import { AddMemberDialog, CreditDialog } from "./client-dialogs";
 import { dataGridI18n } from "./data-grid-i18n";
@@ -159,9 +160,12 @@ function getColumns(
 export function PracticeClients({
   practiceId,
   timezone,
+  isOwner,
 }: {
   practiceId: string;
   timezone: string;
+  /** Only the owner takes the client base out. */
+  isOwner: boolean;
 }) {
   const terms = useTerms();
   const members = useQuery(
@@ -221,10 +225,15 @@ export function PracticeClients({
         title="Клиенты"
         description={`Контакты, записи и баланс оплаченных ${terms.credit[2]}`}
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <UserPlusIcon />
-            Пригласить клиента
-          </Button>
+          <>
+            {isOwner && (
+              <ExportPartButton practiceId={practiceId} what="clients" />
+            )}
+            <Button onClick={() => setAdding(true)}>
+              <UserPlusIcon />
+              Пригласить клиента
+            </Button>
+          </>
         }
       />
 

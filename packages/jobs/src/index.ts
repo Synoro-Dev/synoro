@@ -32,3 +32,34 @@ export async function dispatchEmail(message: TemplateEmail): Promise<void> {
 
   await sendTemplateEmail(message);
 }
+
+/**
+ * Builds a data archive in the background when Hatchet is configured;
+ * otherwise, or if enqueueing fails, right here. A failure here only marks the
+ * row: the specialist sees it in the settings and asks again.
+ */
+export async function dispatchDataExport(exportId: string): Promise<void> {
+  if (jobsEnabled) {
+    try {
+      const { dataExportTask } = await import("./workflows/data-export");
+      await dataExportTask.runNoWait({ exportId });
+      return;
+    } catch (error) {
+      logger.warn("jobs.enqueue_failed", {
+        task: "data-export",
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const [{ db }, { runDataExport }] = await Promise.all([
+    import("@synoro/db"),
+    import("./data-export/run"),
+  ]);
+  await runDataExport(db, exportId).catch((error: unknown) =>
+    logger.warn("data_export.failed", {
+      exportId,
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  );
+}

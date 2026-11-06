@@ -277,6 +277,14 @@ and run `tsc` by hand, build them first.
   (`readVisitSource`; the writer is `AdClick` in `apps/web` — keep them in
   sync). Admins read it via `admin.signIns.list` at `/sign-ins` and on the
   user's card.
+- **Taking the data out** (`docs/data-export.md`, format in
+  `docs/data-format.md`): `/settings/data`, `data.*` router, on any plan. Only
+  the owner, in person (`dataProcedure`: no impersonation, no demo accounts) and
+  with a confirmed password or code (`ACCESS_REQUIRED`, `useDataAccess`). The
+  archive is built by the `data-export` task; its input is an id, never data.
+  It's downloaded through the app, not a signed bucket link. A new table or
+  field of a practice goes into `collectPractice` and the format doc; secrets
+  never do. Screens with client data carry `ph-no-capture`.
 - **Demo stand** (`docs/demo.md`): `bun db:seed` / the nightly reset fill one
   practice with every role and two months of payments; `DEMO_LOGIN_EMAIL`
   enables `/auth/demo?as=<key>` (roster in `@synoro/auth/demo`) and makes

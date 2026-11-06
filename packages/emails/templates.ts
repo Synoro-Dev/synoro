@@ -1,5 +1,7 @@
 import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
+import DataAccessCodeEmail from "./emails/data-access-code";
+import DataExportReadyEmail from "./emails/data-export-ready";
 import OtpSignInEmail from "./emails/otp-sign-in";
 import ProNoticeEmail from "./emails/pro-notice";
 import RenewalNoticeEmail from "./emails/renewal-notice";
@@ -13,6 +15,8 @@ import { sendEmail } from "./send";
 const templates = {
   "booking-link": BookingLinkEmail,
   "booking-notice": BookingNoticeEmail,
+  "data-access-code": DataAccessCodeEmail,
+  "data-export-ready": DataExportReadyEmail,
   "otp-sign-in": OtpSignInEmail,
   "pro-notice": ProNoticeEmail,
   "renewal-notice": RenewalNoticeEmail,
