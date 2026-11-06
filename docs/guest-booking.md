@@ -151,9 +151,16 @@ A booking page (`/<slug>`) may be framed by any site (`frame-ancestors *`, no `X
 dashboard has a "code for your site" button that copies:
 
 ```html
-<iframe src="https://synoro.ru/<slug>" title="Онлайн-запись"
+<iframe data-synoro src="https://synoro.ru/<slug>" title="Онлайн-запись"
   style="width:100%;height:720px;border:0" loading="lazy"></iframe>
+<script>/* sets the frame's height from `synoro:height` messages */</script>
 ```
+
+The code comes from `embedCode` (`~/lib/embed`). The framed page reports its
+height (`reportFrameHeight`, a `postMessage` with the height only), and the
+script resizes the frame that sent it. A site builder that strips scripts leaves
+the frame at 720px, scrolling inside. On a tall frame anything `fixed` on the
+page (a dialog, a toast) sits relative to the frame, not the visitor's screen.
 
 In a cross-site frame the visitor is a guest (the session cookie is
 `SameSite=Lax`, so it isn't sent cross-site). A same-site frame can retain the

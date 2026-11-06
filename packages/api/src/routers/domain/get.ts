@@ -5,8 +5,8 @@ import { findOwnerMembership } from "../../lib/practice-access";
 import { ownerProcedure } from "./owner";
 
 /**
- * The practice's page addresses: the platform subdomain and the connected
- * domain with the DNS records to add. Owner only.
+ * The practice's page addresses: the main one and the connected domain with
+ * the DNS records to add. Owner only.
  *
  * @example client.domain.get({ practiceId })
  */

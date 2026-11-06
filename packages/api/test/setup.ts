@@ -9,7 +9,6 @@ process.env.POSTGRES_URL = "postgres://test:test@localhost:5432/test";
 process.env.ADMIN_EMAILS = "admin@test.local";
 // Expected failures (rejected origins, payments) would otherwise log.
 process.env.LOG_LEVEL = "silent";
-process.env.PRACTICE_ROOT_DOMAIN = "pages.test";
 process.env.CUSTOM_DOMAIN_CNAME = "domains.pages.test";
 process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
 // Emails (the visitor's booking link) go nowhere in tests.

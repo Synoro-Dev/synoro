@@ -74,7 +74,7 @@ export async function Footer({ links }: { links: SiteLinks }) {
       title: "Продукт",
       items: [
         { href: "/#features", label: "Возможности" },
-        { href: "/#domain", label: "Свой адрес" },
+        { href: "/#embed", label: "На вашем сайте" },
         { href: "/#pricing", label: "Тарифы" },
         { href: "/#faq", label: "Вопросы" },
       ],

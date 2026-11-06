@@ -58,7 +58,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для психологов и психотерапевтов: свободное время на вашей странице, пакеты консультаций с предоплатой и кабинет клиента. Без переписки о времени — и бесплатно.",
     demo: {
       name: "Мария Орлова",
-      host: "zapis.maria-orlova.ru",
+      host: "synoro.ru/maria-orlova",
       service: "Индивидуальная консультация",
       many: "консультаций",
     },
@@ -94,7 +94,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для коучей: свободное время на вашей странице, пакеты сессий с предоплатой и кабинет клиента. Без переписки о времени — и бесплатно.",
     demo: {
       name: "Елена Воронова",
-      host: "zapis.elena-voronova.ru",
+      host: "synoro.ru/elena-voronova",
       service: "Индивидуальная сессия",
       many: "сессий",
     },
@@ -109,8 +109,8 @@ export const professionPages: readonly ProfessionPage[] = [
         text: "Продавайте программу пакетом сессий: клиент видит остаток, а вы — историю оплат и списаний.",
       },
       {
-        title: "Своя страница и адрес",
-        text: "Страница записи с вашим именем и описанием — на своём домене. Свой адрес входит в «Про».",
+        title: "Своя страница",
+        text: "Страница записи с вашим именем и описанием. Поделитесь ссылкой или добавьте запись на свой сайт.",
       },
     ],
     question: {
@@ -130,7 +130,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для юристов и финансовых консультантов: первичная консультация, пакеты консультаций с предоплатой и кабинет клиента. Согласовывать время в переписке не нужно.",
     demo: {
       name: "Сергей Волков",
-      host: "zapis.sergey-volkov.ru",
+      host: "synoro.ru/sergey-volkov",
       service: "Консультация",
       many: "консультаций",
     },
@@ -166,7 +166,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для репетиторов и преподавателей: свободное время на вашей странице, пробное занятие и пакеты занятий с предоплатой. Согласовывать время в чате не нужно — и бесплатно.",
     demo: {
       name: "Анна Смирнова",
-      host: "zapis.anna-smirnova.ru",
+      host: "synoro.ru/anna-smirnova",
       service: "Индивидуальное занятие",
       many: "занятий",
     },
@@ -202,7 +202,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для персональных тренеров: свободное время на вашей странице, пробная тренировка и пакеты тренировок с предоплатой. Без переписки в чатах — и бесплатно.",
     demo: {
       name: "Дмитрий Захаров",
-      host: "zapis.dmitry-zakharov.ru",
+      host: "synoro.ru/dmitry-zakharov",
       service: "Персональная тренировка",
       many: "тренировок",
     },
@@ -238,7 +238,7 @@ export const professionPages: readonly ProfessionPage[] = [
     lead: "Онлайн-запись для врачей частной практики, логопедов и нутрициологов: расписание приёма, страница записи, пакеты приёмов и кабинет клиента. Без звонков и переписки — и бесплатно.",
     demo: {
       name: "Ольга Белова",
-      host: "zapis.olga-belova.ru",
+      host: "synoro.ru/olga-belova",
       service: "Приём",
       many: "приёмов",
     },

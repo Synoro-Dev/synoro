@@ -61,11 +61,11 @@ export function clientMayCancel(
 }
 
 /**
- * Slugs are the address of a booking page (`synoro.ru/<slug>`) and double as
- * platform subdomains (`<slug>.<root>`). So every top-level route of the app
- * and of the landing, and every name the platform may need as a host, is off
- * limits. A new top-level route goes here first, or a specialist can take its
- * address (`apps/app/src/lib/app-roots.test.ts` checks the existing ones).
+ * Slugs are the address of a booking page (`synoro.ru/<slug>`). So every
+ * top-level route of the app and of the landing, and every name that would
+ * pass for the platform's own page, is off limits. A new top-level route goes
+ * here first, or a specialist can take its address
+ * (`apps/app/src/lib/app-roots.test.ts` checks the existing ones).
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "about",

@@ -37,9 +37,9 @@ export async function proxy(request: NextRequest) {
   const current = legacyPracticePath(pathname);
   const currentUrl = current && `${current}${search}`;
 
-  // A practice's own host (`anna.<root>`, `anna-ivanova.ru`): `/` is its booking
-  // page. Sign-in and the cabinet stay on the app host, where the session
-  // cookie lives, so other pages redirect there; assets are served as is.
+  // A practice's own host (`anna-ivanova.ru`): `/` is its booking page. Sign-in
+  // and the cabinet stay on the app host, where the session cookie lives, so
+  // other pages redirect there; assets are served as is.
   const host = practiceHost(request.headers.get("host"), hosts);
   if (host) {
     if (currentUrl) return redirectToPath(request, currentUrl);

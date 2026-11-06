@@ -10,7 +10,7 @@ import { Logo } from "./logo";
 
 const nav = [
   { href: "#features", label: "Возможности" },
-  { href: "#domain", label: "Свой адрес" },
+  { href: "#embed", label: "На вашем сайте" },
   { href: "#how", label: "Как начать" },
   { href: "#pricing", label: "Тарифы" },
   { href: "#faq", label: "Вопросы" },
