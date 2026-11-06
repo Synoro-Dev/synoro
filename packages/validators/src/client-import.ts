@@ -25,11 +25,19 @@ export const IMPORT_FIELD_LABELS: Record<ImportField, string> = {
   note: "Заметка",
 };
 
-/** Headers as people and services write them, in the form `headerKey` gives. */
+/**
+ * Headers as people and services write them, in the form `headerKey` gives.
+ *
+ * YCLIENTS, DIKIDI and the like are covered by the same words, not by presets
+ * of their own: a preset needs a real export of each service to be written
+ * from, and a wrong guess about one would look more certain than it is. A
+ * column nobody recognises is left for the specialist to say.
+ */
 const HEADERS: Record<ImportField, string[]> = {
   name: [
     "фио",
     "ф и о",
+    "фио клиента",
     "фамилия имя отчество",
     "фамилия и имя",
     "имя и фамилия",
@@ -39,6 +47,9 @@ const HEADERS: Record<ImportField, string[]> = {
     "имя клиента",
     "клиенты",
     "контакт",
+    "гость",
+    "пациент",
+    "ученик",
     "name",
     "full name",
     "fullname",
@@ -56,6 +67,10 @@ const HEADERS: Record<ImportField, string[]> = {
     "тел",
     "номер телефона",
     "телефон клиента",
+    "контактный телефон",
+    "телефон 1",
+    "основной телефон",
+    "whatsapp",
     "мобильный",
     "мобильный телефон",
     "сотовый",
@@ -74,6 +89,9 @@ const HEADERS: Record<ImportField, string[]> = {
     "e mail",
     "эл почта",
     "электронная почта",
+    "email клиента",
+    "e mail клиента",
+    "почта клиента",
     "емейл",
     "имейл",
     "mail",
@@ -87,6 +105,7 @@ const HEADERS: Record<ImportField, string[]> = {
     "комментарии",
     "примечание",
     "примечания",
+    "комментарий к клиенту",
     "note",
     "notes",
     "comment",

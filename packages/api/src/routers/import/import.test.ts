@@ -198,6 +198,18 @@ describe("guessing columns", () => {
     ]);
   });
 
+  it("knows the usual words of other booking services", () => {
+    expect(
+      suggestMapping([
+        "Имя клиента",
+        "Телефон клиента",
+        "Email клиента",
+        "Комментарий к клиенту",
+        "Сумма оплат",
+      ]),
+    ).toEqual(["name", "phone", "email", "note", null]);
+  });
+
   it("reads a lone «Имя» as the whole name, and each field once", () => {
     expect(suggestMapping(["Имя", "Тел"])).toEqual(["name", "phone"]);
     expect(suggestMapping(["Телефон", "Мобильный"])).toEqual(["phone", null]);
