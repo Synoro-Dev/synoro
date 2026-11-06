@@ -37,8 +37,10 @@
  *                     «Про»: status, start link, unlink    (any signed-in)
  *   data.*          – taking the data out: archive, tables, calendar feed,
  *                     weekly copy, journal      (owner, confirmed access)
+ *   account.*       – deleting the account and changing one's mind  (owner)
  */
 
+import { accountRouter } from "./account";
 import { adminRouter } from "./admin";
 import { analyticsRouter } from "./analytics";
 import { availabilityRouter } from "./availability";
@@ -73,6 +75,7 @@ export const appRouter = {
   analytics: analyticsRouter,
   messenger: messengerRouter,
   data: dataRouter,
+  account: accountRouter,
 };
 
 export type AppRouter = typeof appRouter;

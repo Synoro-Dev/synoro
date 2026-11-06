@@ -26,6 +26,7 @@ import { useState } from "react";
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
 import { useDataAccess } from "./data-access";
+import { DeleteAccountSection } from "./delete-account";
 
 type Overview = RouterOutputs["data"]["overview"];
 type ExportRow = RouterOutputs["data"]["exports"][number];
@@ -457,7 +458,9 @@ export function DataSettings() {
         </p>
       ) : (
         <>
-          <ArchiveSection />
+          <div id="archive" className="scroll-mt-4">
+            <ArchiveSection />
+          </div>
           <Section
             title="Подписка на расписание"
             description="Ваши записи в Google или Яндекс Календаре по секретной ссылке. Календарь будет обновляться сам."
@@ -472,6 +475,7 @@ export function DataSettings() {
         </>
       )}
       <JournalSection />
+      <DeleteAccountSection email={overview.data.email} />
     </div>
   );
 }

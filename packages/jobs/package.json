@@ -51,6 +51,10 @@
       "types": "./dist/workflow-messages.d.ts",
       "default": "./src/workflow-messages.ts"
     },
+    "./account-deletion": {
+      "types": "./dist/account-deletion.d.ts",
+      "default": "./src/account-deletion.ts"
+    },
     "./data-export": {
       "types": "./dist/data-export/index.d.ts",
       "default": "./src/data-export/index.ts"

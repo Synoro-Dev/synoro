@@ -2,12 +2,14 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { env } from "@synoro/config";
 import {
+  and,
   CalendarFeed,
   type Database,
   DataExport,
   eq,
   Practice,
 } from "@synoro/db";
+import { ownerStaying } from "@synoro/jobs/account-deletion";
 import {
   bookingEvents,
   buildCalendar,
@@ -55,7 +57,12 @@ export async function calendarFeedBody(
     })
     .from(CalendarFeed)
     .innerJoin(Practice, eq(Practice.id, CalendarFeed.practiceId))
-    .where(eq(CalendarFeed.tokenHash, hashFeedToken(token)))
+    .where(
+      and(
+        eq(CalendarFeed.tokenHash, hashFeedToken(token)),
+        ownerStaying(Practice.ownerId),
+      ),
+    )
     .limit(1);
   if (!row) return null;
 

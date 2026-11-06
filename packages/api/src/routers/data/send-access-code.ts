@@ -22,7 +22,7 @@ export const sendAccessCode = dataProcedure
     await dispatchEmail({
       template: "data-access-code",
       to: [user.email],
-      subject: "Код для выгрузки данных",
+      subject: "Код подтверждения",
       props: { code },
     });
     return { sent: true };

@@ -1,3 +1,4 @@
+import AccountDeletionEmail from "./emails/account-deletion";
 import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
 import DataAccessCodeEmail from "./emails/data-access-code";
@@ -13,6 +14,7 @@ import WorkflowMessageEmail from "./emails/workflow-message";
 import { sendEmail } from "./send";
 
 const templates = {
+  "account-deletion": AccountDeletionEmail,
   "booking-link": BookingLinkEmail,
   "booking-notice": BookingNoticeEmail,
   "data-access-code": DataAccessCodeEmail,

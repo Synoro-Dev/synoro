@@ -11,6 +11,7 @@ import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { getSession } from "~/auth/server";
 import { AnalyticsIdentify } from "~/components/analytics-identify";
+import { DeletionBanner } from "~/components/settings/delete-account";
 import { AppSidebar } from "~/components/sidebar";
 import { api } from "~/orpc/server";
 
@@ -28,6 +29,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </Suspense>
       {/* Bottom padding clears the phone tab bar (MobileTabBar). */}
       <SidebarInset className="touch-targets min-w-0 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
+        <DeletionBanner />
         {children}
       </SidebarInset>
     </SidebarProvider>

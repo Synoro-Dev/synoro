@@ -29,4 +29,7 @@ export const errorStatusMap: Record<string, number> = {
   TOO_MANY_EXPORTS: 429,
   STORAGE_UNAVAILABLE: 503,
   NO_PRACTICE: 409,
+  CONFIRMATION_MISMATCH: 422,
+  IS_ADMIN: 409,
+  PAYMENT_IN_PROGRESS: 409,
 };

@@ -33,7 +33,7 @@ import {
   providerFailureMessage,
   startPayment,
 } from "../../lib/payments";
-import { findPractice } from "../../lib/practice-access";
+import { findOpenPractice } from "../../lib/practice-access";
 import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
 
@@ -82,7 +82,7 @@ export const reserve = publicProcedure
     }),
   )
   .handler(async ({ context, input, errors }) => {
-    const practice = await findPractice(context.db, input.practiceId);
+    const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
 
     const [account, pkg] = await Promise.all([

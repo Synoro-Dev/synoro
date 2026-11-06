@@ -21,6 +21,7 @@ async function main() {
 
   // Loaded after the check: creating the Hatchet client throws without a token.
   const {
+    accountPurgeWorkflow,
     billingRenewalsWorkflow,
     bookingRemindersWorkflow,
     clientBackupWorkflow,
@@ -53,6 +54,7 @@ async function main() {
       dataExportTask,
       dataExportsCleanupWorkflow,
       clientBackupWorkflow,
+      accountPurgeWorkflow,
       helloWorldTask,
       scheduledWorkflow,
       processDocumentWorkflow,

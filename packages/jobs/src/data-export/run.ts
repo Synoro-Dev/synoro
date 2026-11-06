@@ -16,6 +16,7 @@ import {
   sql,
 } from "@synoro/db";
 
+import { ownerStaying } from "../account-deletion";
 import { dispatchEmail } from "../index";
 import { collectAccount, DATA_FORMAT_VERSION } from "./collect";
 import { clientsArchive, fullArchive } from "./files";
@@ -226,6 +227,7 @@ export async function runClientBackups(
           lt(ClientBackup.lastRunAt, new Date(now.getTime() - 6 * DAY_MS)),
         ),
         sql`exists (select 1 from ${Practice} where ${Practice.ownerId} = ${ClientBackup.userId})`,
+        ownerStaying(ClientBackup.userId),
       ),
     )
     .limit(MAX_BATCH);

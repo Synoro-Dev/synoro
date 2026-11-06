@@ -4,6 +4,7 @@
  * Importing this module creates the Hatchet client, which throws without
  * HATCHET_CLIENT_TOKEN. App code should go through `@synoro/jobs` instead.
  */
+export { accountPurgeWorkflow } from "./account-purge";
 export { billingRenewalsWorkflow } from "./billing-renewals";
 export { bookingRemindersWorkflow } from "./booking-reminders";
 export { hatchet } from "./client";

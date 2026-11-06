@@ -33,6 +33,7 @@ export const overview = dataProcedure.handler(async ({ context }) => {
   ]);
 
   return {
+    email: context.session.user.email,
     practices: practices.map((practice) => ({
       id: practice.id,
       name: practice.name,

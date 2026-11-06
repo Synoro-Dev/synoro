@@ -2,8 +2,10 @@ import {
   and,
   type Database,
   eq,
+  gt,
   Practice,
   PracticeSlugAlias,
+  ReservedSlug,
   sql,
 } from "@synoro/db";
 
@@ -19,6 +21,19 @@ export async function findPracticeIdBySlug(db: Database, slug: string) {
     .from(PracticeSlugAlias)
     .where(eq(PracticeSlugAlias.slug, slug));
   return former?.id;
+}
+
+/**
+ * The address of a deleted practice: closed to everyone for a year, because
+ * its clients still have the link.
+ */
+export async function isSlugReserved(db: Database, slug: string) {
+  const [row] = await db
+    .select({ slug: ReservedSlug.slug })
+    .from(ReservedSlug)
+    .where(and(eq(ReservedSlug.slug, slug), gt(ReservedSlug.until, new Date())))
+    .limit(1);
+  return row !== undefined;
 }
 
 /**
@@ -57,6 +72,7 @@ export async function moveToSlug(
     await lockSlugs(tx, [practice.slug, slug]);
     const holder = await findPracticeIdBySlug(tx, slug);
     if (holder && holder !== practiceId) return false;
+    if (await isSlugReserved(tx, slug)) return false;
 
     await tx
       .delete(PracticeSlugAlias)
