@@ -19,11 +19,13 @@ export const commit = dataProcedure
   .errors({
     NOT_FOUND: { message: "Загрузка не найдена или её срок вышел" },
     ALREADY_APPLIED: { message: "Этот файл уже загружен" },
+    MAPPING_REQUIRED: { message: "Выберите, что в каких колонках" },
   })
   .input(
     z.object({
       batchId: z.uuid(),
-      mapping: mappingSchema,
+      mapping: mappingSchema.optional(),
+      eventsAs: z.enum(["bookings", "blocked"]).optional(),
       duplicates: z.enum(["merge", "skip"]),
       importNotes: z.boolean(),
       consent: z.literal(true),
@@ -33,6 +35,9 @@ export const commit = dataProcedure
     const { user } = context.session;
     const batch = await findOwnedBatch(context.db, input.batchId, user.id);
     if (!batch) throw errors.NOT_FOUND();
+    if (batch.source === "table" && !input.mapping) {
+      throw errors.MAPPING_REQUIRED();
+    }
 
     const [claimed] = await context.db
       .update(ImportBatch)
@@ -40,7 +45,8 @@ export const commit = dataProcedure
         status: "applying",
         progress: 0,
         options: {
-          mapping: input.mapping,
+          mapping: input.mapping ?? [],
+          eventsAs: input.eventsAs,
           duplicates: input.duplicates,
           importNotes: input.importNotes,
         },

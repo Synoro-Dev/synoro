@@ -41,6 +41,10 @@ export interface ImportOptions {
   importNotes: boolean;
   /** Field per column of the file; null: the column is left out. */
   mapping: (string | null)[];
+  /** Calendar events go in as bookings, or just as closed time. */
+  eventsAs?: "bookings" | "blocked";
+  /** Which practice of an archive goes into this one. */
+  archivePractice?: number;
 }
 
 /**

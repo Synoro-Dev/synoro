@@ -63,7 +63,10 @@ export function kindLabel(
 }
 
 export function bookingTitle(b: CalendarBooking) {
-  if (b.kind === "consultation") return b.clientName ?? "Клиент удалён";
+  // A consultation brought in from a calendar has a name, but no account.
+  if (b.kind === "consultation") {
+    return b.clientName ?? b.guestName ?? "Клиент удалён";
+  }
   if (b.kind === "free") return b.guestName ?? "Гость";
   return b.note ?? "Личное время";
 }

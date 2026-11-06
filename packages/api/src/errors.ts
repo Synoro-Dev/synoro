@@ -36,4 +36,6 @@ export const errorStatusMap: Record<string, number> = {
   TOO_MANY_UPLOADS: 429,
   ALREADY_APPLIED: 409,
   NOT_APPLIED: 409,
+  NOT_CONNECTED: 409,
+  MAPPING_REQUIRED: 422,
 };

@@ -26,6 +26,7 @@ import {
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarDaysIcon,
   CircleAlertIcon,
   DownloadIcon,
   FileSpreadsheetIcon,
@@ -37,7 +38,9 @@ import { orpc } from "~/orpc/react";
 import { saveTextFile } from "../settings/data-access";
 import { ErrorState, PageHeading } from "./states";
 
-type Uploaded = RouterOutputs["import"]["upload"];
+type Upload = RouterOutputs["import"]["upload"];
+type Uploaded = Extract<Upload, { kind: "table" }>;
+type CalendarDraft = { kind: "calendar"; id: string; events: number };
 type Preview = RouterOutputs["import"]["preview"];
 type Batch = RouterOutputs["import"]["list"][number];
 
@@ -62,7 +65,7 @@ function UploadStep({
   onDone,
 }: {
   practiceId: string;
-  onDone: (uploaded: Uploaded) => void;
+  onDone: (uploaded: Upload) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const upload = useMutation({
@@ -70,23 +73,32 @@ function UploadStep({
     onSuccess: onDone,
     onError: (error) => toast.error(error.message),
   });
+  const google = useQuery(
+    orpc.googleCalendar.settings.queryOptions({ input: { practiceId } }),
+  );
+  const fromGoogle = useMutation({
+    ...orpc.import.fromGoogle.mutationOptions(),
+    onSuccess: onDone,
+    onError: (error) => toast.error(error.message),
+  });
+  const pending = upload.isPending || fromGoogle.isPending;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-0.5">
         <h2 className="text-base font-semibold tracking-tight">
-          Загрузите таблицу с клиентами
+          Загрузите файл
         </h2>
         <p className="text-sm text-muted-foreground">
-          Файл CSV или XLSX до 10 МБ из Excel, Google Таблиц или другого сервиса
-          записи. Пока вы не подтвердите, ничего не изменится. Клиенты ничего не
-          получат: ни писем, ни сообщений.
+          Таблица с клиентами (CSV или XLSX) или календарь (ICS), до 10 МБ. Пока
+          вы не подтвердите, ничего не изменится. Клиенты ничего не получат: ни
+          писем, ни сообщений.
         </p>
       </div>
       <input
         ref={input}
         type="file"
-        accept=".csv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,.txt,.xlsx,.ics,text/csv,text/calendar,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="sr-only"
         aria-label="Файл с клиентами"
         onChange={(event) => {
@@ -95,13 +107,176 @@ function UploadStep({
           event.target.value = "";
         }}
       />
-      <div>
-        <Button
-          disabled={upload.isPending}
-          onClick={() => input.current?.click()}
-        >
+      <div className="flex flex-wrap gap-2">
+        <Button disabled={pending} onClick={() => input.current?.click()}>
           {upload.isPending ? <Spinner /> : <UploadIcon />}
           Выбрать файл
+        </Button>
+        {google.data?.connection && (
+          <Button
+            variant="outline"
+            disabled={pending}
+            onClick={() => fromGoogle.mutate({ practiceId })}
+          >
+            {fromGoogle.isPending ? <Spinner /> : <CalendarDaysIcon />}
+            Взять из Google Календаря
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function formatEvent(at: Date, timezone: string) {
+  return at.toLocaleString("ru-RU", {
+    timeZone: timezone,
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * A calendar's future events. Whether they're bookings or just closed time
+ * can't be told from the file, so the specialist says.
+ */
+function CalendarStep({
+  draft,
+  timezone,
+  onBack,
+  onApplied,
+}: {
+  draft: CalendarDraft;
+  timezone: string;
+  onBack: () => void;
+  onApplied: () => void;
+}) {
+  const [eventsAs, setEventsAs] = useState<"bookings" | "blocked">("bookings");
+  const [consent, setConsent] = useState(false);
+  const preview = useQuery(
+    orpc.import.previewEvents.queryOptions({
+      input: { batchId: draft.id, eventsAs },
+    }),
+  );
+  const commit = useMutation({
+    ...orpc.import.commit.mutationOptions(),
+    onSuccess: onApplied,
+    onError: (error) => toast.error(error.message),
+  });
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-base font-semibold tracking-tight">
+          Что это за события
+        </h2>
+        <RadioGroup
+          value={eventsAs}
+          onValueChange={(value) => setEventsAs(value as typeof eventsAs)}
+        >
+          <Label className="flex items-start gap-2 font-normal">
+            <RadioGroupItem value="bookings" />
+            Записи клиентов: название события станет именем клиента
+          </Label>
+          <Label className="flex items-start gap-2 font-normal">
+            <RadioGroupItem value="blocked" />
+            Занятое время: на него никто не сможет записаться
+          </Label>
+        </RadioGroup>
+      </div>
+
+      {preview.isError ? (
+        <ErrorState onRetry={() => preview.refetch()} />
+      ) : preview.isPending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <div className="flex flex-col gap-2 text-sm">
+          <p className="font-medium">Будет добавлено: {preview.data.added}</p>
+          {preview.data.samples.length > 0 && (
+            <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+              {preview.data.samples.map((row) => (
+                <li key={row.startsAt.toISOString()}>
+                  {formatEvent(row.startsAt, timezone)}:{" "}
+                  {row.title || "без названия"}
+                </li>
+              ))}
+            </ul>
+          )}
+          <ul className="flex flex-col gap-1 text-muted-foreground">
+            {preview.data.past > 0 && (
+              <li>Уже прошли, не переносим: {preview.data.past}</li>
+            )}
+            {preview.data.allDay > 0 && (
+              <li>
+                На весь день, для записей не подходят: {preview.data.allDay}
+              </li>
+            )}
+            {preview.data.tooLong > 0 && (
+              <li>Длиннее суток, не переносим: {preview.data.tooLong}</li>
+            )}
+            {preview.data.partial > 0 && (
+              <li>
+                Сложное повторение, взяли только первую дату:{" "}
+                {preview.data.partial}
+              </li>
+            )}
+            {preview.data.conflicts.total > 0 && (
+              <li>
+                Пересекаются с тем, что уже есть, пропустим:{" "}
+                {preview.data.conflicts.total}
+              </li>
+            )}
+          </ul>
+          {preview.data.conflicts.total > 0 && (
+            <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto text-xs text-muted-foreground">
+              {preview.data.conflicts.samples.map((row) => (
+                <li key={`${row.title}-${row.startsAt.toISOString()}`}>
+                  {formatEvent(row.startsAt, timezone)}:{" "}
+                  {row.title || "без названия"}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {eventsAs === "bookings" && (
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id="calendar-consent"
+            checked={consent}
+            onCheckedChange={setConsent}
+            className="mt-0.5"
+          />
+          <Label htmlFor="calendar-consent" className="font-normal">
+            Эти люди — мои клиенты, и я вправе хранить их записи в Synoro
+          </Label>
+        </div>
+      )}
+
+      <div className="flex flex-wrap justify-between gap-2">
+        <Button variant="ghost" onClick={onBack}>
+          Другой файл
+        </Button>
+        <Button
+          disabled={
+            commit.isPending ||
+            !preview.data?.added ||
+            (eventsAs === "bookings" && !consent)
+          }
+          onClick={() =>
+            commit.mutate({
+              batchId: draft.id,
+              eventsAs,
+              duplicates: "skip",
+              importNotes: false,
+              consent: true,
+            })
+          }
+        >
+          {commit.isPending && <Spinner />}
+          Загрузить
         </Button>
       </div>
     </div>
@@ -495,9 +670,16 @@ function History({ practiceId }: { practiceId: string }) {
  * then the writing. Nothing is written before the last step, and any import can
  * be undone later. `ph-no-capture`: it shows real people's names.
  */
-export function PracticeImport({ practiceId }: { practiceId: string }) {
+export function PracticeImport({
+  practiceId,
+  timezone,
+}: {
+  practiceId: string;
+  timezone: string;
+}) {
   const queryClient = useQueryClient();
   const [uploaded, setUploaded] = useState<Uploaded | null>(null);
+  const [calendar, setCalendar] = useState<CalendarDraft | null>(null);
   const [mapping, setMapping] = useState<(ImportField | null)[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
 
@@ -509,8 +691,15 @@ export function PracticeImport({ practiceId }: { practiceId: string }) {
 
   function reset() {
     setUploaded(null);
+    setCalendar(null);
     setMapping([]);
     setPreview(null);
+  }
+
+  async function done() {
+    toast.success("Загружаем. Итог появится ниже");
+    reset();
+    await queryClient.invalidateQueries({ queryKey: orpc.import.key() });
   }
 
   return (
@@ -521,12 +710,23 @@ export function PracticeImport({ practiceId }: { practiceId: string }) {
       />
       <Frame spacing="default" className="min-w-0">
         <FramePanel>
-          {!uploaded ? (
+          {calendar ? (
+            <CalendarStep
+              draft={calendar}
+              timezone={timezone}
+              onBack={reset}
+              onApplied={done}
+            />
+          ) : !uploaded ? (
             <UploadStep
               practiceId={practiceId}
               onDone={(file) => {
-                setUploaded(file);
-                setMapping(file.mapping);
+                if (file.kind === "calendar") {
+                  setCalendar(file);
+                } else {
+                  setUploaded(file);
+                  setMapping(file.mapping);
+                }
               }}
             />
           ) : !preview ? (
@@ -544,13 +744,7 @@ export function PracticeImport({ practiceId }: { practiceId: string }) {
               mapping={mapping}
               preview={preview}
               onBack={() => setPreview(null)}
-              onApplied={async () => {
-                toast.success("Клиенты загружаются");
-                reset();
-                await queryClient.invalidateQueries({
-                  queryKey: orpc.import.key(),
-                });
-              }}
+              onApplied={done}
             />
           )}
         </FramePanel>

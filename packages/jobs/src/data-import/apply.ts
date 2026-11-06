@@ -16,32 +16,11 @@ import {
 
 import { toCsv } from "../data-export/csv";
 import { analyzeRows, type CleanClient, loadExisting } from "./analyze";
+import { loadImportFile } from "./apply-file";
+import { applyCalendar } from "./calendar";
 import { readTable } from "./parse";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-/** How long the file stays for the rows that failed. */
-export const IMPORT_FILE_DAYS = 7;
 const CHUNK = 200;
-
-export async function loadImportFile(db: Database, batchId: string) {
-  const row = await db.query.ImportFile.findFirst({
-    where: eq(ImportFile.batchId, batchId),
-  });
-  return row ? new Uint8Array(row.content) : null;
-}
-
-export async function saveImportFile(
-  db: Database,
-  batchId: string,
-  content: Uint8Array,
-  now = new Date(),
-) {
-  await db.insert(ImportFile).values({
-    batchId,
-    content,
-    expiresAt: new Date(now.getTime() + IMPORT_FILE_DAYS * DAY_MS),
-  });
-}
 
 /**
  * What the card lacks. It never overwrites what the specialist has, and leaves
@@ -253,7 +232,10 @@ export async function runImport(db: Database, batchId: string) {
   });
   if (!batch?.options || batch.status !== "applying") return;
   try {
-    const totals = await applyTable(db, batchId, batch.options);
+    const totals =
+      batch.source === "calendar"
+        ? await applyCalendar(db, batchId, batch.options.eventsAs ?? "bookings")
+        : await applyTable(db, batchId, batch.options);
     await db
       .update(ImportBatch)
       .set({ status: "applied", totals, appliedAt: new Date() })

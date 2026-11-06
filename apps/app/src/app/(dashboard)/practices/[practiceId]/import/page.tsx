@@ -21,7 +21,7 @@ async function Import({
   const practice = await loadOwnerPractice((await params).practiceId);
   return (
     <PracticeSettingsShell practice={practice} title="Перенос клиентов">
-      <PracticeImport practiceId={practice.id} />
+      <PracticeImport practiceId={practice.id} timezone={practice.timezone} />
     </PracticeSettingsShell>
   );
 }

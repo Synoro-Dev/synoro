@@ -1,7 +1,9 @@
 import { clients } from "./clients";
 import { commit } from "./commit";
+import { fromGoogle } from "./from-google";
 import { list } from "./list";
 import { preview } from "./preview";
+import { previewEvents } from "./preview-events";
 import { rejected } from "./rejected";
 import { undo } from "./undo";
 import { upload } from "./upload";
@@ -9,6 +11,8 @@ import { upload } from "./upload";
 export const importRouter = {
   upload,
   preview,
+  previewEvents,
+  fromGoogle,
   commit,
   undo,
   rejected,

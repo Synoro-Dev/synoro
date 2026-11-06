@@ -1,12 +1,17 @@
 export { analyzeRows, loadExisting, type RowResult } from "./analyze";
 export {
   cleanupImports,
-  loadImportFile,
   rejectedCsv,
   runImport,
-  saveImportFile,
   undoImport,
 } from "./apply";
+export { loadImportFile, saveImportFile } from "./apply-file";
+export {
+  analyzeEvents,
+  type EventResult,
+  loadBusy,
+  readEvents,
+} from "./calendar";
 export {
   detectKind,
   FileProblem,

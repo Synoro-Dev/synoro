@@ -3,6 +3,7 @@ import {
   detectKind,
   FileProblem,
   MAX_FILE_BYTES,
+  readEvents,
   readTable,
   saveImportFile,
 } from "@synoro/jobs/data-import";
@@ -57,37 +58,52 @@ export const upload = dataProcedure
     }
     const bytes = new Uint8Array(await input.file.arrayBuffer());
 
-    let table: ReturnType<typeof readTable>;
+    const practiceId = practice.id;
+    async function saveDraft(source: "table" | "calendar", rowCount: number) {
+      const [batch] = await context.db
+        .insert(ImportBatch)
+        .values({
+          practiceId,
+          createdById: user.id,
+          source,
+          fileName: input.file.name.slice(0, 255),
+          rowCount,
+        })
+        .returning({ id: ImportBatch.id });
+      if (!batch) throw new Error("Failed to insert import batch");
+      await saveImportFile(context.db, batch.id, bytes);
+      return batch.id;
+    }
+
     try {
-      detectKind(bytes);
-      table = readTable(bytes);
+      const kind = detectKind(bytes);
+      if (kind === "ics") {
+        const events = readEvents(bytes, practice.timezone, new Date());
+        if (events.length === 0) {
+          throw new FileProblem("В этом календаре нет событий");
+        }
+        return {
+          kind: "calendar" as const,
+          id: await saveDraft("calendar", events.length),
+          events: events.length,
+        };
+      }
+
+      const table = readTable(bytes);
+      return {
+        kind: "table" as const,
+        id: await saveDraft("table", table.rows.length),
+        headers: table.headers,
+        sample: table.rows.slice(0, SAMPLE_ROWS),
+        mapping: suggestMapping(table.headers),
+        rowCount: table.rows.length,
+        encoding: table.encoding,
+        delimiter: table.delimiter,
+      };
     } catch (error) {
       if (error instanceof FileProblem) {
         throw errors.FILE_PROBLEM({ message: error.message });
       }
       throw error;
     }
-
-    const [batch] = await context.db
-      .insert(ImportBatch)
-      .values({
-        practiceId: practice.id,
-        createdById: user.id,
-        source: "table",
-        fileName: input.file.name.slice(0, 255),
-        rowCount: table.rows.length,
-      })
-      .returning({ id: ImportBatch.id });
-    if (!batch) throw new Error("Failed to insert import batch");
-    await saveImportFile(context.db, batch.id, bytes);
-
-    return {
-      id: batch.id,
-      headers: table.headers,
-      sample: table.rows.slice(0, SAMPLE_ROWS),
-      mapping: suggestMapping(table.headers),
-      rowCount: table.rows.length,
-      encoding: table.encoding,
-      delimiter: table.delimiter,
-    };
   });

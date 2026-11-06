@@ -25,6 +25,7 @@ export {
   hasOtherEvent,
   insertEvent,
   listCalendars,
+  listEvents,
   moveEvent,
   revokeToken,
 } from "./google";
