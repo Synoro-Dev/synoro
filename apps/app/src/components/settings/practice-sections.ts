@@ -109,3 +109,17 @@ export function practiceSections(
     }))
     .filter((group) => group.sections.length > 0);
 }
+
+/**
+ * Pages inside the practice's settings: on them the main sidebar lists the
+ * sections. Every role's list: a page the role can't open redirects anyway.
+ */
+export function isPracticeSettingsPage(practiceId: string, pathname: string) {
+  return (
+    pathname === paths.booking.settings(practiceId) ||
+    pathname === paths.booking.domain(practiceId) ||
+    practiceSections(practiceId, true).some((group) =>
+      group.sections.some((section) => section.href === pathname),
+    )
+  );
+}
