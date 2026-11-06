@@ -771,3 +771,69 @@ describe("notifyWaitlist: wishes written within one millisecond", () => {
     expect(await notifiedAt(entry.id)).toBeInstanceOf(Date);
   });
 });
+
+describe("notifyWaitlist: a failure before anyone is written to", () => {
+  it("gives back the wishes it had claimed", async () => {
+    const day = "2030-05-06";
+    const base = Date.UTC(2027, 3, 1);
+    const { session: evening } = await waiting({}, "failing@wait.test");
+    // 50 wishes make a full first page: three fit, the rest want the evening;
+    // a few more behind them make the next page be read.
+    const fitting = new Set([0, 1, 2]);
+    await api.db.insert(WaitlistEntry).values(
+      Array.from({ length: 56 }, (_, i) => i)
+        .filter((i) => !fitting.has(i))
+        .map((i) => ({
+          practiceId,
+          userId: evening.user.id,
+          fromDate: day,
+          toDate: day,
+          fromMinute: 1080,
+          createdAt: new Date(base + i * 60_000),
+        })),
+    );
+    const entries = [];
+    for (const i of fitting) {
+      entries.push(
+        (
+          await waiting({
+            fromDate: day,
+            toDate: day,
+            createdAt: new Date(base + i * 60_000),
+          })
+        ).entry,
+      );
+    }
+
+    // The fourth `select` — the second page of wishes — fails.
+    let selects = 0;
+    const flaky = new Proxy(api.db, {
+      get(target, prop, receiver) {
+        if (prop === "select") {
+          return (...args: Parameters<typeof target.select>) => {
+            if (++selects === 4) throw new Error("the database went away");
+            return target.select(...args);
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const { sent, deliver } = recorder();
+
+    expect(
+      await notifyWaitlist(flaky, freed("07:00", "08:00", day), deliver),
+    ).toBe(0);
+    expect(sent).toEqual([]);
+    // Nobody was told, so all three are still waiting.
+    const open = await Promise.all(entries.map((e) => notifiedAt(e.id)));
+    expect(open).toEqual([null, null, null]);
+
+    // The next time they are reached.
+    await notifyWaitlist(api.db, freed("08:00", "09:00", day), deliver);
+    expect(
+      (await Promise.all(entries.map((e) => notifiedAt(e.id)))).every(
+        (t) => t !== null,
+      ),
+    ).toBe(true);
+  });
+});
