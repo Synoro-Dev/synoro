@@ -41,8 +41,11 @@ const isOpen = (day: number) =>
   day >= today && weekday(day) < 5 && !fullyBooked.has(day);
 
 const times = ["09:00", "10:00", "11:00", "13:00", "15:00", "17:00"];
+/** The day shown on load: every window is free. */
+const initialDay = 24;
 /** A stable, made-up pattern of taken hours, different for each day. */
-const isTaken = (day: number, index: number) => (day * 3 + index) % 5 === 0;
+const isTaken = (day: number, index: number) =>
+  day !== initialDay && (day * 3 + index) % 5 === 0;
 
 const endOf = (time: string) => `${Number(time.slice(0, 2)) + 1}:00`;
 
@@ -56,7 +59,7 @@ const freeLabel = (count: number) =>
  * through: pick a day, pick a time, book. Nothing is sent anywhere.
  */
 export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
-  const [day, setDay] = useState(12);
+  const [day, setDay] = useState(initialDay);
   const [time, setTime] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
 

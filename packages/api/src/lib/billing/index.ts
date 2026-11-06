@@ -96,7 +96,7 @@ export async function hasPro(db: Database, userId: string) {
 }
 
 /**
- * Start the 14-day trial — once per user: with their first practice, or the
+ * Start the trial — once per user: with their first practice, or the
  * first payment if that comes earlier. Later calls change nothing.
  */
 export async function ensureSubscription(db: Database, userId: string) {

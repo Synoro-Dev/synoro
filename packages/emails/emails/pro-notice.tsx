@@ -27,7 +27,7 @@ export default function ProNoticeEmail({
   paid = false,
   endsOn = "15 ноября 2026",
   left = "через 3 дня",
-  prices = "149 ₽ в месяц или 1490 ₽ в год",
+  prices = "240 ₽ в месяц или 2400 ₽ в год",
   billingUrl = "https://app.synoro.ru/settings/billing",
 }: {
   notice: ProNotice;

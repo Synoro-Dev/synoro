@@ -33,9 +33,9 @@ export function Hero({
             className="bg-background hover:bg-muted mb-7 inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm shadow-xs transition-colors"
           >
             <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium whitespace-nowrap text-white">
-              0 ₽
+              3 мин
             </span>
-            Бесплатно навсегда, без лимита записей
+            Быстрый старт · Базовый тариф без лимита записей
           </a>
 
           <h1 className="mb-4 text-lg font-medium tracking-tight text-balance sm:text-xl">

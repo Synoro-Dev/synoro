@@ -140,14 +140,14 @@ afterAll(async () => {
 });
 
 describe("trial", () => {
-  it("starts with the first practice and lasts 14 days", async () => {
+  it("starts with the first practice and lasts 15 days", async () => {
     const { session } = await specialist("trial-anna");
     const before = await subscriptionOf(session);
     if (!before) throw new Error("No subscription");
 
     const left = before.trialEndsAt.getTime() - Date.now();
-    expect(left).toBeGreaterThan(14 * DAY_MS - 60_000);
-    expect(left).toBeLessThanOrEqual(14 * DAY_MS);
+    expect(left).toBeGreaterThan(15 * DAY_MS - 60_000);
+    expect(left).toBeLessThanOrEqual(15 * DAY_MS);
 
     await call(
       practiceRouter.create,
@@ -161,8 +161,8 @@ describe("trial", () => {
       context: api.context(session),
     });
     expect(billing.plan).toMatchObject({ status: "trial", pro: true });
-    expect(billing.prices.month.amount).toBe(149_00);
-    expect(billing.prices.year.amount).toBe(1490_00);
+    expect(billing.prices.month.amount).toBe(240_00);
+    expect(billing.prices.year.amount).toBe(2400_00);
     expect(billing.available).toBe(true);
   });
 
@@ -224,7 +224,7 @@ describe("paying for «Про» through Точка", () => {
     expect(exitCode).toBe(0);
   }, 30_000);
 
-  it("opens a payment link for 149 ₽ and extends after the trial", async () => {
+  it("opens a payment link for 240 ₽ and extends after the trial", async () => {
     tochka();
     const { session } = await specialist("pay-month");
     const trialEndsAt = (await subscriptionOf(session))?.trialEndsAt;
@@ -239,7 +239,7 @@ describe("paying for «Про» through Точка", () => {
     expect(create?.body).toMatchObject({
       Data: {
         customerCode: "300000001",
-        amount: 149,
+        amount: 240,
         paymentMode: ["card", "sbp"],
         paymentLinkId: started.paymentId,
         purpose: expect.stringMatching(/^Заказ \d{4,}\. Оплата тарифа/),
@@ -249,7 +249,7 @@ describe("paying for «Про» through Точка", () => {
         Items: [
           {
             name: "Тариф «Про» Synoro, 1 месяц",
-            amount: 149,
+            amount: 240,
             quantity: 1,
             vatType: "none",
             paymentMethod: "full_prepayment",
@@ -267,7 +267,7 @@ describe("paying for «Про» through Точка", () => {
     );
     expect(pending.status).toBe("pending");
 
-    operations.set(started.operationId, { status: "APPROVED", amount: 149 });
+    operations.set(started.operationId, { status: "APPROVED", amount: 240 });
     const paid = await call(
       billingRouter.status,
       { paymentId: started.paymentId },
@@ -308,8 +308,8 @@ describe("paying for «Про» through Точка", () => {
     await endTrial(session);
 
     const { operationId } = await pay(session, "year");
-    expect(requests[0]?.body).toMatchObject({ Data: { amount: 1490 } });
-    operations.set(operationId, { status: "APPROVED", amount: 1490 });
+    expect(requests[0]?.body).toMatchObject({ Data: { amount: 2400 } });
+    operations.set(operationId, { status: "APPROVED", amount: 2400 });
 
     const response = await webhook(
       webhookJwt({ webhookType: "acquiringInternetPayment", operationId }),
@@ -361,7 +361,7 @@ describe("paying for «Про» through Точка", () => {
     tochka();
     const { session } = await specialist("pay-expired");
     const { paymentId, operationId } = await pay(session, "month");
-    operations.set(operationId, { status: "EXPIRED", amount: 149 });
+    operations.set(operationId, { status: "EXPIRED", amount: 240 });
 
     const status = await call(
       billingRouter.status,
@@ -396,7 +396,7 @@ describe("paying for «Про» through Точка", () => {
         Array.from({ length: 21 }, (_, i) => ({
           userId: session.user.id,
           period: "month" as const,
-          amount: 149_00,
+          amount: 240_00,
           status: "succeeded" as const,
           createdAt: new Date(now - (i + 1) * DAY_MS),
         })),
@@ -406,14 +406,14 @@ describe("paying for «Про» through Точка", () => {
       ...Array.from({ length: 21 }, (_, i) => ({
         userId: session.user.id,
         period: "month" as const,
-        amount: 149_00,
+        amount: 240_00,
         status: i % 2 ? ("pending" as const) : ("canceled" as const),
         createdAt: new Date(now + i),
       })),
       {
         userId: stranger.user.id,
         period: "year",
-        amount: 1490_00,
+        amount: 2400_00,
         status: "succeeded",
         createdAt: new Date(now),
       },
@@ -443,7 +443,7 @@ describe("refunds", () => {
     const started = await pay(session, period);
     operations.set(started.operationId, {
       status: "APPROVED",
-      amount: period === "year" ? 1490 : 149,
+      amount: period === "year" ? 2400 : 240,
     });
     await call(
       billingRouter.status,
@@ -473,7 +473,7 @@ describe("refunds", () => {
       {
         method: "POST",
         url: `https://tochka.test/uapi/acquiring/v1.0/payments/${operationId}/refund`,
-        body: { Data: { amount: 149 } },
+        body: { Data: { amount: 240 } },
       },
     ]);
 
@@ -609,7 +609,7 @@ describe("refunds", () => {
     );
     // Only now, with the refund holding its rows, the other payment comes in.
     await reached;
-    operations.set(second.operationId, { status: "APPROVED", amount: 149 });
+    operations.set(second.operationId, { status: "APPROVED", amount: 240 });
     const settling = webhook(
       webhookJwt({
         webhookType: "acquiringInternetPayment",
@@ -759,7 +759,7 @@ describe("Точка sandbox", () => {
            expect(calls[0].init.headers.Authorization).toBe("Bearer sandbox.jwt.token");
            expect(JSON.parse(calls[0].init.body).Data).toMatchObject({
              customerCode: "1234567ab", merchantId: "200000000001097",
-             taxSystemCode: "usn_income", amount: 149,
+             taxSystemCode: "usn_income", amount: 240,
            });
 
            // The unpayable bank link is replaced by our own page.
@@ -790,7 +790,7 @@ describe("Точка sandbox", () => {
 
            // A real payment (opened before the sandbox was switched on) is out of reach.
            const [real] = await api.db.insert(SubscriptionPayment).values({
-             userId: session.user.id, period: "month", amount: 149_00, externalId: "real-operation",
+             userId: session.user.id, period: "month", amount: 240_00, externalId: "real-operation",
            }).returning();
            await expect(call(billingRouter.sandboxPay,
              { paymentId: real.id, outcome: "succeeded" }, { context }))

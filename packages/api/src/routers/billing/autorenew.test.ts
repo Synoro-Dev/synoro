@@ -167,7 +167,7 @@ describe("agreeing to auto-renewal", () => {
       "/acquiring/v1.0/subscriptions_with_receipt",
     );
     expect(request?.body).toMatchObject({
-      Data: { recurring: true, amount: 149, paymentLinkId: started.paymentId },
+      Data: { recurring: true, amount: 240, paymentLinkId: started.paymentId },
     });
     // A subscription link takes neither a lifetime nor payment modes.
     expect(request?.body).not.toHaveProperty("Data.ttl");
@@ -177,7 +177,7 @@ describe("agreeing to auto-renewal", () => {
     // Not on until the bank has confirmed the first payment.
     expect(await autorenewalOf(session)).toBeUndefined();
 
-    operations.set(lastOperation, { status: "APPROVED", amount: 149 });
+    operations.set(lastOperation, { status: "APPROVED", amount: 240 });
     const paid = await call(
       billingRouter.status,
       { paymentId: started.paymentId },
@@ -194,7 +194,7 @@ describe("agreeing to auto-renewal", () => {
     const billing = await call(billingRouter.get, undefined, { context });
     expect(billing.autorenew).toMatchObject({
       period: "month",
-      amount: 149_00,
+      amount: 240_00,
     });
   });
 
@@ -213,7 +213,7 @@ describe("agreeing to auto-renewal", () => {
       { context },
     );
     expect(requests[0]?.url).toEndWith("/payments_with_receipt");
-    operations.set(lastOperation, { status: "APPROVED", amount: 149 });
+    operations.set(lastOperation, { status: "APPROVED", amount: 240 });
     await call(
       billingRouter.status,
       { paymentId: started.paymentId },
@@ -240,7 +240,7 @@ describe("charging for the next period", () => {
     expect(charges()[0]).toMatchObject({
       method: "POST",
       url: "https://tochka.test/uapi/acquiring/v1.0/subscriptions/sub-charge%40test.local/charge",
-      body: { Data: { amount: 149 } },
+      body: { Data: { amount: 240 } },
     });
     const expected = new Date(paidUntil);
     expected.setMonth(expected.getMonth() + 1);
@@ -248,7 +248,7 @@ describe("charging for the next period", () => {
     const [payment] = await paymentsOf(session);
     expect(payment).toMatchObject({
       status: "succeeded",
-      amount: 149_00,
+      amount: 240_00,
       chargedFor: paidUntil,
       periodStart: paidUntil,
       externalId: null,
@@ -273,9 +273,9 @@ describe("charging for the next period", () => {
 
     await renewSubscriptions(api.db, recorder().deliver, now);
 
-    expect(charges()[0]?.body).toEqual({ Data: { amount: 1490 } });
+    expect(charges()[0]?.body).toEqual({ Data: { amount: 2400 } });
     const [payment] = await paymentsOf(session);
-    expect(payment).toMatchObject({ period: "year", amount: 1490_00 });
+    expect(payment).toMatchObject({ period: "year", amount: 2400_00 });
   });
 
   it("leaves periods that are not due, canceled ones and demo ids alone", async () => {
@@ -532,12 +532,12 @@ describe("a late confirmation of an older agreement", () => {
       .values({
         userId: session.user.id,
         period: "month",
-        amount: 149_00,
+        amount: 240_00,
         externalId: operationId,
         autorenewConsentAt: new Date(Date.now() - consentAgo),
       })
       .returning();
-    operations.set(operationId, { status: "APPROVED", amount: 149 });
+    operations.set(operationId, { status: "APPROVED", amount: 240 });
     return call(
       billingRouter.status,
       { paymentId: payment?.id ?? "" },

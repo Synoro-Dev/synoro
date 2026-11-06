@@ -4,7 +4,7 @@
  *
  * Freemium: a solo practice runs on the free plan for good; people pay once
  * they take money online (ЮKassa). «Про» starts with a free trial, then
- * 149 ₽ a month or 1490 ₽ a year, paid in the app through Точка Банк. Large
+ * 240 ₽ a month or 2400 ₽ a year, paid in the app through Точка Банк. Large
  * teams talk to us: «Бизнес» is priced per agreement and includes custom
  * development. See docs/pricing-strategy.md. The app charges
  * `PRO_PRICES` (@synoro/validators): keep both in sync.
@@ -54,9 +54,9 @@ export const plans: Plan[] = [
     id: "pro",
     name: "Про",
     description: "Когда клиенты готовы платить онлайн.",
-    monthly: 149,
-    yearly: 1490,
-    trialDays: 14,
+    monthly: 240,
+    yearly: 2400,
+    trialDays: 15,
     features: [
       "Всё из «Бесплатного»",
       "Оплата пакетов онлайн через ЮKassa",

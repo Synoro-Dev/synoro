@@ -5,6 +5,7 @@ import {
   CardTitle,
   Skeleton,
 } from "@synoro/ui";
+import { TRIAL_DAYS } from "@synoro/validators";
 import { Suspense } from "react";
 
 import { requireAdmin } from "~/auth/server";
@@ -52,7 +53,7 @@ async function Stats() {
     {
       label: "На пробном периоде",
       value: formatCount(stats.pro.trial),
-      note: "14 дней с первой практики",
+      note: `${TRIAL_DAYS} дней с первой практики`,
     },
     {
       label: "Выручка «Про» за 30 дней",
