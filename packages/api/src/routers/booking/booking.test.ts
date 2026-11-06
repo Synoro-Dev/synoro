@@ -440,11 +440,11 @@ describe("booking.book", () => {
     const { session } = await newClient(2);
 
     const first = await bookAt(session, at("07:00"));
-    expect(first.credits).toBe(1);
+    expect(first.balance).toBe(1);
     expect(first.endsAt.toISOString()).toBe(`${MONDAY}T08:00:00.000Z`);
 
     const second = await bookAt(session, at("08:00"));
-    expect(second.credits).toBe(0);
+    expect(second.balance).toBe(0);
 
     await expect(bookAt(session, at("09:00"))).rejects.toMatchObject({
       code: "NO_CREDITS",
@@ -643,7 +643,7 @@ describe("booking.book for a client", () => {
           { practiceId, startsAt: at("07:00"), memberId: target },
           { context: api.context(session) },
         );
-        expect(booking).toMatchObject({ memberId, credits: 1 });
+        expect(booking).toMatchObject({ memberId, balance: 1, credits: 1 });
         await call(
           bookingRouter.cancel,
           { bookingId: booking.id },
@@ -677,7 +677,8 @@ describe("booking.book for a client", () => {
       memberId,
       kind: "consultation",
       createdById: owner.user.id,
-      credits: 0,
+      balance: 0,
+      credits: 1,
     });
     expect(await balance(session)).toBe(0);
     const spent = await api.db.query.CreditEntry.findFirst({

@@ -201,6 +201,8 @@ describe("asking to delete", () => {
       {
         practiceId: practice.id,
         kind: "consultation",
+        // Refunded what it was charged.
+        credits: 1,
         memberId: member.id,
         startsAt: at(3),
         endsAt: new Date(at(3).getTime() + 3_600_000),

@@ -5,6 +5,7 @@ import { user } from "../auth/user";
 import { PracticeClient } from "./client";
 import { Practice, PracticeMember } from "./practice";
 import { BookingSeries } from "./series";
+import { Service } from "./service";
 
 /**
  * consultation — paid, 1 hour, booked by a client for one credit.
@@ -52,6 +53,17 @@ export const Booking = pgTable(
       .notNull()
       .references(() => Practice.id, { onDelete: "cascade" }),
     kind: bookingKind().notNull(),
+    /**
+     * What was booked (`services`); null for free intros, closed time and
+     * bookings made before services existed.
+     */
+    serviceId: t.uuid().references(() => Service.id, { onDelete: "set null" }),
+    /**
+     * Credits taken from the client's balance for this booking, and given
+     * back on a refund: the service's price when it was booked. 0 for free
+     * intros and closed time.
+     */
+    credits: t.smallint().notNull().default(0),
     status: bookingStatus().notNull().default("active"),
     startsAt: t.timestamp({ withTimezone: true }).notNull(),
     endsAt: t.timestamp({ withTimezone: true }).notNull(),

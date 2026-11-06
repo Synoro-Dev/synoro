@@ -1,5 +1,6 @@
 import { and, asc, Booking, BookingSeries, eq, gt } from "@synoro/db";
 import { notifySeriesCancelled } from "@synoro/jobs/booking-video";
+import { notifyWaitlist } from "@synoro/jobs/waitlist";
 import { z } from "zod";
 
 import { cancelBookingRows } from "../../lib/bookings";
@@ -102,6 +103,12 @@ export const cancelSeries = protectedProcedure
     // After the commit: Google and mails never undo the cancellation.
     for (const { booking } of done.rows) {
       await removeBookingEvent(context.db, booking);
+      await notifyWaitlist(context.db, {
+        practiceId: booking.practiceId,
+        startsAt: booking.startsAt,
+        endsAt: booking.endsAt,
+        exceptUserId: userId,
+      });
     }
     const cancelled = done.rows.map((r) => r.booking.id);
     const refunded = done.rows.filter((r) => r.refunded).length;

@@ -76,6 +76,7 @@ export const rescheduleSlots = protectedProcedure
         timeZone: practice.timezone,
         kind,
         introMinutes: minutes,
+        minutes,
         now: new Date(),
       }).filter(
         (slot) => slot.startsAt.getTime() !== booking.startsAt.getTime(),

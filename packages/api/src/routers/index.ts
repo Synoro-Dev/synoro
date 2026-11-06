@@ -27,6 +27,10 @@
  *                     checkout + status, payment history (client / staff)
  *   question.*      – the questionnaire clients fill in when booking,
  *                     on «Про»                                      (owner)
+ *   service.*       – what clients book: name, length, price in credits
+ *                     (staff list, owner save)
+ *   waitlist.*      – wishes for freed-up time: join (visitor or client),
+ *                     mine, leave, list (staff)
  *   workflow.*      – own messages to clients on «Про»: after a meeting,
  *                     package running out, quiet client            (owner)
  *   analytics.*     – how the practice is doing: meetings, no-shows,
@@ -58,7 +62,9 @@ import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
 import { questionRouter } from "./question";
+import { serviceRouter } from "./service";
 import { userRouter } from "./user";
+import { waitlistRouter } from "./waitlist";
 import { workflowRouter } from "./workflow";
 
 export const appRouter = {
@@ -75,6 +81,8 @@ export const appRouter = {
   googleCalendar: googleCalendarRouter,
   workflow: workflowRouter,
   question: questionRouter,
+  service: serviceRouter,
+  waitlist: waitlistRouter,
   analytics: analyticsRouter,
   messenger: messengerRouter,
   data: dataRouter,

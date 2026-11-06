@@ -218,7 +218,7 @@ describe("answers when booking", () => {
       },
       context,
     );
-    expect(booking.credits).toBe(1);
+    expect(booking.balance).toBe(1);
 
     // Rewording the question later doesn't change what was answered.
     await save(owner, practiceId, [{ ...REQUEST, label: "Ваш запрос" }]);

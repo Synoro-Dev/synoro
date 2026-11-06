@@ -630,6 +630,8 @@ describe("failure boundaries and reconciliation", () => {
         practiceId,
         memberId: member.id,
         kind: "consultation",
+        // A booking is refunded what it was charged.
+        credits: 1,
         startsAt,
         endsAt: new Date(startsAt.getTime() + 3600_000),
         ...(mirrored

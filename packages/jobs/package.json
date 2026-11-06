@@ -27,6 +27,10 @@
       "types": "./dist/when.d.ts",
       "default": "./src/when.ts"
     },
+    "./waitlist": {
+      "types": "./dist/waitlist.d.ts",
+      "default": "./src/waitlist.ts"
+    },
     "./metrika": {
       "types": "./dist/metrika.d.ts",
       "default": "./src/metrika.ts"

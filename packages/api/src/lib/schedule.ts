@@ -6,6 +6,8 @@
  * local midnight, ISO weekday); bookings are stored as UTC instants.
  */
 
+import { serviceStepMinutes } from "@synoro/validators";
+
 export type SlotKind = "consultation" | "free";
 
 /**
@@ -17,17 +19,24 @@ export const SLOT_MINUTES: Record<SlotKind, number> = {
   free: 30,
 };
 
-/** Where slots may start: paid ones on the hour, intros on the half hour. */
-const SLOT_STEP_MINUTES: Record<SlotKind, number> = {
-  consultation: 60,
-  free: 30,
-};
+/**
+ * Where slots may start: intros on the half hour, paid ones by the length of
+ * the service (`serviceStepMinutes`: whole hours on the hour).
+ */
+function slotStep(kind: SlotKind, minutes?: number) {
+  return kind === "free"
+    ? 30
+    : serviceStepMinutes(minutes ?? SLOT_MINUTES.consultation);
+}
 
-/** Length in minutes of a `kind` slot, given the practice's intro length. */
-function slotMinutes(kind: SlotKind, introMinutes?: number) {
+/**
+ * Length in minutes of a `kind` slot: the practice's intro length for a free
+ * one, the service's `minutes` (an hour by default) for a paid one.
+ */
+function slotMinutes(kind: SlotKind, introMinutes?: number, minutes?: number) {
   return kind === "free"
     ? (introMinutes ?? SLOT_MINUTES.free)
-    : SLOT_MINUTES.consultation;
+    : (minutes ?? SLOT_MINUTES.consultation);
 }
 
 /** The worker needs the same rule for the messenger cancel button. */
@@ -222,7 +231,7 @@ export function isOnHalfHourGrid(at: Date) {
  * Bookable slots of `kind` for `days` local days starting at `from`.
  *
  * Slots start on their grid from local midnight (paid: :00, free: :00 and
- * :30), last `slotMinutes(kind, introMinutes)`, lie fully inside a rule,
+ * :30), last `slotMinutes(kind, introMinutes, minutes)`, lie fully inside a rule,
  * start after `now`, and don't overlap any `busy` range. Overlapping rules
  * don't produce duplicates.
  */
@@ -235,10 +244,12 @@ export function computeSlots(opts: {
   kind: SlotKind;
   /** The practice's intro length (`practices.intro_minutes`). */
   introMinutes?: number;
+  /** Length of the paid service being booked; an hour when missing. */
+  minutes?: number;
   now: Date;
 }): TimeRange[] {
-  const length = slotMinutes(opts.kind, opts.introMinutes);
-  const step = SLOT_STEP_MINUTES[opts.kind];
+  const length = slotMinutes(opts.kind, opts.introMinutes, opts.minutes);
+  const step = slotStep(opts.kind, opts.minutes);
   const slots = new Map<number, TimeRange>();
 
   for (let i = 0; i < opts.days; i++) {
@@ -280,6 +291,8 @@ export function freeWindows(opts: {
   days: number;
   timeZone: string;
   introMinutes?: number;
+  /** Length of the paid service the windows are for; an hour when missing. */
+  minutes?: number;
   now: Date;
 }) {
   const nowCut = { startsAt: new Date(0), endsAt: opts.now };
@@ -323,6 +336,7 @@ export function isScheduledSlot(opts: {
   timeZone: string;
   kind: SlotKind;
   introMinutes?: number;
+  minutes?: number;
   now: Date;
 }) {
   const from = toZonedDate(opts.startsAt, opts.timeZone);

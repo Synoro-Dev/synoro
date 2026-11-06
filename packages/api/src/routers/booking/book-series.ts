@@ -19,12 +19,14 @@ import {
   practiceProcedure,
 } from "../../lib/practice-access";
 import { previewSeries, SERIES_MAX, seriesMember } from "../../lib/series";
+import { resolveService } from "../../lib/services";
 import { seriesInput } from "./series-preview";
 
 /**
  * Book a recurring consultation: the same local time every week or every
  * other week, `count` dates minus the ones in `skip`, at least two. All
- * bookings are made at once, in one transaction, one credit each.
+ * bookings are made at once, in one transaction, the service's price in
+ * credits each (`serviceId`, the first service when missing).
  *
  * SLOT_UNAVAILABLE lists the dates that can't be booked (off the schedule,
  * taken, busy in Google for clients, past): skip them or pick another time.
@@ -52,6 +54,7 @@ export const bookSeries = practiceProcedure
     },
     TOO_FEW: { message: "Для повторной записи нужно хотя бы две даты" },
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
+    SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     ANSWERS_INVALID,
   })
   .input(
@@ -79,6 +82,12 @@ export const bookSeries = practiceProcedure
     );
     if (who.error) throw errors[who.error]();
     const { member, staff, forOther } = who;
+    const service = await resolveService(
+      context.db,
+      practice.id,
+      input.serviceId,
+    );
+    if (!service) throw errors.SERVICE_NOT_FOUND();
     // Staff booking a client reach them anyway; a client must leave a phone.
     if (!forOther) {
       const account = await context.db.query.user.findFirst({
@@ -97,7 +106,12 @@ export const bookSeries = practiceProcedure
 
     const skipped = new Set(input.skip.map((d) => d.getTime()));
     const dates = (
-      await previewSeries(context.db, practice, input, { checkGoogle: !staff })
+      await previewSeries(
+        context.db,
+        practice,
+        { ...input, minutes: service.minutes },
+        { checkGoogle: !staff },
+      )
     ).filter((d) => !skipped.has(d.startsAt.getTime()));
     if (dates.length < 2) throw errors.TOO_FEW();
     const blocked = dates.filter((d) => d.status !== "free");
@@ -111,7 +125,11 @@ export const bookSeries = practiceProcedure
     let created: { seriesId: string; bookingIds: string[]; credits: number };
     try {
       created = await context.db.transaction(async (tx) => {
-        const credits = await adjustCredits(tx, member.id, -dates.length);
+        const credits = await adjustCredits(
+          tx,
+          member.id,
+          -dates.length * service.credits,
+        );
         if (credits === undefined) throw errors.NO_CREDITS();
         const [series] = await tx
           .insert(BookingSeries)
@@ -130,6 +148,8 @@ export const bookSeries = practiceProcedure
             dates.map((d) => ({
               practiceId: practice.id,
               kind: "consultation" as const,
+              serviceId: service.id,
+              credits: service.credits,
               startsAt: d.startsAt,
               endsAt: d.endsAt,
               memberId: member.id,
@@ -144,7 +164,7 @@ export const bookSeries = practiceProcedure
         await tx.insert(CreditEntry).values(
           bookings.map((b) => ({
             memberId: member.id,
-            delta: -1,
+            delta: -service.credits,
             reason: "booking" as const,
             bookingId: b.id,
             createdById: userId,

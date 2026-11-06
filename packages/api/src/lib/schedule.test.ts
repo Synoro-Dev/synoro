@@ -280,3 +280,65 @@ describe("freeWindows", () => {
     expect(monday?.slots.free[0]).toEqual(t("08:30"));
   });
 });
+
+describe("computeSlots for a service", () => {
+  const rules = [{ weekday: 1, startMinute: 600, endMinute: 780 }]; // 10:00–13:00
+  const slots = (minutes: number) =>
+    computeSlots({
+      rules,
+      busy: [],
+      from: MONDAY,
+      days: 1,
+      timeZone: MSK,
+      kind: "consultation",
+      minutes,
+      now: LONG_AGO,
+    });
+
+  it("starts 90-minute slots on the half hour", () => {
+    expect(iso(slots(90))).toEqual([
+      "2026-11-02T07:00:00.000Z",
+      "2026-11-02T07:30:00.000Z",
+      "2026-11-02T08:00:00.000Z",
+      "2026-11-02T08:30:00.000Z",
+    ]);
+    expect(slots(90)[0]?.endsAt.toISOString()).toBe("2026-11-02T08:30:00.000Z");
+  });
+
+  it("keeps 50 minutes and whole hours on the hour", () => {
+    expect(iso(slots(50))).toEqual([
+      "2026-11-02T07:00:00.000Z",
+      "2026-11-02T08:00:00.000Z",
+      "2026-11-02T09:00:00.000Z",
+    ]);
+    expect(slots(50)[0]?.endsAt.toISOString()).toBe("2026-11-02T07:50:00.000Z");
+    expect(iso(slots(120))).toEqual([
+      "2026-11-02T07:00:00.000Z",
+      "2026-11-02T08:00:00.000Z",
+    ]);
+  });
+
+  it("starts 30 and 45 minutes on the half hour", () => {
+    expect(slots(30)).toHaveLength(6);
+    expect(iso(slots(45))).toHaveLength(5);
+  });
+
+  it("offers nothing when the service is longer than the working hours", () => {
+    expect(slots(240)).toEqual([]);
+  });
+
+  it("checks a scheduled start against the service's length", () => {
+    const startsAt = new Date("2026-11-02T07:30:00Z");
+    const check = (minutes: number) =>
+      isScheduledSlot({
+        rules,
+        startsAt,
+        timeZone: MSK,
+        kind: "consultation",
+        minutes,
+        now: LONG_AGO,
+      });
+    expect(check(90)).toBe(true);
+    expect(check(60)).toBe(false);
+  });
+});

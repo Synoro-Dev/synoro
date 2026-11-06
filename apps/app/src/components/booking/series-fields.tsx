@@ -126,11 +126,14 @@ export function useSeriesPreview({
   startsAt,
   repeat,
   memberId,
+  serviceId,
 }: {
   practiceId: string;
   startsAt: Date | null;
   repeat: Repeat | null;
   memberId?: string;
+  /** The service the series is for; the practice's first when missing. */
+  serviceId?: string;
 }) {
   return useQuery({
     ...orpc.booking.seriesPreview.queryOptions({
@@ -140,6 +143,7 @@ export function useSeriesPreview({
         intervalWeeks: repeat?.intervalWeeks ?? 1,
         count: repeat?.count ?? 2,
         memberId,
+        serviceId,
       },
     }),
     enabled: startsAt !== null && repeat !== null,

@@ -63,6 +63,17 @@ function bookingNotice(
   return { text: lines.join("\n"), buttons };
 }
 
+function waitlistNotice(p: Props<"waitlist-notice">): MessengerMessage {
+  return {
+    text: [
+      "Освободилось время",
+      `${p.practiceName} — ${p.when}.`,
+      "Время ни за кем не закреплено: записывается тот, кто успел первым.",
+    ].join("\n"),
+    buttons: [{ text: "Выбрать время", url: p.bookingUrl }],
+  };
+}
+
 function staffBooking(p: Props<"staff-booking">): MessengerMessage {
   const booked = p.notice === "booked";
   const cancelled = p.notice === "cancelled";
@@ -166,6 +177,8 @@ export function messengerMessage(
       return staffAgenda(email.props);
     case "staff-booking":
       return staffBooking(email.props);
+    case "waitlist-notice":
+      return waitlistNotice(email.props);
     case "workflow-message":
       return workflowMessage(email.props);
     default:

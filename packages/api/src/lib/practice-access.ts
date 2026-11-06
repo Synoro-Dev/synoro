@@ -11,6 +11,7 @@ import { DEFAULT_BOOKING_THEME, readBookingTheme } from "@synoro/validators";
 
 import { protectedProcedure } from "../orpc";
 import { hasPro } from "./billing";
+import { activeServices } from "./services";
 import { practiceImageUrl } from "./urls";
 
 /**
@@ -95,9 +96,10 @@ export async function publicPractice(
   }
 
   const userId = context.session?.user.id;
-  const [member, pro] = await Promise.all([
+  const [member, pro, services] = await Promise.all([
     userId ? findMembership(context.db, practice.id, userId) : undefined,
     hasPro(context.db, practice.ownerId),
+    activeServices(context.db, practice.id),
   ]);
 
   const {
@@ -113,6 +115,11 @@ export async function publicPractice(
     imageUrl: practiceImageUrl(practice.slug, image),
     showBadge: !pro,
     freeBooking,
+    /**
+     * What can be booked, in the order shown. Empty for a practice without
+     * services: it books an hour for one credit.
+     */
+    services,
     /** The questionnaire to fill in when booking; empty without «Про». */
     questions: pro ? questions : [],
     /** How the page looks; the default look without «Про». */

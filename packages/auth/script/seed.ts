@@ -16,6 +16,7 @@ import {
   Practice,
   PracticeInvitation,
   PracticeMember,
+  Service,
   Subscription,
   SubscriptionPayment,
   db as seedDb,
@@ -431,6 +432,29 @@ export async function seedDemoPractice(db: Database) {
     })
     .returning();
   if (!practice) throw new Error("Failed to insert practice");
+
+  // What clients book: the usual hour, and a longer one for two credits, so
+  // the booking page shows the service picker.
+  const [hourService] = await db
+    .insert(Service)
+    .values([
+      {
+        practiceId: practice.id,
+        name: "Консультация",
+        minutes: 60,
+        credits: 1,
+        position: 0,
+      },
+      {
+        practiceId: practice.id,
+        name: "Расширенная сессия",
+        minutes: 90,
+        credits: 2,
+        position: 1,
+      },
+    ])
+    .returning({ id: Service.id });
+  if (!hourService) throw new Error("Failed to insert services");
 
   // The specialist paid a year of «Про» when the trial ran out, so every
   // paid feature is on. Kopecks: 1490 ₽ (PRO_PRICES.year).
@@ -957,7 +981,17 @@ export async function seedDemoPractice(db: Database) {
     });
   }
 
-  const inserted = await db.insert(Booking).values(bookings).returning();
+  // Paid bookings were all the plain hour: one credit each.
+  const inserted = await db
+    .insert(Booking)
+    .values(
+      bookings.map((b) =>
+        b.kind === "consultation"
+          ? { ...b, serviceId: hourService.id, credits: 1 }
+          : b,
+      ),
+    )
+    .returning();
   await db.insert(Payment).values(payments);
   await db.insert(CreditEntry).values(credits);
   // The balance on the member is what its history adds up to.

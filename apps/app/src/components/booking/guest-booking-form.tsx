@@ -62,9 +62,12 @@ export function GuestBookingForm({
   startsAt,
   timeZone,
   offer,
+  service,
   questions,
 }: {
   practice: { id: string; name: string; profession: Profession };
+  /** What is being booked; the practice's first service when missing. */
+  service?: { id?: string; credits: number };
   startsAt: Date;
   /** The zone the visitor reads times in; their mails use it too. */
   timeZone: string;
@@ -74,7 +77,9 @@ export function GuestBookingForm({
 }) {
   const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
-  const deals = packageDeals(offer.packages);
+  const price = service?.credits ?? 1;
+  // A package must cover the service: the payment spends its price on the time.
+  const deals = packageDeals(offer.packages).filter((d) => d.credits >= price);
   const [packageId, setPackageId] = useState(deals[0]?.id ?? "");
   const selected = deals.find((d) => d.id === packageId) ?? deals[0];
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -118,6 +123,7 @@ export function GuestBookingForm({
       note: values.note || undefined,
       practiceId: practice.id,
       packageId: selected.id,
+      serviceId: service?.id,
       startsAt,
       timezone: timeZone,
     });
@@ -203,6 +209,12 @@ export function GuestBookingForm({
       <h3 id="guest-package" className="pt-2 text-base font-semibold">
         Что оплатить
       </h3>
+      {deals.length === 0 && (
+        <p role="alert" className="text-sm text-muted-foreground">
+          Для этой услуги нет подходящего пакета. Выберите другую услугу или
+          напишите специалисту.
+        </p>
+      )}
       <RadioGroup
         value={selected?.id ?? ""}
         onValueChange={(value) => setPackageId(String(value))}
@@ -224,7 +236,9 @@ export function GuestBookingForm({
               </span>
               {deal.credits > 1 && (
                 <span className="text-xs font-normal text-muted-foreground">
-                  Первая — на выбранное время, остальные на вашем балансе
+                  {price > 1
+                    ? `${formatCredits(price, terms)} — на выбранное время, остальные на вашем балансе`
+                    : "Первая — на выбранное время, остальные на вашем балансе"}
                 </span>
               )}
             </span>

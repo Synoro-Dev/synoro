@@ -127,6 +127,13 @@
       "when": 1793985461127,
       "tag": "0017_import_resume",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793988534913,
+      "tag": "0018_services_waitlist",
+      "breakpoints": true
     }
   ]
 }

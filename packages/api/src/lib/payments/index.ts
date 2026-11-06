@@ -200,7 +200,7 @@ export function providerFailureMessage(error: ProviderError) {
  * Success marks it paid, adds the credits and writes the history entry in ONE
  * statement, so it happens exactly once however many webhooks and status
  * checks race. A payment made for a booking also confirms that booking and
- * spends one of its credits on it — unless the hold ran out and the booking
+ * spends what it was charged (`bookings.credits`) on it — unless the hold ran out and the booking
  * was released meanwhile: then the credits just land on the balance and the
  * client picks another time.
  * Cancellation of such a payment releases the held time. Settled payments
@@ -256,11 +256,11 @@ async function settlePayment(
         where bookings.id = paid.booking_id
           and bookings.status = 'active'
           and bookings.hold_until is not null
-        returning bookings.id, bookings.member_id
+        returning bookings.id, bookings.member_id, bookings.credits
       ), topped_up as (
         update practice_members
         set credits = practice_members.credits + paid.credits
-              - (select count(*) from confirmed)::int,
+              - (select coalesce(sum(confirmed.credits), 0) from confirmed)::int,
             updated_at = now()
         from paid
         where practice_members.id = paid.member_id
@@ -275,7 +275,8 @@ async function settlePayment(
       )
       insert into credit_entries
         (member_id, delta, reason, booking_id, note, created_by_id)
-      select confirmed.member_id, -1, 'booking', confirmed.id, 'Оплата онлайн',
+      select confirmed.member_id, -confirmed.credits, 'booking', confirmed.id,
+        'Оплата онлайн',
         paid.created_by_id
       from confirmed, paid
       where confirmed.member_id is not null

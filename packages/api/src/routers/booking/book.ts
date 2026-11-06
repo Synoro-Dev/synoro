@@ -23,10 +23,13 @@ import {
   isStaff,
   practiceProcedure,
 } from "../../lib/practice-access";
-import { isScheduledSlot, SLOT_MINUTES } from "../../lib/schedule";
+import { isScheduledSlot } from "../../lib/schedule";
+import { resolveService } from "../../lib/services";
 
 /**
- * Book a one-hour paid consultation, spending one credit of the client.
+ * Book a paid service — `serviceId`, the practice's first one when missing —
+ * spending its price in credits (one for a plain hour) from the client's balance.
+ * SERVICE_NOT_FOUND when it isn't an active service of the practice.
  *
  * A client books for themselves. Staff (owner, admin) may pass `memberId` to
  * book a client of the practice from that client's balance; a client passing
@@ -58,12 +61,15 @@ export const book = practiceProcedure
       message: "Это время недоступно для записи",
     },
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
+    SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     ANSWERS_INVALID,
   })
   .input(
     z.object({
       practiceId: z.uuid(),
       startsAt: z.date(),
+      /** What to book; the practice's first service when missing. */
+      serviceId: z.uuid().optional(),
       note: z.string().trim().max(500).optional(),
       /** Staff only: the client to book; defaults to the caller. */
       memberId: z.uuid().optional(),
@@ -94,6 +100,12 @@ export const book = practiceProcedure
         })
       : caller;
     if (!member) throw errors.NOT_FOUND();
+    const service = await resolveService(
+      context.db,
+      practice.id,
+      input.serviceId,
+    );
+    if (!service) throw errors.SERVICE_NOT_FOUND();
     // Staff booking a client reach them anyway; a client must leave a phone.
     if (!forOther) {
       const account = await context.db.query.user.findFirst({
@@ -116,11 +128,12 @@ export const book = practiceProcedure
       startsAt: input.startsAt,
       timeZone: practice.timezone,
       kind: "consultation",
+      minutes: service.minutes,
       now: new Date(),
     });
     if (!scheduled) throw errors.SLOT_UNAVAILABLE();
     const endsAt = new Date(
-      input.startsAt.getTime() + SLOT_MINUTES.consultation * 60_000,
+      input.startsAt.getTime() + service.minutes * 60_000,
     );
     const range = { startsAt: input.startsAt, endsAt };
     if (!staff && (await isBusyInGoogle(context.db, practice.id, range))) {
@@ -128,7 +141,11 @@ export const book = practiceProcedure
     }
 
     await releaseExpiredHolds(context.db, practice.id);
-    const credits = await adjustCredits(context.db, member.id, -1);
+    const credits = await adjustCredits(
+      context.db,
+      member.id,
+      -service.credits,
+    );
     if (credits === undefined) throw errors.NO_CREDITS();
 
     let booking: typeof Booking.$inferSelect | undefined;
@@ -138,6 +155,8 @@ export const book = practiceProcedure
         .values({
           practiceId: practice.id,
           kind: "consultation",
+          serviceId: service.id,
+          credits: service.credits,
           startsAt: input.startsAt,
           endsAt,
           memberId: member.id,
@@ -149,7 +168,7 @@ export const book = practiceProcedure
         })
         .returning();
     } catch (error) {
-      await adjustCredits(context.db, member.id, 1);
+      await adjustCredits(context.db, member.id, service.credits);
       if (isExclusionViolation(error, "bookings_no_overlap")) {
         throw errors.SLOT_UNAVAILABLE({ cause: error });
       }
@@ -159,7 +178,7 @@ export const book = practiceProcedure
 
     await recordCredit(context.db, {
       memberId: member.id,
-      delta: -1,
+      delta: -service.credits,
       reason: "booking",
       bookingId: booking.id,
       createdById: userId,
@@ -167,5 +186,6 @@ export const book = practiceProcedure
     await exportBooking(context.db, booking.id);
     await notifyBookingConfirmed(context.db, booking.id);
 
-    return { ...booking, credits };
+    // `credits` stays what this booking cost; `balance` is what is left.
+    return { ...booking, balance: credits };
   });

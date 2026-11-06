@@ -1,6 +1,16 @@
 import { logger } from "@synoro/config";
-import { isUniqueViolation, Practice, PracticeMember } from "@synoro/db";
-import { isPremiumSlug, practiceFormSchema } from "@synoro/validators";
+import {
+  isUniqueViolation,
+  Practice,
+  PracticeMember,
+  Service,
+} from "@synoro/db";
+import {
+  capitalize,
+  isPremiumSlug,
+  practiceFormSchema,
+  professionTerms,
+} from "@synoro/validators";
 import { z } from "zod";
 
 import { billingAvailable, ensureSubscription } from "../../lib/billing";
@@ -18,7 +28,8 @@ import { protectedProcedure } from "../../orpc";
 
 /**
  * Create a practice (the SaaS tenant) — any signed-in user can; they become
- * its owner. The first one starts their 14-day «Про» trial.
+ * its owner. The first one starts their 14-day «Про» trial. A practice starts
+ * with one service, an hour for one credit.
  *
  * A premium address (`isPremiumSlug`) has to be bought: the practice opens at
  * once on a temporary address, and `slugOrder` is the payment that moves it
@@ -85,6 +96,14 @@ export const create = protectedProcedure
     await context.db
       .insert(PracticeMember)
       .values({ practiceId: practice.id, userId: ownerId, role: "owner" });
+    // The one service every practice starts with: an hour for one credit,
+    // named in the profession's words («Консультация», «Занятие»…).
+    await context.db.insert(Service).values({
+      practiceId: practice.id,
+      name: capitalize(professionTerms(practice.profession).credit[0]),
+      minutes: 60,
+      credits: 1,
+    });
     await ensureSubscription(context.db, ownerId);
 
     if (!premium) return { ...practice, slugOrder: null };

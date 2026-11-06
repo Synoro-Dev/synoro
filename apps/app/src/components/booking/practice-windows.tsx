@@ -3,6 +3,11 @@
 import {
   Button,
   cn,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Tabs,
   TabsList,
@@ -107,20 +112,31 @@ export function PracticeWindows({
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [kind, setKind] = useState<Kind>("consultation");
   const [draft, setDraft] = useState<EntryDraft | null>(null);
+  // The paid service the windows are for: the picked one, else the first.
+  const serviceList = useQuery(
+    orpc.service.list.queryOptions({ input: { practiceId } }),
+  );
+  const services = (serviceList.data?.services ?? []).filter((s) => s.active);
+  const [serviceId, setServiceId] = useState<string | null>(null);
+  const service = services.find((s) => s.id === serviceId) ?? services[0];
+  const serviceMinutes = service?.minutes ?? 60;
 
   const windows = useQuery({
     ...orpc.booking.windows.queryOptions({
-      input: { practiceId, from: weekStart, days: 7 },
+      input: { practiceId, from: weekStart, days: 7, serviceId: service?.id },
     }),
     placeholderData: (previous) => previous,
     // Someone may book on the page meanwhile.
     refetchInterval: 60_000,
   });
 
-  const lengthMinutes = kind === "consultation" ? 60 : introMinutes;
+  // After a change of service the windows of the previous one stay on screen
+  // until the new ones arrive: they must not be booked or copied meanwhile.
+  const stale = windows.isPlaceholderData;
+  const lengthMinutes = kind === "consultation" ? serviceMinutes : introMinutes;
   const kindLabel =
     kind === "consultation"
-      ? `${capitalize(terms.credit[0])}, 1 час`
+      ? `${service?.name ?? capitalize(terms.credit[0])}, ${formatMinutes(serviceMinutes)}`
       : `${terms.free}, ${formatMinutes(introMinutes)}, бесплатно`;
   const days = windows.data?.days ?? [];
   const next = days
@@ -132,14 +148,17 @@ export function PracticeWindows({
     `${time(range.startsAt)}–${time(range.endsAt)}`;
 
   function book(at: Date) {
+    if (stale) return;
     setDraft({
       mode: kind,
+      serviceId: service?.id,
       start: at,
       end: new Date(at.getTime() + lengthMinutes * 60_000),
     });
   }
 
   async function copy() {
+    if (stale) return;
     const lines = days
       .filter((day) => day.slots[kind].length > 0)
       .map(
@@ -174,7 +193,8 @@ export function PracticeWindows({
           <TabsList>
             <TabsTrigger value="consultation">
               <CalendarCheckIcon />
-              {capitalize(terms.credit[0])} · 1 ч
+              {capitalize(terms.credit[0])} ·{" "}
+              {formatMinutes(serviceMinutes, true)}
             </TabsTrigger>
             <TabsTrigger value="free">
               <UserRoundPlusIcon />
@@ -182,6 +202,25 @@ export function PracticeWindows({
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {kind === "consultation" && services.length > 1 && service && (
+          <Select
+            items={Object.fromEntries(services.map((s) => [s.id, s.name]))}
+            value={service.id}
+            onValueChange={(id) => setServiceId(String(id))}
+          >
+            <SelectTrigger className="w-56" aria-label="Услуга">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {services.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name} · {formatMinutes(s.minutes, true)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -214,7 +253,7 @@ export function PracticeWindows({
               Сегодня
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={copy}>
+          <Button variant="outline" size="sm" disabled={stale} onClick={copy}>
             <CopyIcon />
             Скопировать
           </Button>
@@ -243,7 +282,7 @@ export function PracticeWindows({
             {next ? (
               <>
                 <span>{kindLabel}. Нажмите на время, чтобы записать.</span>
-                <Button size="sm" onClick={() => book(next)}>
+                <Button size="sm" disabled={stale} onClick={() => book(next)}>
                   Записать на {time(next)}
                 </Button>
               </>
@@ -303,6 +342,7 @@ export function PracticeWindows({
                           variant="outline"
                           size="sm"
                           className="tabular-nums"
+                          disabled={stale}
                           onClick={() => book(at)}
                         >
                           {time(at)}
@@ -315,7 +355,7 @@ export function PracticeWindows({
                     day.free.length > 0 && (
                       <p className="text-sm text-muted-foreground">
                         {kind === "consultation"
-                          ? "Окна короче часа или не с начала часа."
+                          ? `Окна короче, чем ${formatMinutes(serviceMinutes)}, или не с подходящего времени.`
                           : `Окна короче, чем ${terms.free.toLowerCase()} (${formatMinutes(introMinutes)}).`}
                       </p>
                     )
