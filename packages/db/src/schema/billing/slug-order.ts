@@ -22,14 +22,14 @@ export const SlugOrder = pgTable(
       .notNull()
       .unique()
       .generatedByDefaultAsIdentity({ startWith: 1001 }),
-    userId: t
-      .text()
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Both null once the account is deleted: tax law keeps the payment for
+     * years, but not who made it.
+     */
+    userId: t.text().references(() => user.id, { onDelete: "set null" }),
     practiceId: t
       .uuid()
-      .notNull()
-      .references(() => Practice.id, { onDelete: "cascade" }),
+      .references(() => Practice.id, { onDelete: "set null" }),
     slug: t.varchar({ length: 48 }).notNull(),
     /** Kopecks, RUB. */
     amount: t.integer().notNull(),

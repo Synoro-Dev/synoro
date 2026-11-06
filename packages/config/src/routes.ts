@@ -34,6 +34,8 @@ export const paths = {
     notifications: `${ROOTS.SETTINGS}/notifications`,
     /** The «Про» plan: trial, paid period, payment. */
     billing: `${ROOTS.SETTINGS}/billing`,
+    /** Taking the data out: the archive, the calendar feed, the journal. */
+    data: `${ROOTS.SETTINGS}/data`,
   },
   booking: {
     /** Practices the user runs or is a client of; create a new one. */
@@ -76,6 +78,9 @@ export const paths = {
     /** The questionnaire clients fill in when booking («Про»). */
     questions: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/questions` as const,
+    /** Bringing clients in from a table or another service. Owner only. */
+    import: (practiceId: string) =>
+      `${ROOTS.PRACTICES}/${practiceId}/import` as const,
     /** Owner and administrators. */
     team: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/team` as const,

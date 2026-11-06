@@ -293,20 +293,23 @@ export async function refundSubscriptionPayment(
             updated_at = now()
         where s.user_id = ${payment.userId}
       `);
-      // A refund is a sign the specialist doesn't want to be charged.
-      await tx
-        .update(SubscriptionAutorenewal)
-        .set({
-          status: "canceled",
-          canceledAt: new Date(),
-          cancelReason: "refund",
-        })
-        .where(
-          and(
-            eq(SubscriptionAutorenewal.userId, payment.userId),
-            eq(SubscriptionAutorenewal.status, "active"),
-          ),
-        );
+      // A refund is a sign the specialist doesn't want to be charged. (No user:
+      // the account was deleted, and its auto-renewal with it.)
+      if (payment.userId) {
+        await tx
+          .update(SubscriptionAutorenewal)
+          .set({
+            status: "canceled",
+            canceledAt: new Date(),
+            cancelReason: "refund",
+          })
+          .where(
+            and(
+              eq(SubscriptionAutorenewal.userId, payment.userId),
+              eq(SubscriptionAutorenewal.status, "active"),
+            ),
+          );
+      }
 
       const settled = await tx.query.SubscriptionPayment.findFirst({
         where: eq(SubscriptionPayment.id, paymentId),

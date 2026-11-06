@@ -6,6 +6,7 @@ import {
   AvatarFallback,
   AvatarImage,
   Button,
+  cn,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -41,10 +42,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ExportPartButton } from "../settings/export-part-button";
 import { ClientCard } from "./client-card";
 import { AddMemberDialog, CreditDialog } from "./client-dialogs";
 import { dataGridI18n } from "./data-grid-i18n";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
+import { ImportedClients } from "./practice-import";
 import { EmptyState, ErrorState, PageHeading } from "./states";
 import { useTerms } from "./terms";
 
@@ -159,9 +162,12 @@ function getColumns(
 export function PracticeClients({
   practiceId,
   timezone,
+  isOwner,
 }: {
   practiceId: string;
   timezone: string;
+  /** Only the owner takes the client base out. */
+  isOwner: boolean;
 }) {
   const terms = useTerms();
   const members = useQuery(
@@ -191,6 +197,10 @@ export function PracticeClients({
   const [draft, setDraft] = useState<EntryDraft | null>(null);
   const [adding, setAdding] = useState(false);
 
+  const cards = useQuery(
+    orpc.import.clients.queryOptions({ input: { practiceId } }),
+  );
+  const cardCount = cards.data?.length ?? 0;
   const clients = (members.data ?? []).filter((m) => m.role === "client");
   // The open card follows fresh data (a new balance after crediting).
   const open = clients.find((m) => m.id === openId) ?? null;
@@ -221,10 +231,15 @@ export function PracticeClients({
         title="Клиенты"
         description={`Контакты, записи и баланс оплаченных ${terms.credit[2]}`}
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <UserPlusIcon />
-            Пригласить клиента
-          </Button>
+          <>
+            {isOwner && (
+              <ExportPartButton practiceId={practiceId} what="clients" />
+            )}
+            <Button onClick={() => setAdding(true)}>
+              <UserPlusIcon />
+              Пригласить клиента
+            </Button>
+          </>
         }
       />
 
@@ -236,7 +251,7 @@ export function PracticeClients({
             <Skeleton key={k} className="h-16 w-full rounded-lg" />
           ))}
         </div>
-      ) : clients.length === 0 ? (
+      ) : clients.length === 0 && cardCount === 0 ? (
         <Frame spacing="default">
           <FramePanel>
             <EmptyState
@@ -274,12 +289,19 @@ export function PracticeClients({
               className="ml-auto text-sm whitespace-nowrap text-muted-foreground tabular-nums"
               aria-live="polite"
             >
-              {query ? `Найдено: ${data.length}` : `Всего: ${clients.length}`}
+              {query
+                ? `С кабинетом найдено: ${data.length}`
+                : `Всего: ${clients.length + cardCount}`}
             </span>
           </div>
 
           {/* Phones: one row per client, the whole row opens the card. */}
-          <ul className="flex flex-col divide-y rounded-xl border bg-card md:hidden">
+          <ul
+            className={cn(
+              "flex flex-col divide-y rounded-xl border bg-card md:hidden",
+              clients.length === 0 && "hidden",
+            )}
+          >
             {data.length === 0 && (
               <li className="px-4 py-6 text-center text-sm text-muted-foreground">
                 Никого не нашли
@@ -316,7 +338,7 @@ export function PracticeClients({
             ))}
           </ul>
 
-          <div className="hidden md:block">
+          <div className={cn("hidden", clients.length > 0 && "md:block")}>
             <DataGrid
               table={table}
               recordCount={data.length}
@@ -338,6 +360,8 @@ export function PracticeClients({
           </div>
         </div>
       )}
+
+      <ImportedClients practiceId={practiceId} search={search} />
 
       <ClientCard
         practiceId={practiceId}

@@ -1,5 +1,8 @@
+import AccountDeletionEmail from "./emails/account-deletion";
 import BookingLinkEmail from "./emails/booking-link";
 import BookingNoticeEmail from "./emails/booking-notice";
+import DataAccessCodeEmail from "./emails/data-access-code";
+import DataExportReadyEmail from "./emails/data-export-ready";
 import OtpSignInEmail from "./emails/otp-sign-in";
 import PracticeInvitationEmail from "./emails/practice-invitation";
 import ProNoticeEmail from "./emails/pro-notice";
@@ -12,8 +15,11 @@ import WorkflowMessageEmail from "./emails/workflow-message";
 import { sendEmail } from "./send";
 
 const templates = {
+  "account-deletion": AccountDeletionEmail,
   "booking-link": BookingLinkEmail,
   "booking-notice": BookingNoticeEmail,
+  "data-access-code": DataAccessCodeEmail,
+  "data-export-ready": DataExportReadyEmail,
   "otp-sign-in": OtpSignInEmail,
   "practice-invitation": PracticeInvitationEmail,
   "pro-notice": ProNoticeEmail,

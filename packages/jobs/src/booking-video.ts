@@ -16,6 +16,7 @@ import {
 import type { BookingNotice } from "@synoro/emails";
 import { clientMayCancel } from "@synoro/validators";
 
+import { ownerStaying } from "./account-deletion";
 import { type Deliver, noticeSender } from "./messenger/deliver";
 import { notifyStaff } from "./staff-notices";
 import { cabinetUrl } from "./urls";
@@ -500,6 +501,7 @@ export async function sendBookingReminders(
             eq(Booking.status, "active"),
             isNull(Booking.holdUntil),
             eq(Practice.remindClients, true),
+            ownerStaying(Practice.ownerId),
             window.pending,
             gt(Booking.startsAt, window.from),
             lte(Booking.startsAt, window.until),

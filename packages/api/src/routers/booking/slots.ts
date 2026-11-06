@@ -7,7 +7,7 @@ import {
   localDaysRange,
 } from "../../lib/bookings";
 import { googleBusy } from "../../lib/google-calendar";
-import { findPractice } from "../../lib/practice-access";
+import { findOpenPractice } from "../../lib/practice-access";
 import { computeSlots } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
 
@@ -31,7 +31,7 @@ export const slots = publicProcedure
     }),
   )
   .handler(async ({ context, input, errors }) => {
-    const practice = await findPractice(context.db, input.practiceId);
+    const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
 
     const { start, end } = localDaysRange(

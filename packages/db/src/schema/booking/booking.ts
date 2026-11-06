@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 
 import { user } from "../auth/user";
+import { PracticeClient } from "./client";
 import { Practice, PracticeMember } from "./practice";
 import { BookingSeries } from "./series";
 
@@ -58,6 +59,10 @@ export const Booking = pgTable(
     memberId: t
       .uuid()
       .references(() => PracticeMember.id, { onDelete: "set null" }),
+    /** The card of a client brought in by an import, when there is one. */
+    clientId: t
+      .uuid()
+      .references(() => PracticeClient.id, { onDelete: "set null" }),
     /** Who a free consultation is for (not necessarily a registered user). */
     guestName: t.varchar({ length: 120 }),
     /** E.164, required for new free bookings (older rows have none). */

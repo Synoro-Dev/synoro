@@ -19,7 +19,7 @@ import {
 import { exportBooking, isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findMembership,
-  findPractice,
+  findOpenPractice,
   isStaff,
   practiceProcedure,
 } from "../../lib/practice-access";
@@ -76,7 +76,7 @@ export const book = practiceProcedure
     const userId = context.session.user.id;
     const [caller, practice] = await Promise.all([
       findMembership(context.db, input.practiceId, userId),
-      findPractice(context.db, input.practiceId),
+      findOpenPractice(context.db, input.practiceId),
     ]);
     if (!caller || !practice) throw errors.FORBIDDEN();
     const staff = isStaff(caller.role);

@@ -312,6 +312,71 @@ export async function hasOtherEvent(
   );
 }
 
+/**
+ * Events between two moments that make the time busy, repeats written out, for
+ * an import: their times and titles, nothing about guests. Follows pages.
+ */
+export async function listEvents(
+  accessToken: string,
+  calendarId: string,
+  start: Date,
+  end: Date,
+) {
+  const events: {
+    id: string;
+    title: string;
+    startsAt: string;
+    endsAt: string;
+    allDay: boolean;
+  }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const query = new URLSearchParams({
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString(),
+      singleEvents: "true",
+      orderBy: "startTime",
+      maxResults: "2500",
+      fields: "nextPageToken,items(id,status,transparency,summary,start,end)",
+      ...(pageToken ? { pageToken } : {}),
+    });
+    const data = await api<{
+      nextPageToken?: string;
+      items?: {
+        id: string;
+        status?: string;
+        transparency?: string;
+        summary?: string;
+        start?: { dateTime?: string; date?: string };
+        end?: { dateTime?: string; date?: string };
+      }[];
+    }>(
+      accessToken,
+      `/calendars/${encodeURIComponent(calendarId)}/events?${query}`,
+      { what: "Google events.list" },
+    );
+    for (const item of data?.items ?? []) {
+      if (item.status === "cancelled" || item.transparency === "transparent") {
+        continue;
+      }
+      const from = item.start?.dateTime ?? item.start?.date;
+      const to = item.end?.dateTime ?? item.end?.date;
+      if (!from || !to) continue;
+      const allDay = !item.start?.dateTime;
+      events.push({
+        id: item.id,
+        title: (item.summary ?? "").slice(0, 120),
+        // A day is a date, not a moment: whose midnight is for the importer.
+        startsAt: allDay ? from : new Date(from).toISOString(),
+        endsAt: allDay ? to : new Date(to).toISOString(),
+        allDay,
+      });
+    }
+    pageToken = data?.nextPageToken;
+  } while (pageToken);
+  return events;
+}
+
 export interface GoogleEvent {
   /** base32hex (a–v, 0–9), 5–1024 chars: lets a retry find the same event. */
   id: string;

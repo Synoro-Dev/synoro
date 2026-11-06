@@ -15,6 +15,7 @@ import {
 import type { ProNotice, TemplateEmail } from "@synoro/emails";
 import { PRO_PRICES } from "@synoro/validators";
 
+import { ownerStaying } from "./account-deletion";
 import type { Deliver } from "./booking-video";
 import { dispatchEmail } from "./index";
 import { claimNotice } from "./notice-claims";
@@ -139,6 +140,7 @@ function candidates(db: Database, now: Date, afterId: string | undefined) {
       and(
         sql`${endsAt} > ${new Date(now.getTime() - ENDED_MS).toISOString()}::timestamptz`,
         sql`${endsAt} <= ${new Date(now.getTime() + SOON_MS).toISOString()}::timestamptz`,
+        ownerStaying(Subscription.userId),
         afterId ? gt(Subscription.id, afterId) : undefined,
       ),
     )

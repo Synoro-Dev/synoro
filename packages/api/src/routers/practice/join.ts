@@ -1,7 +1,7 @@
 import { PracticeMember } from "@synoro/db";
 import { z } from "zod";
 
-import { findMembership, findPractice } from "../../lib/practice-access";
+import { findMembership, findOpenPractice } from "../../lib/practice-access";
 import { protectedProcedure } from "../../orpc";
 
 /**
@@ -15,7 +15,7 @@ export const join = protectedProcedure
   .errors({ NOT_FOUND: { message: "Практика не найдена" } })
   .input(z.object({ practiceId: z.uuid() }))
   .handler(async ({ context, input, errors }) => {
-    if (!(await findPractice(context.db, input.practiceId))) {
+    if (!(await findOpenPractice(context.db, input.practiceId))) {
       throw errors.NOT_FOUND();
     }
 

@@ -2,6 +2,7 @@ import { paths } from "@synoro/config";
 import {
   Clock3Icon,
   CreditCardIcon,
+  FileUpIcon,
   ListChecksIcon,
   type LucideIcon,
   MessageSquareTextIcon,
@@ -76,6 +77,13 @@ export function practiceSections(
           description: "Куда клиенты платят и сколько это стоит",
           href: paths.booking.onlinePayment(practiceId),
           icon: CreditCardIcon,
+          ownerOnly: true,
+        },
+        {
+          title: "Перенос клиентов",
+          description: "Загрузить клиентов из таблицы или другого сервиса",
+          href: paths.booking.import(practiceId),
+          icon: FileUpIcon,
           ownerOnly: true,
         },
       ],

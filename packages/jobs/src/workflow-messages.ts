@@ -27,6 +27,7 @@ import {
   type WorkflowVariable,
 } from "@synoro/validators";
 
+import { ownerStaying } from "./account-deletion";
 import { type Deliver, noticeSender } from "./messenger/deliver";
 import { claimNotice } from "./notice-claims";
 import { cabinetUrl, practicePageUrl } from "./urls";
@@ -288,6 +289,7 @@ function activeRules(db: Database, now: Date): Promise<Rule[]> {
     .where(
       and(
         eq(Workflow.active, true),
+        ownerStaying(Practice.ownerId),
         sql`greatest(${Subscription.trialEndsAt}, coalesce(${Subscription.paidUntil}, ${Subscription.trialEndsAt})) > ${now.toISOString()}::timestamptz`,
       ),
     )

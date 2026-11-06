@@ -327,6 +327,8 @@ async function sendRenewalNotices(db: Database, deliver: Deliver, now: Date) {
     .limit(BATCH);
 
   for (const row of rows) {
+    // The account is gone: nobody to tell (only payments of deleted ones lack it).
+    if (!row.userId) continue;
     const notice: RenewalNotice =
       row.status === "succeeded"
         ? "charged"

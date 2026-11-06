@@ -61,7 +61,8 @@ async function settleSlugOrder(
         .set({ status: "succeeded", paidAt: new Date(), confirmationUrl: null })
         .where(and(eq(SlugOrder.id, orderId), eq(SlugOrder.status, "pending")))
         .returning();
-      if (!paid) return;
+      // No practice: its account was deleted, there's nothing to give the name to.
+      if (!paid?.practiceId) return;
       if (!(await moveToSlug(tx, paid.practiceId, paid.slug))) {
         logger.error("slug_order.name_taken", undefined, {
           orderId,
@@ -201,7 +202,7 @@ export async function startSlugOrder(
   if (opening === "too_many") return { result: "too_many" as const };
   // Sold, or someone else opened an order for this name a moment ago.
   if (opening === "taken" || !opening) return { result: "taken" as const };
-  const order = opening;
+  const order = { ...opening, practiceId: input.practiceId };
 
   if (isDemoBilling()) {
     await db

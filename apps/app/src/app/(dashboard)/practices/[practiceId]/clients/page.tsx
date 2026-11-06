@@ -34,6 +34,7 @@ async function Clients({
         <PracticeClients
           practiceId={practice.id}
           timezone={practice.timezone}
+          isOwner={practice.membership.role === "owner"}
         />
       </main>
     </TermsProvider>

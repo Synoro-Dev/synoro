@@ -50,6 +50,18 @@
     "./workflow-messages": {
       "types": "./dist/workflow-messages.d.ts",
       "default": "./src/workflow-messages.ts"
+    },
+    "./account-deletion": {
+      "types": "./dist/account-deletion.d.ts",
+      "default": "./src/account-deletion.ts"
+    },
+    "./data-import": {
+      "types": "./dist/data-import/index.d.ts",
+      "default": "./src/data-import/index.ts"
+    },
+    "./data-export": {
+      "types": "./dist/data-export/index.d.ts",
+      "default": "./src/data-export/index.ts"
     }
   },
   "license": "MIT",
@@ -69,7 +81,10 @@
     "@synoro/config": "workspace:*",
     "@synoro/db": "workspace:*",
     "@synoro/emails": "workspace:*",
-    "@synoro/validators": "workspace:*"
+    "@synoro/storage": "workspace:*",
+    "@synoro/validators": "workspace:*",
+    "fflate": "0.8.2",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@synoro/tsconfig": "workspace:*",

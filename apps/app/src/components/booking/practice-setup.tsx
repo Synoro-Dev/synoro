@@ -1,6 +1,6 @@
 "use client";
 
-import { paths } from "@synoro/config";
+import { legal, paths, YOUR_DATA_PATH } from "@synoro/config";
 import {
   Button,
   cn,
@@ -21,7 +21,14 @@ import {
 } from "@synoro/ui/reui/frame";
 import { availabilityFormSchema, capitalize } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightIcon, CheckIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  ArrowLeftRightIcon,
+  ArrowRightIcon,
+  CalendarDaysIcon,
+  CheckIcon,
+  FileSpreadsheetIcon,
+} from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -49,6 +56,11 @@ const STEP_META: Record<
   SetupStep,
   { short: string; title: string; description: string }
 > = {
+  import: {
+    short: "Клиенты",
+    title: "Перенести клиентов",
+    description: "Если вы уже ведёте клиентов в таблице или другом сервисе",
+  },
   hours: {
     short: "Часы",
     title: "Рабочие часы",
@@ -105,6 +117,61 @@ function StepActions({ nav, primary }: { nav: StepNav; primary: ReactNode }) {
         </Button>
         {primary}
       </div>
+    </div>
+  );
+}
+
+const IMPORT_SOURCES = [
+  { icon: FileSpreadsheetIcon, title: "Excel или Google Таблицы" },
+  { icon: CalendarDaysIcon, title: "Google или Яндекс Календарь" },
+  { icon: ArrowLeftRightIcon, title: "YCLIENTS, DIKIDI и другие сервисы" },
+  { icon: ArchiveIcon, title: "Архив, скачанный из Synoro" },
+];
+
+/**
+ * Where the clients are now. The first step on purpose: moving is what people
+ * are afraid of. Nobody is told anything, so there's no risk in trying.
+ */
+function ImportStep({ practiceId, nav }: { practiceId: string; nav: StepNav }) {
+  return (
+    <div className="flex flex-col gap-6">
+      <Frame spacing="default">
+        <FramePanel className="flex flex-col gap-4">
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {IMPORT_SOURCES.map((source) => (
+              <li key={source.title} className="flex items-center gap-3">
+                <source.icon
+                  className="size-5 shrink-0 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <span className="text-sm">{source.title}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-muted-foreground">
+            Клиенты ничего не получат: ни писем, ни сообщений. Любую загрузку
+            можно отменить одной кнопкой, а забрать все данные обратно можно в
+            любой момент.{" "}
+            <a
+              href={`${legal.siteUrl}${YOUR_DATA_PATH}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground underline underline-offset-4"
+            >
+              Ваши данные — ваши
+            </a>
+          </p>
+          <div>
+            <Button
+              nativeButton={false}
+              render={<Link href={paths.booking.import(practiceId)} />}
+            >
+              Перенести клиентов
+            </Button>
+          </div>
+        </FramePanel>
+      </Frame>
+      <StepActions nav={nav} primary={<NextButton onClick={nav.next} />} />
     </div>
   );
 }
@@ -432,7 +499,8 @@ function LinkStep({
 }
 
 /**
- * The first setup: hours → prices and free booking → rules → link. Every step
+ * The first setup: moving clients → hours → prices and free booking → rules →
+ * link. Every step
  * can be skipped and nothing here is required, so it keeps no state of its
  * own: it opens once after creating the practice (`CreatePracticeDialog`) and
  * «Сегодня» shows what is left (`SetupProgress`), leading back to a step.
@@ -485,7 +553,7 @@ export function PracticeSetup({
           aria-label={`Шаг ${index + 1} из ${SETUP_STEPS.length}`}
           className="[&_[data-slot=progress-indicator]]:bg-brand"
         />
-        <ol className="hidden grid-cols-4 gap-2 sm:grid">
+        <ol className="hidden grid-cols-5 gap-2 sm:grid">
           {SETUP_STEPS.map((id, i) => (
             <li key={id}>
               <button
@@ -512,6 +580,7 @@ export function PracticeSetup({
         </div>
       </div>
 
+      {step === "import" && <ImportStep practiceId={practice.id} nav={nav} />}
       {step === "hours" && <HoursStep practice={practice} nav={nav} />}
       {step === "prices" && <PricesStep practice={practice} nav={nav} />}
       {step === "rules" && (

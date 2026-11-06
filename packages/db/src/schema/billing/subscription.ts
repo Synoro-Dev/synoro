@@ -57,10 +57,11 @@ export const SubscriptionPayment = pgTable(
       .notNull()
       .unique()
       .generatedByDefaultAsIdentity({ startWith: 1001 }),
-    userId: t
-      .text()
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
+    /**
+     * Null once the account is deleted: tax law keeps the payment for years,
+     * but not who made it.
+     */
+    userId: t.text().references(() => user.id, { onDelete: "set null" }),
     period: billingPeriod().notNull(),
     /** Kopecks, RUB. */
     amount: t.integer().notNull(),

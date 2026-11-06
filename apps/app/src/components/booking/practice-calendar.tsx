@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { ExportPartButton } from "../settings/export-part-button";
 import {
   BookingDialog,
   bookingTitle,
@@ -72,9 +73,12 @@ function nextHalfHour() {
 export function PracticeCalendar({
   practiceId,
   timezone,
+  isOwner,
 }: {
   practiceId: string;
   timezone: string;
+  /** Only the owner takes the bookings out. */
+  isOwner: boolean;
 }) {
   const [range, setRange] = useState(() => {
     const start = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -182,6 +186,13 @@ export function PracticeCalendar({
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isOwner && (
+            <ExportPartButton
+              what="appointments"
+              practiceId={practiceId}
+              timezone={timezone}
+            />
+          )}
           <Button
             size="sm"
             variant="outline"

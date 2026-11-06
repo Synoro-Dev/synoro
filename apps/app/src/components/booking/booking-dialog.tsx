@@ -63,7 +63,10 @@ export function kindLabel(
 }
 
 export function bookingTitle(b: CalendarBooking) {
-  if (b.kind === "consultation") return b.clientName ?? "Клиент удалён";
+  // A consultation brought in from a calendar has a name, but no account.
+  if (b.kind === "consultation") {
+    return b.clientName ?? b.guestName ?? "Клиент удалён";
+  }
   if (b.kind === "free") return b.guestName ?? "Гость";
   return b.note ?? "Личное время";
 }
@@ -96,7 +99,7 @@ function MeetingLink({
     ...orpc.booking.setMeetingUrl.mutationOptions(),
     onSuccess: async (result) => {
       toast.success(
-        result.meetingUrl && booking.kind === "consultation"
+        result.meetingUrl && booking.kind === "consultation" && booking.memberId
           ? "Ссылка сохранена, клиенту отправлено письмо"
           : "Ссылка сохранена",
       );
@@ -138,9 +141,10 @@ function MeetingLink({
           : booking.videoUrl
             ? "Используется комната практики. Укажите ссылку, чтобы заменить её для этой встречи."
             : "Ссылка не задана — клиент её не увидит. Комнату для всех встреч можно задать на странице обзора."}
-        {booking.kind === "free" &&
-          !booking.memberId &&
-          " Гостю ссылку нужно отправить самостоятельно."}
+        {!booking.memberId &&
+          (booking.kind === "free"
+            ? " Гостю ссылку нужно отправить самостоятельно."
+            : " Клиенту ссылку нужно отправить самостоятельно: у него нет кабинета.")}
       </p>
     </div>
   );
@@ -252,7 +256,12 @@ export function BookingDialog({
   const noShow = useMutation({
     ...orpc.booking.markNoShow.mutationOptions(),
     onSuccess: async () => {
-      toast.success(`Отмечена неявка: ${terms.credit[0]} не возвращается`);
+      // A booking brought in by an import spent nothing, so nothing returns.
+      toast.success(
+        booking?.memberId
+          ? `Отмечена неявка: ${terms.credit[0]} не возвращается`
+          : "Отмечена неявка",
+      );
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: orpc.booking.key() }),
         queryClient.invalidateQueries({ queryKey: orpc.practice.key() }),
@@ -395,7 +404,11 @@ export function BookingDialog({
                 <ConfirmButton
                   size="default"
                   title="Отменить серию?"
-                  description={`Отменятся все предстоящие записи этой повторной записи, ${terms.credits} вернутся на баланс клиента.`}
+                  description={
+                    booking.memberId
+                      ? `Отменятся все предстоящие записи этой повторной записи, ${terms.credits} вернутся на баланс клиента.`
+                      : "Отменятся все предстоящие записи этой повторной записи."
+                  }
                   confirmLabel="Отменить серию"
                   disabled={pending}
                   onConfirm={() =>
@@ -417,7 +430,7 @@ export function BookingDialog({
                   Клиент не пришёл
                 </Button>
               )}
-              {booking.kind === "consultation" && (
+              {booking.kind === "consultation" && booking.memberId && (
                 <Button
                   variant="outline"
                   disabled={pending}
@@ -435,7 +448,7 @@ export function BookingDialog({
               >
                 {booking.kind === "blocked"
                   ? "Открыть время"
-                  : booking.kind === "consultation"
+                  : booking.kind === "consultation" && booking.memberId
                     ? "Отменить с возвратом"
                     : "Отменить"}
               </Button>

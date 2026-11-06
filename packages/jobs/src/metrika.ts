@@ -183,7 +183,8 @@ async function reportFirstPayments(
 
   let sent = 0;
   for (const payment of await candidates(db, now, period, goal)) {
-    if (!payment.paidAt) continue;
+    // No user: the account was deleted, and its ad click with it.
+    if (!payment.paidAt || !payment.userId) continue;
     const claim = await claimNotice(
       db,
       `${claimPrefix(goal)}${payment.id}`,

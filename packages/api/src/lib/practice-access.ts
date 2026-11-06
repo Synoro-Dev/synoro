@@ -1,4 +1,5 @@
 import {
+  AccountDeletion,
   and,
   type Database,
   eq,
@@ -89,7 +90,9 @@ export async function publicPractice(
       introMinutes: true,
     },
   });
-  if (!practice) return undefined;
+  if (!practice || (await ownerLeaving(context.db, practice.ownerId))) {
+    return undefined;
+  }
 
   const userId = context.session?.user.id;
   const [member, pro] = await Promise.all([
@@ -122,4 +125,24 @@ export async function publicPractice(
 
 export function findPractice(db: Database, practiceId: string) {
   return db.query.Practice.findFirst({ where: eq(Practice.id, practiceId) });
+}
+
+async function ownerLeaving(db: Database, ownerId: string) {
+  const [row] = await db
+    .select({ userId: AccountDeletion.userId })
+    .from(AccountDeletion)
+    .where(eq(AccountDeletion.userId, ownerId))
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * The practice if it takes bookings: not while its owner's account is being
+ * deleted. Whoever books, pays or joins goes through this; staff looking after
+ * what's already there use `findPractice`.
+ */
+export async function findOpenPractice(db: Database, practiceId: string) {
+  const practice = await findPractice(db, practiceId);
+  if (!practice || (await ownerLeaving(db, practice.ownerId))) return undefined;
+  return practice;
 }

@@ -9,7 +9,11 @@ import {
   findOwnerMembership,
   practiceProcedure,
 } from "../../lib/practice-access";
-import { findPracticeIdBySlug, moveToSlug } from "../../lib/practice-slugs";
+import {
+  findPracticeIdBySlug,
+  isSlugReserved,
+  moveToSlug,
+} from "../../lib/practice-slugs";
 import { publicBookingUrl } from "../../lib/urls";
 
 /**
@@ -47,7 +51,10 @@ export const setSlug = practiceProcedure
     if (!owner) throw errors.FORBIDDEN();
 
     const holder = await findPracticeIdBySlug(db, input.slug);
-    if (holder && holder !== owner.practiceId) {
+    if (
+      (holder && holder !== owner.practiceId) ||
+      (!holder && (await isSlugReserved(db, input.slug)))
+    ) {
       throw errors.CONFLICT({ data: { field: "slug" } });
     }
 
