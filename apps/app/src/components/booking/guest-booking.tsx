@@ -220,7 +220,9 @@ export function GuestBooking({ token }: { token: string }) {
                   description={
                     intro
                       ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
-                      : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
+                      : atVisit
+                        ? "Время освободится для других. Записаться снова можно на странице специалиста."
+                        : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
                   }
                   confirmLabel="Отменить запись"
                   disabled={cancel.isPending}
@@ -239,13 +241,17 @@ export function GuestBooking({ token }: { token: string }) {
               </Button>
             </div>
 
-            {data.state === "confirmed" && !data.canCancel && !intro && (
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <CalendarClockIcon className="size-3.5 shrink-0" />
-                Отменить самостоятельно можно не позднее чем за 24 часа до
-                начала — позже свяжитесь со специалистом.
-              </p>
-            )}
+            {/* Intros and visit-paid bookings: cancellable until the start. */}
+            {data.state === "confirmed" &&
+              !data.canCancel &&
+              !intro &&
+              !atVisit && (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CalendarClockIcon className="size-3.5 shrink-0" />
+                  Отменить самостоятельно можно не позднее чем за 24 часа до
+                  начала — позже свяжитесь со специалистом.
+                </p>
+              )}
             <p className="text-xs text-muted-foreground">
               В кабинет вы войдёте по коду, который придёт на {data.email}.
               Сохраните эту страницу — по ссылке запись открывается без входа.
