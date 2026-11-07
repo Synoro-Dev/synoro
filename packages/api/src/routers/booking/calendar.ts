@@ -44,6 +44,8 @@ export const calendar = practiceProcedure
       .select({
         id: Booking.id,
         kind: Booking.kind,
+        /** Taken from the client's balance: 0 when paid at the visit. */
+        credits: Booking.credits,
         startsAt: Booking.startsAt,
         endsAt: Booking.endsAt,
         note: Booking.note,

@@ -549,6 +549,7 @@ describe("booking.cancel", () => {
       .values({
         practiceId,
         kind: "consultation",
+        credits: 1,
         memberId,
         startsAt,
         endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),

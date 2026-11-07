@@ -78,6 +78,9 @@ async function insertBooking(
     .values({
       practiceId,
       kind: "consultation",
+      // Paid from the balance, like every client booking but one paid at
+      // the visit.
+      credits: 1,
       startsAt,
       endsAt: new Date(startsAt.getTime() + HOUR),
       memberId,

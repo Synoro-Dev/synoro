@@ -100,7 +100,7 @@ function staffBooking(p: Props<"staff-booking">): MessengerMessage {
   if (series) {
     lines.push(`${booked ? "Даты" : "Отменены даты"}:\n${p.dates?.join("\n")}`);
   }
-  if (cancelled && !p.free) {
+  if (cancelled && !p.free && p.charged !== false) {
     lines.push(
       p.refunded
         ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`

@@ -69,7 +69,8 @@ export async function findOwnerMembership(
  * `questions` — the booking questionnaire, asked only on «Про»;
  * `theme` — the page's look, the owner's own only on «Про»;
  * `freeBooking` — visitors may book the free intro themselves;
- * `introMinutes` — how long it lasts.
+ * `introMinutes` — how long it lasts; `payAtVisit` — services are booked
+ * without payment (`booking.bookAtVisit`), paid at the visit.
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -89,6 +90,7 @@ export async function publicPractice(
       bookingTheme: true,
       freeBookingEnabled: true,
       introMinutes: true,
+      payAtVisit: true,
     },
   });
   if (!practice || (await ownerLeaving(context.db, practice.ownerId))) {

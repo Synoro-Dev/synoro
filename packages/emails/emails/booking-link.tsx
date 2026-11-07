@@ -20,7 +20,8 @@ import { emailTailwindConfig } from "../tailwind";
  * Sent to a visitor who booked without an account: the link that opens their
  * booking (status, cancel) with no sign-in, and how to reach the cabinet. A
  * paid booking waits for the payment until `holdUntil`; a free intro
- * (`intro` — its name, «Знакомство») is confirmed at once.
+ * (`intro` — its name, «Знакомство») and a booking paid at the visit
+ * (`atVisit`) are confirmed at once.
  */
 export default function BookingLinkEmail({
   name = "Иван",
@@ -28,6 +29,7 @@ export default function BookingLinkEmail({
   when = "понедельник, 7 января, 10:00",
   holdUntil = "10:15",
   intro = null,
+  atVisit = false,
   videoUrl = null,
   bookingUrl = "https://synoro.ru/b/token",
   cabinetUrl = "https://synoro.ru/bookings",
@@ -40,7 +42,9 @@ export default function BookingLinkEmail({
   holdUntil: string;
   /** Name of the free intro booked, or null for a paid booking. */
   intro?: string | null;
-  /** The video room of a confirmed intro; null otherwise. */
+  /** Confirmed at once, the specialist is paid at the visit. */
+  atVisit?: boolean;
+  /** The video room of a confirmed booking; null otherwise. */
   videoUrl?: string | null;
   bookingUrl: string;
   cabinetUrl: string;
@@ -63,7 +67,9 @@ export default function BookingLinkEmail({
               <strong>{when}</strong>.{" "}
               {intro
                 ? `${intro} — бесплатно, запись подтверждена. Если планы изменятся, отмените её по ссылке ниже.`
-                : `Время удержано до ${holdUntil} — за это время нужно оплатить запись, после этого она подтвердится.`}
+                : atVisit
+                  ? "Запись подтверждена, оплата — на приёме. Если планы изменятся, отмените её по ссылке ниже."
+                  : `Время удержано до ${holdUntil} — за это время нужно оплатить запись, после этого она подтвердится.`}
             </Text>
             {videoUrl ? (
               <Text className="text-[14px] leading-[24px] text-black">
@@ -94,7 +100,7 @@ export default function BookingLinkEmail({
             </Text>
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-[12px] leading-[24px] text-[#666666]">
-              {intro
+              {intro || atVisit
                 ? "Если вы не записывались, откройте запись по ссылке и отмените её."
                 : "Если вы не записывались, просто проигнорируйте письмо — без оплаты запись не подтвердится."}{" "}
               {APP_CONFIG.shortName}

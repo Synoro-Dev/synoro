@@ -25,7 +25,7 @@
 
 Настройки: `id`, `name`, `slug`, `old_slugs`, `domains`, `timezone`, `profession`,
 `video_url`, `client_contact`, `booking_questions`, `booking_theme`,
-`free_booking_enabled`, `intro_minutes`, `remind_clients`, `notify_staff`,
+`free_booking_enabled`, `intro_minutes`, `pay_at_visit`, `remind_clients`, `notify_staff`,
 `daily_agenda`, `created_at`, `working_hours`, `packages`, `messages`,
 `payment_accounts` (без ключей и идентификатора магазина).
 

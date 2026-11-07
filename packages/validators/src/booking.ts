@@ -47,17 +47,27 @@ export function formatMinutes(minutes: number, short = false) {
 export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Upcoming bookings paid at the visit one person (account or phone) may hold
+ * at a practice (`booking.bookAtVisit`): nothing is paid, so this keeps a
+ * stranger from filling the schedule.
+ */
+export const AT_VISIT_MAX_UPCOMING = 3;
+
+/**
  * Whether a client may still cancel their booking themselves at `now` (ms):
- * a paid one up to 24 h before the start, a free intro — nothing to give
- * back — until it starts. `booking.cancel` and the worker, which offers the
- * cancel button in messengers, share it.
+ * a paid one up to 24 h before the start; one that took nothing — a free
+ * intro, or a booking paid at the visit (`credits` 0) — until it starts.
+ * `booking.cancel` and the worker, which offers the cancel button in
+ * messengers, share it.
  */
 export function clientMayCancel(
-  booking: { kind: string; startsAt: Date },
+  booking: { kind: string; credits: number; startsAt: Date },
   now: number,
 ) {
   const left = booking.startsAt.getTime() - now;
-  return booking.kind === "free" ? left > 0 : left >= CLIENT_CANCEL_WINDOW_MS;
+  return booking.kind === "free" || booking.credits === 0
+    ? left > 0
+    : left >= CLIENT_CANCEL_WINDOW_MS;
 }
 
 /**

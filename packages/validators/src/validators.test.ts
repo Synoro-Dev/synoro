@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { accountFormSchema } from "./account";
 import {
   availabilityFormSchema,
+  CLIENT_CANCEL_WINDOW_MS,
+  clientMayCancel,
   creditGrantFormSchema,
   formatMinutes,
   freeBookingFormSchema,
@@ -798,6 +800,48 @@ describe("intro length", () => {
     expect(formatMinutes(21)).toBe("21 минута");
     expect(formatMinutes(90, true)).toBe("1,5 ч");
     expect(formatMinutes(45, true)).toBe("45 мин");
+  });
+});
+
+describe("clientMayCancel", () => {
+  const now = Date.UTC(2030, 0, 7, 7);
+  const inHour = new Date(now + 60 * 60 * 1000);
+
+  test("a paid booking until 24 hours before", () => {
+    expect(
+      clientMayCancel(
+        { kind: "consultation", credits: 1, startsAt: inHour },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      clientMayCancel(
+        {
+          kind: "consultation",
+          credits: 1,
+          startsAt: new Date(now + CLIENT_CANCEL_WINDOW_MS),
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  test("nothing taken — an intro or paid at the visit — until it starts", () => {
+    expect(
+      clientMayCancel({ kind: "free", credits: 0, startsAt: inHour }, now),
+    ).toBe(true);
+    expect(
+      clientMayCancel(
+        { kind: "consultation", credits: 0, startsAt: inHour },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      clientMayCancel(
+        { kind: "consultation", credits: 0, startsAt: new Date(now) },
+        now,
+      ),
+    ).toBe(false);
   });
 });
 

@@ -34,7 +34,8 @@ import { seriesInput } from "./series-preview";
  * check and the insert (`bookings_no_overlap`); nothing is booked then.
  * NO_CREDITS when the balance doesn't cover every booking. Access, the phone,
  * the questionnaire (its answers go on every booking) and the Google check
- * as in `book`.
+ * as in `book`; so is payment at the visit: staff book without the balance
+ * (`credits` 0 each), a client gets PAY_AT_VISIT.
  *
  * @example client.booking.bookSeries({ practiceId, startsAt, intervalWeeks: 1, count: 8 })
  */
@@ -46,6 +47,9 @@ export const bookSeries = practiceProcedure
     },
     NO_CREDITS: {
       message: "На балансе не хватает оплаченных занятий на все даты",
+    },
+    PAY_AT_VISIT: {
+      message: "Специалист принимает оплату на приёме — обновите страницу",
     },
     SLOT_UNAVAILABLE: {
       message:
@@ -82,6 +86,7 @@ export const bookSeries = practiceProcedure
     );
     if (who.error) throw errors[who.error]();
     const { member, staff, forOther } = who;
+    if (practice.payAtVisit && !forOther) throw errors.PAY_AT_VISIT();
     const service = await resolveService(
       context.db,
       practice.id,
@@ -122,14 +127,15 @@ export const bookSeries = practiceProcedure
     }
 
     await releaseExpiredHolds(context.db, practice.id);
+    // Paid at the visit: the balance is neither needed nor touched.
+    const price = practice.payAtVisit ? 0 : service.credits;
     let created: { seriesId: string; bookingIds: string[]; credits: number };
     try {
       created = await context.db.transaction(async (tx) => {
-        const credits = await adjustCredits(
-          tx,
-          member.id,
-          -dates.length * service.credits,
-        );
+        const credits =
+          price === 0
+            ? member.credits
+            : await adjustCredits(tx, member.id, -dates.length * price);
         if (credits === undefined) throw errors.NO_CREDITS();
         const [series] = await tx
           .insert(BookingSeries)
@@ -149,7 +155,7 @@ export const bookSeries = practiceProcedure
               practiceId: practice.id,
               kind: "consultation" as const,
               serviceId: service.id,
-              credits: service.credits,
+              credits: price,
               startsAt: d.startsAt,
               endsAt: d.endsAt,
               memberId: member.id,
@@ -161,15 +167,17 @@ export const bookSeries = practiceProcedure
             })),
           )
           .returning({ id: Booking.id });
-        await tx.insert(CreditEntry).values(
-          bookings.map((b) => ({
-            memberId: member.id,
-            delta: -service.credits,
-            reason: "booking" as const,
-            bookingId: b.id,
-            createdById: userId,
-          })),
-        );
+        if (price > 0) {
+          await tx.insert(CreditEntry).values(
+            bookings.map((b) => ({
+              memberId: member.id,
+              delta: -price,
+              reason: "booking" as const,
+              bookingId: b.id,
+              createdById: userId,
+            })),
+          );
+        }
         return {
           seriesId: series.id,
           bookingIds: bookings.map((b) => b.id),
