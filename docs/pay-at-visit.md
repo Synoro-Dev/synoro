@@ -30,7 +30,8 @@ has `credits ≥ 1` (services cost 1–10, migration `0018` gave older ones 1), 
 `credits = 0` means «nothing to give back» everywhere:
 
 - **Cancel and move**: a client may do it until it starts, like a free intro
-  (`clientMayCancel` in `@synoro/validators`); nothing is refunded.
+  (`clientMayCancel` in `@synoro/validators`, also for each booking of a
+  series in `cancelSeries`); nothing is refunded.
 - **`/b/<token>`** (`booking.guest`) says `charged: false`, and a cancelled one
   is `cancelled`, never `expired` (that is for unpaid holds).
 - **Cabinet** (`booking.mine`) has `charged` too; mails, messenger notices and
@@ -51,12 +52,13 @@ The flow of `bookIntro` (`docs/free-booking.md`) for a service:
 2. Who books: a signed-in client as themselves (phone required, joins the
    practice; staff get `STAFF`), else the visitor's name, phone and email
    (`findOrCreateGuestMember`; a staff email is `SIGN_IN_REQUIRED`).
-3. `RATE_LIMITED` past 3 booking mails an hour to one email.
-4. Under an advisory lock per practice: `TOO_MANY` when the member, or anyone
-   with the same phone, already has `AT_VISIT_MAX_UPCOMING` (3) upcoming
-   active bookings paid at the visit here. Then the insert, confirmed at once
-   (`hold_until` null), with `access_token_hash`.
-5. Google export; staff are told (`notifyBookingConfirmed(…, { client: false })`
+3. In one transaction, under an advisory lock per practice: `TOO_MANY` when
+   the member, or anyone with the same phone, already has
+   `AT_VISIT_MAX_UPCOMING` (3) upcoming active bookings paid at the visit
+   here; `RATE_LIMITED` past 3 booking mails an hour to one email (counted
+   here, so an attempt that books nothing gives the hit back); then the
+   insert, confirmed at once (`hold_until` null), with `access_token_hash`.
+4. Google export; staff are told (`notifyBookingConfirmed(…, { client: false })`
    — the client's mail is the link); `booking-link` with `atVisit`; the
    reminders already due are marked sent once that mail went out.
 

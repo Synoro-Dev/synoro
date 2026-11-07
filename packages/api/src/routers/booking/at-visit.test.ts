@@ -431,3 +431,68 @@ describe("notices", () => {
     expect(sent[0]?.props).toMatchObject({ free: false, charged: false });
   });
 });
+
+describe("cancelling a whole series", () => {
+  it("lets the client cancel even the nearest date when paid at the visit", async () => {
+    const { session, member } = await joinAsClient("+79005551011");
+    const series = await call(
+      bookingRouter.bookSeries,
+      {
+        practiceId,
+        startsAt: at("12:00", "2030-03-04"),
+        intervalWeeks: 1,
+        count: 3,
+        memberId: member.id,
+      },
+      { context: api.context(owner) },
+    );
+    const first = await api.db.query.Booking.findFirst({
+      where: eq(Booking.startsAt, series.dates[0] ?? new Date(0)),
+    });
+    // As if the first date were an hour away: past a paid booking's 24 hours.
+    const soon = Date.now() + 60 * 60 * 1000;
+    await api.db
+      .update(Booking)
+      .set({ startsAt: new Date(soon), endsAt: new Date(soon + 3_600_000) })
+      .where(eq(Booking.id, first?.id ?? ""));
+
+    const result = await call(
+      bookingRouter.cancelSeries,
+      { seriesId: series.seriesId },
+      { context: api.context(session) },
+    );
+    expect(result).toEqual({ cancelled: 3, refunded: 0, kept: 0 });
+  });
+});
+
+describe("the mail limit", () => {
+  it("is not spent by attempts that book nothing", async () => {
+    const phone = "+7 900 555-10-12";
+    const day = "2030-03-11";
+    const first = await bookAtVisit(at("07:00", day), {
+      guest: visitor("x1@visit.test", phone),
+    });
+    await bookAtVisit(at("08:00", day), {
+      guest: visitor("x2@visit.test", phone),
+    });
+    await bookAtVisit(at("09:00", day), {
+      guest: visitor("x3@visit.test", phone),
+    });
+    // Three refusals to the same email: no booking, so no mail counted.
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        bookAtVisit(at("10:00", day), {
+          guest: visitor("quota@visit.test", phone),
+        }),
+      ).rejects.toMatchObject({ code: "TOO_MANY" });
+    }
+    await call(
+      bookingRouter.cancelGuest,
+      { token: first.token },
+      { context: api.context() },
+    );
+    await bookAtVisit(at("10:00", day), {
+      guest: visitor("quota@visit.test", phone),
+    });
+  });
+});

@@ -6,16 +6,17 @@ import { z } from "zod";
 import { cancelBookingRows } from "../../lib/bookings";
 import { removeBookingEvent } from "../../lib/google-calendar";
 import { findMembership, isStaff } from "../../lib/practice-access";
-import { CLIENT_CANCEL_WINDOW_MS } from "../../lib/schedule";
+import { clientMayCancel } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Cancel the upcoming bookings of a recurring booking, one by one under the
  * rules of `booking.cancel`:
  *
- * - the client cancels the ones more than 24 h ahead and gets their credits
- *   back; the nearer ones stay (`kept`) — refusing the whole series would
- *   leave them unable to stop it at all;
+ * - the client cancels the ones they may cancel alone (`clientMayCancel`:
+ *   more than 24 h ahead, or any not started yet when paid at the visit) and
+ *   gets their credits back; the nearer ones stay (`kept`) — refusing the
+ *   whole series would leave them unable to stop it at all;
  * - staff cancel all upcoming ones, refunding unless `refund: false`.
  *
  * Past bookings are left alone. One mail tells the client and the staff
@@ -48,7 +49,12 @@ export const cancelSeries = protectedProcedure
 
     const now = Date.now();
     const upcoming = await context.db
-      .select({ id: Booking.id, startsAt: Booking.startsAt })
+      .select({
+        id: Booking.id,
+        kind: Booking.kind,
+        credits: Booking.credits,
+        startsAt: Booking.startsAt,
+      })
       .from(Booking)
       .where(
         and(
@@ -65,10 +71,7 @@ export const cancelSeries = protectedProcedure
       const rows: Awaited<ReturnType<typeof cancelBookingRows>>[] = [];
       let kept = 0;
       for (const booking of upcoming) {
-        if (
-          !staff &&
-          booking.startsAt.getTime() - now < CLIENT_CANCEL_WINDOW_MS
-        ) {
+        if (!staff && !clientMayCancel(booking, now)) {
           kept++;
           continue;
         }

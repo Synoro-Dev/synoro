@@ -218,16 +218,6 @@ export const bookAtVisit = publicProcedure
       };
     }
 
-    // One mail goes out per booking: limit them per address mailed.
-    if (
-      !(await withinRateLimit(context.db, {
-        key: `book-at-visit:email:${rateLimitKeyPart(person.email)}`,
-        ...PER_EMAIL,
-      }))
-    ) {
-      throw errors.RATE_LIMITED();
-    }
-
     await releaseExpiredHolds(context.db, practice.id);
 
     const token = newGuestToken();
@@ -257,6 +247,17 @@ export const bookAtVisit = publicProcedure
           );
         if ((upcoming?.n ?? 0) >= AT_VISIT_MAX_UPCOMING) {
           throw errors.TOO_MANY();
+        }
+        // One mail goes out per booking: limit them per address mailed. In
+        // the transaction, so an attempt that books nothing (the time taken
+        // meanwhile) gives the hit back.
+        if (
+          !(await withinRateLimit(tx, {
+            key: `book-at-visit:email:${rateLimitKeyPart(person.email)}`,
+            ...PER_EMAIL,
+          }))
+        ) {
+          throw errors.RATE_LIMITED();
         }
 
         const [row] = await tx
