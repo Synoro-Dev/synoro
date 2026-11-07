@@ -3,6 +3,7 @@ import {
   asc,
   eq,
   gte,
+  isNotNull,
   isNull,
   Service,
   user,
@@ -57,6 +58,7 @@ export const list = practiceProcedure
       .where(
         and(
           eq(WaitlistEntry.practiceId, practice.id),
+          isNotNull(WaitlistEntry.confirmedAt),
           isNull(WaitlistEntry.notifiedAt),
           gte(WaitlistEntry.toDate, today),
         ),

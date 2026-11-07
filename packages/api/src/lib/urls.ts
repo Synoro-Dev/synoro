@@ -28,6 +28,11 @@ export function guestBookingUrl(token: string) {
   return new URL(paths.booking.guest(token), bookingOrigin()).href;
 }
 
+/** The link in the mail that confirms a visitor's waiting-list wish. */
+export function waitlistConfirmUrl(token: string) {
+  return new URL(paths.booking.waitlistConfirm(token), bookingOrigin()).href;
+}
+
 /** «Практики» in the app: where a signed-in user accepts an invitation. */
 export function practicesUrl() {
   return new URL(paths.booking.practices, env.APP_URL).href;

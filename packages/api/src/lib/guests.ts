@@ -69,18 +69,15 @@ export function hashGuestToken(token: string) {
 }
 
 /**
- * The account and client membership of a visitor who books without signing
- * in. The account is found by email or created passive (email not verified,
- * no password): a visitor opens it later by asking for an emailed code, and
- * finds their bookings and balance there. Nothing is trusted from the form
- * beyond that — an existing account keeps its name and phone, an unverified
- * email proves nothing, and staff of the practice must sign in instead.
- *
- * `staff` is returned for the latter case, with nothing created.
+ * The account of a visitor, found by email or created passive (email not
+ * verified, no password): a visitor opens it later by asking for an emailed
+ * code. Nothing is trusted from the form beyond that — an existing account
+ * keeps its name, and an unverified email proves nothing. Creates no
+ * membership: `findOrCreateGuestMember` does, `waitlist.confirm` does once the
+ * email is proven.
  */
-export async function findOrCreateGuestMember(
+export async function findOrCreateGuestAccount(
   db: Database,
-  practiceId: string,
   guest: { name: string; email: string; phone: string },
 ) {
   const email = guest.email.trim().toLowerCase();
@@ -106,6 +103,20 @@ export async function findOrCreateGuestMember(
       .where(eq(user.id, account.id));
   }
   if (!account) throw new Error("Failed to create the guest account");
+  return account;
+}
+
+/**
+ * The account and client membership of a visitor who books without signing
+ * in (see `findOrCreateGuestAccount`). Staff of the practice must sign in
+ * instead: `staff` is returned for that case, with no membership created.
+ */
+export async function findOrCreateGuestMember(
+  db: Database,
+  practiceId: string,
+  guest: { name: string; email: string; phone: string },
+) {
+  const account = await findOrCreateGuestAccount(db, guest);
 
   await db
     .insert(PracticeMember)

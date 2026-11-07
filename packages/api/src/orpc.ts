@@ -21,12 +21,21 @@ import type { Session } from "@synoro/auth";
 import { isAdmin } from "@synoro/auth/roles";
 import { logger } from "@synoro/config";
 import { db } from "@synoro/db";
+import { dispatchEmail } from "@synoro/jobs";
+
+/** A template email, as `dispatchEmail` takes it. */
+type TemplateEmail = Parameters<typeof dispatchEmail>[0];
 
 export interface CreateORPCContextOptions {
   /** Request headers, kept on the context for procedures that need them. */
   headers: Headers;
   /** Pre-resolved session (or `null` for anonymous requests). */
   session: Session | null;
+  /**
+   * How a procedure sends a template email: queued or inline, as
+   * `dispatchEmail` does. Tests pass a recorder to read what would be sent.
+   */
+  sendEmail?: (message: TemplateEmail) => Promise<void>;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
@@ -34,6 +43,7 @@ export function createORPCContext(opts: CreateORPCContextOptions) {
     session: opts.session,
     headers: opts.headers,
     db,
+    sendEmail: opts.sendEmail ?? dispatchEmail,
   };
 }
 

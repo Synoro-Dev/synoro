@@ -1,6 +1,7 @@
 import type { Session } from "@synoro/auth";
 import { type Database, user } from "@synoro/db";
 import { createTestDb } from "@synoro/db/testing";
+import type { TemplateEmail } from "@synoro/emails";
 
 import { createORPCContext } from "../src/orpc";
 
@@ -48,10 +49,23 @@ export async function createSession(
 export async function setupTestApi() {
   const { db, close } = await createTestDb();
 
-  const context = (session: Session | null = null) => ({
-    ...createORPCContext({ headers: new Headers(), session }),
+  /** Every email the procedures asked to send, in order. */
+  const sent: TemplateEmail[] = [];
+  const sendEmail = async (message: TemplateEmail) => {
+    sent.push(message);
+  };
+
+  const context = (
+    session: Session | null = null,
+    headers: Record<string, string> = {},
+  ) => ({
+    ...createORPCContext({
+      headers: new Headers(headers),
+      session,
+      sendEmail,
+    }),
     db,
   });
 
-  return { db, close, context };
+  return { db, close, context, sent };
 }

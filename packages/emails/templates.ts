@@ -10,6 +10,7 @@ import RenewalNoticeEmail from "./emails/renewal-notice";
 import ResetPasswordEmail from "./emails/reset-password";
 import StaffAgendaEmail from "./emails/staff-agenda";
 import StaffBookingEmail from "./emails/staff-booking";
+import WaitlistConfirmEmail from "./emails/waitlist-confirm";
 import WaitlistNoticeEmail from "./emails/waitlist-notice";
 import WelcomeEmail from "./emails/welcome";
 import WorkflowMessageEmail from "./emails/workflow-message";
@@ -28,6 +29,7 @@ const templates = {
   "reset-password": ResetPasswordEmail,
   "staff-agenda": StaffAgendaEmail,
   "staff-booking": StaffBookingEmail,
+  "waitlist-confirm": WaitlistConfirmEmail,
   "waitlist-notice": WaitlistNoticeEmail,
   welcome: WelcomeEmail,
   "workflow-message": WorkflowMessageEmail,

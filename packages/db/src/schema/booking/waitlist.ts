@@ -35,6 +35,24 @@ export const WaitlistEntry = pgTable(
     fromMinute: t.smallint(),
     toMinute: t.smallint(),
     notifiedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * When the person proved the email is theirs. A signed-in client's wish is
+     * confirmed at once; a visitor's waits for the link mailed to them, and
+     * until then it is never listed, never told of anything and doesn't count
+     * toward the limit. Null and older than `WAITLIST_CONFIRM_HOURS` — gone.
+     */
+    confirmedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * The email (lower case) that was proven for this wish: the account's own
+     * when a verified client asked, the link's address when a visitor
+     * confirmed. Notices go there only while it is still the account's email —
+     * a profile edit can change the address, and the new one has proven nothing.
+     */
+    confirmedEmail: t.text(),
+    /** SHA-256 of the secret in the confirmation link; null for a signed-in client. */
+    confirmTokenHash: t
+      .varchar({ length: 64 })
+      .unique("waitlist_entries_confirm_token_hash_unique"),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   }),
   (table) => [
