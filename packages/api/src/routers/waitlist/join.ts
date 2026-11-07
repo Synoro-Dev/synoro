@@ -287,7 +287,12 @@ export const join = publicProcedure
       }
       const [inserted] = await tx
         .insert(WaitlistEntry)
-        .values({ ...wish, userId, confirmedAt: new Date() })
+        .values({
+          ...wish,
+          userId,
+          confirmedAt: new Date(),
+          confirmedEmail: session.user.email.toLowerCase(),
+        })
         .returning({ id: WaitlistEntry.id });
       if (!inserted) throw new Error("Failed to insert waitlist entry");
       return inserted;

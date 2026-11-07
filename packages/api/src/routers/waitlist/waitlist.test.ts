@@ -126,6 +126,7 @@ async function waiting(
       fromDate: MONDAY,
       toDate: "2030-01-13",
       confirmedAt: new Date(),
+      confirmedEmail: email.toLowerCase(),
       ...overrides,
     })
     .returning();
@@ -726,6 +727,7 @@ describe("notifyWaitlist: where the wish starts, what is still free", () => {
         toDate: day,
         fromMinute: 1080,
         confirmedAt: new Date(),
+        confirmedEmail: evening.user.email,
         createdAt: new Date(Date.UTC(2028, 0, 1, 0, i)),
       })),
     );
@@ -816,6 +818,7 @@ describe("notifyWaitlist: reading wishes in pages", () => {
           toDate: day,
           fromMinute: 1080,
           confirmedAt: new Date(),
+          confirmedEmail: evening.user.email,
           createdAt: new Date(base + i * 60_000),
         })),
     );
@@ -856,6 +859,7 @@ describe("notifyWaitlist: wishes written within one millisecond", () => {
         toDate: day,
         fromMinute: 1080,
         confirmedAt: new Date(),
+        confirmedEmail: evening.user.email,
         createdAt: sql`('2027-02-01 00:00:00.000' || lpad(${i + 1}::text, 3, '0') || '+00')::timestamptz`,
       })),
     );
@@ -894,6 +898,7 @@ describe("notifyWaitlist: a failure before anyone is written to", () => {
           toDate: day,
           fromMinute: 1080,
           confirmedAt: new Date(),
+          confirmedEmail: evening.user.email,
           createdAt: new Date(base + i * 60_000),
         })),
     );
@@ -1038,6 +1043,7 @@ describe("waitlist.join: a visitor's wish waits for the email", () => {
         fromDate: TODAY,
         toDate: inDays(7),
         confirmedAt: new Date(),
+        confirmedEmail: email,
       })),
     );
     const results = await Promise.allSettled([
@@ -1061,6 +1067,33 @@ describe("waitlist.join: a visitor's wish waits for the email", () => {
     await expect(confirmWish(token)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
+  });
+
+  it("tells only the address that was proven, not one the account changed to later", async () => {
+    // A day no other test's wish covers: the five oldest are told first.
+    const email = "Moved@Visitor.test";
+    await join(wish({ email, fromDate: inDays(20), toDate: inDays(20) }));
+    await confirmWish(confirmTokenFor(email.toLowerCase()));
+    const [entry] = await pendingOf(email.toLowerCase());
+    expect(entry?.confirmedEmail).toBe("moved@visitor.test");
+
+    // A profile edit moves the account to an address nobody has proven.
+    await api.db
+      .update(user)
+      .set({ email: "stranger@victim.test", emailVerified: false })
+      .where(eq(user.id, entry?.userId ?? ""));
+    const { sent, deliver } = recorder();
+    await notifyWaitlist(api.db, freed("07:00", "08:00", inDays(20)), deliver);
+    expect(sent.some((m) => m.to[0] === "stranger@victim.test")).toBe(false);
+    expect((await entryOf(entry?.id ?? ""))?.notifiedAt).toBeNull();
+
+    // Back at the proven address, the wish is told as usual.
+    await api.db
+      .update(user)
+      .set({ email: "moved@visitor.test" })
+      .where(eq(user.id, entry?.userId ?? ""));
+    await notifyWaitlist(api.db, freed("07:00", "08:00", inDays(20)), deliver);
+    expect(sent.some((m) => m.to[0] === "moved@visitor.test")).toBe(true);
   });
 
   it("refuses a made-up link", async () => {

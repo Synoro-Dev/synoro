@@ -189,6 +189,9 @@ export async function notifyWaitlist(
                 eq(WaitlistEntry.practiceId, freed.practiceId),
                 // A visitor's wish counts once their email is confirmed.
                 isNotNull(WaitlistEntry.confirmedAt),
+                // ...to the address that was proven. A profile edit may have
+                // changed the account's email since: the new one proved nothing.
+                sql`lower(${user.email}) = ${WaitlistEntry.confirmedEmail}`,
                 isNull(WaitlistEntry.notifiedAt),
                 lte(WaitlistEntry.fromDate, date),
                 gte(WaitlistEntry.toDate, date),

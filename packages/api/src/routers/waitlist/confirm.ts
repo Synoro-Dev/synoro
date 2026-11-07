@@ -1,4 +1,11 @@
-import { and, eq, isNull, PracticeMember, WaitlistEntry } from "@synoro/db";
+import {
+  and,
+  eq,
+  isNull,
+  PracticeMember,
+  user,
+  WaitlistEntry,
+} from "@synoro/db";
 import {
   WAITLIST_CONFIRM_HOURS,
   WAITLIST_MAX_ENTRIES,
@@ -68,6 +75,14 @@ export const confirm = publicProcedure
       });
       if (member && member.role !== "client") return "gone" as const;
 
+      // The link went to the account's email as it is now: that is what the
+      // wish is bound to (notices stop if a profile edit changes it).
+      const [account] = await tx
+        .select({ email: user.email })
+        .from(user)
+        .where(eq(user.id, entry.userId));
+      if (!account) return "gone" as const;
+
       if (
         (await countOpenWishes(tx, practice.id, entry.userId, today)) >=
         WAITLIST_MAX_ENTRIES
@@ -84,7 +99,10 @@ export const confirm = publicProcedure
         .onConflictDoNothing();
       const [confirmed] = await tx
         .update(WaitlistEntry)
-        .set({ confirmedAt: new Date() })
+        .set({
+          confirmedAt: new Date(),
+          confirmedEmail: account.email.toLowerCase(),
+        })
         .where(
           and(
             eq(WaitlistEntry.id, entry.id),

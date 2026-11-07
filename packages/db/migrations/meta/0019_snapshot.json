@@ -1,5 +1,5 @@
 {
-  "id": "80e18a12-0d04-4e2c-aa06-da3e4f36ebc3",
+  "id": "7ca683a4-0173-4a27-ac07-2f9de41960b1",
   "prevId": "73909f5e-5a7a-43ba-8e43-23760e04610e",
   "version": "7",
   "dialect": "postgresql",
@@ -2990,6 +2990,12 @@
         "confirmed_at": {
           "name": "confirmed_at",
           "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_email": {
+          "name": "confirmed_email",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

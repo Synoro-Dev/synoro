@@ -66,8 +66,11 @@ optionally hours of the day and a service. Free plan.
   `WAITLIST_MAX_PENDING` (3) pending wishes, the oldest giving way, so a stranger
   can't fill its owner's place. The limit of three is checked again on
   confirming (`TOO_MANY`, the link keeps working), never in `join`'s reply,
-  which would tell what is behind an email. Existing wishes were confirmed by
-  migration 0019. If the mail can't be sent the wish is deleted (`MAIL_FAILED`).
+  which would tell what is behind an email. A wish is bound to the address that was
+  proven (`confirmed_email`, lower case): `notifyWaitlist` writes only while it is
+  still the account's email, since a profile edit can change it to one that proved
+  nothing. Existing wishes were confirmed by migration 0019 (bound to the
+  account's current email). If the mail can't be sent the wish is deleted (`MAIL_FAILED`).
 - **Neutral for staff**: a staff member's email gets the same reply as any
   other (`pending`), nothing stored, nothing mailed (they never get a link, which
   is the only difference, and it is theirs to see). `SIGN_IN_REQUIRED` is gone from `join`.

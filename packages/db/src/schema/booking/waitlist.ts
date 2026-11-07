@@ -42,6 +42,13 @@ export const WaitlistEntry = pgTable(
      * toward the limit. Null and older than `WAITLIST_CONFIRM_HOURS` — gone.
      */
     confirmedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * The email (lower case) that was proven for this wish: the account's own
+     * when a verified client asked, the link's address when a visitor
+     * confirmed. Notices go there only while it is still the account's email —
+     * a profile edit can change the address, and the new one has proven nothing.
+     */
+    confirmedEmail: t.text(),
     /** SHA-256 of the secret in the confirmation link; null for a signed-in client. */
     confirmTokenHash: t
       .varchar({ length: 64 })
