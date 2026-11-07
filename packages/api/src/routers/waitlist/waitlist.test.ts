@@ -260,7 +260,10 @@ describe("waitlist.join", () => {
   });
 
   it("uses the account of a signed-in client", async () => {
-    const client = await createSession(api.db, { name: "Клиент" });
+    const client = await createSession(api.db, {
+      name: "Клиент",
+      emailVerified: true,
+    });
     const joined = await join(
       wish({ fromMinute: 1080, serviceId: longId }),
       client,
@@ -334,7 +337,7 @@ describe("waitlist.join", () => {
       code: "STAFF",
     });
 
-    const client = await createSession(api.db);
+    const client = await createSession(api.db, { emailVerified: true });
     for (let i = 0; i < 3; i++) await join(wish(), client);
     await expect(join(wish(), client)).rejects.toMatchObject({
       code: "TOO_MANY",
@@ -342,7 +345,7 @@ describe("waitlist.join", () => {
   });
 
   it("holds the limit for concurrent requests (PGlite runs them in turn, so this does not test the lock itself)", async () => {
-    const client = await createSession(api.db);
+    const client = await createSession(api.db, { emailVerified: true });
     const results = await Promise.allSettled(
       Array.from({ length: 6 }, () => join(wish(), client)),
     );
@@ -757,7 +760,10 @@ describe("notifyWaitlist: where the wish starts, what is still free", () => {
 describe("waitlist.join: who is asking", () => {
   it("takes a signed-in client by their account, whatever it is named", async () => {
     // Signing up with «a@example.com» names the account «a»: one letter.
-    const client = await createSession(api.db, { name: "a" });
+    const client = await createSession(api.db, {
+      name: "a",
+      emailVerified: true,
+    });
     const { id } = await call(
       waitlistRouter.join,
       { practiceId, ...wish(), phone: "+7 900 123-45-67" },
@@ -993,6 +999,68 @@ describe("waitlist.join: a visitor's wish waits for the email", () => {
     // The next request at the practice sweeps it.
     await join(wish());
     expect(await entryOf(entry?.id ?? "")).toBeUndefined();
+  });
+
+  it("treats a session whose email nobody confirmed like a visitor", async () => {
+    // Password sign-up opens a session for any free address.
+    const email = "unverified@visitor.test";
+    const session = await createSession(api.db, { email });
+    const sentBefore = api.sent.length;
+
+    expect(await join(wish(), session)).toEqual({ status: "pending" });
+    expect(api.sent).toHaveLength(sentBefore + 1);
+    // The link goes to the account's own address, not one from the form.
+    expect(api.sent.at(-1)?.to).toEqual([email]);
+    const [entry] = await pendingOf(email);
+    expect(entry?.confirmedAt).toBeNull();
+    expect(
+      await api.db.query.PracticeMember.findFirst({
+        where: eq(PracticeMember.userId, session.user.id),
+      }),
+    ).toBeUndefined();
+
+    expect(await confirmWish(confirmTokenFor(email))).toMatchObject({
+      already: false,
+    });
+    expect((await entryOf(entry?.id ?? ""))?.confirmedAt).toBeInstanceOf(Date);
+  });
+
+  it("confirms once when the same link is opened twice at once, even with two other wishes open", async () => {
+    const email = "twice@visitor.test";
+    await join(wish({ email }));
+    const token = confirmTokenFor(email);
+    const [entry] = await pendingOf(email);
+    // Two wishes already confirmed: one place is left.
+    await api.db.insert(WaitlistEntry).values(
+      [0, 1].map(() => ({
+        practiceId,
+        userId: entry?.userId ?? "",
+        fromDate: TODAY,
+        toDate: inDays(7),
+        confirmedAt: new Date(),
+      })),
+    );
+    const results = await Promise.allSettled([
+      confirmWish(token),
+      confirmWish(token),
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["fulfilled", "fulfilled"]);
+    expect(
+      results.map((r) => r.status === "fulfilled" && r.value.already).sort(),
+    ).toEqual([false, true]);
+  });
+
+  it("answers NOT_FOUND when the wish was swept before the link was opened", async () => {
+    const email = "swept@visitor.test";
+    await join(wish({ email }));
+    const token = confirmTokenFor(email);
+    const [entry] = await pendingOf(email);
+    await api.db
+      .delete(WaitlistEntry)
+      .where(eq(WaitlistEntry.id, entry?.id ?? ""));
+    await expect(confirmWish(token)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 
   it("refuses a made-up link", async () => {

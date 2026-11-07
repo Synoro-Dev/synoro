@@ -42,8 +42,9 @@ paid hours.
 A wish for time that is not free yet: a range of days of the practice (≤ 60),
 optionally hours of the day and a service. Free plan.
 
-- **Join** (`waitlist.join`, public): a signed-in client uses their account and
-  is in at once (`status: "confirmed"`); a visitor leaves name, phone and email
+- **Join** (`waitlist.join`, public): a signed-in client with a verified email uses their account and
+  is in at once (`status: "confirmed"`; a session with an unverified email — password
+  sign-up opens one for any free address — waits for the link like a visitor); a visitor leaves name, phone and email
   as when booking and gets a passive account (`findOrCreateGuestAccount`).
   Staff can't (`STAFF`), three open wishes at most per person
   (`TOO_MANY`, counted and inserted under one advisory lock per person and

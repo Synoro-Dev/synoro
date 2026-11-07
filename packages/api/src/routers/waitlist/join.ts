@@ -141,27 +141,22 @@ export const join = publicProcedure
       toMinute: input.toMinute,
     };
 
-    const session = context.session;
-    if (!session) {
-      // A visitor: the wish waits for the link mailed to the address.
-      const details = waitlistGuestSchema.safeParse(input);
-      if (!details.success) {
-        throw errors.GUEST_INVALID({
-          message: details.error.issues[0]?.message,
-        });
-      }
-      const pending = { status: "pending" as const };
+    const pending = { status: "pending" as const };
 
+    /** One mail an hour per email, whoever asks for it. */
+    const limitEmail = async (email: string) => {
       if (
         !(await withinRateLimit(context.db, {
-          key: `waitlist-join:email:${rateLimitKeyPart(details.data.email)}`,
+          key: `waitlist-join:email:${rateLimitKeyPart(email)}`,
           ...PER_EMAIL,
         }))
       ) {
         throw errors.RATE_LIMITED();
       }
+    };
 
-      const account = await findOrCreateGuestAccount(context.db, details.data);
+    /** The wish waits for the link mailed to the email of `account`. */
+    const waitForEmail = async (account: { id: string; email: string }) => {
       const member = await findMembership(context.db, practice.id, account.id);
       // Staff of the practice: the same reply as anyone, nothing kept or sent.
       if (member && member.role !== "client") return pending;
@@ -239,6 +234,21 @@ export const join = publicProcedure
         throw errors.MAIL_FAILED();
       }
       return pending;
+    };
+
+    const session = context.session;
+    if (!session) {
+      // A visitor: anyone can type anyone's email, so the wish waits.
+      const details = waitlistGuestSchema.safeParse(input);
+      if (!details.success) {
+        throw errors.GUEST_INVALID({
+          message: details.error.issues[0]?.message,
+        });
+      }
+      await limitEmail(details.data.email);
+      return waitForEmail(
+        await findOrCreateGuestAccount(context.db, details.data),
+      );
     }
 
     const userId = session.user.id;
@@ -253,6 +263,12 @@ export const join = publicProcedure
         .update(user)
         .set({ phone: input.phone })
         .where(eq(user.id, userId));
+    }
+    // A session is no proof of the address: password sign-up opens one for an
+    // email nobody has confirmed. Those wait for the link like a visitor.
+    if (!session.user.emailVerified) {
+      await limitEmail(session.user.email);
+      return waitForEmail(session.user);
     }
     await context.db
       .insert(PracticeMember)

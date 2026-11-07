@@ -6,7 +6,7 @@ import {
 import { z } from "zod";
 
 import { hashGuestToken } from "../../lib/guests";
-import { findMembership, findOpenPractice } from "../../lib/practice-access";
+import { findOpenPractice } from "../../lib/practice-access";
 import { toZonedDate } from "../../lib/schedule";
 import { countOpenWishes, lockWishes } from "../../lib/waitlist";
 import { publicProcedure } from "../../orpc";
@@ -34,33 +34,40 @@ export const confirm = publicProcedure
   })
   .input(z.object({ token: z.string().min(16).max(200) }))
   .handler(async ({ context, input, errors }) => {
-    const entry = await context.db.query.WaitlistEntry.findFirst({
+    const found = await context.db.query.WaitlistEntry.findFirst({
       where: eq(WaitlistEntry.confirmTokenHash, hashGuestToken(input.token)),
+      columns: { id: true, practiceId: true, userId: true },
     });
-    if (!entry) throw errors.NOT_FOUND();
+    if (!found) throw errors.NOT_FOUND();
 
-    const practice = await findOpenPractice(context.db, entry.practiceId);
+    const practice = await findOpenPractice(context.db, found.practiceId);
     if (!practice) throw errors.NOT_FOUND();
-    const done = { practice: { name: practice.name, slug: practice.slug } };
-    if (entry.confirmedAt) return { ...done, already: true };
-
-    const expiresAt =
-      entry.createdAt.getTime() + WAITLIST_CONFIRM_HOURS * 3_600_000;
     const today = toZonedDate(new Date(), practice.timezone);
-    if (expiresAt < Date.now() || entry.toDate < today) {
-      throw errors.NOT_FOUND();
-    }
 
-    // Became staff since: they sign in, nothing is made of the wish.
-    const member = await findMembership(context.db, practice.id, entry.userId);
-    if (member && member.role !== "client") throw errors.NOT_FOUND();
-    await context.db
-      .insert(PracticeMember)
-      .values({ practiceId: practice.id, userId: entry.userId, role: "client" })
-      .onConflictDoNothing();
+    // Everything is decided under the person's lock, from a fresh read: a
+    // second click, a new `join` that swept the wish, or another wish
+    // confirmed meanwhile must see each other.
+    const result = await context.db.transaction(async (tx) => {
+      await lockWishes(tx, practice.id, found.userId);
+      const entry = await tx.query.WaitlistEntry.findFirst({
+        where: eq(WaitlistEntry.id, found.id),
+      });
+      if (!entry) return "gone" as const;
+      if (entry.confirmedAt) return "already" as const;
+      const expiresAt =
+        entry.createdAt.getTime() + WAITLIST_CONFIRM_HOURS * 3_600_000;
+      if (expiresAt < Date.now() || entry.toDate < today)
+        return "gone" as const;
 
-    await context.db.transaction(async (tx) => {
-      await lockWishes(tx, practice.id, entry.userId);
+      // Became staff since: they sign in, nothing is made of the wish.
+      const member = await tx.query.PracticeMember.findFirst({
+        where: and(
+          eq(PracticeMember.practiceId, practice.id),
+          eq(PracticeMember.userId, entry.userId),
+        ),
+      });
+      if (member && member.role !== "client") return "gone" as const;
+
       if (
         (await countOpenWishes(tx, practice.id, entry.userId, today)) >=
         WAITLIST_MAX_ENTRIES
@@ -68,6 +75,14 @@ export const confirm = publicProcedure
         throw errors.TOO_MANY();
       }
       await tx
+        .insert(PracticeMember)
+        .values({
+          practiceId: practice.id,
+          userId: entry.userId,
+          role: "client",
+        })
+        .onConflictDoNothing();
+      const [confirmed] = await tx
         .update(WaitlistEntry)
         .set({ confirmedAt: new Date() })
         .where(
@@ -75,7 +90,14 @@ export const confirm = publicProcedure
             eq(WaitlistEntry.id, entry.id),
             isNull(WaitlistEntry.confirmedAt),
           ),
-        );
+        )
+        .returning({ id: WaitlistEntry.id });
+      return confirmed ? ("confirmed" as const) : ("gone" as const);
     });
-    return { ...done, already: false };
+
+    if (result === "gone") throw errors.NOT_FOUND();
+    return {
+      practice: { name: practice.name, slug: practice.slug },
+      already: result === "already",
+    };
   });
