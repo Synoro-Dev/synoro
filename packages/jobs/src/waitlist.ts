@@ -8,6 +8,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -186,6 +187,8 @@ export async function notifyWaitlist(
             .where(
               and(
                 eq(WaitlistEntry.practiceId, freed.practiceId),
+                // A visitor's wish counts once their email is confirmed.
+                isNotNull(WaitlistEntry.confirmedAt),
                 isNull(WaitlistEntry.notifiedAt),
                 lte(WaitlistEntry.fromDate, date),
                 gte(WaitlistEntry.toDate, date),

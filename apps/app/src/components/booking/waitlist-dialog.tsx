@@ -201,17 +201,18 @@ function WaitlistForm({
 
   const join = useMutation({
     ...orpc.waitlist.join.mutationOptions(),
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       toast.success(
-        signedIn
-          ? "Вы в листе ожидания"
-          : "Вы в листе ожидания — напишем на почту, когда время освободится",
+        result.status === "pending"
+          ? "Письмо отправлено — подтвердите пожелание по ссылке в нём"
+          : "Вы в листе ожидания",
       );
       await queryClient.invalidateQueries({ queryKey: orpc.waitlist.key() });
       onDone();
     },
     onError: (e) => {
-      if (isDefinedError(e) && e.code === "SIGN_IN_REQUIRED") {
+      // The form's own mistakes stay in the dialog; the rest is a toast.
+      if (isDefinedError(e) && e.code === "GUEST_INVALID") {
         setError(e.message);
         return;
       }
@@ -261,6 +262,8 @@ function WaitlistForm({
           Когда у специалиста освободится подходящее время, мы один раз вам
           напишем. Время ни за кем не закрепляется: записывается тот, кто успел
           первым. Выбрать можно до {WAITLIST_MAX_DAYS} дней.
+          {!signedIn &&
+            " Сначала пришлём письмо — по ссылке в нём нужно подтвердить почту."}
         </DialogDescription>
       </DialogHeader>
 

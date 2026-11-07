@@ -1,32 +1,52 @@
+import { logger } from "@synoro/config";
 import {
   and,
-  count,
+  desc,
   eq,
-  gte,
+  inArray,
   isNull,
+  lt,
   PracticeMember,
-  sql,
   user,
   WaitlistEntry,
 } from "@synoro/db";
 import {
+  WAITLIST_CONFIRM_HOURS,
   WAITLIST_MAX_DAYS,
   WAITLIST_MAX_ENTRIES,
+  WAITLIST_MAX_PENDING,
   waitlistGuestSchema,
   waitlistJoinSchema,
 } from "@synoro/validators";
 import { z } from "zod";
 
 import { track } from "../../lib/analytics";
-import { findOrCreateGuestMember } from "../../lib/guests";
+import {
+  findOrCreateGuestAccount,
+  hashGuestToken,
+  newGuestToken,
+} from "../../lib/guests";
 import {
   findMembership,
   findOpenPractice,
   isStaff,
 } from "../../lib/practice-access";
+import {
+  clientIp,
+  rateLimitKeyPart,
+  withinRateLimit,
+} from "../../lib/rate-limit";
 import { addDays, toZonedDate } from "../../lib/schedule";
 import { resolveService } from "../../lib/services";
+import { waitlistConfirmUrl } from "../../lib/urls";
+import { countOpenWishes, lockWishes } from "../../lib/waitlist";
 import { publicProcedure } from "../../orpc";
+
+/** Requests from one address: a person leaves a wish or two, not ten in ten minutes. */
+const PER_IP = { limit: 10, windowSeconds: 10 * 60 };
+
+/** Confirmation mails to one email (any practice) an hour: nobody gets flooded. */
+const PER_EMAIL = { limit: 3, windowSeconds: 60 * 60 };
 
 /**
  * Leave a wish on the practice's waiting list: dates, optionally hours and a
@@ -34,11 +54,21 @@ import { publicProcedure } from "../../orpc";
  * person is told once, by mail or messenger, and books it on the page — the
  * time is not held for them.
  *
- * A signed-in client uses their own account; a visitor leaves name, phone and
- * email, as when booking, and gets a passive account (see
- * `findOrCreateGuestMember`). SIGN_IN_REQUIRED for the email of the practice's
- * own staff, STAFF for staff signed in; DATES_PAST when the whole range is over;
- * TOO_MANY when the person already has three open wishes here.
+ * A signed-in client uses their own account and is confirmed at once
+ * (`{ status: "confirmed", id }`). A visitor leaves name, phone and email, as
+ * when booking, and anyone can type anyone's email — so the wish only waits
+ * (`{ status: "pending" }`): a mail with a link goes to that address and
+ * `waitlist.confirm` makes the wish real. Until then it is neither listed nor
+ * told of anything nor counted toward the limit, and it is dropped after
+ * `WAITLIST_CONFIRM_HOURS`. The reply is the same for every email, the
+ * practice's own staff included: for them nothing is stored or sent, and
+ * nothing in the reply says so.
+ *
+ * STAFF for staff signed in; DATES_PAST when the whole range is over;
+ * TOO_MANY when a signed-in client already has three open wishes here (a
+ * visitor hears of it when confirming, not before: the reply must not tell
+ * what is behind an email); RATE_LIMITED past 10 requests in ten minutes from
+ * one address or 3 confirmation mails an hour to one email.
  *
  * @example client.waitlist.join({ practiceId, fromDate: "2026-11-09", toDate: "2026-11-15", fromMinute: 1080, toMinute: null, name: "Иван", phone: "+7 900 000-00-00", email: "ivan@example.com" })
  */
@@ -54,15 +84,30 @@ export const join = publicProcedure
     STAFF: {
       message: "Вы ведёте эту практику: лист ожидания нужен её клиентам",
     },
-    SIGN_IN_REQUIRED: {
-      message: "Эта почта принадлежит специалисту практики — войдите в аккаунт",
-    },
     TOO_MANY: {
       message: `Одновременно можно ждать не больше ${WAITLIST_MAX_ENTRIES} раз — удалите лишнее`,
+    },
+    RATE_LIMITED: {
+      message: "Слишком много попыток — попробуйте чуть позже",
+    },
+    MAIL_FAILED: {
+      message: "Не удалось отправить письмо — попробуйте ещё раз чуть позже",
     },
   })
   .input(waitlistJoinSchema.and(z.object({ practiceId: z.uuid() })))
   .handler(async ({ context, input, errors }) => {
+    // Before anything is read or written: one address can't keep us busy.
+    const ip = clientIp(context.headers);
+    if (
+      ip &&
+      !(await withinRateLimit(context.db, {
+        key: `waitlist-join:ip:${ip}`,
+        ...PER_IP,
+      }))
+    ) {
+      throw errors.RATE_LIMITED();
+    }
+
     const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
 
@@ -84,77 +129,149 @@ export const join = publicProcedure
       if (!service) throw errors.SERVICE_NOT_FOUND();
     }
 
-    let userId: string;
+    // A wish never starts in the past.
+    let fromDate = input.fromDate;
+    if (fromDate < today) fromDate = today;
+    const wish = {
+      practiceId: practice.id,
+      serviceId: input.serviceId ?? null,
+      fromDate,
+      toDate: input.toDate,
+      fromMinute: input.fromMinute,
+      toMinute: input.toMinute,
+    };
+
     const session = context.session;
-    if (session) {
-      userId = session.user.id;
-      const member = await findMembership(context.db, practice.id, userId);
-      if (member && isStaff(member.role)) throw errors.STAFF();
-      const account = await context.db.query.user.findFirst({
-        where: eq(user.id, userId),
-        columns: { phone: true },
-      });
-      if (!account?.phone) {
-        await context.db
-          .update(user)
-          .set({ phone: input.phone })
-          .where(eq(user.id, userId));
-      }
-      await context.db
-        .insert(PracticeMember)
-        .values({ practiceId: practice.id, userId, role: "client" })
-        .onConflictDoNothing();
-    } else {
+    if (!session) {
+      // A visitor: the wish waits for the link mailed to the address.
       const details = waitlistGuestSchema.safeParse(input);
       if (!details.success) {
         throw errors.GUEST_INVALID({
           message: details.error.issues[0]?.message,
         });
       }
-      const guest = await findOrCreateGuestMember(
-        context.db,
-        practice.id,
-        details.data,
-      );
-      if (guest.staff) throw errors.SIGN_IN_REQUIRED();
-      userId = guest.user.id;
+      const pending = { status: "pending" as const };
+
+      if (
+        !(await withinRateLimit(context.db, {
+          key: `waitlist-join:email:${rateLimitKeyPart(details.data.email)}`,
+          ...PER_EMAIL,
+        }))
+      ) {
+        throw errors.RATE_LIMITED();
+      }
+
+      const account = await findOrCreateGuestAccount(context.db, details.data);
+      const member = await findMembership(context.db, practice.id, account.id);
+      // Staff of the practice: the same reply as anyone, nothing kept or sent.
+      if (member && member.role !== "client") return pending;
+
+      const token = newGuestToken();
+      const entry = await context.db.transaction(async (tx) => {
+        await lockWishes(tx, practice.id, account.id);
+        // Wishes nobody confirmed in time are dropped, here, where they were
+        // made; and one person keeps at most WAITLIST_MAX_PENDING waiting
+        // ones, the oldest giving way — so a stranger typing an email can't
+        // fill its owner's place.
+        const cutoff = new Date(
+          Date.now() - WAITLIST_CONFIRM_HOURS * 3_600_000,
+        );
+        await tx
+          .delete(WaitlistEntry)
+          .where(
+            and(
+              eq(WaitlistEntry.practiceId, practice.id),
+              isNull(WaitlistEntry.confirmedAt),
+              lt(WaitlistEntry.createdAt, cutoff),
+            ),
+          );
+        const crowded = await tx
+          .select({ id: WaitlistEntry.id })
+          .from(WaitlistEntry)
+          .where(
+            and(
+              eq(WaitlistEntry.practiceId, practice.id),
+              eq(WaitlistEntry.userId, account.id),
+              isNull(WaitlistEntry.confirmedAt),
+            ),
+          )
+          .orderBy(desc(WaitlistEntry.createdAt))
+          .offset(WAITLIST_MAX_PENDING - 1);
+        if (crowded.length > 0) {
+          await tx.delete(WaitlistEntry).where(
+            inArray(
+              WaitlistEntry.id,
+              crowded.map((row) => row.id),
+            ),
+          );
+        }
+        const [inserted] = await tx
+          .insert(WaitlistEntry)
+          .values({
+            ...wish,
+            userId: account.id,
+            confirmTokenHash: hashGuestToken(token),
+          })
+          .returning({ id: WaitlistEntry.id });
+        if (!inserted) throw new Error("Failed to insert waitlist entry");
+        return inserted;
+      });
+
+      try {
+        await context.sendEmail({
+          template: "waitlist-confirm",
+          to: [account.email],
+          subject: `Подтвердите лист ожидания: ${practice.name}`,
+          props: {
+            practiceName: practice.name,
+            confirmUrl: waitlistConfirmUrl(token),
+            hours: WAITLIST_CONFIRM_HOURS,
+          },
+        });
+      } catch (error) {
+        // Nobody can confirm a wish they never got the link for.
+        await context.db
+          .delete(WaitlistEntry)
+          .where(eq(WaitlistEntry.id, entry.id));
+        logger.warn("waitlist.confirm_mail_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw errors.MAIL_FAILED();
+      }
+      return pending;
     }
 
-    // A wish never starts in the past.
-    let startDate = input.fromDate;
-    if (startDate < today) startDate = today;
+    const userId = session.user.id;
+    const member = await findMembership(context.db, practice.id, userId);
+    if (member && isStaff(member.role)) throw errors.STAFF();
+    const account = await context.db.query.user.findFirst({
+      where: eq(user.id, userId),
+      columns: { phone: true },
+    });
+    if (!account?.phone) {
+      await context.db
+        .update(user)
+        .set({ phone: input.phone })
+        .where(eq(user.id, userId));
+    }
+    await context.db
+      .insert(PracticeMember)
+      .values({ practiceId: practice.id, userId, role: "client" })
+      .onConflictDoNothing();
 
     // Counting and inserting under one lock per person and practice: two
     // requests at once can't both pass the limit.
     const entry = await context.db.transaction(async (tx) => {
-      await tx.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${`waitlist:${practice.id}:${userId}`}))`,
-      );
-      const [open] = await tx
-        .select({ entries: count() })
-        .from(WaitlistEntry)
-        .where(
-          and(
-            eq(WaitlistEntry.practiceId, practice.id),
-            eq(WaitlistEntry.userId, userId),
-            isNull(WaitlistEntry.notifiedAt),
-            gte(WaitlistEntry.toDate, today),
-          ),
-        );
-      if ((open?.entries ?? 0) >= WAITLIST_MAX_ENTRIES) {
+      await lockWishes(tx, practice.id, userId);
+      if (
+        (await countOpenWishes(tx, practice.id, userId, today)) >=
+        WAITLIST_MAX_ENTRIES
+      ) {
         throw errors.TOO_MANY();
       }
       const [inserted] = await tx
         .insert(WaitlistEntry)
-        .values({
-          practiceId: practice.id,
-          userId,
-          serviceId: input.serviceId ?? null,
-          fromDate: startDate,
-          toDate: input.toDate,
-          fromMinute: input.fromMinute,
-          toMinute: input.toMinute,
-        })
+        .values({ ...wish, userId, confirmedAt: new Date() })
         .returning({ id: WaitlistEntry.id });
       if (!inserted) throw new Error("Failed to insert waitlist entry");
       return inserted;
@@ -164,5 +281,5 @@ export const join = publicProcedure
       practiceId: practice.id,
       serviceId: input.serviceId ?? null,
     });
-    return { id: entry.id };
+    return { status: "confirmed" as const, id: entry.id };
   });

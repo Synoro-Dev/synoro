@@ -15,6 +15,15 @@ export const WAITLIST_MAX_DAYS = 60;
 /** Open wishes one person may have at a practice at once. */
 export const WAITLIST_MAX_ENTRIES = 3;
 
+/**
+ * How long a visitor's wish waits for the emailed confirmation: after that the
+ * link is dead and the wish is gone (`waitlist_entries.confirmed_at`).
+ */
+export const WAITLIST_CONFIRM_HOURS = 24;
+
+/** Wishes a visitor may have waiting for confirmation at a practice at once. */
+export const WAITLIST_MAX_PENDING = 3;
+
 const DAY_MS = 86_400_000;
 
 const halfHour = z

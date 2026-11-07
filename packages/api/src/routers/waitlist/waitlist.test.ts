@@ -1,11 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { Booking, eq, Service, sql, user, WaitlistEntry } from "@synoro/db";
+import {
+  Booking,
+  eq,
+  PracticeMember,
+  Service,
+  sql,
+  user,
+  WaitlistEntry,
+} from "@synoro/db";
 import type { TemplateEmail } from "@synoro/emails";
 import { notifyWaitlist } from "@synoro/jobs/waitlist";
+import { WAITLIST_CONFIRM_HOURS } from "@synoro/validators";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import { withinRateLimit } from "../../lib/rate-limit";
 import { toZonedDate } from "../../lib/schedule";
 import { availabilityRouter } from "../availability";
 import { bookingRouter } from "../booking";
@@ -67,17 +77,40 @@ function join(
     email?: string;
   },
   session: Session | null = null,
+  headers: Record<string, string> = {},
 ) {
   return call(
     waitlistRouter.join,
     {
       practiceId,
-      ...visitor(input.email ?? "ivan@visitor.test"),
+      // Each visitor has their own email: one email may be written to only
+      // three times an hour.
+      ...visitor(input.email ?? `${crypto.randomUUID()}@visitor.test`),
       ...input,
     },
-    { context: api.context(session) },
+    { context: api.context(session, headers) },
   );
 }
+
+/** The secret of the confirmation link the last mail to `email` carried. */
+function confirmTokenFor(email: string) {
+  const mail = api.sent.findLast(
+    (m) => m.template === "waitlist-confirm" && m.to[0] === email,
+  );
+  const url = (mail?.props as { confirmUrl?: string } | undefined)?.confirmUrl;
+  const token = url?.split("/b/w/")[1];
+  if (!token) throw new Error(`no confirmation mail to ${email}`);
+  return token;
+}
+
+const confirmWish = (token: string) =>
+  call(waitlistRouter.confirm, { token }, { context: api.context() });
+
+/** Forgets the request counters: a test may ask more often than a real person. */
+const resetLimits = () => api.db.execute(sql`delete from rate_limits`);
+
+const entryOf = (id: string) =>
+  api.db.query.WaitlistEntry.findFirst({ where: eq(WaitlistEntry.id, id) });
 
 /** An open wish of a new account, inserted directly. */
 async function waiting(
@@ -92,6 +125,7 @@ async function waiting(
       userId: session.user.id,
       fromDate: MONDAY,
       toDate: "2030-01-13",
+      confirmedAt: new Date(),
       ...overrides,
     })
     .returning();
@@ -155,10 +189,20 @@ afterAll(async () => {
 });
 
 describe("waitlist.join", () => {
-  it("lets a visitor leave a wish with their contacts", async () => {
-    const { id } = await join(wish({ email: "new@visitor.test" }));
+  it("keeps a visitor's wish aside until the email is confirmed", async () => {
+    const email = "new@visitor.test";
+    const sentBefore = api.sent.length;
+    expect(await join(wish({ email }))).toEqual({ status: "pending" });
+
+    const account = await api.db.query.user.findFirst({
+      where: eq(user.email, email),
+    });
+    expect(account).toMatchObject({
+      emailVerified: false,
+      phone: "+79001234567",
+    });
     const entry = await api.db.query.WaitlistEntry.findFirst({
-      where: eq(WaitlistEntry.id, id),
+      where: eq(WaitlistEntry.userId, account?.id ?? ""),
     });
     expect(entry).toMatchObject({
       practiceId,
@@ -166,23 +210,65 @@ describe("waitlist.join", () => {
       toDate: inDays(7),
       fromMinute: null,
       notifiedAt: null,
+      confirmedAt: null,
     });
-    const account = await api.db.query.user.findFirst({
-      where: eq(user.email, "new@visitor.test"),
+    // The link is mailed to the address typed; the table keeps only its hash.
+    expect(api.sent).toHaveLength(sentBefore + 1);
+    const token = confirmTokenFor(email);
+    expect(entry?.confirmTokenHash).not.toBe(token);
+    // The mail carries no text the sender chose, only the practice's name.
+    expect(JSON.stringify(api.sent.at(-1))).not.toContain("Иван Петров");
+    // The address is no client of the practice yet.
+    expect(
+      await api.db.query.PracticeMember.findFirst({
+        where: eq(PracticeMember.userId, account?.id ?? ""),
+      }),
+    ).toBeUndefined();
+
+    // Neither listed to staff nor told of freed time.
+    const list = await call(
+      waitlistRouter.list,
+      { practiceId },
+      { context: api.context(owner) },
+    );
+    expect(list.entries.some((e) => e.email === email)).toBe(false);
+    const { sent, deliver } = recorder();
+    await notifyWaitlist(api.db, freed("07:00", "08:00", inDays(1)), deliver);
+    expect(sent.some((m) => m.to[0] === email)).toBe(false);
+
+    // The link makes it real.
+    expect(await confirmWish(token)).toMatchObject({
+      already: false,
+      practice: { slug: "anna-wait" },
     });
-    expect(account).toMatchObject({
-      emailVerified: false,
-      phone: "+79001234567",
+    expect(await entryOf(entry?.id ?? "")).toMatchObject({
+      confirmedAt: expect.any(Date),
     });
-    expect(entry?.userId).toBe(account?.id);
+    expect(
+      await api.db.query.PracticeMember.findFirst({
+        where: eq(PracticeMember.userId, account?.id ?? ""),
+      }),
+    ).toMatchObject({ role: "client" });
+    const confirmed = await call(
+      waitlistRouter.list,
+      { practiceId },
+      { context: api.context(owner) },
+    );
+    expect(confirmed.entries.some((e) => e.email === email)).toBe(true);
+    // Opening the link again changes nothing.
+    expect(await confirmWish(token)).toMatchObject({ already: true });
   });
 
   it("uses the account of a signed-in client", async () => {
     const client = await createSession(api.db, { name: "Клиент" });
-    const { id } = await join(
+    const joined = await join(
       wish({ fromMinute: 1080, serviceId: longId }),
       client,
     );
+    // A signed-in client is confirmed already: no mail, no waiting.
+    expect(joined.status).toBe("confirmed");
+    if (joined.status !== "confirmed") throw new Error("not confirmed");
+    const { id } = joined;
     const entry = await api.db.query.WaitlistEntry.findFirst({
       where: eq(WaitlistEntry.id, id),
     });
@@ -272,9 +358,18 @@ describe("waitlist.join", () => {
     ).toHaveLength(3);
   });
 
-  it("asks the practice's staff to sign in instead of using their email", async () => {
-    await expect(join(wish({ email: owner.user.email }))).rejects.toMatchObject(
-      { code: "SIGN_IN_REQUIRED" },
+  it("answers the practice's staff like anyone else, storing and sending nothing", async () => {
+    const sentBefore = api.sent.length;
+    const entriesBefore = await api.db.select().from(WaitlistEntry);
+    const stranger = await join(wish());
+    const staff = await join(wish({ email: owner.user.email }));
+
+    expect(staff).toEqual(stranger);
+    // One mail, to the stranger; none to the specialist, no wish for them.
+    expect(api.sent).toHaveLength(sentBefore + 1);
+    expect(api.sent.some((m) => m.to[0] === owner.user.email)).toBe(false);
+    expect(await api.db.select().from(WaitlistEntry)).toHaveLength(
+      entriesBefore.length + 1,
     );
   });
 });
@@ -627,6 +722,7 @@ describe("notifyWaitlist: where the wish starts, what is still free", () => {
         fromDate: day,
         toDate: day,
         fromMinute: 1080,
+        confirmedAt: new Date(),
         createdAt: new Date(Date.UTC(2028, 0, 1, 0, i)),
       })),
     );
@@ -713,6 +809,7 @@ describe("notifyWaitlist: reading wishes in pages", () => {
           fromDate: day,
           toDate: day,
           fromMinute: 1080,
+          confirmedAt: new Date(),
           createdAt: new Date(base + i * 60_000),
         })),
     );
@@ -752,6 +849,7 @@ describe("notifyWaitlist: wishes written within one millisecond", () => {
         fromDate: day,
         toDate: day,
         fromMinute: 1080,
+        confirmedAt: new Date(),
         createdAt: sql`('2027-02-01 00:00:00.000' || lpad(${i + 1}::text, 3, '0') || '+00')::timestamptz`,
       })),
     );
@@ -789,6 +887,7 @@ describe("notifyWaitlist: a failure before anyone is written to", () => {
           fromDate: day,
           toDate: day,
           fromMinute: 1080,
+          confirmedAt: new Date(),
           createdAt: new Date(base + i * 60_000),
         })),
     );
@@ -835,5 +934,214 @@ describe("notifyWaitlist: a failure before anyone is written to", () => {
         (t) => t !== null,
       ),
     ).toBe(true);
+  });
+});
+
+describe("waitlist.join: a visitor's wish waits for the email", () => {
+  const pendingOf = async (email: string) => {
+    const account = await api.db.query.user.findFirst({
+      where: eq(user.email, email),
+    });
+    return api.db
+      .select()
+      .from(WaitlistEntry)
+      .where(eq(WaitlistEntry.userId, account?.id ?? ""));
+  };
+
+  it("keeps the three most recent unconfirmed wishes of one email, the oldest giving way", async () => {
+    const email = "crowded@visitor.test";
+    const links: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      await join(wish({ email }));
+      links.push(confirmTokenFor(email));
+    }
+    expect(await pendingOf(email)).toHaveLength(3);
+    // (Over an hour later, or the email's own limit would stop the fourth.)
+    await resetLimits();
+
+    // A fourth request (anyone can make it) takes the oldest one's place, so a
+    // stranger can't fill the owner's room with wishes nobody confirmed.
+    await join(wish({ email: email.toUpperCase() }));
+    expect(await pendingOf(email)).toHaveLength(3);
+    const [oldest, second] = links;
+    await expect(confirmWish(oldest ?? "")).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await confirmWish(second ?? "")).toMatchObject({ already: false });
+  });
+
+  it("drops wishes nobody confirmed in time, and their links stop working", async () => {
+    const email = "late@visitor.test";
+    await join(wish({ email }));
+    const token = confirmTokenFor(email);
+    const [entry] = await pendingOf(email);
+    await api.db
+      .update(WaitlistEntry)
+      .set({
+        createdAt: new Date(
+          Date.now() - (WAITLIST_CONFIRM_HOURS + 1) * 3_600_000,
+        ),
+      })
+      .where(eq(WaitlistEntry.id, entry?.id ?? ""));
+
+    // Late: the link is dead even before anything sweeps the wish.
+    await expect(confirmWish(token)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect((await pendingOf(email))[0]?.confirmedAt).toBeNull();
+
+    // The next request at the practice sweeps it.
+    await join(wish());
+    expect(await entryOf(entry?.id ?? "")).toBeUndefined();
+  });
+
+  it("refuses a made-up link", async () => {
+    await expect(confirmWish("x".repeat(32))).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(confirmWish("short")).rejects.toBeDefined();
+  });
+
+  it("counts only confirmed wishes toward the limit, and says so when confirming, not before", async () => {
+    const email = "full@visitor.test";
+    for (let i = 0; i < 3; i++) {
+      await join(wish({ email }));
+      await confirmWish(confirmTokenFor(email));
+    }
+    // A fourth request looks like any other: nothing says the email has wishes.
+    await resetLimits();
+    expect(await join(wish({ email }))).toEqual({ status: "pending" });
+    const token = confirmTokenFor(email);
+    await expect(confirmWish(token)).rejects.toMatchObject({
+      code: "TOO_MANY",
+    });
+
+    // Dropping one makes room; the same link then works.
+    const confirmed = (await pendingOf(email)).filter((e) => e.confirmedAt);
+    await api.db
+      .delete(WaitlistEntry)
+      .where(eq(WaitlistEntry.id, confirmed[0]?.id ?? ""));
+    expect(await confirmWish(token)).toMatchObject({ already: false });
+  });
+
+  it("does not make a client of someone who became staff meanwhile", async () => {
+    const email = "turned@visitor.test";
+    await join(wish({ email }));
+    const token = confirmTokenFor(email);
+    const [entry] = await pendingOf(email);
+    await api.db.insert(PracticeMember).values({
+      practiceId,
+      userId: entry?.userId ?? "",
+      role: "admin",
+    });
+    await expect(confirmWish(token)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect((await entryOf(entry?.id ?? ""))?.confirmedAt).toBeNull();
+  });
+
+  it("takes the wish back when the mail can't be sent", async () => {
+    const email = "unlucky@visitor.test";
+    const failing = {
+      ...api.context(),
+      sendEmail: async () => {
+        throw new Error("mail is down");
+      },
+    };
+    await expect(
+      call(
+        waitlistRouter.join,
+        { practiceId, ...visitor(email), ...wish() },
+        { context: failing },
+      ),
+    ).rejects.toMatchObject({ code: "MAIL_FAILED" });
+    expect(await pendingOf(email)).toEqual([]);
+  });
+
+  it("hides unconfirmed wishes from the wisher's own list", async () => {
+    const email = "mine@visitor.test";
+    await join(wish({ email }));
+    const [entry] = await pendingOf(email);
+    const account = await api.db.query.user.findFirst({
+      where: eq(user.id, entry?.userId ?? ""),
+    });
+    if (!account) throw new Error("no account");
+    // Signed in as that account, as after a sign-in by emailed code.
+    const signedIn = await createSession(api.db);
+    const mine = await call(
+      waitlistRouter.mine,
+      { practiceId },
+      { context: api.context({ ...signedIn, user: account }) },
+    );
+    expect(mine.entries).toEqual([]);
+  });
+});
+
+describe("waitlist.join: rate limits", () => {
+  it("lets ten requests from one address through in ten minutes, not an eleventh", async () => {
+    const headers = { "x-forwarded-for": "198.51.100.7, 10.0.0.1" };
+    for (let i = 0; i < 10; i++) await join(wish(), null, headers);
+    await expect(join(wish(), null, headers)).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+    });
+    // Another address is unaffected.
+    await join(wish(), null, { "x-forwarded-for": "198.51.100.8" });
+  });
+
+  it("writes to one email at most three times an hour, staff's address included", async () => {
+    await resetLimits();
+    const email = "target@victim.test";
+    const sentBefore = api.sent.length;
+    for (let i = 0; i < 3; i++) await join(wish({ email }));
+    await expect(join(wish({ email }))).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+    });
+    expect(api.sent).toHaveLength(sentBefore + 3);
+    // The email is compared without case.
+    await expect(
+      join(wish({ email: email.toUpperCase() })),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+
+    // The same wall stands in front of the specialist's own address.
+    for (let i = 0; i < 3; i++) await join(wish({ email: owner.user.email }));
+    await expect(join(wish({ email: owner.user.email }))).rejects.toMatchObject(
+      { code: "RATE_LIMITED" },
+    );
+  });
+
+  it("keeps no email in the counter table", async () => {
+    await join(wish({ email: "private@visitor.test" }));
+    const { rows } = await api.db.execute(sql`select key from rate_limits`);
+    const keys = rows.map((row) => String((row as { key: string }).key));
+    expect(keys.some((k) => k.startsWith("orpc:waitlist-join:email:"))).toBe(
+      true,
+    );
+    expect(keys.some((k) => k.includes("private@visitor.test"))).toBe(false);
+  });
+});
+
+describe("withinRateLimit", () => {
+  it("opens a window with the first hit and starts a new one after it", async () => {
+    const input = { key: "test:window", limit: 2, windowSeconds: 60 };
+    const t0 = Date.UTC(2030, 0, 1);
+    expect(await withinRateLimit(api.db, input, t0)).toBe(true);
+    expect(await withinRateLimit(api.db, input, t0 + 10_000)).toBe(true);
+    expect(await withinRateLimit(api.db, input, t0 + 20_000)).toBe(false);
+    // Refused hits don't push the window on: it ends 60 s after the first.
+    expect(await withinRateLimit(api.db, input, t0 + 59_000)).toBe(false);
+    expect(await withinRateLimit(api.db, input, t0 + 61_000)).toBe(true);
+    expect(await withinRateLimit(api.db, input, t0 + 62_000)).toBe(true);
+    expect(await withinRateLimit(api.db, input, t0 + 63_000)).toBe(false);
+  });
+
+  it("counts each key on its own, and concurrent hits don't slip past", async () => {
+    const input = { key: "test:parallel", limit: 3, windowSeconds: 60 };
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => withinRateLimit(api.db, input)),
+    );
+    expect(results.filter(Boolean)).toHaveLength(3);
+    expect(await withinRateLimit(api.db, { ...input, key: "test:other" })).toBe(
+      true,
+    );
   });
 });

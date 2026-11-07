@@ -174,7 +174,11 @@ and run `tsc` by hand, build them first.
   `serviceStepMinutes`. Waiting list (`waitlist_entries`, `waitlist.*`): a wish
   for days, hours and a service; `notifyWaitlist` (`@synoro/jobs/waitlist`)
   tells fitting wishes once when a booking is cancelled or moved away — nothing
-  is held, first to book gets it.
+  is held, first to book gets it. A visitor's wish counts only after the emailed
+  link (`waitlist.confirm`, `/b/w/<token>`, `confirmed_at`; pending ones live 24 h
+  and are in no list, count or notice), and `join` answers every email, staff's
+  too, the same. Public procedures are rate-limited with `withinRateLimit`
+  (`lib/rate-limit.ts`, `rate_limits`, keys `orpc:…`); `join` only for now.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when

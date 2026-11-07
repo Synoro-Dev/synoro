@@ -1,4 +1,13 @@
-import { and, asc, eq, gte, isNull, Service, WaitlistEntry } from "@synoro/db";
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  Service,
+  WaitlistEntry,
+} from "@synoro/db";
 import { z } from "zod";
 
 import { findPractice } from "../../lib/practice-access";
@@ -35,6 +44,7 @@ export const mine = protectedProcedure
         and(
           eq(WaitlistEntry.practiceId, practice.id),
           eq(WaitlistEntry.userId, context.session.user.id),
+          isNotNull(WaitlistEntry.confirmedAt),
           isNull(WaitlistEntry.notifiedAt),
           gte(WaitlistEntry.toDate, today),
         ),

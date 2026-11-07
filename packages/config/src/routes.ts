@@ -111,6 +111,8 @@ export const paths = {
       `/api/practices/${practiceId}/avatar` as const,
     /** A visitor's booking, opened by the secret in their link (no sign-in). */
     guest: (token: string) => `/b/${token}` as const,
+    /** Where a visitor confirms their email for a waiting-list wish. */
+    waitlistConfirm: (token: string) => `/b/w/${token}` as const,
     /** The same page on a practice's own host; proxy.ts rewrites `/` here. */
     site: (host: string) => `/site/${host}` as const,
   },
