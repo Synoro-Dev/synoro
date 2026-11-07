@@ -92,6 +92,7 @@ const practiceSchema = z.object({
   booking_questions: z.unknown(),
   booking_theme: z.unknown(),
   free_booking_enabled: z.boolean().default(false),
+  pay_at_visit: z.boolean().default(false),
   intro_minutes: z.union([
     z.literal(30),
     z.literal(45),
@@ -556,6 +557,7 @@ export async function applyArchive(
         bookingTheme: readBookingTheme(archive.booking_theme),
         freeBookingEnabled: archive.free_booking_enabled,
         introMinutes: archive.intro_minutes,
+        payAtVisit: archive.pay_at_visit,
         remindClients: archive.remind_clients,
         notifyStaff: archive.notify_staff,
         dailyAgenda: archive.daily_agenda,
@@ -575,6 +577,7 @@ export async function applyArchive(
           bookingTheme: practice.bookingTheme,
           freeBookingEnabled: practice.freeBookingEnabled,
           introMinutes: practice.introMinutes,
+          payAtVisit: practice.payAtVisit,
           remindClients: practice.remindClients,
           notifyStaff: practice.notifyStaff,
           dailyAgenda: practice.dailyAgenda,

@@ -725,6 +725,7 @@ describe("buttons under notices", () => {
       .values({
         practiceId,
         kind: "consultation",
+        credits: 1,
         startsAt,
         endsAt: new Date(startsAt.getTime() + 60 * 60 * 1000),
         memberId: member?.id,

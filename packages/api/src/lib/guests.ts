@@ -24,7 +24,9 @@ export async function sendBookingLink(input: {
   startsAt: Date;
   holdUntil: Date | null;
   intro?: string;
-  /** The video room, for an intro (a paid booking gets it once paid). */
+  /** Booked to be paid at the visit (`bookAtVisit`): confirmed at once. */
+  atVisit?: boolean;
+  /** The video room, for a confirmed booking (a paid one gets it once paid). */
   videoUrl?: string | null;
   token: string;
 }) {
@@ -44,6 +46,7 @@ export async function sendBookingLink(input: {
           ? formatClock(input.holdUntil, input.timeZone)
           : "",
         intro: input.intro ?? null,
+        atVisit: input.atVisit ?? false,
         videoUrl: input.videoUrl ?? null,
         bookingUrl: guestBookingUrl(input.token),
         cabinetUrl: cabinetUrl(),

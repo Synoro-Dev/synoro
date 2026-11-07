@@ -38,6 +38,8 @@ export const checkout = practiceProcedure
     const { user } = context.session;
     const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.FORBIDDEN();
+    // Paid at the visit: nothing is sold online.
+    if (practice.payAtVisit) throw errors.PAYMENTS_DISABLED();
 
     await context.db
       .insert(PracticeMember)

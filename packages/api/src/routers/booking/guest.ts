@@ -31,6 +31,7 @@ function findByToken(db: Database, token: string) {
     .select({
       id: Booking.id,
       kind: Booking.kind,
+      credits: Booking.credits,
       status: Booking.status,
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
@@ -45,7 +46,7 @@ function findByToken(db: Database, token: string) {
       profession: Practice.profession,
       clientName: user.name,
       clientEmail: user.email,
-      credits: PracticeMember.credits,
+      balance: PracticeMember.credits,
     })
     .from(Booking)
     .innerJoin(Practice, eq(Practice.id, Booking.practiceId))
@@ -75,7 +76,8 @@ function findByToken(db: Database, token: string) {
  *
  * `kind` is `free` for a free intro (`bookIntro`): confirmed from the
  * start, no payment and no balance involved — only `confirmed` or
- * `cancelled`.
+ * `cancelled`. So is a booking paid at the visit (`bookAtVisit`,
+ * `charged: false`): nothing was taken, and it says nothing of the balance.
  *
  * @example client.booking.guest({ token })
  */
@@ -107,7 +109,8 @@ export const guest = publicProcedure
     const held = found.holdUntil !== null;
     const state =
       found.status === "cancelled"
-        ? paid || found.kind === "free"
+        ? // Nothing to pay (intro, paid at the visit): never an unpaid hold.
+          paid || found.credits === 0
           ? ("cancelled" as const)
           : ("expired" as const)
         : !held
@@ -119,6 +122,8 @@ export const guest = publicProcedure
     return {
       state,
       kind: found.kind,
+      /** Something was taken for it: false for an intro or a visit-paid booking. */
+      charged: found.credits > 0,
       startsAt: found.startsAt,
       endsAt: found.endsAt,
       /** The zone the visitor booked from: the page reads times in it. */
@@ -132,7 +137,7 @@ export const guest = publicProcedure
           : null,
       /** How to reach the specialist, only once the booking is confirmed. */
       contact: state === "confirmed" ? found.practiceContact : null,
-      balance: found.credits,
+      balance: found.balance,
       name: found.clientName,
       email: maskEmail(found.clientEmail),
       practice: {
@@ -152,8 +157,8 @@ export const guest = publicProcedure
 /**
  * Cancel a visitor's confirmed booking by the secret in their link, at the
  * same terms as a signed-in client: up to 24 h before the start, and the
- * consultation goes back to their balance. A free intro may be cancelled
- * until it starts.
+ * consultation goes back to their balance. A free intro, and a booking paid
+ * at the visit, may be cancelled until it starts.
  *
  * @example client.booking.cancelGuest({ token })
  */

@@ -54,6 +54,7 @@ function confirmedBookings(db: Database) {
     .select({
       id: Booking.id,
       kind: Booking.kind,
+      credits: Booking.credits,
       practiceId: Booking.practiceId,
       startsAt: Booking.startsAt,
       meetingUrl: Booking.meetingUrl,
@@ -126,7 +127,8 @@ async function send(
         movedFrom: moved
           ? describeDates([moved.from], clientZone(row), { named: true }).when
           : null,
-        free: row.kind === "free",
+        // Nothing was taken (an intro, paid at the visit): no balance lines.
+        free: row.credits === 0,
       },
     },
     {
@@ -175,22 +177,28 @@ function settled(bookingId: string, notice: Notice, error: unknown) {
  * After payment (or a credit) confirmed a booking, or staff booked a guest:
  * tell the client (a paid booking only) and the practice's staff. A free
  * intro the client booked themselves gets its mail from `booking.bookIntro`
- * (the link, with the video room), which then calls `markRemindersCovered`.
+ * (the link, with the video room), which then calls `markRemindersCovered`;
+ * so does a booking paid at the visit (`booking.bookAtVisit`), which passes
+ * `client: false`.
  */
 export async function notifyBookingConfirmed(
   db: Database,
   bookingId: string,
   deliver: Deliver = noticeSender(db),
+  options: { client?: boolean } = {},
 ) {
   try {
-    const [row] = await confirmedBookings(db).where(
-      and(
-        eq(Booking.id, bookingId),
-        eq(Booking.kind, "consultation"),
-        eq(Booking.status, "active"),
-        isNull(Booking.holdUntil),
-      ),
-    );
+    const [row] =
+      options.client === false
+        ? []
+        : await confirmedBookings(db).where(
+            and(
+              eq(Booking.id, bookingId),
+              eq(Booking.kind, "consultation"),
+              eq(Booking.status, "active"),
+              isNull(Booking.holdUntil),
+            ),
+          );
     if (row) {
       await send(deliver, row, "confirmed");
       // The confirmation names the time: reminders already due are covered.

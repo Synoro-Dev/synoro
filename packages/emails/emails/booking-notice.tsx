@@ -98,7 +98,10 @@ export default function BookingNoticeEmail({
   movedBy?: "client" | "specialist" | null;
   /** The old time, formatted like `when`, for `moved`. */
   movedFrom?: string | null;
-  /** A free intro: nothing was paid, so nothing is said of the balance. */
+  /**
+   * Nothing was taken for it (a free intro, or paid at the visit), so nothing
+   * is said of the balance.
+   */
   free?: boolean;
   /**
    * Every date of a recurring booking, formatted like `when`; `when` then

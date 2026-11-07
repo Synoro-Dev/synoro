@@ -7,7 +7,9 @@ import { publicProcedure } from "../../orpc";
 /**
  * What a client can buy online at this practice. `enabled` is false when no
  * provider is connected, the server can't use it, or the owner isn't on
- * «Про»: then clients pay the administrator as before. Public: the booking page shows it before sign-in.
+ * «Про», or the practice is paid at the visit (`payAtVisit`): then clients
+ * pay the administrator or the specialist. Public: the booking page shows it
+ * before sign-in.
  *
  * @example client.payment.packages({ practiceId })
  */
@@ -16,7 +18,7 @@ export const packages = publicProcedure
   .handler(async ({ context, input }) => {
     const practice = await context.db.query.Practice.findFirst({
       where: eq(Practice.id, input.practiceId),
-      columns: { id: true, ownerId: true },
+      columns: { id: true, ownerId: true, payAtVisit: true },
     });
     const [account, rows] = await Promise.all([
       practice ? payableAccount(context.db, practice) : undefined,
@@ -31,7 +33,7 @@ export const packages = publicProcedure
         .orderBy(asc(PaymentPackage.credits)),
     ]);
 
-    const enabled = !!account && rows.length > 0;
+    const enabled = !!account && rows.length > 0 && !practice?.payAtVisit;
     return {
       enabled,
       provider: account ? PROVIDER_NAMES[account.provider] : null,

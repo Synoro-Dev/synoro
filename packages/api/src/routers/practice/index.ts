@@ -11,6 +11,7 @@ import { mine } from "./mine";
 import { setContact } from "./set-contact";
 import { setFreeBooking } from "./set-free-booking";
 import { setNotifications } from "./set-notifications";
+import { setPayAtVisit } from "./set-pay-at-visit";
 import { setSlug } from "./set-slug";
 import { setTheme } from "./set-theme";
 import { setTimezone } from "./set-timezone";
@@ -33,6 +34,7 @@ export const practiceRouter = {
   setVideoUrl,
   setContact,
   setFreeBooking,
+  setPayAtVisit,
   setNotifications,
   setTimezone,
   setSlug,

@@ -68,6 +68,8 @@ export function GuestBooking({ token }: { token: string }) {
   const zone = picked ?? data?.clientTimezone ?? browserZone;
   const terms = professionTerms(data?.practice.profession ?? "other");
   const intro = data?.kind === "free";
+  /** A service paid at the visit: nothing was paid here, no balance. */
+  const atVisit = data?.kind === "consultation" && !data.charged;
 
   return (
     <main className="flex min-h-svh items-start justify-center bg-muted/40 px-4 py-8 md:items-center md:py-12 dark:bg-background">
@@ -100,7 +102,13 @@ export function GuestBooking({ token }: { token: string }) {
               <Status
                 icon={<CircleCheckIcon className="text-success" />}
                 title="Вы записаны"
-                text={intro ? `${terms.free} — бесплатно.` : undefined}
+                text={
+                  intro
+                    ? `${terms.free} — бесплатно.`
+                    : atVisit
+                      ? "Оплата — на приёме у специалиста."
+                      : undefined
+                }
               />
             )}
             {data.state === "expired" && (
@@ -117,7 +125,9 @@ export function GuestBooking({ token }: { token: string }) {
                 text={
                   intro
                     ? "Время освободилось. Если передумаете — запишитесь снова или выберите платную запись."
-                    : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
+                    : atVisit
+                      ? "Время освободилось. Если передумаете — запишитесь снова."
+                      : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                 }
               />
             )}
@@ -167,7 +177,7 @@ export function GuestBooking({ token }: { token: string }) {
               </Alert>
             )}
 
-            {data.state === "confirmed" && data.balance > 0 && (
+            {data.state === "confirmed" && !atVisit && data.balance > 0 && (
               <Alert variant="info">
                 <WalletIcon />
                 <AlertTitle>
@@ -210,7 +220,9 @@ export function GuestBooking({ token }: { token: string }) {
                   description={
                     intro
                       ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
-                      : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
+                      : atVisit
+                        ? "Время освободится для других. Записаться снова можно на странице специалиста."
+                        : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
                   }
                   confirmLabel="Отменить запись"
                   disabled={cancel.isPending}
@@ -229,13 +241,17 @@ export function GuestBooking({ token }: { token: string }) {
               </Button>
             </div>
 
-            {data.state === "confirmed" && !data.canCancel && !intro && (
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <CalendarClockIcon className="size-3.5 shrink-0" />
-                Отменить самостоятельно можно не позднее чем за 24 часа до
-                начала — позже свяжитесь со специалистом.
-              </p>
-            )}
+            {/* Intros and visit-paid bookings: cancellable until the start. */}
+            {data.state === "confirmed" &&
+              !data.canCancel &&
+              !intro &&
+              !atVisit && (
+                <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CalendarClockIcon className="size-3.5 shrink-0" />
+                  Отменить самостоятельно можно не позднее чем за 24 часа до
+                  начала — позже свяжитесь со специалистом.
+                </p>
+              )}
             <p className="text-xs text-muted-foreground">
               В кабинет вы войдёте по коду, который придёт на {data.email}.
               Сохраните эту страницу — по ссылке запись открывается без входа.

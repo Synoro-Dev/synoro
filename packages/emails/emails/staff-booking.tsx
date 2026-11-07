@@ -34,6 +34,7 @@ export default function StaffBookingEmail({
   clientPhone = "+7 900 000-00-00",
   when = "понедельник, 7 января, 10:00",
   free = false,
+  charged = true,
   cancelledBy = null,
   refunded = false,
   movedFrom = null,
@@ -49,6 +50,11 @@ export default function StaffBookingEmail({
   when: string;
   /** A free first meeting rather than a paid consultation. */
   free: boolean;
+  /**
+   * Something was taken from the balance for it; false when paid at the
+   * visit, and then nothing is said of the balance.
+   */
+  charged?: boolean;
   /** Who cancelled, for `cancelled`. */
   cancelledBy?: "client" | "staff" | null;
   /** The consultation went back to the client's balance, for `cancelled`. */
@@ -102,7 +108,7 @@ export default function StaffBookingEmail({
           ))}
         </EmailText>
       ) : null}
-      {cancelled && !free ? (
+      {cancelled && !free && charged ? (
         <EmailText muted>
           {refunded
             ? `${series ? "Занятия вернулись" : "Занятие вернулось"} клиенту на баланс.`

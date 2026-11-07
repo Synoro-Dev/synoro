@@ -87,6 +87,13 @@ export const Practice = pgTable("practices", (t) => ({
    */
   introMinutes: t.integer().notNull().default(30),
   /**
+   * The specialist is paid at the visit: clients book any active service
+   * themselves without paying in Synoro (`booking.bookAtVisit`), confirmed at
+   * once with `bookings.credits = 0`, and staff book without the balance. The
+   * booking page then offers no online payment and no packages.
+   */
+  payAtVisit: t.boolean().notNull().default(false),
+  /**
    * How the booking page looks («Про»): accent, typeface, corners, backdrop,
    * «about» line. Read through `readBookingTheme` in `@synoro/validators`
    * (missing keys are the default look); kept on the free plan, not shown.

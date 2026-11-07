@@ -91,6 +91,8 @@ export const reserve = publicProcedure
   .handler(async ({ context, input, errors }) => {
     const practice = await findOpenPractice(context.db, input.practiceId);
     if (!practice) throw errors.NOT_FOUND();
+    // Paid at the visit: the page books with `bookAtVisit` instead.
+    if (practice.payAtVisit) throw errors.PAYMENTS_DISABLED();
 
     const [account, pkg] = await Promise.all([
       payableAccount(context.db, practice),

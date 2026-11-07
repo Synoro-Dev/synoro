@@ -45,6 +45,10 @@ import { resolveService } from "../../lib/services";
  * The credit is taken first with a conditional update and given back if the
  * insert fails.
  *
+ * When the practice is paid at the visit (`payAtVisit`) staff book a client
+ * without the balance (`credits` 0, nothing taken or logged), and a client
+ * booking themselves gets PAY_AT_VISIT: they book with `bookAtVisit`.
+ *
  * @example client.booking.book({ practiceId, startsAt: new Date("2026-11-02T07:00:00Z") })
  * @example client.booking.book({ practiceId, startsAt, memberId }) // staff
  */
@@ -56,6 +60,9 @@ export const book = practiceProcedure
     },
     NO_CREDITS: {
       message: "Баланс пуст — пополните его или обратитесь к администратору",
+    },
+    PAY_AT_VISIT: {
+      message: "Специалист принимает оплату на приёме — обновите страницу",
     },
     SLOT_UNAVAILABLE: {
       message: "Это время недоступно для записи",
@@ -89,6 +96,7 @@ export const book = practiceProcedure
     const { memberId } = input;
     const forOther = memberId !== undefined && memberId !== caller.id;
     if (forOther && !staff) throw errors.FORBIDDEN();
+    if (practice.payAtVisit && !forOther) throw errors.PAY_AT_VISIT();
 
     const member = forOther
       ? await context.db.query.PracticeMember.findFirst({
@@ -141,11 +149,12 @@ export const book = practiceProcedure
     }
 
     await releaseExpiredHolds(context.db, practice.id);
-    const credits = await adjustCredits(
-      context.db,
-      member.id,
-      -service.credits,
-    );
+    // Paid at the visit: the balance is neither needed nor touched.
+    const price = practice.payAtVisit ? 0 : service.credits;
+    const credits =
+      price === 0
+        ? member.credits
+        : await adjustCredits(context.db, member.id, -price);
     if (credits === undefined) throw errors.NO_CREDITS();
 
     let booking: typeof Booking.$inferSelect | undefined;
@@ -156,7 +165,7 @@ export const book = practiceProcedure
           practiceId: practice.id,
           kind: "consultation",
           serviceId: service.id,
-          credits: service.credits,
+          credits: price,
           startsAt: input.startsAt,
           endsAt,
           memberId: member.id,
@@ -168,7 +177,7 @@ export const book = practiceProcedure
         })
         .returning();
     } catch (error) {
-      await adjustCredits(context.db, member.id, service.credits);
+      if (price > 0) await adjustCredits(context.db, member.id, price);
       if (isExclusionViolation(error, "bookings_no_overlap")) {
         throw errors.SLOT_UNAVAILABLE({ cause: error });
       }
@@ -176,13 +185,15 @@ export const book = practiceProcedure
     }
     if (!booking) throw new Error("Failed to insert booking");
 
-    await recordCredit(context.db, {
-      memberId: member.id,
-      delta: -service.credits,
-      reason: "booking",
-      bookingId: booking.id,
-      createdById: userId,
-    });
+    if (price > 0) {
+      await recordCredit(context.db, {
+        memberId: member.id,
+        delta: -price,
+        reason: "booking",
+        bookingId: booking.id,
+        createdById: userId,
+      });
+    }
     await exportBooking(context.db, booking.id);
     await notifyBookingConfirmed(context.db, booking.id);
 

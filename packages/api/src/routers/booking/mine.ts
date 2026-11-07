@@ -21,7 +21,9 @@ const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
  * The caller's bookings in every practice — paid ones and free intros
  * (`kind`): upcoming ones and those of the last 30 days, including cancelled
  * and those awaiting payment. `canCancel` tells whether the client may still
- * cancel or move it themselves (24 h rule; an intro until it starts).
+ * cancel or move it themselves (24 h rule; an intro, or a booking paid at the
+ * visit, until it starts). `charged`: something was taken from the balance
+ * for it — false for intros and bookings paid at the visit.
  *
  * @example client.booking.mine()
  */
@@ -31,6 +33,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     .select({
       id: Booking.id,
       kind: Booking.kind,
+      credits: Booking.credits,
       status: Booking.status,
       cancelReason: Booking.cancelReason,
       startsAt: Booking.startsAt,
@@ -66,6 +69,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       const confirmed = row.status === "active" && holdUntil === null;
       return {
         ...row,
+        charged: row.credits > 0,
         /** The video room of a confirmed booking; null while unpaid or cancelled. */
         videoUrl: confirmed ? (meetingUrl ?? practiceVideoUrl) : null,
         /** How to reach the specialist, on a confirmed booking only. */

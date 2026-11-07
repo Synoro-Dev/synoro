@@ -2,7 +2,8 @@
 
 Two ways into the schedule beyond paid online booking: the free intro a new
 client books themselves, and the free-windows screen for whoever answers the
-phone.
+phone. A practice paid in person books every service without payment the
+same way: `docs/pay-at-visit.md`.
 
 ## Free intro (`bookings.kind = 'free'`)
 
