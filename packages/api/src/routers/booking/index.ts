@@ -1,5 +1,6 @@
 import { block } from "./block";
 import { book } from "./book";
+import { bookAtVisit } from "./book-at-visit";
 import { bookFree } from "./book-free";
 import { bookIntro } from "./book-intro";
 import { bookSeries } from "./book-series";
@@ -25,6 +26,7 @@ export const bookingRouter = {
   cancelSeries,
   reserve,
   bookIntro,
+  bookAtVisit,
   guest,
   cancelGuest,
   bookFree,

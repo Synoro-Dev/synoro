@@ -88,9 +88,9 @@ function atMinute(date: string, minute: number) {
 
 /**
  * Staff-only "new entry": a paid one-hour booking of a practice client
- * from their balance, the free intro for a guest, or a block of
- * the specialist's own time. Opened from a calendar selection or
- * the toolbar; date and times stay editable.
+ * from their balance (none taken when the practice is paid at the visit), the
+ * free intro for a guest, or a block of the specialist's own time. Opened
+ * from a calendar selection or the toolbar; date and times stay editable.
  */
 export function EntryDialog({
   practiceId,
@@ -175,6 +175,8 @@ function EntryForm({
   );
   const service = services.find((s) => s.id === serviceId) ?? services[0];
   const price = service?.credits ?? 1;
+  /** Paid at the visit: bookings take nothing from the balance. */
+  const atVisit = practice.data?.payAtVisit ?? false;
   const introLength = practice.data
     ? ` на ${formatMinutes(practice.data.introMinutes)}`
     : "";
@@ -337,7 +339,8 @@ function EntryForm({
       <DialogHeader>
         <DialogTitle>Новая запись</DialogTitle>
         <DialogDescription>
-          {capitalize(terms.credit[0])} с баланса клиента,{" "}
+          {capitalize(terms.credit[0])}
+          {atVisit ? " клиента" : " с баланса клиента"},{" "}
           {terms.free.toLowerCase()}
           {introLength} для гостя или закрытое время.
         </DialogDescription>
@@ -439,8 +442,8 @@ function EntryForm({
             <SelectContent>
               {services.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.name} · {formatMinutes(s.minutes, true)} ·{" "}
-                  {formatCredits(s.credits, terms)}
+                  {s.name} · {formatMinutes(s.minutes, true)}
+                  {!atVisit && ` · ${formatCredits(s.credits, terms)}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -503,16 +506,18 @@ function EntryForm({
                         {c.phone ?? c.email}
                       </span>
                     </span>
-                    <span
-                      className={cn(
-                        "shrink-0 text-xs tabular-nums",
-                        c.credits > 0
-                          ? "text-muted-foreground"
-                          : "text-destructive",
-                      )}
-                    >
-                      {formatCredits(c.credits, terms)}
-                    </span>
+                    {!atVisit && (
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs tabular-nums",
+                          c.credits > 0
+                            ? "text-muted-foreground"
+                            : "text-destructive",
+                        )}
+                      >
+                        {formatCredits(c.credits, terms)}
+                      </span>
+                    )}
                     {c.id === memberId && (
                       <CheckIcon className="size-4 shrink-0 text-primary" />
                     )}
@@ -540,11 +545,13 @@ function EntryForm({
             </div>
           )}
           <p className="text-sm text-muted-foreground">
-            {client && client.credits === 0
-              ? `У ${client.name} нет оплаченных — начислите оплату на странице клиентов.`
-              : client && client.credits < price
-                ? `На балансе ${client.name} ${formatCredits(client.credits, terms)}, а услуга стоит ${formatCredits(price, terms)} — начислите оплату на странице клиентов.`
-                : `Спишется ${formatCredits(price, terms)} с баланса клиента за каждую дату${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`}
+            {atVisit
+              ? `Оплата — на приёме, баланс не меняется${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`
+              : client && client.credits === 0
+                ? `У ${client.name} нет оплаченных — начислите оплату на странице клиентов.`
+                : client && client.credits < price
+                  ? `На балансе ${client.name} ${formatCredits(client.credits, terms)}, а услуга стоит ${formatCredits(price, terms)} — начислите оплату на странице клиентов.`
+                  : `Спишется ${formatCredits(price, terms)} с баланса клиента за каждую дату${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`}
           </p>
           {client && (
             <RepeatSelect
@@ -553,7 +560,11 @@ function EntryForm({
                 setRepeat(next);
                 setUnchecked(new Set());
               }}
-              max={Math.floor(client.credits / price)}
+              max={
+                atVisit
+                  ? Number.POSITIVE_INFINITY
+                  : Math.floor(client.credits / price)
+              }
               idPrefix="entry"
             />
           )}
@@ -603,8 +614,9 @@ function EntryForm({
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-info/30 bg-info/4 px-3 py-2 text-sm sm:col-span-2">
               <UserRoundCheckIcon className="size-4 shrink-0 text-info" />
               <span className="min-w-0 flex-1">
-                Это клиент {knownCaller.name},{" "}
-                {formatCredits(knownCaller.credits, terms)} на балансе
+                Это клиент {knownCaller.name}
+                {!atVisit &&
+                  `, ${formatCredits(knownCaller.credits, terms)} на балансе`}
               </span>
               <Button
                 type="button"

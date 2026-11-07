@@ -12,15 +12,13 @@ import {
   normalizePhone,
 } from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { GiftIcon } from "lucide-react";
+import { GiftIcon, HandCoinsIcon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { BookingLegalNotice } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { BookingQuestionFields } from "./booking-question-fields";
-
-const SUBMIT = "Записаться бесплатно";
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
@@ -32,14 +30,17 @@ function FieldError({ id, message }: { id: string; message?: string }) {
 }
 
 /**
- * Booking the free intro on the booking page: a visitor leaves name, phone
- * and email, a signed-in client only confirms (and leaves a phone if the
- * profile has none). No payment — the booking is confirmed at once and the
- * link to it goes to the email. `onTaken` is called when someone else got
- * the time first.
+ * Booking without payment on the booking page: the free intro, or — with
+ * `atVisit` — a service paid at the visit (`booking.bookAtVisit`). A visitor
+ * leaves name, phone and email, a signed-in client only confirms (and leaves a
+ * phone if the profile has none). The booking is confirmed at once and the
+ * link to it goes to the email. `onTaken` is called when someone else got the
+ * time first.
  */
 export function IntroBookingForm({
   practiceId,
+  atVisit = false,
+  serviceId,
   intro,
   length,
   startsAt,
@@ -51,6 +52,10 @@ export function IntroBookingForm({
   onTaken,
 }: {
   practiceId: string;
+  /** Book `serviceId` to be paid at the visit instead of the free intro. */
+  atVisit?: boolean;
+  /** The service paid at the visit; none — the practice's first one. */
+  serviceId?: string;
   /** The intro's name for this profession: «Пробная тренировка». */
   intro: string;
   /** How long it lasts: «30 минут», «1 час». */
@@ -82,22 +87,57 @@ export function IntroBookingForm({
       queryClient.invalidateQueries({ queryKey: orpc.user.key() }),
     onError: (error) => toast.error(error.message),
   });
-  const book = useMutation({
+  const submit = atVisit ? "Записаться" : "Записаться бесплатно";
+  /** `defined`: the error the procedure declared, narrowed by the caller. */
+  const failed = async (
+    error: Error,
+    defined: false | { code: string; answers?: Record<string, string> },
+  ) => {
+    toast.error(defined ? error.message : "Не удалось записаться");
+    if (!defined) return;
+    if (defined.answers) {
+      setAnswerErrors(defined.answers);
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+    }
+    if (defined.code === "SLOT_UNAVAILABLE") onTaken();
+  };
+  const bookIntro = useMutation({
     ...orpc.booking.bookIntro.mutationOptions(),
     onSuccess: (booking) => onBooked(booking),
-    onError: async (error) => {
-      toast.error(
-        isDefinedError(error) ? error.message : "Не удалось записаться",
-      );
-      if (!isDefinedError(error)) return;
-      if (error.code === "ANSWERS_INVALID") {
-        setAnswerErrors(error.data.errors);
-        await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
-      }
-      if (error.code === "SLOT_UNAVAILABLE") onTaken();
-    },
+    onError: (error) =>
+      failed(
+        error,
+        isDefinedError(error) && {
+          code: error.code,
+          answers:
+            error.code === "ANSWERS_INVALID" ? error.data.errors : undefined,
+        },
+      ),
   });
-  const pending = book.isPending || savePhone.isPending;
+  const bookVisit = useMutation({
+    ...orpc.booking.bookAtVisit.mutationOptions(),
+    onSuccess: (booking) => onBooked(booking),
+    onError: (error) =>
+      failed(
+        error,
+        isDefinedError(error) && {
+          code: error.code,
+          answers:
+            error.code === "ANSWERS_INVALID" ? error.data.errors : undefined,
+        },
+      ),
+  });
+  const pending =
+    bookIntro.isPending || bookVisit.isPending || savePhone.isPending;
+
+  function book(input: {
+    guest?: Omit<GuestBookingFormValues, "note">;
+    note?: string;
+  }) {
+    const common = { practiceId, startsAt, answers, timezone: timeZone };
+    if (atVisit) bookVisit.mutate({ ...common, ...input, serviceId });
+    else bookIntro.mutate({ ...common, ...input });
+  }
 
   /** The questionnaire is filled in; otherwise its errors are shown. */
   function answered() {
@@ -109,14 +149,7 @@ export function IntroBookingForm({
   function submitGuest(values: GuestBookingFormValues) {
     if (!answered()) return;
     const { note, ...guest } = values;
-    book.mutate({
-      practiceId,
-      startsAt,
-      guest,
-      note: note || undefined,
-      answers,
-      timezone: timeZone,
-    });
+    book({ guest, note: note || undefined });
   }
 
   async function submitSignedIn(event: React.FormEvent) {
@@ -130,13 +163,7 @@ export function IntroBookingForm({
       }
       await savePhone.mutateAsync({ phone: normalized });
     }
-    book.mutate({
-      practiceId,
-      startsAt,
-      note: note || undefined,
-      answers,
-      timezone: timeZone,
-    });
+    book({ note: note || undefined });
   }
 
   const questionnaire = questions.length > 0 && (
@@ -152,16 +179,26 @@ export function IntroBookingForm({
     <>
       <Button type="submit" size="lg" disabled={pending}>
         {pending && <Spinner />}
-        {SUBMIT}
+        {submit}
       </Button>
-      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-        <GiftIcon className="mt-0.5 size-3 shrink-0" />
-        <span>
-          {intro} — {length}, без оплаты, один раз. Ссылка на запись придёт на
-          почту: по ней её можно отменить.
-        </span>
-      </p>
-      <BookingLegalNotice action={SUBMIT} />
+      {atVisit ? (
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <HandCoinsIcon className="mt-0.5 size-3 shrink-0" />
+          <span>
+            Оплата — на приёме у специалиста. Ссылка на запись придёт на почту:
+            по ней её можно отменить до начала.
+          </span>
+        </p>
+      ) : (
+        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <GiftIcon className="mt-0.5 size-3 shrink-0" />
+          <span>
+            {intro} — {length}, без оплаты, один раз. Ссылка на запись придёт на
+            почту: по ней её можно отменить.
+          </span>
+        </p>
+      )}
+      <BookingLegalNotice action={submit} />
     </>
   );
 

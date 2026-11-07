@@ -229,6 +229,12 @@ export function BookingDialog({
   const movable =
     booking !== null && booking.kind !== "blocked" && !booking.holdUntil;
   const moving = movable && movingId === booking.id;
+  // Something was taken from a client's balance and can be given back.
+  const charged =
+    booking !== null &&
+    booking.kind === "consultation" &&
+    booking.memberId !== null &&
+    booking.credits > 0;
 
   function close() {
     setMovingId(null);
@@ -405,7 +411,7 @@ export function BookingDialog({
                   size="default"
                   title="Отменить серию?"
                   description={
-                    booking.memberId
+                    charged
                       ? `Отменятся все предстоящие записи этой повторной записи, ${terms.credits} вернутся на баланс клиента.`
                       : "Отменятся все предстоящие записи этой повторной записи."
                   }
@@ -430,7 +436,7 @@ export function BookingDialog({
                   Клиент не пришёл
                 </Button>
               )}
-              {booking.kind === "consultation" && booking.memberId && (
+              {charged && (
                 <Button
                   variant="outline"
                   disabled={pending}
@@ -448,7 +454,7 @@ export function BookingDialog({
               >
                 {booking.kind === "blocked"
                   ? "Открыть время"
-                  : booking.kind === "consultation" && booking.memberId
+                  : charged
                     ? "Отменить с возвратом"
                     : "Отменить"}
               </Button>

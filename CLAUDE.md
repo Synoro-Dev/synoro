@@ -179,6 +179,12 @@ and run `tsc` by hand, build them first.
   and are in no list, count or notice), and `join` answers every email, staff's
   too, the same. Public procedures are rate-limited with `withinRateLimit`
   (`lib/rate-limit.ts`, `rate_limits`, keys `orpc:…`); `join` only for now.
+- **Payment at the visit** (`docs/pay-at-visit.md`): `practices.pay_at_visit`
+  (owner, `practice.setPayAtVisit`, free plan) — clients book any service via
+  `booking.bookAtVisit`, confirmed at once with `bookings.credits = 0`; staff
+  book without the balance; online payment is closed. `credits = 0` means
+  nothing to refund: cancellable until the start (`clientMayCancel`), no
+  balance lines in mails. Limits: 3 upcoming per person, `withinRateLimit`.
 - **Free intro and phone booking** (`docs/free-booking.md`): the `kind = free`
   booking, `practices.intro_minutes` long (30/45/60/90, starts on the half
   hour). Visitors book it themselves via `booking.bookIntro` when

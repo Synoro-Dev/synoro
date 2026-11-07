@@ -32,6 +32,7 @@ import {
 } from "./practice-booking-theme";
 import { PracticeContact } from "./practice-contact";
 import { PracticeFreeBooking } from "./practice-free-booking";
+import { PracticePayAtVisit } from "./practice-pay-at-visit";
 import { PracticeVideoLink } from "./practice-video-link";
 import { useTerms } from "./terms";
 
@@ -56,6 +57,7 @@ export function PracticeBookingPage({
     clientContact: string | null;
     freeBookingEnabled: boolean;
     introMinutes: number;
+    payAtVisit: boolean;
     membership: { role: string };
   };
 }) {
@@ -168,6 +170,15 @@ export function PracticeBookingPage({
               setDraft={setDraft}
             />
           </Frame>
+
+          {isOwner && (
+            <Frame spacing="default" className="min-w-0">
+              <PracticePayAtVisit
+                practiceId={practice.id}
+                enabled={practice.payAtVisit}
+              />
+            </Frame>
+          )}
 
           {isOwner && (
             <Frame spacing="default" className="min-w-0">

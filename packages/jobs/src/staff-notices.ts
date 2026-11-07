@@ -49,6 +49,7 @@ export async function notifyStaff(
       .select({
         practiceId: Booking.practiceId,
         kind: Booking.kind,
+        credits: Booking.credits,
         startsAt: Booking.startsAt,
         guestName: Booking.guestName,
         guestPhone: Booking.guestPhone,
@@ -121,6 +122,7 @@ export async function notifyStaff(
                 clientPhone: row.clientPhone ?? row.guestPhone,
                 when,
                 free: row.kind === "free",
+                charged: row.credits > 0,
                 cancelledBy:
                   row.cancelReason === "client"
                     ? "client"

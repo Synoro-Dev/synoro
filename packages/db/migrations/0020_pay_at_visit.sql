@@ -1,0 +1,1 @@
+ALTER TABLE "practices" ADD COLUMN "pay_at_visit" boolean DEFAULT false NOT NULL;

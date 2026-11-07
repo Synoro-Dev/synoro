@@ -176,7 +176,9 @@ function initials(name: string) {
  * leave name, phone and email and pay (`GuestBookingForm`). A signed-in client
  * books from their balance, one paid credit per hour. When the owner allows
  * it (`freeBooking`), a tab switches to the free 30-minute intro, booked by
- * anyone once, without payment (`IntroBookingForm`).
+ * anyone once, without payment (`IntroBookingForm`). When the specialist is
+ * paid at the visit (`payAtVisit`) anyone books any service the same way, with
+ * no payment and no balance.
  */
 export function PublicBooking({
   practice,
@@ -215,11 +217,15 @@ export function PublicBooking({
   const [day, setDay] = useState<string | null>(null);
   const [picked, setPicked] = useState<Slot | null>(null);
   const [booked, setBooked] = useState<Date | null>(null);
-  /** The free intro just booked: its time and the link to it. */
+  /**
+   * The booking just made without payment — the free intro, or a service
+   * paid at the visit (`atVisit`): its time and the link to it.
+   */
   const [bookedIntro, setBookedIntro] = useState<{
     token: string;
     startsAt: Date;
     endsAt: Date;
+    atVisit: boolean;
   } | null>(null);
   const [chosenKind, setChosenKind] = useState<Kind | null>(null);
   /** The service picked on this visit; the first one until then. */
@@ -270,8 +276,12 @@ export function PublicBooking({
   const kind: Kind = !info.freeBooking
     ? "consultation"
     : (chosenKind ??
-      (offer.isSuccess && !canPay && !canBook ? "free" : "consultation"));
+      (offer.isSuccess && !canPay && !canBook && !info.payAtVisit
+        ? "free"
+        : "consultation"));
   const intro = kind === "free";
+  /** A service booked without payment: the specialist is paid at the visit. */
+  const atVisit = info.payAtVisit && !intro;
 
   // Dialogs and popovers render outside <main>: the whole document takes the
   // page's accent and corners while it is open.
@@ -359,7 +369,8 @@ export function PublicBooking({
   const slotsDisabled =
     // Times of the other tab (or range) while these load: an hour is not a
     // half hour.
-    slots.isPlaceholderData || (intro ? isStaff : !canBook && !guestFlow);
+    slots.isPlaceholderData ||
+    (intro || atVisit ? isStaff : !canBook && !guestFlow);
 
   /** Switches the layout, keeping the visitor on the same days. */
   function changeView(next: BookingView) {
@@ -483,7 +494,7 @@ export function PublicBooking({
   const checkout =
     picked &&
     pickedFree &&
-    (intro ? !isStaff : guestFlow ? !!offer.data : canBook);
+    (intro || atVisit ? !isStaff : guestFlow ? !!offer.data : canBook);
 
   // What stands between the visitor and booking, over the times in any view.
   const notices = (
@@ -502,7 +513,7 @@ export function PublicBooking({
           <AlertTitle>Предпросмотр</AlertTitle>
           <AlertDescription>Так страницу видят ваши клиенты.</AlertDescription>
         </Alert>
-      ) : guestFlow || intro ? null : !signedIn ? (
+      ) : guestFlow || intro || atVisit ? null : !signedIn ? (
         <Alert variant="info">
           <AlertTitle>Войдите, чтобы записаться</AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-2">
@@ -614,25 +625,28 @@ export function PublicBooking({
                 <CalendarCheckIcon />
                 Мои записи
               </Button>
-              <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <WalletIcon className="size-4" />
-                Оплачено
-                <Badge
-                  variant={credits > 0 ? "success-light" : "warning-light"}
-                >
-                  {formatCredits(credits, terms)}
-                </Badge>
-                {canPay && (
-                  <Button
-                    variant="link"
-                    size="xs"
-                    className="h-auto px-0"
-                    onClick={() => setTopUp(true)}
+              {/* Paid at the visit: there is no balance to show. */}
+              {!info.payAtVisit && (
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <WalletIcon className="size-4" />
+                  Оплачено
+                  <Badge
+                    variant={credits > 0 ? "success-light" : "warning-light"}
                   >
-                    Пополнить
-                  </Button>
-                )}
-              </p>
+                    {formatCredits(credits, terms)}
+                  </Badge>
+                  {canPay && (
+                    <Button
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0"
+                      onClick={() => setTopUp(true)}
+                    >
+                      Пополнить
+                    </Button>
+                  )}
+                </p>
+              )}
             </div>
           ) : (
             !signedIn && (
@@ -666,7 +680,7 @@ export function PublicBooking({
                 </h2>
                 <p className="first-letter:uppercase">
                   {formatDateTime(bookedIntro.startsAt, zone)},{" "}
-                  {terms.free.toLowerCase()},{" "}
+                  {!bookedIntro.atVisit && `${terms.free.toLowerCase()}, `}
                   {/* Its own length: the setting may change meanwhile. */}
                   {formatMinutes(
                     (bookedIntro.endsAt.getTime() -
@@ -675,8 +689,9 @@ export function PublicBooking({
                   )}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Бесплатно. Ссылку на запись мы отправили на почту — по ней её
-                  можно отменить.
+                  {bookedIntro.atVisit
+                    ? "Оплата — на приёме. Ссылку на запись мы отправили на почту — по ней её можно отменить до начала."
+                    : "Бесплатно. Ссылку на запись мы отправили на почту — по ней её можно отменить."}
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-2">
@@ -744,9 +759,11 @@ export function PublicBooking({
                 onBack={() => choose(null)}
               />
               <section className="p-6 md:p-8 [&>*]:max-w-lg">
-                {intro ? (
+                {intro || atVisit ? (
                   <IntroBookingForm
                     practiceId={practice.id}
+                    atVisit={atVisit}
+                    serviceId={atVisit ? service?.id : undefined}
                     intro={terms.free}
                     length={introLength}
                     startsAt={picked.startsAt}
@@ -755,7 +772,7 @@ export function PublicBooking({
                     needsPhone={needsPhone}
                     questions={questions}
                     onBooked={async (booking) => {
-                      setBookedIntro(booking);
+                      setBookedIntro({ ...booking, atVisit });
                       setPicked(null);
                       await refresh();
                     }}
@@ -942,8 +959,8 @@ export function PublicBooking({
                     </SelectContent>
                   </Select>
                   <span className="text-sm text-muted-foreground">
-                    {formatMinutes(service.minutes)} ·{" "}
-                    {formatCredits(service.credits, terms)}
+                    {formatMinutes(service.minutes)}
+                    {!atVisit && ` · ${formatCredits(service.credits, terms)}`}
                   </span>
                 </div>
               )}
@@ -1146,7 +1163,9 @@ export function PublicBooking({
               <UndoDotIcon className="mt-px size-3.5 shrink-0" />
               {intro
                 ? "Бесплатную запись можно отменить до её начала по ссылке из письма."
-                : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем за 24 часа до начала.`}
+                : atVisit
+                  ? "Оплата — на приёме у специалиста. Запись можно отменить до её начала по ссылке из письма."
+                  : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем за 24 часа до начала.`}
             </p>
             <div className="flex flex-col gap-1.5 sm:ml-auto sm:items-end">
               <div className="flex items-center gap-2">
