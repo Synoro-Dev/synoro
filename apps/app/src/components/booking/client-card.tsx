@@ -44,13 +44,13 @@ const SPAN_DAYS = 61;
 /**
  * One client at a glance: how to reach them, the balance, their bookings
  * and the balance journal — with booking and crediting one tap away. The
- * owner also keeps their working notes here (`isOwner`).
+ * owner also keeps their working notes here (`canKeepNotes`).
  */
 export function ClientCard({
   practiceId,
   timezone,
   member,
-  isOwner,
+  canKeepNotes,
   onClose,
   onBook,
   onCredit,
@@ -58,7 +58,8 @@ export function ClientCard({
   practiceId: string;
   timezone: string;
   member: Member | null;
-  isOwner: boolean;
+  /** The owner in person (not an admin signed in as them): the notes tab. */
+  canKeepNotes: boolean;
   onClose: () => void;
   onBook: (member: Member) => void;
   onCredit: (member: Member, intent: "grant" | "adjust") => void;
@@ -145,9 +146,11 @@ export function ClientCard({
             >
               <TabsList className="w-full">
                 <TabsTrigger value="bookings">Записи</TabsTrigger>
-                {isOwner && <TabsTrigger value="notes">Заметки</TabsTrigger>}
+                {canKeepNotes && (
+                  <TabsTrigger value="notes">Заметки</TabsTrigger>
+                )}
                 <TabsTrigger value="balance">
-                  {isOwner ? "Баланс" : "Журнал баланса"}
+                  {canKeepNotes ? "Баланс" : "Журнал баланса"}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="bookings">
@@ -156,7 +159,7 @@ export function ClientCard({
                   timezone={timezone}
                   memberId={member.id}
                   onNote={
-                    isOwner
+                    canKeepNotes
                       ? (bookingId) => {
                           setNoteBooking(bookingId);
                           setTab("notes");
@@ -165,11 +168,10 @@ export function ClientCard({
                   }
                 />
               </TabsContent>
-              {isOwner && (
+              {canKeepNotes && (
                 <TabsContent value="notes">
-                  <OwnerNotes
+                  <ClientNotes
                     practiceId={practiceId}
-                    timezone={timezone}
                     memberId={member.id}
                     bookingId={noteBooking}
                     onBookingChange={setNoteBooking}
@@ -187,50 +189,6 @@ export function ClientCard({
   );
 }
 
-/** The client's bookings in the card's span (from the calendar's query). */
-function useClientBookings(practiceId: string, timezone: string) {
-  const from = dateKey(new Date(Date.now() - BACK_DAYS * DAY_MS), timezone);
-  return useQuery(
-    orpc.booking.calendar.queryOptions({
-      input: { practiceId, from, days: SPAN_DAYS },
-    }),
-  );
-}
-
-/** The notes tab: bookings that have begun can have a note of their own. */
-function OwnerNotes({
-  practiceId,
-  timezone,
-  memberId,
-  bookingId,
-  onBookingChange,
-}: {
-  practiceId: string;
-  timezone: string;
-  memberId: string;
-  bookingId: string | null;
-  onBookingChange: (bookingId: string | null) => void;
-}) {
-  const calendar = useClientBookings(practiceId, timezone);
-  const now = Date.now();
-  const sessions = (calendar.data ?? [])
-    .filter(
-      (b) =>
-        b.memberId === memberId && !b.holdUntil && b.startsAt.getTime() <= now,
-    )
-    .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime());
-
-  return (
-    <ClientNotes
-      practiceId={practiceId}
-      memberId={memberId}
-      sessions={sessions}
-      bookingId={bookingId}
-      onBookingChange={onBookingChange}
-    />
-  );
-}
-
 function ClientBookings({
   practiceId,
   timezone,
@@ -244,7 +202,12 @@ function ClientBookings({
   onNote?: (bookingId: string) => void;
 }) {
   const terms = useTerms();
-  const calendar = useClientBookings(practiceId, timezone);
+  const from = dateKey(new Date(Date.now() - BACK_DAYS * DAY_MS), timezone);
+  const calendar = useQuery(
+    orpc.booking.calendar.queryOptions({
+      input: { practiceId, from, days: SPAN_DAYS },
+    }),
+  );
 
   if (calendar.isError) {
     return <ErrorState onRetry={() => calendar.refetch()} />;

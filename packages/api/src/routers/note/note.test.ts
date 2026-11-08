@@ -222,6 +222,52 @@ describe("note", () => {
     ).toBe("FORBIDDEN");
   });
 
+  it("offers every begun session, old ones and no-shows, but not holds", async () => {
+    const past = (iso: string, extra: Partial<typeof Booking.$inferInsert>) =>
+      api.db
+        .insert(Booking)
+        .values({
+          practiceId,
+          kind: "consultation",
+          memberId,
+          startsAt: new Date(`${iso}T07:00:00Z`),
+          endsAt: new Date(`${iso}T08:00:00Z`),
+          ...extra,
+        })
+        .returning({ id: Booking.id })
+        .then(([row]) => row?.id);
+    const old = await past("2020-03-02", {});
+    const noShow = await past("2020-03-09", {
+      status: "cancelled",
+      cancelReason: "no_show",
+    });
+    const expired = await past("2020-03-16", {
+      status: "cancelled",
+      cancelReason: "hold_expired",
+    });
+
+    const sessions = await call(
+      noteRouter.sessions,
+      { practiceId, memberId },
+      { context: api.context(owner) },
+    );
+    const ids = sessions.map((s) => s.id);
+    expect(ids).toEqual([noShow, old]);
+    expect(ids).not.toContain(expired);
+    // The 2030 booking hasn't begun.
+    expect(ids).not.toContain(bookingId);
+
+    expect(
+      await code(
+        call(
+          noteRouter.sessions,
+          { practiceId, memberId },
+          { context: api.context(admin) },
+        ),
+      ),
+    ).toBe("FORBIDDEN");
+  });
+
   it("rejects an empty note", async () => {
     await expect(
       call(

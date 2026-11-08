@@ -30,6 +30,7 @@ import { useTerms } from "./terms";
 import { formatTime } from "./time";
 
 type Note = RouterOutputs["note"]["list"][number];
+type Session = RouterOutputs["note"]["sessions"][number];
 
 /** «Без сессии»: Select needs a value for the empty choice. */
 const NO_SESSION = "none";
@@ -43,6 +44,14 @@ function sessionLabel(at: Date) {
   })}, ${formatTime(at)}`;
 }
 
+/** A session to pick, with what became of it when it didn't take place. */
+function sessionOption(session: Session) {
+  const label = sessionLabel(session.startsAt);
+  if (session.cancelReason === "no_show") return `${label} · неявка`;
+  if (session.status === "cancelled") return `${label} · отменена`;
+  return label;
+}
+
 /**
  * The owner's working notes on a client: a composer on top (optionally about
  * one of the client's sessions), the notes below, newest first. Real people's
@@ -51,14 +60,11 @@ function sessionLabel(at: Date) {
 export function ClientNotes({
   practiceId,
   memberId,
-  sessions,
   bookingId,
   onBookingChange,
 }: {
   practiceId: string;
   memberId: string;
-  /** The client's sessions a new note can be about, newest first. */
-  sessions: { id: string; startsAt: Date }[];
   /** The session picked for a new note; null — about the client. */
   bookingId: string | null;
   onBookingChange: (bookingId: string | null) => void;
@@ -69,6 +75,13 @@ export function ClientNotes({
     // An expected refusal won't change on a retry.
     retry: (count, error) => !isDefinedError(error) && count < 3,
   });
+  // Every session that has begun, however old: the card's bookings tab
+  // shows only two months around today.
+  const sessions =
+    useQuery({
+      ...orpc.note.sessions.queryOptions({ input: { practiceId, memberId } }),
+      retry: (count, error) => !isDefinedError(error) && count < 3,
+    }).data ?? [];
   const [body, setBody] = useState("");
 
   const create = useMutation({
@@ -112,7 +125,7 @@ export function ClientNotes({
 
   const items = Object.fromEntries([
     [NO_SESSION, "О клиенте в целом"],
-    ...sessions.map((s) => [s.id, sessionLabel(s.startsAt)]),
+    ...sessions.map((s) => [s.id, sessionOption(s)]),
   ]);
 
   return (
@@ -142,7 +155,7 @@ export function ClientNotes({
               <SelectItem value={NO_SESSION}>О клиенте в целом</SelectItem>
               {sessions.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {sessionLabel(s.startsAt)}
+                  {sessionOption(s)}
                 </SelectItem>
               ))}
             </SelectContent>
