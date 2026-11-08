@@ -5,6 +5,7 @@ export * from "./credit";
 export * from "./domain";
 export * from "./google-calendar";
 export * from "./invitation";
+export * from "./note";
 export * from "./practice";
 export * from "./series";
 export * from "./service";

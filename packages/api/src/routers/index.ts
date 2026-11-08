@@ -44,6 +44,8 @@
  *   account.*       – deleting the account and changing one's mind  (owner)
  *   import.*        – bringing clients in from a table: upload, preview,
  *                     apply, undo (owner), the cards (staff)
+ *   note.*          – the specialist's encrypted working notes on a
+ *                     client and their sessions    (owner, in person)
  */
 
 import { accountRouter } from "./account";
@@ -58,6 +60,7 @@ import { domainRouter } from "./domain";
 import { googleCalendarRouter } from "./google-calendar";
 import { importRouter } from "./import";
 import { messengerRouter } from "./messenger";
+import { noteRouter } from "./note";
 import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
@@ -88,6 +91,7 @@ export const appRouter = {
   data: dataRouter,
   account: accountRouter,
   import: importRouter,
+  note: noteRouter,
 };
 
 export type AppRouter = typeof appRouter;

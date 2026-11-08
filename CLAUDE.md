@@ -315,6 +315,12 @@ and run `tsc` by hand, build them first.
   get no mail, because mail goes through `practice_members`. Every import is a
   batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
   `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
+- **Client notes** (`docs/client-notes.md`): the owner's working notes on a
+  client, optionally about one booking (`client_notes`, `note.*`, card tab
+  «Заметки»). Owner only, in person: administrators and impersonation get
+  `FORBIDDEN`. `body` is encrypted with `encryptSecret` — never select it
+  without `decryptSecret`, never put it in logs, mails or CSVs; the full
+  archive carries it decrypted (`notes` in `data.json`).
 - **Deleting an account** (`docs/account-deletion.md`): `account.*`, owners
   only; 30 days to change one's mind (`account_deletions`), then the
   `account-purge` cron. While it lasts the practice is closed: what lets someone

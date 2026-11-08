@@ -20,14 +20,17 @@ import {
   CalendarPlusIcon,
   CalendarXIcon,
   MailIcon,
+  NotebookPenIcon,
   PhoneIcon,
   SlidersHorizontalIcon,
   WalletIcon,
 } from "lucide-react";
+import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { kindLabel } from "./booking-dialog";
 import { HistoryList } from "./client-dialogs";
+import { ClientNotes } from "./client-notes";
 import type { Member } from "./practice-clients";
 import { EmptyState, ErrorState } from "./states";
 import { useTerms } from "./terms";
@@ -40,12 +43,14 @@ const SPAN_DAYS = 61;
 
 /**
  * One client at a glance: how to reach them, the balance, their bookings
- * and the balance journal — with booking and crediting one tap away.
+ * and the balance journal — with booking and crediting one tap away. The
+ * owner also keeps their working notes here (`canKeepNotes`).
  */
 export function ClientCard({
   practiceId,
   timezone,
   member,
+  canKeepNotes,
   onClose,
   onBook,
   onCredit,
@@ -53,11 +58,23 @@ export function ClientCard({
   practiceId: string;
   timezone: string;
   member: Member | null;
+  /** The owner in person (not an admin signed in as them): the notes tab. */
+  canKeepNotes: boolean;
   onClose: () => void;
   onBook: (member: Member) => void;
   onCredit: (member: Member, intent: "grant" | "adjust") => void;
 }) {
   const terms = useTerms();
+  const [tab, setTab] = useState("bookings");
+  // The session a new note is about, picked from the bookings tab.
+  const [noteBooking, setNoteBooking] = useState<string | null>(null);
+  const [shown, setShown] = useState(member?.id);
+  if (member?.id !== shown) {
+    // Another client's card: start over on their bookings.
+    setShown(member?.id);
+    setTab("bookings");
+    setNoteBooking(null);
+  }
 
   return (
     <Sheet open={member !== null} onOpenChange={(open) => !open && onClose()}>
@@ -123,20 +140,44 @@ export function ClientCard({
               </div>
             </SheetHeader>
             <Tabs
-              defaultValue="bookings"
+              value={tab}
+              onValueChange={(value) => setTab(String(value))}
               className="min-h-0 flex-1 gap-4 overflow-y-auto p-4"
             >
               <TabsList className="w-full">
                 <TabsTrigger value="bookings">Записи</TabsTrigger>
-                <TabsTrigger value="balance">Журнал баланса</TabsTrigger>
+                {canKeepNotes && (
+                  <TabsTrigger value="notes">Заметки</TabsTrigger>
+                )}
+                <TabsTrigger value="balance">
+                  {canKeepNotes ? "Баланс" : "Журнал баланса"}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="bookings">
                 <ClientBookings
                   practiceId={practiceId}
                   timezone={timezone}
                   memberId={member.id}
+                  onNote={
+                    canKeepNotes
+                      ? (bookingId) => {
+                          setNoteBooking(bookingId);
+                          setTab("notes");
+                        }
+                      : undefined
+                  }
                 />
               </TabsContent>
+              {canKeepNotes && (
+                <TabsContent value="notes">
+                  <ClientNotes
+                    practiceId={practiceId}
+                    memberId={member.id}
+                    bookingId={noteBooking}
+                    onBookingChange={setNoteBooking}
+                  />
+                </TabsContent>
+              )}
               <TabsContent value="balance">
                 <HistoryList memberId={member.id} />
               </TabsContent>
@@ -152,10 +193,13 @@ function ClientBookings({
   practiceId,
   timezone,
   memberId,
+  onNote,
 }: {
   practiceId: string;
   timezone: string;
   memberId: string;
+  /** Owner only: write a note about this session. */
+  onNote?: (bookingId: string) => void;
 }) {
   const terms = useTerms();
   const from = dateKey(new Date(Date.now() - BACK_DAYS * DAY_MS), timezone);
@@ -208,6 +252,17 @@ function ClientBookings({
             <Badge variant="success-light">Предстоит</Badge>
           ) : (
             <Badge variant="outline">Прошла</Badge>
+          )}
+          {onNote && !b.holdUntil && b.startsAt.getTime() <= now && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Написать заметку"
+              title="Написать заметку"
+              onClick={() => onNote(b.id)}
+            >
+              <NotebookPenIcon />
+            </Button>
           )}
         </li>
       ))}

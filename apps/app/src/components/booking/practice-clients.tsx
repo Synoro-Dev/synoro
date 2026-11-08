@@ -163,11 +163,14 @@ export function PracticeClients({
   practiceId,
   timezone,
   isOwner,
+  canKeepNotes,
 }: {
   practiceId: string;
   timezone: string;
   /** Only the owner takes the client base out. */
   isOwner: boolean;
+  /** The owner in person, not an admin signed in as them. */
+  canKeepNotes: boolean;
 }) {
   const terms = useTerms();
   const members = useQuery(
@@ -367,6 +370,7 @@ export function PracticeClients({
         practiceId={practiceId}
         timezone={timezone}
         member={open}
+        canKeepNotes={canKeepNotes}
         onClose={() => {
           setOpenId(null);
           // Drop `?client=` so ⌘K can open the same client again.
