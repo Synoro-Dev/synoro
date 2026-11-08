@@ -43,8 +43,38 @@ export function formatMinutes(minutes: number, short = false) {
   return `${number} ${pluralize(hours, ["час", "часа", "часов"])}`;
 }
 
-/** A client may cancel (and get the credit back) up to 24 h before start. */
-export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
+/**
+ * How many hours before the start a client may still cancel or move a paid
+ * booking themselves and get it back (`practices.cancel_hours`).
+ */
+export const CANCEL_HOURS = [3, 6, 12, 24, 48, 72] as const;
+
+/** What every practice had before the owner could choose. */
+export const DEFAULT_CANCEL_HOURS = 24;
+
+export const cancelHoursSchema = z
+  .number()
+  .int()
+  .refine(
+    (h) => (CANCEL_HOURS as readonly number[]).includes(h),
+    "Выберите срок из списка",
+  );
+
+/**
+ * A practice's terms for a client cancelling on their own:
+ * `cancelHours` — the deadline for a cancellation with the credit back;
+ * `lateCancel` — after it, the client may still cancel, the credit is not
+ * returned (`late_cancel`); off — only staff can.
+ */
+export interface CancelRules {
+  cancelHours: number;
+  lateCancel: boolean;
+}
+
+export const cancelRulesSchema = z.object({
+  cancelHours: cancelHoursSchema,
+  lateCancel: z.boolean(),
+});
 
 /**
  * Upcoming bookings paid at the visit one person (account or phone) may hold
@@ -54,20 +84,48 @@ export const CLIENT_CANCEL_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const AT_VISIT_MAX_UPCOMING = 3;
 
 /**
- * Whether a client may still cancel their booking themselves at `now` (ms):
- * a paid one up to 24 h before the start; one that took nothing — a free
- * intro, or a booking paid at the visit (`credits` 0) — until it starts.
- * `booking.cancel` and the worker, which offers the cancel button in
- * messengers, share it.
+ * How a client may cancel their booking themselves at `now` (ms):
+ * - `refund` — and get back what it took: a paid one up to `cancelHours`
+ *   before the start; one that took nothing (a free intro, paid at the
+ *   visit, `credits` 0) until it starts;
+ * - `forfeit` — later than that, when the practice allows late cancelling:
+ *   the credit is not returned;
+ * - null — not alone: it has begun, or it is late and only staff may.
+ * `booking.cancel`, the guest link, the cabinet and the messenger share it.
  */
-export function clientMayCancel(
+export function clientCancel(
   booking: { kind: string; credits: number; startsAt: Date },
   now: number,
-) {
+  rules: CancelRules,
+): "refund" | "forfeit" | null {
   const left = booking.startsAt.getTime() - now;
-  return booking.kind === "free" || booking.credits === 0
-    ? left > 0
-    : left >= CLIENT_CANCEL_WINDOW_MS;
+  if (left <= 0) return null;
+  if (booking.kind === "free" || booking.credits === 0) return "refund";
+  if (left >= rules.cancelHours * 3_600_000) return "refund";
+  return rules.lateCancel ? "forfeit" : null;
+}
+
+/**
+ * Whether a client may move their booking themselves: only while it could
+ * be cancelled with the credit back — a late move would dodge the rule.
+ */
+export function clientMayMove(
+  booking: { kind: string; credits: number; startsAt: Date },
+  now: number,
+  rules: CancelRules,
+) {
+  return clientCancel(booking, now, rules) === "refund";
+}
+
+/** «меньше 3 часов», «меньше 24 часов» — the genitive after «меньше». */
+export function formatHoursLess(hours: number) {
+  const one = hours % 10 === 1 && hours % 100 !== 11;
+  return `меньше ${hours} ${one ? "часа" : "часов"}`;
+}
+
+/** «за 3 часа», «за 12 часов», «за 24 часа». */
+export function formatCancelHours(hours: number) {
+  return `за ${hours} ${pluralize(hours, ["час", "часа", "часов"])}`;
 }
 
 /**

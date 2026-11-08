@@ -33,6 +33,7 @@ import { IconTile } from "@synoro/ui/reui/icon-tile";
 import {
   capitalize,
   checkBookingAnswers,
+  formatCancelHours,
   formatCredits,
   formatMinutes,
   normalizePhone,
@@ -1175,7 +1176,7 @@ export function PublicBooking({
                 ? "Бесплатную запись можно отменить до её начала по ссылке из письма."
                 : atVisit
                   ? "Оплата — на приёме у специалиста. Запись можно отменить до её начала по ссылке из письма."
-                  : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем за 24 часа до начала.`}
+                  : `Отменить запись и вернуть ${terms.creditAccusative} на баланс можно не позднее чем ${formatCancelHours(practice.cancelHours)} до начала.${practice.lateCancel ? " Позже — без возврата." : ""}`}
             </p>
             <div className="flex flex-col gap-1.5 sm:ml-auto sm:items-end">
               <div className="flex items-center gap-2">

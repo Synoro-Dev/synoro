@@ -39,9 +39,6 @@ function slotMinutes(kind: SlotKind, introMinutes?: number, minutes?: number) {
     : (minutes ?? SLOT_MINUTES.consultation);
 }
 
-/** The worker needs the same rule for the messenger cancel button. */
-export { CLIENT_CANCEL_WINDOW_MS, clientMayCancel } from "@synoro/validators";
-
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 

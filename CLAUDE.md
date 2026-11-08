@@ -261,9 +261,15 @@ and run `tsc` by hand, build them first.
   mail (`booking-notice`) via `@synoro/jobs/booking-video`; reminders are the
   `booking-reminders` Hatchet workflow. Never expose the link in public
   procedures (`slots`, `bySlug`).
+- **Cancel rules** (`docs/cancel-rules.md`): `practices.cancel_hours`
+  (3–72, by profession) and `late_cancel` (owner, `practice.setCancelRules`,
+  page «Правила»). `clientCancel` in `@synoro/validators` decides for every
+  client path: `refund` / `forfeit` (late, credit lost, `late_cancel` reason,
+  needs `forfeit: true`) / null. Moves and the messenger button only on
+  `refund`. Never hard-code «24 часа» in a client text: `formatCancelHours`.
 - **Moving a booking** (`docs/guest-booking.md`): `booking.reschedule`, one
-  `UPDATE` under `bookings_no_overlap`, balance untouched; a client up to 24 h
-  before (a free intro until it starts; `checkMove`), staff any time. Times to
+  `UPDATE` under `bookings_no_overlap`, balance untouched; a client up to the
+  practice's deadline (a free intro until it starts; `checkMove`), staff any time. Times to
   offer: `booking.rescheduleSlots`. `practices.client_contact` reaches clients
   only on confirmed bookings (`booking.mine` / `guest`), never in public
   procedures.

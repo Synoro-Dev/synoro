@@ -48,8 +48,8 @@ workout can still start at 10:30. Its name follows the profession
 
 Afterwards the intro behaves like a client booking: it is in `booking.mine`
 (`kind: "free"`) and on `/b/<token>` (`booking.guest`, states `confirmed` or
-`cancelled`); the client cancels it **until it starts** (`clientMayCancel`;
-paid ones keep the 24-hour rule), nothing is refunded. Reminders, the video
+`cancelled`); the client cancels it **until it starts** (`clientCancel`;
+paid ones follow the practice's deadline), nothing is refunded. Reminders, the video
 link and cancellation mails go out as for paid bookings
 (`packages/jobs/src/booking-video.ts`, `CLIENT_KINDS`), without the balance
 wording. Staff-made guest intros have no account, so they get no mail.

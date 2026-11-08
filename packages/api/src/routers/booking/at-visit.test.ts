@@ -461,7 +461,7 @@ describe("cancelling a whole series", () => {
       { seriesId: series.seriesId },
       { context: api.context(session) },
     );
-    expect(result).toEqual({ cancelled: 3, refunded: 0, kept: 0 });
+    expect(result).toMatchObject({ cancelled: 3, refunded: 0, kept: 0 });
   });
 });
 

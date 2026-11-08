@@ -87,6 +87,21 @@ export const PROFESSION_TERMS: Record<Profession, ProfessionTerms> = {
   },
 };
 
+/**
+ * The cancellation deadline a new practice starts with (`CANCEL_HOURS`): a
+ * trainer's slot is easy to fill the same day, a psychologist's is not. The
+ * owner changes it under «Правила».
+ */
+export const PROFESSION_CANCEL_HOURS: Record<Profession, number> = {
+  psychologist: 24,
+  coach: 24,
+  tutor: 12,
+  trainer: 6,
+  health: 24,
+  legal: 24,
+  other: 24,
+};
+
 export function professionTerms(profession: Profession): ProfessionTerms {
   return PROFESSION_TERMS[profession];
 }

@@ -10,12 +10,16 @@ import {
   PracticeMember,
   user,
 } from "@synoro/db";
+import { clientCancel } from "@synoro/validators";
 import { z } from "zod";
 
-import { cancelActiveBooking } from "../../lib/bookings";
+import {
+  cancelActiveBooking,
+  cancelTerms,
+  tooLateMessage,
+} from "../../lib/bookings";
 import { hashGuestToken } from "../../lib/guests";
 import { syncPayment } from "../../lib/payments";
-import { clientMayCancel } from "../../lib/schedule";
 import { publicProcedure } from "../../orpc";
 
 const tokenInput = z.object({ token: z.string().min(16).max(64) });
@@ -44,6 +48,8 @@ function findByToken(db: Database, token: string) {
       practiceSlug: Practice.slug,
       timezone: Practice.timezone,
       profession: Practice.profession,
+      cancelHours: Practice.cancelHours,
+      lateCancel: Practice.lateCancel,
       clientName: user.name,
       clientEmail: user.email,
       balance: PracticeMember.credits,
@@ -129,7 +135,7 @@ export const guest = publicProcedure
       /** The zone the visitor booked from: the page reads times in it. */
       clientTimezone: found.clientTimezone,
       holdUntil: found.holdUntil,
-      canCancel: state === "confirmed" && clientMayCancel(found, now),
+      ...cancelTerms(state === "confirmed", found, now, found),
       /** The video room, only once the booking is confirmed. */
       videoUrl:
         state === "confirmed"
@@ -156,9 +162,10 @@ export const guest = publicProcedure
 
 /**
  * Cancel a visitor's confirmed booking by the secret in their link, at the
- * same terms as a signed-in client: up to 24 h before the start, and the
- * consultation goes back to their balance. A free intro, and a booking paid
- * at the visit, may be cancelled until it starts.
+ * same terms as a signed-in client: up to the practice's deadline with the
+ * consultation back on their balance; later, where the practice allows it,
+ * only with `forfeit: true` and without it (`late_cancel`). A free intro, and
+ * a booking paid at the visit, may be cancelled until it starts.
  *
  * @example client.booking.cancelGuest({ token })
  */
@@ -166,29 +173,37 @@ export const cancelGuest = publicProcedure
   .errors({
     NOT_FOUND: { message: "Запись не найдена или уже отменена" },
     TOO_LATE: {
-      message:
-        "Отменить запись можно не позднее чем за 24 часа до начала — обратитесь к специалисту",
+      message: "Отменить запись уже нельзя — обратитесь к специалисту",
     },
   })
-  .input(tokenInput)
+  .input(
+    tokenInput.extend({
+      /** Cancel after the deadline knowing the credit won't come back. */
+      forfeit: z.boolean().default(false),
+    }),
+  )
   .handler(async ({ context, input, errors }) => {
     const found = await findByToken(context.db, input.token);
     if (!found || found.status !== "active" || found.holdUntil !== null) {
       throw errors.NOT_FOUND();
     }
-    if (!clientMayCancel(found, Date.now())) throw errors.TOO_LATE();
+    const tooLate = () =>
+      errors.TOO_LATE({ message: tooLateMessage("cancel", found) });
+    const terms = clientCancel(found, Date.now(), found);
+    if (!terms || (terms === "forfeit" && !input.forfeit)) throw tooLate();
+    const late = terms === "forfeit";
 
     const result = await cancelActiveBooking(context.db, found.id, {
       cancelledById: null,
-      refund: true,
-      reason: "client",
+      refund: !late,
+      reason: late ? "late_cancel" : "client",
       startsAt: found.startsAt,
     });
     if (!result) {
-      // Moved meanwhile: the 24-hour rule is asked again for the new time.
+      // Moved meanwhile: the deadline is asked again for the new time.
       const now = await findByToken(context.db, input.token);
-      if (now?.status === "active" && !clientMayCancel(now, Date.now())) {
-        throw errors.TOO_LATE();
+      if (now?.status === "active" && !clientCancel(now, Date.now(), now)) {
+        throw tooLate();
       }
       throw errors.NOT_FOUND();
     }

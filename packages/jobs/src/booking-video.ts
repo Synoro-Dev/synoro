@@ -14,7 +14,7 @@ import {
   user,
 } from "@synoro/db";
 import type { BookingNotice } from "@synoro/emails";
-import { clientMayCancel } from "@synoro/validators";
+import { clientCancel } from "@synoro/validators";
 
 import { ownerStaying } from "./account-deletion";
 import { type Deliver, noticeSender } from "./messenger/deliver";
@@ -64,6 +64,8 @@ function confirmedBookings(db: Database) {
       videoUrl: Practice.videoUrl,
       practiceName: Practice.name,
       timezone: Practice.timezone,
+      cancelHours: Practice.cancelHours,
+      lateCancel: Practice.lateCancel,
       clientTimezone: Booking.clientTimezone,
       clientId: user.id,
       clientName: user.name,
@@ -140,7 +142,9 @@ async function send(
         notice !== "cancelled" &&
         series === undefined &&
         row.seriesId === null &&
-        clientMayCancel(row, Date.now())
+        // Only while the credit comes back: a late cancel needs the client
+        // to see what they lose, which a button press can't show.
+        clientCancel(row, Date.now(), row) === "refund"
           ? row.id
           : undefined,
     },
@@ -248,7 +252,8 @@ export async function notifyBookingCancelled(
       .select({ cancelReason: Booking.cancelReason })
       .from(Booking)
       .where(eq(Booking.id, bookingId));
-    const by = booking?.cancelReason;
+    const reason = booking?.cancelReason;
+    const by = reason === "late_cancel" ? "client" : reason;
     if (by !== "client" && by !== "staff") return;
 
     const [row] = await confirmedBookings(db).where(

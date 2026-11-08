@@ -33,7 +33,8 @@ is required everywhere a person is booked or signs up for the cabinet.
    visitor picks another time. A declined payment releases the time at once.
 
 `booking.cancelGuest` cancels a confirmed booking by the token under the same
-24-hour rule as a signed-in client and returns the credit to the balance.
+rules as a signed-in client (`docs/cancel-rules.md`): the credit back up to the
+practice's deadline, later only with `forfeit: true` where it is allowed.
 
 The free intro needs no payment: `booking.bookIntro` confirms it at once
 and mails the same `/b/<token>` link — see `docs/free-booking.md`.
@@ -62,8 +63,9 @@ cabinet ask for it).
 another time: same id, link, video room and length, the balance and its journal
 untouched. One `UPDATE` does it and `bookings_no_overlap` decides races, so a
 taken time (`SLOT_UNAVAILABLE`) leaves the booking where it was. The rules are
-those of cancelling (`checkMove`, `clientMayCancel`): a client up to 24 h
-before the start (a free intro until it starts), later `TOO_LATE`; staff at any
+those of cancelling (`checkMove`, `clientMayMove`): a client up to the
+practice's deadline (`cancel_hours`; a free intro until it starts), later
+`TOO_LATE`, also where a late cancellation is allowed; staff at any
 time. Of a series only that booking moves. Closed time and unpaid holds don't
 move, and there is no moving by the `/b/<token>` link: a visitor signs in.
 

@@ -27,6 +27,8 @@ export const bookingStatus = pgEnum("booking_status", ["active", "cancelled"]);
  * staff             — the owner or an administrator cancelled it.
  * no_show           — the client didn't come: staff marked a started booking,
  *                     the consultation is not given back.
+ * late_cancel       — the client cancelled after the practice's deadline
+ *                     (`practices.late_cancel`): the credit is not given back.
  * hold_expired      — an online booking wasn't paid within the hold.
  * payment_cancelled — the payment of an online booking was cancelled.
  */
@@ -34,6 +36,7 @@ export const bookingCancelReason = pgEnum("booking_cancel_reason", [
   "client",
   "staff",
   "no_show",
+  "late_cancel",
   "hold_expired",
   "payment_cancelled",
 ]);

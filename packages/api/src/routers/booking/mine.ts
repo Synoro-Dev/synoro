@@ -12,7 +12,7 @@ import {
   PracticeMember,
 } from "@synoro/db";
 
-import { clientMayCancel } from "../../lib/schedule";
+import { cancelTerms } from "../../lib/bookings";
 import { protectedProcedure } from "../../orpc";
 
 const RECENT_MS = 30 * 24 * 60 * 60 * 1000;
@@ -49,6 +49,8 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       practiceSlug: Practice.slug,
       timezone: Practice.timezone,
       profession: Practice.profession,
+      cancelHours: Practice.cancelHours,
+      lateCancel: Practice.lateCancel,
     })
     .from(Booking)
     .innerJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))
@@ -65,7 +67,15 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     .orderBy(asc(Booking.startsAt));
 
   return rows.map(
-    ({ holdUntil, meetingUrl, practiceVideoUrl, practiceContact, ...row }) => {
+    ({
+      holdUntil,
+      meetingUrl,
+      practiceVideoUrl,
+      practiceContact,
+      cancelHours,
+      lateCancel,
+      ...row
+    }) => {
       const confirmed = row.status === "active" && holdUntil === null;
       return {
         ...row,
@@ -76,7 +86,7 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
         contact: confirmed ? practiceContact : null,
         /** Reserved, the online payment not finished yet. */
         awaitingPayment: holdUntil !== null && row.status === "active",
-        canCancel: confirmed && clientMayCancel(row, now),
+        ...cancelTerms(confirmed, row, now, { cancelHours, lateCancel }),
       };
     },
   );

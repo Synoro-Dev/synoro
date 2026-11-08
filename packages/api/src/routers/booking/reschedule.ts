@@ -4,7 +4,12 @@ import { notifyWaitlist } from "@synoro/jobs/waitlist";
 import { clientTimeZoneInput } from "@synoro/validators";
 import { z } from "zod";
 
-import { checkMove, loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import {
+  checkMove,
+  loadRules,
+  releaseExpiredHolds,
+  tooLateMessage,
+} from "../../lib/bookings";
 import { googleBusyForMove, moveBookingEvent } from "../../lib/google-calendar";
 import { findPractice } from "../../lib/practice-access";
 import { isScheduledSlot, overlaps } from "../../lib/schedule";
@@ -15,7 +20,8 @@ import { protectedProcedure } from "../../orpc";
  * id, link, video room, series and length — and the balance doesn't change.
  *
  * The rules are those of `booking.cancel` (`checkMove`): a client moves
- * their own booking no later than 24 h before it starts (a free intro until
+ * their own booking while a cancellation would give the credit back — by
+ * the practice's deadline (`cancel_hours`; a free intro until
  * it starts), later → TOO_LATE; staff move anything at any time. Bookings the
  * caller may not touch, closed time and unpaid holds are NOT_FOUND. The times
  * to offer: `booking.rescheduleSlots`.
@@ -33,8 +39,7 @@ export const reschedule = protectedProcedure
   .errors({
     NOT_FOUND: { message: "Запись не найдена или уже отменена" },
     TOO_LATE: {
-      message:
-        "Перенести запись можно не позднее чем за 24 часа до начала — обратитесь к специалисту",
+      message: "Перенести запись уже нельзя — обратитесь к специалисту",
     },
     SLOT_UNAVAILABLE: {
       message: "Это время уже занято или недоступно — выберите другое",
@@ -51,7 +56,11 @@ export const reschedule = protectedProcedure
   .handler(async ({ context, input, errors }) => {
     const userId = context.session.user.id;
     const check = await checkMove(context.db, input.bookingId, userId);
-    if ("refusal" in check) throw errors[check.refusal]();
+    if ("refusal" in check) {
+      throw check.refusal === "TOO_LATE"
+        ? errors.TOO_LATE({ message: tooLateMessage("move", check.rules) })
+        : errors.NOT_FOUND();
+    }
     const { booking, kind, staff, minutes } = check;
     // Already there (a repeated request): nothing to do, nobody to tell.
     if (booking.startsAt.getTime() === input.startsAt.getTime()) {

@@ -1,14 +1,16 @@
 import { z } from "zod";
 
-import { cancelBookingAs } from "../../lib/bookings";
+import { cancelBookingAs, tooLateMessage } from "../../lib/bookings";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Cancel a booking.
  *
- * - A client cancels their own consultation no later than 24 h before it
- *   starts and gets the credit back; later → TOO_LATE. Their free intro
- *   (`bookIntro`) — any time before it starts.
+ * - A client cancels their own consultation by the practice's rules: up to
+ *   `cancel_hours` before it with the credit back; later, if the practice
+ *   allows late cancelling, only with `forfeit: true` (the credit is lost,
+ *   `late_cancel`), else TOO_LATE. Their free intro (`bookIntro`) — any time
+ *   before it starts.
  * - Staff cancel anything at any time; a consultation's credit is returned
  *   unless `refund: false` (a late cancellation). A client who didn't come
  *   is marked with `markNoShow` instead.
@@ -22,8 +24,7 @@ export const cancel = protectedProcedure
   .errors({
     NOT_FOUND: { message: "Запись не найдена или уже отменена" },
     TOO_LATE: {
-      message:
-        "Отменить запись можно не позднее чем за 24 часа до начала — обратитесь к специалисту",
+      message: "Отменить запись уже нельзя — обратитесь к специалисту",
     },
   })
   .input(
@@ -31,6 +32,11 @@ export const cancel = protectedProcedure
       bookingId: z.uuid(),
       /** Staff only: return the consultation to the client's balance. */
       refund: z.boolean().default(true),
+      /**
+       * Client only: cancel after the deadline knowing the credit won't
+       * come back, where the practice allows it.
+       */
+      forfeit: z.boolean().default(false),
     }),
   )
   .handler(async ({ context, input, errors }) => {
@@ -38,9 +44,13 @@ export const cancel = protectedProcedure
       context.db,
       input.bookingId,
       context.session.user.id,
-      { refund: input.refund },
+      { refund: input.refund, forfeit: input.forfeit },
     );
-    if ("refusal" in result) throw errors[result.refusal]();
+    if ("refusal" in result) {
+      throw result.refusal === "TOO_LATE"
+        ? errors.TOO_LATE({ message: tooLateMessage("cancel", result.rules) })
+        : errors.NOT_FOUND();
+    }
     const { booking, refunded } = result;
     return { id: booking.id, kind: booking.kind, refunded };
   });

@@ -29,6 +29,7 @@ const CANCEL_REASONS: Record<NonNullable<Booking["cancel_reason"]>, string> = {
   client: "Отменил клиент",
   staff: "Отменил специалист или администратор",
   no_show: "Клиент не пришёл",
+  late_cancel: "Клиент отменил поздно, без возврата",
   hold_expired: "Не оплачена вовремя",
   payment_cancelled: "Оплата отменена",
 };

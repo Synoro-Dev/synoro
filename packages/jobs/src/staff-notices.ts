@@ -124,7 +124,8 @@ export async function notifyStaff(
                 free: row.kind === "free",
                 charged: row.credits > 0,
                 cancelledBy:
-                  row.cancelReason === "client"
+                  row.cancelReason === "client" ||
+                  row.cancelReason === "late_cancel"
                     ? "client"
                     : row.cancelReason === "staff"
                       ? "staff"

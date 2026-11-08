@@ -6,6 +6,7 @@ import {
   checkMove,
   loadRules,
   localDaysRange,
+  tooLateMessage,
 } from "../../lib/bookings";
 import { googleBusyForMove } from "../../lib/google-calendar";
 import { findPractice } from "../../lib/practice-access";
@@ -25,8 +26,7 @@ export const rescheduleSlots = protectedProcedure
   .errors({
     NOT_FOUND: { message: "Запись не найдена или уже отменена" },
     TOO_LATE: {
-      message:
-        "Перенести запись можно не позднее чем за 24 часа до начала — обратитесь к специалисту",
+      message: "Перенести запись уже нельзя — обратитесь к специалисту",
     },
   })
   .input(
@@ -42,7 +42,11 @@ export const rescheduleSlots = protectedProcedure
       input.bookingId,
       context.session.user.id,
     );
-    if ("refusal" in check) throw errors[check.refusal]();
+    if ("refusal" in check) {
+      throw check.refusal === "TOO_LATE"
+        ? errors.TOO_LATE({ message: tooLateMessage("move", check.rules) })
+        : errors.NOT_FOUND();
+    }
     const { booking, kind, minutes } = check;
     const practice = await findPractice(context.db, booking.practiceId);
     if (!practice) throw errors.NOT_FOUND();
