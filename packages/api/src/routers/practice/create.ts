@@ -5,6 +5,7 @@ import {
   PracticeMember,
   Service,
 } from "@synoro/db";
+import { newPracticeNotice } from "@synoro/jobs";
 import {
   capitalize,
   isPremiumSlug,
@@ -105,6 +106,21 @@ export const create = protectedProcedure
       credits: 1,
     });
     await ensureSubscription(context.db, ownerId);
+
+    // The team hears of it after the answer: without Hatchet the mail goes
+    // inline, and a slow or failed one must not hold up the answer or the
+    // payment.
+    const notice = newPracticeNotice(practice, user);
+    if (notice) {
+      context.runInBackground(
+        context.sendEmail(notice).catch((error: unknown) =>
+          logger.warn("practice.notice_failed", {
+            practiceId: practice.id,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        ),
+      );
+    }
 
     if (!premium) return { ...practice, slugOrder: null };
 

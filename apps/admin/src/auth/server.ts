@@ -4,7 +4,7 @@ import { initAuth } from "@synoro/auth";
 import { isAdmin } from "@synoro/auth/roles";
 import { env, logger } from "@synoro/config";
 import { db, eq, user } from "@synoro/db";
-import { dispatchEmail } from "@synoro/jobs";
+import { dispatchEmail, newUserNotice } from "@synoro/jobs";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -32,6 +32,12 @@ export const auth = initAuth({
     } catch {
       void promise;
     }
+  },
+  // An ADMIN_EMAILS address signing in here first creates its account: the
+  // team hears of it as of any other (TEAM_NOTICE_EMAIL).
+  onUserCreated: async (user) => {
+    const notice = newUserNotice(user);
+    if (notice) await dispatchEmail(notice);
   },
   // The only way in here is a sign-in code, and it is mailed to admins only:
   // anyone else gets the same "code sent" answer but no mail, so this host

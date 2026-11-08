@@ -3,6 +3,7 @@ import {
   desc,
   eq,
   ilike,
+  inArray,
   or,
   Practice,
   type SQL,
@@ -17,8 +18,8 @@ import { containsPattern } from "../contains";
 import { pageInput } from "../page-input";
 
 /**
- * Registered users, newest first, with their «Про» plan and how many
- * practices they own. `query` matches name, email or phone anywhere.
+ * Registered users, newest first, with their «Про» plan and the practices
+ * they own (`practices` counts them, `practiceList` names them, oldest first). `query` matches name, email or phone anywhere.
  *
  * @example client.admin.users.list({ query: "anna", limit: 50, offset: 0 })
  */
@@ -59,10 +60,30 @@ export const list = adminProcedure
       .from(user)
       .where(where);
 
+    const owned = rows.length
+      ? await context.db
+          .select({
+            ownerId: Practice.ownerId,
+            name: Practice.name,
+            slug: Practice.slug,
+          })
+          .from(Practice)
+          .where(
+            inArray(
+              Practice.ownerId,
+              rows.map((row) => row.id),
+            ),
+          )
+          .orderBy(Practice.createdAt, Practice.id)
+      : [];
+
     return {
       items: rows.map(({ subscription, ...row }) => ({
         ...row,
         plan: planOf(subscription ?? undefined).status,
+        practiceList: owned
+          .filter((practice) => practice.ownerId === row.id)
+          .map(({ name, slug }) => ({ name, slug })),
       })),
       total: total?.value ?? 0,
     };

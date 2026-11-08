@@ -64,6 +64,13 @@ export const env = createEnv({
     EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
     EMAIL_SANDBOX_HOST: z.string().default("localhost"),
     EMAIL_FROM: z.string().default("Synoro <info@synoro.ru>"),
+    // Where the team hears of a new account and a new practice. Empty: nobody
+    // is told (a demo stand, a fork).
+    TEAM_NOTICE_EMAIL: z
+      .string()
+      .default("info@synoro.ru")
+      .transform((value) => value.trim() || undefined)
+      .pipe(z.email().optional()),
 
     // Auth
     AUTH_SECRET: z.string().optional(),
@@ -216,6 +223,7 @@ export const env = createEnv({
     EMAIL_SANDBOX_ENABLED: process.env.EMAIL_SANDBOX_ENABLED === "true",
     EMAIL_SANDBOX_HOST: process.env.EMAIL_SANDBOX_HOST,
     EMAIL_FROM: process.env.EMAIL_FROM,
+    TEAM_NOTICE_EMAIL: process.env.TEAM_NOTICE_EMAIL,
     AUTH_SECRET: process.env.AUTH_SECRET,
     ADMIN_EMAILS: process.env.ADMIN_EMAILS,
     AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,

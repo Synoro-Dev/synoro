@@ -54,6 +54,16 @@ export function initAuth<
    */
   demoLoginEmail?: string;
   extraPlugins?: TExtraPlugins;
+  /**
+   * Called once for every account that gets created (sign-up by code or
+   * password), after the response when `runInBackground` is set. Failures
+   * are logged and never break sign-up.
+   */
+  onUserCreated?: (user: {
+    id: string;
+    name: string;
+    email: string;
+  }) => Promise<void>;
   /** City by IP for the sign-in history; defaults to the `GEOIP_URL` service. */
   lookupGeo?: GeoLookup;
   /** Defaults to the app database; tests pass an in-memory PGlite one. */
@@ -169,6 +179,22 @@ export function initAuth<
                 ...(isAdminEmail(user.email) && { role: ADMIN_ROLE }),
               },
             };
+          },
+          async after(user) {
+            if (!options.onUserCreated) return;
+            const notify = options
+              .onUserCreated({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+              })
+              .catch((error: unknown) =>
+                logger.warn("auth.user_created_hook_failed", {
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+            if (options.runInBackground) options.runInBackground(notify);
+            else await notify;
           },
         },
       },

@@ -2,6 +2,8 @@ import { env, logger } from "@synoro/config";
 import type { Database } from "@synoro/db";
 import { sendTemplateEmail, type TemplateEmail } from "@synoro/emails";
 
+export { newPracticeNotice, newUserNotice } from "./team-notice";
+
 /**
  * App-facing entry of `@synoro/jobs`: safe to import whether or not Hatchet is
  * configured. The Hatchet client (`./workflows`) is loaded lazily, only when
