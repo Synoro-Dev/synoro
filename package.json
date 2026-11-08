@@ -24,6 +24,7 @@
     "dev:admin": "turbo watch dev -F @synoro/admin...",
     "jobs:dev": "bun run --cwd packages/jobs worker",
     "messenger:webhooks": "bun run --cwd packages/jobs messenger:webhooks",
+    "domains:sync": "bun run --cwd packages/jobs domains:sync",
     "billing:webhook": "bun run --cwd packages/api webhook",
     "format": "biome format . --skip-parse-errors",
     "format:fix": "biome format --write . --skip-parse-errors",

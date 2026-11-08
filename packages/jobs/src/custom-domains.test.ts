@@ -1,0 +1,167 @@
+import { describe, expect, test } from "bun:test";
+
+import {
+  hostOfRoute,
+  ingressRoute,
+  planRoutes,
+  reachesUs,
+  routeName,
+} from "./custom-domains";
+
+const target = { service: "synoro-app", port: "http", certResolver: "le" };
+const targets = { cname: "domains.synoro.ru", ip: "203.0.113.10" };
+
+/** Which of the hosts the plan turns away, whatever DNS says. */
+const refused = async (hosts: string[], ownHosts: string[] = []) =>
+  (
+    await planRoutes({
+      active: hosts,
+      existing: [],
+      ownHosts,
+      reaches: async () => true,
+    })
+  ).refused;
+
+describe("hostnames", () => {
+  test("plain lowercase hostnames pass, punycode included", async () => {
+    expect(
+      await refused(["anna.ru", "zapis.anna-psy.ru", "xn--80aa2ba.xn--p1ai"]),
+    ).toEqual([]);
+  });
+
+  test("anything that could leave the rule or the name is refused", async () => {
+    const odd = [
+      "",
+      "anna",
+      "Anna.ru",
+      "anna.ru`) || Host(`synoro.ru",
+      "anna.ru/path",
+      "anna.ru:443",
+      "-anna.ru",
+      "anna..ru",
+      "*.anna.ru",
+      `${"a".repeat(64)}.ru`,
+      `${"a.".repeat(130)}ru`,
+    ];
+    expect(await refused(odd)).toEqual(odd);
+  });
+
+  test("the platform's hosts and everything under them are refused", async () => {
+    const own = ["synoro.ru", "app.synoro.ru"];
+    expect(
+      await refused(
+        ["synoro.ru", "anna.synoro.ru", "notsynoro.ru", "synoro.ru.evil.com"],
+        own,
+      ),
+    ).toEqual(["synoro.ru", "anna.synoro.ru"]);
+  });
+});
+
+describe("ingressRoute", () => {
+  test("one host, one certificate, only the managed label", () => {
+    const route = ingressRoute("anna.ru", target);
+    expect(route.metadata.name).toBe("cd-anna.ru");
+    expect(hostOfRoute(route.metadata.name)).toBe("anna.ru");
+    expect(route.metadata.labels["app.kubernetes.io/managed-by"]).toBe(
+      "synoro-domains-sync",
+    );
+    expect(route.spec.entryPoints).toEqual(["websecure"]);
+    expect(route.spec.routes).toHaveLength(1);
+    expect(route.spec.routes[0]?.match).toBe("Host(`anna.ru`)");
+    expect(route.spec.tls.certResolver).toBe("le");
+  });
+
+  test("a route name maps back to its host", () => {
+    expect(routeName("zapis.anna.ru")).toBe("cd-zapis.anna.ru");
+    expect(hostOfRoute("synoro-app")).toBeUndefined();
+  });
+});
+
+describe("reachesUs", () => {
+  const resolver = (
+    records: Record<string, { cname?: string[]; a?: string[] }>,
+  ) => ({
+    resolveCname: async (host: string) => records[host]?.cname ?? [],
+    resolve4: async (host: string) => records[host]?.a ?? [],
+  });
+
+  test("CNAME to the target, A to the IP, or the target's addresses", async () => {
+    const dns = resolver({
+      "domains.synoro.ru": { a: ["203.0.113.10"] },
+      "zapis.a.ru": { cname: ["Domains.Synoro.ru."] },
+      "b.ru": { a: ["203.0.113.10"] },
+      "c.ru": { a: ["198.51.100.7"] },
+    });
+    expect(await reachesUs("zapis.a.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("b.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("c.ru", targets, dns)).toBe(false);
+    expect(await reachesUs("nowhere.ru", targets, dns)).toBe(false);
+  });
+
+  test("flattened apex: same addresses as the CNAME target", async () => {
+    const dns = resolver({
+      "domains.synoro.ru": { a: ["198.51.100.9"] },
+      "a.ru": { a: ["198.51.100.9"] },
+    });
+    expect(await reachesUs("a.ru", { cname: "domains.synoro.ru" }, dns)).toBe(
+      true,
+    );
+  });
+
+  test("nothing configured, nothing reaches us", async () => {
+    expect(
+      await reachesUs("a.ru", {}, resolver({ "a.ru": { a: ["1.1.1.1"] } })),
+    ).toBe(false);
+  });
+});
+
+describe("planRoutes", () => {
+  const own = ["synoro.ru"];
+  const plan = (
+    active: string[],
+    existing: string[],
+    reaching: string[] = [],
+  ) =>
+    planRoutes({
+      active,
+      existing,
+      ownHosts: own,
+      reaches: async (host) => reaching.includes(host),
+    });
+
+  test("a new host gets a route once its DNS leads here", async () => {
+    expect(await plan(["a.ru", "b.ru"], [], ["a.ru"])).toEqual({
+      apply: ["a.ru"],
+      remove: [],
+      waiting: ["b.ru"],
+      refused: [],
+    });
+  });
+
+  test("an existing route stays through a DNS blip", async () => {
+    const result = await plan(["a.ru"], ["a.ru"], []);
+    expect(result.apply).toEqual(["a.ru"]);
+    expect(result.remove).toEqual([]);
+  });
+
+  test("a disconnected host loses its route", async () => {
+    expect((await plan([], ["a.ru"])).remove).toEqual(["a.ru"]);
+  });
+
+  test("the platform's own hosts and odd names are refused, routes dropped", async () => {
+    const result = await plan(
+      ["synoro.ru", "x.synoro.ru", "a`b.ru", "ok.ru"],
+      ["x.synoro.ru"],
+      ["ok.ru"],
+    );
+    expect(result.refused).toEqual(["synoro.ru", "x.synoro.ru", "a`b.ru"]);
+    expect(result.apply).toEqual(["ok.ru"]);
+    expect(result.remove).toEqual(["x.synoro.ru"]);
+  });
+
+  test("a duplicate row is one route", async () => {
+    expect((await plan(["a.ru", "a.ru"], [], ["a.ru"])).apply).toEqual([
+      "a.ru",
+    ]);
+  });
+});

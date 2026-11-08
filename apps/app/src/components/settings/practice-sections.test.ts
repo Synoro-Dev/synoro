@@ -20,6 +20,7 @@ describe("practiceSections", () => {
       "Сообщения клиентам",
       "Онлайн-оплата",
       "Перенос клиентов",
+      "Свой домен",
       "Команда",
       "Тариф",
     ]);
@@ -49,6 +50,7 @@ describe("practiceSections", () => {
       paths.booking.page(ID),
       paths.booking.schedule(ID),
       paths.booking.messages(ID),
+      paths.booking.domain(ID),
     ]) {
       expect(hrefs).toContain(href);
     }

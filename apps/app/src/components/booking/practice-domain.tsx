@@ -94,8 +94,8 @@ function CheckMark({ ok }: { ok: boolean | undefined }) {
 /**
  * Where the practice's booking page lives: the main address, and the
  * specialist's own domain — connected with a TXT record (ownership) plus a
- * CNAME or A record (routing). Owner only. Off sale until the hosting side is
- * set up (docs/custom-domains.md): no link leads here.
+ * CNAME or A record (routing). Owner only. The certificate is issued by the
+ * cluster once the routing record is seen (docs/custom-domains.md).
  */
 export function PracticeDomain({
   practiceId,
@@ -142,7 +142,9 @@ export function PracticeDomain({
       } else if (!result.routing) {
         toast.info("Домен подтверждён. Осталось направить его на платформу.");
       } else {
-        toast.success("Домен подключён");
+        toast.success(
+          "Домен подключён. Защищённое соединение включится за пару минут.",
+        );
       }
     },
     onError: (error) => toast.error(error.message),
@@ -390,6 +392,11 @@ export function PracticeDomain({
                   Изменения DNS расходятся от нескольких минут до суток. Если у
                   регистратора включено проксирование или CDN для домена,
                   выключите его: записи должны вести прямо на платформу.
+                </li>
+                <li>
+                  Когда DNS поведёт на платформу, сертификат (https) выпустится
+                  сам — обычно за 2–5 минут. До этого адрес может открываться с
+                  предупреждением браузера.
                 </li>
               </ul>
             </>
