@@ -14,7 +14,7 @@
     "typecheck": "bun --env-file=../../.env run next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@hookform/resolvers": "6.0.2",
+    "@hookform/resolvers": "7.0.3",
     "@orpc/server": "2.0.0-beta.49",
     "@synoro/api": "workspace:*",
     "@synoro/auth": "workspace:*",
