@@ -37,6 +37,7 @@ function findByToken(db: Database, token: string) {
       kind: Booking.kind,
       credits: Booking.credits,
       status: Booking.status,
+      cancelReason: Booking.cancelReason,
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
       practiceVideoUrl: Practice.videoUrl,
@@ -130,6 +131,8 @@ export const guest = publicProcedure
       kind: found.kind,
       /** Something was taken for it: false for an intro or a visit-paid booking. */
       charged: found.credits > 0,
+      /** Cancelled late by the client: the credit was not given back. */
+      forfeited: found.cancelReason === "late_cancel",
       startsAt: found.startsAt,
       endsAt: found.endsAt,
       /** The zone the visitor booked from: the page reads times in it. */

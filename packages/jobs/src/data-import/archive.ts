@@ -102,8 +102,9 @@ const practiceSchema = z.object({
   booking_theme: z.unknown(),
   free_booking_enabled: z.boolean().default(false),
   pay_at_visit: z.boolean().default(false),
-  // Archives from before the setting: the rule everyone had then.
-  cancel_hours: cancelHoursSchema.catch(DEFAULT_CANCEL_HOURS),
+  // Archives from before the setting: the rule everyone had then. A value
+  // that isn't one of `CANCEL_HOURS` is a broken file, not an old one.
+  cancel_hours: cancelHoursSchema.default(DEFAULT_CANCEL_HOURS),
   late_cancel: z.boolean().default(false),
   intro_minutes: z.union([
     z.literal(30),

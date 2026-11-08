@@ -4,6 +4,9 @@
  * tutor's — «занятия». See GLOSSARY.md and docs/beyond-psychologists.md.
  */
 
+// Type only: `booking.ts` imports `pluralize` from here at run time.
+import type { CANCEL_HOURS } from "./booking";
+
 export const PROFESSIONS = [
   "psychologist",
   "coach",
@@ -92,7 +95,10 @@ export const PROFESSION_TERMS: Record<Profession, ProfessionTerms> = {
  * trainer's slot is easy to fill the same day, a psychologist's is not. The
  * owner changes it under «Правила».
  */
-export const PROFESSION_CANCEL_HOURS: Record<Profession, number> = {
+export const PROFESSION_CANCEL_HOURS: Record<
+  Profession,
+  (typeof CANCEL_HOURS)[number]
+> = {
   psychologist: 24,
   coach: 24,
   tutor: 12,
