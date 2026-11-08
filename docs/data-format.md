@@ -58,7 +58,8 @@
 `created_at`.
 
 `notes` (рабочие заметки владельца, в открытом виде): `id`, `client_id`
-(→ `clients.id`), `booking_id` (→ `bookings.id`, если заметка к сессии), `text`,
+(→ `clients.id`), `booking_id` (→ `bookings.id`, если заметка к сессии), `text`
+(`null`, если заметку не удалось расшифровать — например, сменили ключ),
 `created_at`, `updated_at`.
 
 ### Деньги

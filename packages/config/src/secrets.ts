@@ -37,6 +37,19 @@ export function encryptSecret(plain: string) {
   ].join(":");
 }
 
+/**
+ * The plain text, or null when it can't be decrypted (another key, a damaged
+ * value). For data shown in bulk — client notes — where one bad row must not
+ * take the rest down. Never log the stored value.
+ */
+export function decryptSecretOrNull(stored: string) {
+  try {
+    return decryptSecret(stored);
+  } catch {
+    return null;
+  }
+}
+
 export function decryptSecret(stored: string) {
   const [version, iv, tag, data] = stored.split(":");
   if (version !== VERSION || !iv || !tag || !data) {

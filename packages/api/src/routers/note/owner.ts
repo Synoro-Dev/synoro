@@ -1,3 +1,4 @@
+import { logger } from "@synoro/config";
 import {
   and,
   Booking,
@@ -8,12 +9,12 @@ import {
   PracticeMember,
   type SQL,
 } from "@synoro/db";
-
 import {
   findOwnerMembership,
   practiceProcedure,
 } from "../../lib/practice-access";
-import { decryptSecret, secretsAvailable } from "../../lib/secrets";
+
+import { decryptSecretOrNull, secretsAvailable } from "../../lib/secrets";
 
 /**
  * Notes are the specialist's alone: the practice's owner, in person. Not its
@@ -56,7 +57,11 @@ export function findPracticeMember(
   });
 }
 
-/** Notes as the owner reads them: decrypted, newest first, with the session. */
+/**
+ * Notes as the owner reads them: decrypted, newest first, with the session.
+ * A note that won't decrypt (the key was changed) comes back with `body: null`,
+ * so the others still show and it can be deleted.
+ */
 export async function readNotes(db: Database, where: SQL | undefined) {
   const rows = await db
     .select({
@@ -72,5 +77,9 @@ export async function readNotes(db: Database, where: SQL | undefined) {
     .leftJoin(Booking, eq(Booking.id, ClientNote.bookingId))
     .where(where)
     .orderBy(desc(ClientNote.createdAt), desc(ClientNote.id));
-  return rows.map((row) => ({ ...row, body: decryptSecret(row.body) }));
+  return rows.map((row) => {
+    const body = decryptSecretOrNull(row.body);
+    if (body === null) logger.warn("note.undecryptable", { noteId: row.id });
+    return { ...row, body };
+  });
 }

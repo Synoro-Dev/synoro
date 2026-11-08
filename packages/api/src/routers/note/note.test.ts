@@ -268,6 +268,38 @@ describe("note", () => {
     ).toBe("FORBIDDEN");
   });
 
+  it("lists a note it can't decrypt as null, and lets it go", async () => {
+    const readable = await call(
+      noteRouter.create,
+      { practiceId, memberId, body: "Читается" },
+      { context: api.context(owner) },
+    );
+    const [broken] = await api.db
+      .insert(ClientNote)
+      .values({
+        practiceId,
+        memberId,
+        // As if written under another PAYMENTS_SECRET_KEY.
+        body: "v1:AAAAAAAAAAAAAAAA:AAAAAAAAAAAAAAAAAAAAAA:AAAA",
+      })
+      .returning({ id: ClientNote.id });
+    if (!broken) throw new Error("No note");
+
+    const notes = await call(
+      noteRouter.list,
+      { practiceId, memberId },
+      { context: api.context(owner) },
+    );
+    expect(notes.find((n) => n.id === broken.id)?.body).toBeNull();
+    expect(notes.find((n) => n.id === readable.id)?.body).toBe("Читается");
+
+    await call(
+      noteRouter.remove,
+      { practiceId, noteId: broken.id },
+      { context: api.context(owner) },
+    );
+  });
+
   it("rejects an empty note", async () => {
     await expect(
       call(

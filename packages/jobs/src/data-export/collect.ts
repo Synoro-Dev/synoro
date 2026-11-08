@@ -1,4 +1,4 @@
-import { decryptSecret } from "@synoro/config/secrets";
+import { decryptSecretOrNull } from "@synoro/config/secrets";
 import {
   ArchivedRecord,
   AvailabilityRule,
@@ -285,12 +285,13 @@ export async function collectPractice(db: Database, practiceId: string) {
       created_at: iso(row.createdAt),
     })),
     bookings,
-    // The owner's working notes, decrypted: the archive is theirs.
+    // The owner's working notes, decrypted: the archive is theirs. One that
+    // won't decrypt (the key was changed) goes out as null, the rest still do.
     notes: notes.map((row) => ({
       id: row.id,
       client_id: row.memberId,
       booking_id: row.bookingId,
-      text: decryptSecret(row.body),
+      text: decryptSecretOrNull(row.body),
       created_at: iso(row.createdAt),
       updated_at: iso(row.updatedAt),
     })),

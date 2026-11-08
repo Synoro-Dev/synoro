@@ -77,11 +77,11 @@ export function ClientNotes({
   });
   // Every session that has begun, however old: the card's bookings tab
   // shows only two months around today.
-  const sessions =
-    useQuery({
-      ...orpc.note.sessions.queryOptions({ input: { practiceId, memberId } }),
-      retry: (count, error) => !isDefinedError(error) && count < 3,
-    }).data ?? [];
+  const sessionsQuery = useQuery({
+    ...orpc.note.sessions.queryOptions({ input: { practiceId, memberId } }),
+    retry: (count, error) => !isDefinedError(error) && count < 3,
+  });
+  const sessions = sessionsQuery.data ?? [];
   const [body, setBody] = useState("");
 
   const create = useMutation({
@@ -160,6 +160,20 @@ export function ClientNotes({
               ))}
             </SelectContent>
           </Select>
+          {sessionsQuery.isError && (
+            // Without the list the note could be saved unattached unawares.
+            <p className="flex items-center gap-2 text-xs text-destructive">
+              Не удалось загрузить сессии клиента.
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => sessionsQuery.refetch()}
+              >
+                Повторить
+              </Button>
+            </p>
+          )}
         </div>
         <Textarea
           aria-label="Текст заметки"
@@ -259,16 +273,27 @@ function NoteItem({ practiceId, note }: { practiceId: string; note: Note }) {
       </div>
       {draft === null ? (
         <>
-          <p className="text-sm break-words whitespace-pre-wrap">{note.body}</p>
+          {note.body === null ? (
+            // Encrypted with another key: nothing to show or edit, only delete.
+            <p className="text-sm text-muted-foreground">
+              Не удалось расшифровать заметку.
+            </p>
+          ) : (
+            <p className="text-sm break-words whitespace-pre-wrap">
+              {note.body}
+            </p>
+          )}
           <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={() => setDraft(note.body)}
-            >
-              <PencilIcon />
-              Изменить
-            </Button>
+            {note.body !== null && (
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setDraft(note.body)}
+              >
+                <PencilIcon />
+                Изменить
+              </Button>
+            )}
             <ConfirmButton
               variant="ghost"
               size="xs"
