@@ -94,7 +94,7 @@ const PROFESSION_LABELS = Object.fromEntries(
  * Start a practice: the signed-in user becomes its owner (specialist). Then
  * on to the first setup, or to «Про» billing (`next="billing"`) when the
  * specialist signed up for «Про». The only time the setup opens by itself:
- * after this «Сегодня» offers it (`SetupProgress`).
+ * after this «Сегодня» offers it (`SetupProgress`, `setup-progress.tsx`).
  */
 export function CreatePracticeDialog({
   open,
