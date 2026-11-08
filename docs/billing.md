@@ -35,8 +35,8 @@
 Закрыто на бесплатном тарифе: подключение ЮKassa / Т-Банка
 (`payment.connect`), оплата пакетов клиентами (`payableAccount`: страница
 записи прячет оплату, `checkout` / `reserve` отвечают `PAYMENTS_DISABLED`),
-подключение своего домена (`domain.connect`, снято с продажи,
-`docs/custom-domains.md`) и приглашение администраторов
+подключение своего домена (`domain.connect`, `docs/custom-domains.md`) и
+приглашение администраторов
 (`practice.addMember` с ролью admin). Уже подключённые домен и
 администраторы продолжают работать.
 

@@ -60,7 +60,7 @@ export const paths = {
     /** Editing the public page: photo, link, video room. */
     page: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/booking-page` as const,
-    /** The practice's own domain. Off sale: not in `practiceSections`. */
+    /** The practice's own domain (owner, «Про»). */
     domain: (practiceId: string) =>
       `${ROOTS.PRACTICES}/${practiceId}/domain` as const,
     /** Incoming payments. Connecting a provider: `onlinePayment`. */

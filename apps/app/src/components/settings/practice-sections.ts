@@ -4,6 +4,7 @@ import {
   Clock3Icon,
   CreditCardIcon,
   FileUpIcon,
+  GlobeIcon,
   ListChecksIcon,
   type LucideIcon,
   MessageSquareTextIcon,
@@ -99,6 +100,13 @@ export function practiceSections(
     {
       title: "Практика",
       sections: [
+        {
+          title: "Свой домен",
+          description: "Страница записи по вашему адресу",
+          href: paths.booking.domain(practiceId),
+          icon: GlobeIcon,
+          ownerOnly: true,
+        },
         {
           title: "Команда",
           description: "Кто ещё ведёт записи в вашей практике",
