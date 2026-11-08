@@ -115,6 +115,7 @@ describe("admin", () => {
       id: owner.user.id,
       plan: "active",
       practices: 1,
+      practiceList: [{ name: "Практика Анны", slug: "anna-admin" }],
     });
 
     const practices = await call(

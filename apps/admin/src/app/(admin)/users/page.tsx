@@ -17,10 +17,14 @@ import { PageHeader } from "~/components/page-header";
 import { PlanBadge } from "~/components/plan-badge";
 import { TableSkeleton } from "~/components/table-skeleton";
 import { formatDate } from "~/lib/format";
+import { bookingPageUrl } from "~/lib/links";
 import { listParams, type SearchParams } from "~/lib/list-params";
 import { api } from "~/orpc/server";
 
 export const metadata: Metadata = { title: "Пользователи" };
+
+/** Practices named in a row; the rest are behind the user's card. */
+const MAX_PRACTICES = 3;
 
 export default function UsersPage(props: { searchParams: SearchParams }) {
   return (
@@ -53,7 +57,7 @@ async function Users({ searchParams }: { searchParams: SearchParams }) {
             <TableHead>Пользователь</TableHead>
             <TableHead>Телефон</TableHead>
             <TableHead>Тариф</TableHead>
-            <TableHead className="text-right">Практик</TableHead>
+            <TableHead>Практики</TableHead>
             <TableHead>Регистрация</TableHead>
           </TableRow>
         </TableHeader>
@@ -93,8 +97,35 @@ async function Users({ searchParams }: { searchParams: SearchParams }) {
               <TableCell>
                 <PlanBadge plan={user.plan} />
               </TableCell>
-              <TableCell className="text-right tabular-nums">
-                {user.practices}
+              <TableCell>
+                {user.practiceList.length === 0 && (
+                  <span className="text-muted-foreground">—</span>
+                )}
+                <div className="flex flex-col">
+                  {user.practiceList.slice(0, MAX_PRACTICES).map((practice) => (
+                    <a
+                      key={practice.slug}
+                      href={bookingPageUrl(practice.slug)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="hover:underline"
+                    >
+                      {practice.name}
+                      <span className="text-muted-foreground text-xs">
+                        {" "}
+                        /{practice.slug}
+                      </span>
+                    </a>
+                  ))}
+                  {user.practices > MAX_PRACTICES && (
+                    <Link
+                      href={`/users/${user.id}` as Route}
+                      className="text-muted-foreground text-xs hover:underline"
+                    >
+                      и ещё {user.practices - MAX_PRACTICES}
+                    </Link>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{formatDate(user.createdAt)}</TableCell>
             </TableRow>
