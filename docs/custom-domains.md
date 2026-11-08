@@ -100,10 +100,29 @@ side. If the cluster is ever fronted by a balancer with a name of its own,
 domain behind a CDN or proxy can't pass the HTTP-01 challenge, so the owner is
 told to turn proxying off.
 
-Moving the hosting: bring the new Traefik up with the same `acme.json` (or let
-it request the certificates again, which is a few minutes of warnings), then
-switch `domains.synoro.ru`. Routes are created from the database, so the CronJob
-rebuilds them on the new cluster by itself.
+Moving the hosting. Routes are created from the database, so the CronJob
+rebuilds them on the new cluster by itself; the certificates and the switch
+need an order:
+
+1. Copy `acme.json` to the new Traefik's volume before it starts. Every
+   connected domain then has its certificate there from the first request,
+   and routes the new CronJob creates before the switch do no harm. Without
+   the copy, keep the new CronJob suspended (`spec.suspend: true`) until
+   step 3: `reachesUs` already accepts a CNAME to `domains.synoro.ru`, so the
+   new cluster would create routes, Traefik would start HTTP-01, the challenge
+   would land on the old server and fail, and Traefik doesn't retry.
+2. Switch `A domains.synoro.ru` to the new IP (TTL lowered a day ahead).
+3. Keep the old server serving through the overlap: at least the old TTL, and
+   longer for apex domains — an ALIAS hands out the target's address with the
+   DNS provider's own cache time, which the TTL of `domains.synoro.ru` doesn't
+   bound. Check each connected host (`bun domains:sync -- --dry-run` lists
+   them) against a couple of public resolvers, e.g.
+   `dig +short <host> @1.1.1.1` and `@8.8.8.8`, until they all return the new
+   IP. Without the copied `acme.json`, resume the CronJob only then; if it
+   already made routes early, delete the `cd-*` routes, and the next run
+   recreates them so Traefik asks for the certificates again.
+4. Turn the old server off only after every connected domain resolves to the
+   new IP and opens over https there.
 
 Prerequisites to check on the cluster (the shared Traefik Helm release): the
 `letsencrypt` resolver stores `acme.json` on a persistent volume, and Traefik
