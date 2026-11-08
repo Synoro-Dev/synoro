@@ -133,7 +133,7 @@ export function GuestBooking({ token }: { token: string }) {
                     : atVisit
                       ? "Время освободилось. Если передумаете — запишитесь снова."
                       : data.forfeited
-                        ? `Отмена была позже срока, поэтому оплата не вернулась. На балансе ${formatCredits(data.balance, terms)}.`
+                        ? `Отмена была позже срока, поэтому на баланс не вернулось: ${formatCredits(data.credits, terms)}. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                         : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                 }
               />
@@ -230,7 +230,7 @@ export function GuestBooking({ token }: { token: string }) {
                   }
                   description={
                     data.lateCancel
-                      ? `До начала ${formatHoursLess(data.cancelHours)}: по правилам специалиста оплата не вернётся на баланс. Время освободится для других.`
+                      ? `До начала ${formatHoursLess(data.cancelHours)}: по правилам специалиста на баланс не вернётся ${formatCredits(data.credits, terms)}. Время освободится для других.`
                       : intro
                         ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
                         : atVisit

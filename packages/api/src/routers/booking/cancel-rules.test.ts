@@ -4,6 +4,7 @@ import type { Session } from "@synoro/auth";
 import { Booking, eq, PracticeMember } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
+import { hashGuestToken } from "../../lib/guests";
 import { creditRouter } from "../credit";
 import { practiceRouter } from "../practice";
 import { bookingRouter } from ".";
@@ -172,5 +173,49 @@ describe("practice cancel rules", () => {
     ).catch((e) => e);
     expect(error).toMatchObject({ code: "TOO_LATE" });
     expect(error.message).toContain("Перенести");
+  });
+
+  it("cancels late by the guest link only once the visitor agrees", async () => {
+    await rules(24, true);
+    const { memberId } = await newClient();
+    const bookingId = await bookingIn(memberId, 7);
+    const token = `late-guest-${crypto.randomUUID()}`;
+    await api.db
+      .update(Booking)
+      .set({ accessTokenHash: hashGuestToken(token) })
+      .where(eq(Booking.id, bookingId));
+
+    const guest = await call(
+      bookingRouter.guest,
+      { token },
+      { context: api.context() },
+    );
+    expect(guest).toMatchObject({ canCancel: true, lateCancel: true });
+
+    const error = await call(
+      bookingRouter.cancelGuest,
+      { token },
+      { context: api.context() },
+    ).catch((e) => e);
+    expect(error).toMatchObject({ code: "TOO_LATE" });
+    expect(error.message).toContain("за 24 часа");
+
+    const result = await call(
+      bookingRouter.cancelGuest,
+      { token, forfeit: true },
+      { context: api.context() },
+    );
+    expect(result.refunded).toBe(false);
+    expect(await balance(memberId)).toBe(0);
+    const after = await call(
+      bookingRouter.guest,
+      { token },
+      { context: api.context() },
+    );
+    expect(after.forfeited).toBe(true);
+    const row = await api.db.query.Booking.findFirst({
+      where: eq(Booking.id, bookingId),
+    });
+    expect(row?.cancelReason).toBe("late_cancel");
   });
 });

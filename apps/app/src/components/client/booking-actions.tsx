@@ -240,7 +240,7 @@ export function BookingActionDialog({
                 </span>
                 <span>
                   {forfeit
-                    ? `До начала ${formatHoursLess(booking.cancelHours)}: по правилам специалиста ${formatCredits(booking.credits, terms)} не вернётся на баланс. Время освободится для других.`
+                    ? `До начала ${formatHoursLess(booking.cancelHours)}: по правилам специалиста на баланс не вернётся ${formatCredits(booking.credits, terms)}. Время освободится для других.`
                     : consequence({
                         free,
                         balance,

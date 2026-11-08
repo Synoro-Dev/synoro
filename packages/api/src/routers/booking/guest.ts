@@ -131,6 +131,8 @@ export const guest = publicProcedure
       kind: found.kind,
       /** Something was taken for it: false for an intro or a visit-paid booking. */
       charged: found.credits > 0,
+      /** What it took from the balance, for the words on a late cancel. */
+      credits: found.credits,
       /** Cancelled late by the client: the credit was not given back. */
       forfeited: found.cancelReason === "late_cancel",
       startsAt: found.startsAt,
