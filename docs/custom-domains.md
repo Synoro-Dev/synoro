@@ -4,7 +4,9 @@ A specialist on «Про» connects their own domain under **Практика �
 and the booking page opens there. The platform side is Traefik on k3s: a route
 and a Let's Encrypt certificate per domain, kept in step with the database by a
 CronJob (see «Hosting»). Without that side nothing opens, so it goes live in
-this order: DNS, `infra/synoro/domains.yaml` and `config.yaml`, then the app.
+this order: the DNS record, `config.yaml` and `http.yaml` of the infra repo,
+the app deploy, and only then `domains.yaml` (its script ships in the
+`synoro-tools` image, which the deploy pushes).
 
 A practice's booking page opens at two kinds of address:
 
