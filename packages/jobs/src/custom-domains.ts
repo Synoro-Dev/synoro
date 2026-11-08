@@ -75,7 +75,6 @@ export function ingressRoute(host: string, target: RouteTarget) {
 
 export interface DnsTargets {
   cname?: string;
-  ip?: string;
 }
 
 export interface DnsResolver {
@@ -90,8 +89,8 @@ const none = (): string[] => [];
  * Does the host's DNS already lead here? A certificate request for a host that
  * doesn't would fail, and Traefik doesn't retry on its own. Same rule as the
  * `routing` half of `checkDomainDns` in `@synoro/api` (keep them in step):
- * CNAME to the target, A to the target IP, or the target's own addresses
- * (CNAME flattening at the apex).
+ * a CNAME to the target, or the target's own addresses (an ALIAS / CNAME
+ * flattening at the apex). No address is configured: the target's are read.
  */
 export async function reachesUs(
   host: string,
@@ -108,7 +107,6 @@ export async function reachesUs(
       cnames.some(
         (c) => c.toLowerCase().replace(/\.$/, "") === targets.cname,
       )) ||
-    (!!targets.ip && addresses.includes(targets.ip)) ||
     addresses.some((ip) => targetAddresses.includes(ip))
   );
 }

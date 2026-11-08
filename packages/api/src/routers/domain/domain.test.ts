@@ -88,9 +88,28 @@ describe("domain.connect", () => {
     expect(records.map((r) => [r.type, r.recommended])).toEqual([
       ["TXT", true],
       ["CNAME", false],
-      ["A", true],
+      ["ALIAS", true],
     ]);
     expect(records[0]?.name).toBe("_booking-verification.anna-ivanova.ru");
+    // Names only: no address is ever shown to connect a domain.
+    for (const record of records.filter((r) => r.purpose === "routing")) {
+      expect(record.value).toBe("domains.pages.test");
+    }
+  });
+
+  it("a subdomain gets a CNAME and nothing else to route", async () => {
+    const other = await newPractice("zapis-host");
+    const settings = await connect(
+      other.session,
+      other.practiceId,
+      "zapis.anna-psy.ru",
+    );
+    expect(
+      settings.domain?.records.map((r) => [r.type, r.recommended]),
+    ).toEqual([
+      ["TXT", true],
+      ["CNAME", true],
+    ]);
   });
 
   it("keeps the token when the same host is submitted again", async () => {
@@ -316,7 +335,7 @@ describe("domain.verify", () => {
 });
 
 describe("checkDomainDns", () => {
-  const targets = { cname: "domains.pages.test", ip: "203.0.113.10" };
+  const targets = { cname: "domains.pages.test" };
   const resolver = (records: {
     txt?: string[][];
     cname?: string[];
@@ -340,14 +359,11 @@ describe("checkDomainDns", () => {
     expect(result).toEqual({ ownership: true, routing: false });
   });
 
-  it("accepts a CNAME to the target, an A record, or flattened CNAME", async () => {
+  it("accepts a CNAME to the target, or an ALIAS (the target's addresses)", async () => {
     const check = (records: Parameters<typeof resolver>[0]) =>
       checkDomainDns("anna.ru", "t", targets, resolver(records));
 
     expect((await check({ cname: ["Domains.Pages.Test."] })).routing).toBe(
-      true,
-    );
-    expect((await check({ a: { "anna.ru": ["203.0.113.10"] } })).routing).toBe(
       true,
     );
     expect(
@@ -360,6 +376,15 @@ describe("checkDomainDns", () => {
         })
       ).routing,
     ).toBe(true);
+    // A bare address that merely happens to be ours is not enough: nothing
+    // pins the hosting's IP any more.
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["203.0.113.10"], "domains.pages.test": [] },
+        })
+      ).routing,
+    ).toBe(false);
     expect((await check({ a: { "anna.ru": ["192.0.2.1"] } })).routing).toBe(
       false,
     );

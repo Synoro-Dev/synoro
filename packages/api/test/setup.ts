@@ -10,7 +10,6 @@ process.env.ADMIN_EMAILS = "admin@test.local";
 // Expected failures (rejected origins, payments) would otherwise log.
 process.env.LOG_LEVEL = "silent";
 process.env.CUSTOM_DOMAIN_CNAME = "domains.pages.test";
-process.env.CUSTOM_DOMAIN_IP = "203.0.113.10";
 // Emails (the visitor's booking link) go nowhere in tests.
 process.env.EMAIL_SANDBOX_ENABLED = "false";
 process.env.POSTBOX_ACCESS_KEY_ID = "";

@@ -94,7 +94,7 @@ function CheckMark({ ok }: { ok: boolean | undefined }) {
 /**
  * Where the practice's booking page lives: the main address, and the
  * specialist's own domain — connected with a TXT record (ownership) plus a
- * CNAME or A record (routing). Owner only. The certificate is issued by the
+ * CNAME or ALIAS record (routing). Owner only. The certificate is issued by the
  * cluster once the routing record is seen (docs/custom-domains.md).
  */
 export function PracticeDomain({
@@ -311,7 +311,7 @@ export function PracticeDomain({
                   <AlertDescription>
                     Подтвердить владение можно уже сейчас, но направить домен на
                     платформу получится после настройки сервера
-                    (CUSTOM_DOMAIN_CNAME / CUSTOM_DOMAIN_IP).
+                    (CUSTOM_DOMAIN_CNAME).
                   </AlertDescription>
                 </Alert>
               )}
@@ -380,8 +380,11 @@ export function PracticeDomain({
                 </li>
                 {routing.length > 1 && (
                   <li>
-                    Из CNAME и A нужна одна запись: CNAME — для поддомена
-                    (zapis.anna-psy.ru), A — для домена целиком (anna-psy.ru).
+                    Из CNAME и ALIAS нужна одна запись: CNAME — для поддомена
+                    (zapis.anna-psy.ru). Для домена целиком (anna-psy.ru) CNAME
+                    не бывает: нужна ALIAS (у некоторых регистраторов — ANAME
+                    или «CNAME flattening»). Если у вашего регистратора такой
+                    записи нет, подключите поддомен, например zapis.anna-psy.ru.
                   </li>
                 )}
                 <li>

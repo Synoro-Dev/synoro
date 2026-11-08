@@ -35,8 +35,8 @@ embedded in the specialist's site (`docs/guest-booking.md`).
 - Connecting a domain (`domain.connect`) stores it as `pending` with a random
   token. `domain.verify` looks up `TXT _booking-verification.<host>`; once the
   token is there the domain becomes `active`. Without that step anyone could
-  claim a domain they don't control. The CNAME/A check only tells the owner
-  whether traffic already reaches us. A pending reservation lasts 24 hours
+  claim a domain they don't control. The routing check (CNAME or ALIAS to the
+  target) only tells the owner whether traffic already reaches us. A pending reservation lasts 24 hours
   from connection (or hostname replacement); after expiry, connecting the
   hostname again issues a fresh token and allows another practice to claim it.
   Active domains do not expire.
@@ -44,12 +44,20 @@ embedded in the specialist's site (`docs/guest-booking.md`).
 ## Environment
 
 ```bash
-CUSTOM_DOMAIN_CNAME=domains.synoro.ru   # what subdomains CNAME to
-CUSTOM_DOMAIN_IP=203.0.113.10           # what apex domains point an A record to
+CUSTOM_DOMAIN_CNAME=domains.synoro.ru   # what specialists' DNS points at
 ```
 
-Both live in `synoro-config` (`infra/synoro/config.yaml`). Unset, the domain
-page still verifies ownership but warns that there is nothing to point DNS at.
+It lives in `synoro-config` (`infra/synoro/config.yaml`). Unset, the domain page
+still verifies ownership but warns that there is nothing to point DNS at.
+
+**A name, never an IP.** Specialists' records are a `TXT` (ownership) and a
+`CNAME` to this name; for an apex domain, which can't hold a CNAME, an `ALIAS`
+(`ANAME`, «CNAME flattening») to the same name. Nobody is ever told an address,
+so the hosting can move (another server, another cloud) by changing one record
+of ours, `domains.synoro.ru`. The routing check compares the host with the
+target's _current_ addresses, so it follows the move as well. Apex domains need a
+registrar that offers ALIAS; where there is none, the owner connects a
+subdomain (`zapis.anna.ru`), which the page says.
 
 ## Hosting (k3s + Traefik)
 
@@ -85,11 +93,17 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   Traefik's `acme.json` and expires on its own.
 
 Platform DNS (where `synoro.ru` is managed): `A domains.synoro.ru` → the node's
-public IP, which is also `CUSTOM_DOMAIN_IP`. Specialists' subdomains CNAME to
-`domains.synoro.ru`, so moving the node later means changing one record of
-ours; apex domains hold the IP itself. Records must point straight at the node:
-a domain behind a CDN or proxy can't pass the HTTP-01 challenge, so the owner is
+public IP. That record is the only place the address lives; moving the hosting
+means editing it (keep the TTL low, say 300 s) and nothing on the specialists'
+side. If the cluster is ever fronted by a balancer with a name of its own,
+`domains.synoro.ru` becomes a CNAME to it. Records must lead straight to us: a
+domain behind a CDN or proxy can't pass the HTTP-01 challenge, so the owner is
 told to turn proxying off.
+
+Moving the hosting: bring the new Traefik up with the same `acme.json` (or let
+it request the certificates again, which is a few minutes of warnings), then
+switch `domains.synoro.ru`. Routes are created from the database, so the CronJob
+rebuilds them on the new cluster by itself.
 
 Prerequisites to check on the cluster (the shared Traefik Helm release): the
 `letsencrypt` resolver stores `acme.json` on a persistent volume, and Traefik
