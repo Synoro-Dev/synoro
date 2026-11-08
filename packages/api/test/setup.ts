@@ -16,6 +16,8 @@ process.env.EMAIL_SANDBOX_ENABLED = "false";
 process.env.POSTBOX_ACCESS_KEY_ID = "";
 process.env.POSTBOX_SECRET_ACCESS_KEY = "";
 process.env.RESEND_API_KEY = "";
+// A local .env must not change who is told of a new account or practice.
+process.env.TEAM_NOTICE_EMAIL = "team@test.local";
 process.env.PAYMENTS_SECRET_KEY = "test-payments-secret-key-0123456789abcdef";
 // A local .env with a PostHog key must not make tests send events.
 delete process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;

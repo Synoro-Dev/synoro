@@ -2,7 +2,7 @@ import "server-only";
 
 import { initAuth } from "@synoro/auth";
 import { env, logger, paths } from "@synoro/config";
-import { dispatchEmail } from "@synoro/jobs";
+import { dispatchEmail, newUserNotice } from "@synoro/jobs";
 import { nextCookies } from "better-auth/next-js";
 import { headers } from "next/headers";
 import { after } from "next/server";
@@ -31,6 +31,11 @@ export const auth = initAuth({
     } catch {
       void promise;
     }
+  },
+  // Tells the team (TEAM_NOTICE_EMAIL) about every new account.
+  onUserCreated: async (user) => {
+    const notice = newUserNotice(user);
+    if (notice) await dispatchEmail(notice);
   },
   // Used by the emailOTP plugin and password reset. Goes through the Hatchet
   // `send-email` task when HATCHET_CLIENT_TOKEN is set, inline otherwise.
