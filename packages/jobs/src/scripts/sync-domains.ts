@@ -116,19 +116,25 @@ async function main() {
       .where(eq(PracticeDomain.status, "active"))
   ).map((row) => row.hostname);
 
-  const existing = dryRun
+  // Every route of the namespace, not only ours: a route that already has a
+  // `cd-<host>` name but was made by someone else is theirs, not to be adopted.
+  const listed = dryRun
     ? []
     : (
-        JSON.parse(
-          await expectOk(
-            kube(
-              "GET",
-              `${routes}?labelSelector=${encodeURIComponent(`${MANAGED_LABEL}=${MANAGED_BY}`)}`,
-            ),
-            "list routes",
-          ),
-        ) as { items: { metadata: { name: string } }[] }
-      ).items.flatMap((item) => hostOfRoute(item.metadata.name) ?? []);
+        JSON.parse(await expectOk(kube("GET", routes), "list routes")) as {
+          items: {
+            metadata: { name: string; labels?: Record<string, string> };
+          }[];
+        }
+      ).items;
+  const isOurs = (item: (typeof listed)[number]) =>
+    item.metadata.labels?.[MANAGED_LABEL] === MANAGED_BY;
+  const existing = listed
+    .filter(isOurs)
+    .flatMap((item) => hostOfRoute(item.metadata.name) ?? []);
+  const foreign = new Set(
+    listed.filter((item) => !isOurs(item)).map((item) => item.metadata.name),
+  );
 
   const targets = {
     cname: env.CUSTOM_DOMAIN_CNAME?.trim().toLowerCase() || undefined,
@@ -168,11 +174,22 @@ async function main() {
 
   let failed = 0;
   for (const host of plan.apply) {
+    if (foreign.has(routeName(host))) {
+      failed++;
+      logger.error("domains.sync_foreign_route", undefined, {
+        host,
+        route: routeName(host),
+      });
+      continue;
+    }
     try {
+      // No `force`: should a route appear between the list and this call, the
+      // server answers 409 for fields another manager owns instead of
+      // overwriting them.
       await expectOk(
         kube(
           "PATCH",
-          `${routes}/${routeName(host)}?fieldManager=${FIELD_MANAGER}&force=true`,
+          `${routes}/${routeName(host)}?fieldManager=${FIELD_MANAGER}`,
           ingressRoute(host, TARGET),
         ),
         `apply ${host}`,
