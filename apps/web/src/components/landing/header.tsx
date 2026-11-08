@@ -8,8 +8,10 @@ import type { SiteLinks } from "~/lib/site";
 
 import { Logo } from "./logo";
 
-const nav = [
+/** `wide`: shown in the top bar only where there is room; the menu has all. */
+const nav: { href: string; label: string; wide?: true }[] = [
   { href: "#features", label: "Возможности" },
+  { href: "#domain", label: "Свой адрес", wide: true },
   { href: "#embed", label: "На вашем сайте" },
   { href: "#how", label: "Как начать" },
   { href: "#pricing", label: "Тарифы" },
@@ -46,7 +48,10 @@ export function Header({ links }: { links: SiteLinks }) {
             <a
               key={item.href}
               href={item.href}
-              className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full px-3 py-1.5 text-sm transition-colors"
+              className={cn(
+                "text-muted-foreground hover:text-foreground hover:bg-muted rounded-full px-3 py-1.5 text-sm whitespace-nowrap transition-colors",
+                item.wide && "hidden lg:block",
+              )}
             >
               {item.label}
             </a>

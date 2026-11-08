@@ -138,7 +138,6 @@ async function main() {
 
   const targets = {
     cname: env.CUSTOM_DOMAIN_CNAME?.trim().toLowerCase() || undefined,
-    ip: env.CUSTOM_DOMAIN_IP,
   };
   const exactTrusted = (env.AUTH_TRUSTED_ORIGINS ?? "")
     .split(",")

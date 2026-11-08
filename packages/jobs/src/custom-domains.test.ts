@@ -9,7 +9,7 @@ import {
 } from "./custom-domains";
 
 const target = { service: "synoro-app", port: "http", certResolver: "le" };
-const targets = { cname: "domains.synoro.ru", ip: "203.0.113.10" };
+const targets = { cname: "domains.synoro.ru" };
 
 /** Which of the hosts the plan turns away, whatever DNS says. */
 const refused = async (hosts: string[], ownHosts: string[] = []) =>
@@ -85,7 +85,7 @@ describe("reachesUs", () => {
     resolve4: async (host: string) => records[host]?.a ?? [],
   });
 
-  test("CNAME to the target, A to the IP, or the target's addresses", async () => {
+  test("a CNAME to the target, or the target's own addresses", async () => {
     const dns = resolver({
       "domains.synoro.ru": { a: ["203.0.113.10"] },
       "zapis.a.ru": { cname: ["Domains.Synoro.ru."] },
@@ -93,9 +93,18 @@ describe("reachesUs", () => {
       "c.ru": { a: ["198.51.100.7"] },
     });
     expect(await reachesUs("zapis.a.ru", targets, dns)).toBe(true);
+    // An ALIAS at the apex answers with the target's addresses.
     expect(await reachesUs("b.ru", targets, dns)).toBe(true);
     expect(await reachesUs("c.ru", targets, dns)).toBe(false);
     expect(await reachesUs("nowhere.ru", targets, dns)).toBe(false);
+  });
+
+  test("follows the target to a new address, none is configured here", async () => {
+    const moved = resolver({
+      "domains.synoro.ru": { a: ["192.0.2.55"] },
+      "b.ru": { a: ["192.0.2.55"] },
+    });
+    expect(await reachesUs("b.ru", targets, moved)).toBe(true);
   });
 
   test("flattened apex: same addresses as the CNAME target", async () => {

@@ -47,10 +47,10 @@ export const env = createEnv({
     BOOKING_URL: z.url().optional(),
 
     // Practice pages on their own hosts (see docs/custom-domains.md).
-    // DNS targets shown to specialists connecting their own domain:
-    // CNAME for a subdomain, A record for an apex domain.
+    // What specialists point their own domain at: a CNAME for a subdomain, an
+    // ALIAS / ANAME for an apex one. A name, never an IP, so the hosting can
+    // move without anyone touching their DNS.
     CUSTOM_DOMAIN_CNAME: z.string().optional(),
-    CUSTOM_DOMAIN_IP: z.ipv4().optional(),
 
     // Email: Yandex Cloud Postbox (HTTP API, static access key of a service
     // account with `postbox.sender`) first, Resend as the fallback. Neither:
@@ -215,7 +215,6 @@ export const env = createEnv({
     ADMIN_URL: process.env.ADMIN_URL,
     BOOKING_URL: process.env.BOOKING_URL,
     CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
-    CUSTOM_DOMAIN_IP: process.env.CUSTOM_DOMAIN_IP,
     POSTBOX_ACCESS_KEY_ID: process.env.POSTBOX_ACCESS_KEY_ID,
     POSTBOX_SECRET_ACCESS_KEY: process.env.POSTBOX_SECRET_ACCESS_KEY,
     POSTBOX_ENDPOINT: process.env.POSTBOX_ENDPOINT,

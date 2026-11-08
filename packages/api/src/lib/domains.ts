@@ -33,32 +33,37 @@ export function isPlatformHost(hostname: string) {
   ].some((own) => hostname === own || hostname.endsWith(`.${own}`));
 }
 
+/**
+ * Where specialists point their domains. A name, never an address: the host
+ * behind it can move without anyone editing their DNS.
+ */
 export interface DnsTargets {
   cname?: string;
-  ip?: string;
 }
 
 function dnsTargets(): DnsTargets {
   return {
     cname: env.CUSTOM_DOMAIN_CNAME?.trim().toLowerCase() || undefined,
-    ip: env.CUSTOM_DOMAIN_IP,
   };
 }
 
 // A type alias (not an interface) so router declarations can inline it.
 type DnsRecord = {
-  type: "TXT" | "CNAME" | "A";
+  type: "TXT" | "CNAME" | "ALIAS";
   name: string;
   value: string;
   purpose: "ownership" | "routing";
-  /** For routing: the record that fits this host (CNAME vs apex A). */
+  /** For routing: the record that fits this host (CNAME vs apex ALIAS). */
   recommended: boolean;
 };
 
 /**
- * Records the specialist adds at their registrar. An apex domain can't hold
- * a CNAME, so it gets an A record; two labels is a guess at "apex" (wrong
- * for `anna.msk.ru`), which is why both routing options are listed.
+ * Records the specialist adds at their registrar. Routing is always a name:
+ * a CNAME for a subdomain. An apex domain can't hold a CNAME, so it also gets
+ * an ALIAS (ANAME, «CNAME flattening» at some registrars) to the same target;
+ * where there is none, a subdomain such as `zapis.<domain>` does the job.
+ * Two labels is a guess at "apex" (wrong for `anna.msk.ru`), which is why a
+ * CNAME stays listed beside the ALIAS.
  */
 function dnsRecords(row: DomainRow, targets = dnsTargets()) {
   const apex = row.hostname.split(".").length === 2;
@@ -77,17 +82,17 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
       name: row.hostname,
       value: targets.cname,
       purpose: "routing",
-      recommended: !apex || !targets.ip,
+      recommended: !apex,
     });
-  }
-  if (targets.ip) {
-    records.push({
-      type: "A",
-      name: row.hostname,
-      value: targets.ip,
-      purpose: "routing",
-      recommended: apex || !targets.cname,
-    });
+    if (apex) {
+      records.push({
+        type: "ALIAS",
+        name: row.hostname,
+        value: targets.cname,
+        purpose: "routing",
+        recommended: true,
+      });
+    }
   }
   return records;
 }
@@ -104,8 +109,9 @@ const none = (): string[] => [];
 
 /**
  * Live DNS check. `ownership`: the TXT record holds the token. `routing`:
- * the host points here — CNAME to the target, A to the target IP, or the
- * same addresses as the target (CNAME flattening at the apex).
+ * the host points here — a CNAME to the target, or the same addresses as the
+ * target (an ALIAS / CNAME flattening at the apex, which answers with A
+ * records). No address is configured anywhere: the target's own are read.
  */
 export async function checkDomainDns(
   hostname: string,
@@ -128,7 +134,6 @@ export async function checkDomainDns(
       cnames.some(
         (c) => c.toLowerCase().replace(/\.$/, "") === targets.cname,
       )) ||
-    (!!targets.ip && addresses.includes(targets.ip)) ||
     addresses.some((ip) => targetAddresses.includes(ip));
 
   return { ownership, routing };
@@ -151,7 +156,7 @@ export async function domainSettings(db: Database, practiceId: string) {
     /** Connecting an own domain is «Про». */
     pro: practice ? await hasPro(db, practice.ownerId) : false,
     bookingUrl: practice ? publicBookingUrl(practice.slug) : null,
-    targetsConfigured: !!(targets.cname || targets.ip),
+    targetsConfigured: !!targets.cname,
     domain: row
       ? {
           hostname: row.hostname,
