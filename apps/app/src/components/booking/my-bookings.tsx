@@ -579,14 +579,15 @@ export function MyBookings() {
     clientOf[0];
 
   const topUpPractice = clientOf.find((p) => p.practiceId === topUp);
-  // The nearest booking of each series the client may still cancel: the only
-  // one that offers cancelling the whole series. `cancelSeries` takes every
-  // upcoming booking past the 24-hour line, so none before this one is lost;
-  // those too close to cancel stay.
+  // The nearest booking of each series the client may still cancel with the
+  // credit back: the only one that offers cancelling the whole series.
+  // `cancelSeries` takes every upcoming booking past the practice's deadline,
+  // so none before this one is lost; nearer ones stay — also those a late
+  // cancel would allow, which is for one booking at a time.
   const seriesHeads = new Set<string>();
   const seenSeries = new Set<string>();
   for (const b of upcomingAll) {
-    if (!b.canCancel) continue;
+    if (!b.canCancel || b.lateCancel) continue;
     if (!b.seriesId || seenSeries.has(b.seriesId)) continue;
     seenSeries.add(b.seriesId);
     seriesHeads.add(b.id);
