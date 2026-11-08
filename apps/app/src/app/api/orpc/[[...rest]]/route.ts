@@ -2,6 +2,7 @@ import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { appRouter, createORPCContext, errorStatusMap } from "@synoro/api";
 import { logger } from "@synoro/config";
+import { after } from "next/server";
 
 const handler = new RPCHandler(appRouter, {
   errorStatusMap,
@@ -22,6 +23,7 @@ async function handleRequest(request: Request) {
     context: createORPCContext({
       headers: request.headers,
       session,
+      runInBackground: (task) => after(task),
     }),
   });
 

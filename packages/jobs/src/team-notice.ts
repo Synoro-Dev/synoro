@@ -1,6 +1,8 @@
 import { env } from "@synoro/config";
 import type { TemplateEmail } from "@synoro/emails";
 
+import { practicePageUrl } from "./urls";
+
 /**
  * Notices for the team (`TEAM_NOTICE_EMAIL`): someone signed up, someone
  * opened a practice. `null` when the address is unset, so callers send
@@ -42,10 +44,7 @@ export function newPracticeNotice(
     kind: "practice",
     headline: practice.name,
     rows: [
-      {
-        label: "Адрес",
-        value: `${env.BOOKING_URL ?? env.APP_URL}/${practice.slug}`,
-      },
+      { label: "Адрес", value: practicePageUrl(practice.slug) },
       { label: "Владелец", value: `${owner.name}, ${owner.email}` },
       ...(owner.phone ? [{ label: "Телефон", value: owner.phone }] : []),
     ],

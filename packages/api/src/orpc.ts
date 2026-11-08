@@ -36,6 +36,11 @@ export interface CreateORPCContextOptions {
    * `dispatchEmail` does. Tests pass a recorder to read what would be sent.
    */
   sendEmail?: (message: TemplateEmail) => Promise<void>;
+  /**
+   * Keeps work going after the response (Next's `after` in the route
+   * handler), so a shutdown waits for it. Unawaited when not given.
+   */
+  runInBackground?: (task: Promise<unknown>) => void;
 }
 
 export function createORPCContext(opts: CreateORPCContextOptions) {
@@ -44,6 +49,11 @@ export function createORPCContext(opts: CreateORPCContextOptions) {
     headers: opts.headers,
     db,
     sendEmail: opts.sendEmail ?? dispatchEmail,
+    runInBackground:
+      opts.runInBackground ??
+      ((task: Promise<unknown>) => {
+        void task;
+      }),
   };
 }
 

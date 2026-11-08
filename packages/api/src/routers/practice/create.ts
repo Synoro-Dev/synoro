@@ -107,15 +107,18 @@ export const create = protectedProcedure
     });
     await ensureSubscription(context.db, ownerId);
 
-    // The team hears of it, unawaited: without Hatchet the mail goes inline,
-    // and a slow or failed one must not hold up the answer or the payment.
+    // The team hears of it after the answer: without Hatchet the mail goes
+    // inline, and a slow or failed one must not hold up the answer or the
+    // payment.
     const notice = newPracticeNotice(practice, user);
     if (notice) {
-      void context.sendEmail(notice).catch((error: unknown) =>
-        logger.warn("practice.notice_failed", {
-          practiceId: practice.id,
-          error: error instanceof Error ? error.message : String(error),
-        }),
+      context.runInBackground(
+        context.sendEmail(notice).catch((error: unknown) =>
+          logger.warn("practice.notice_failed", {
+            practiceId: practice.id,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        ),
       );
     }
 
