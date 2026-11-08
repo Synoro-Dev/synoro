@@ -1,3 +1,4 @@
+import { decryptSecret } from "@synoro/config/secrets";
 import {
   ArchivedRecord,
   AvailabilityRule,
@@ -5,6 +6,7 @@ import {
   asc,
   Booking,
   BookingSeries,
+  ClientNote,
   CreditEntry,
   type Database,
   eq,
@@ -145,6 +147,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     credits,
     cards,
     archived,
+    notes,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -221,6 +224,11 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(ArchivedRecord)
       .where(eq(ArchivedRecord.practiceId, practice.id))
       .orderBy(asc(ArchivedRecord.createdAt), asc(ArchivedRecord.id)),
+    db
+      .select()
+      .from(ClientNote)
+      .where(eq(ClientNote.practiceId, practice.id))
+      .orderBy(asc(ClientNote.createdAt), asc(ClientNote.id)),
   ]);
 
   // History from an earlier archive goes out with the live rows, in their form.
@@ -277,6 +285,15 @@ export async function collectPractice(db: Database, practiceId: string) {
       created_at: iso(row.createdAt),
     })),
     bookings,
+    // The owner's working notes, decrypted: the archive is theirs.
+    notes: notes.map((row) => ({
+      id: row.id,
+      client_id: row.memberId,
+      booking_id: row.bookingId,
+      text: decryptSecret(row.body),
+      created_at: iso(row.createdAt),
+      updated_at: iso(row.updatedAt),
+    })),
     credit_entries: [
       ...archivedOf<CreditEntryDump>("credit_entry"),
       ...credits.map(

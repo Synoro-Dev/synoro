@@ -9,6 +9,7 @@ export * from "./booking-theme";
 export * from "./client-import";
 export * from "./login";
 export * from "./messenger";
+export * from "./note";
 export * from "./otp";
 export * from "./password";
 export * from "./payment";

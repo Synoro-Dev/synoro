@@ -367,6 +367,7 @@ export function PracticeClients({
         practiceId={practiceId}
         timezone={timezone}
         member={open}
+        isOwner={isOwner}
         onClose={() => {
           setOpenId(null);
           // Drop `?client=` so ⌘K can open the same client again.
