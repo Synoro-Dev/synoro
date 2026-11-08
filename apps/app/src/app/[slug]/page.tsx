@@ -70,5 +70,13 @@ async function PublicBookingWithData({
     redirect(paths.booking.public(practice.slug));
   }
 
-  return <PublicBooking practice={practice} signedIn={!!session?.user} />;
+  const offer = await api.payment.packages({ practiceId: practice.id });
+
+  return (
+    <PublicBooking
+      practice={practice}
+      offer={offer}
+      signedIn={!!session?.user}
+    />
+  );
 }

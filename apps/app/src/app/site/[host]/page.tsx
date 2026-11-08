@@ -60,9 +60,12 @@ async function PracticeSiteWithData({
     getSession(),
   ]);
 
+  const offer = await api.payment.packages({ practiceId: practice.id });
+
   return (
     <PublicBooking
       practice={practice}
+      offer={offer}
       signedIn={!!session?.user}
       bookingUrl={bookingUrl(practice.slug)}
     />

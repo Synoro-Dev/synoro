@@ -95,6 +95,7 @@ import { TimeZoneSelect } from "./time-zone-select";
 import { WaitlistRow } from "./waitlist-dialog";
 
 type PublicPractice = RouterOutputs["practice"]["bySlug"];
+type PaymentOffer = RouterOutputs["payment"]["packages"];
 type Slot = { startsAt: Date; endsAt: Date };
 type Kind = "consultation" | "free";
 
@@ -182,10 +183,17 @@ function initials(name: string) {
  */
 export function PublicBooking({
   practice,
+  offer: initialOffer,
   signedIn,
   bookingUrl,
 }: {
   practice: PublicPractice;
+  /**
+   * What can be bought online, read on the server: the tab opened first
+   * («Консультация» or «Знакомство») depends on it, and waiting for the
+   * browser to ask made the panel switch tabs after it was shown.
+   */
+  offer: PaymentOffer;
   signedIn: boolean;
   /**
    * Set on the practice's own host: sign-in happens on the app host, so the
@@ -260,6 +268,8 @@ export function PublicBooking({
     ...orpc.payment.packages.queryOptions({
       input: { practiceId: practice.id },
     }),
+    // Staff don't ask (and see their page as a preview), so no data for them.
+    initialData: isStaff ? undefined : initialOffer,
     enabled: !isStaff,
   });
   const canPay = offer.data?.enabled ?? false;
