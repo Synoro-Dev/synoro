@@ -30,6 +30,7 @@ import {
 import type { Route } from "next";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import { z } from "zod";
 
 import { orpc } from "~/orpc/react";
 import { BookingLinkActions } from "./booking-link";
@@ -47,18 +48,24 @@ interface SetupPracticeSummary {
  * owner ticked off by hand. Only a convenience — the setup itself stores
  * nothing, so a lost entry just shows the checklist again.
  */
-interface Remembered {
-  hidden?: boolean;
-  marked?: string[];
-}
+const rememberedSchema = z.object({
+  hidden: z.boolean().optional(),
+  marked: z.array(z.string()).optional(),
+});
+
+type Remembered = z.infer<typeof rememberedSchema>;
 
 const listeners = new Set<() => void>();
+/** Where a change waits when storage refuses it: it lasts until reload. */
+const unsaved = new Map<string, string>();
 
 function storageKey(practiceId: string) {
   return `synoro:setup-checklist:${practiceId}`;
 }
 
 function readRaw(key: string) {
+  const pending = unsaved.get(key);
+  if (pending !== undefined) return pending;
   try {
     return window.localStorage.getItem(key);
   } catch {
@@ -66,13 +73,12 @@ function readRaw(key: string) {
   }
 }
 
+/** Anything else in storage — an older format, a hand edit — reads as empty. */
 function parse(raw: string | null): Remembered {
   if (!raw) return {};
   try {
-    const value: unknown = JSON.parse(raw);
-    return typeof value === "object" && value !== null
-      ? (value as Remembered)
-      : {};
+    const parsed = rememberedSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : {};
   } catch {
     return {};
   }
@@ -97,10 +103,13 @@ function useRemembered(practiceId: string) {
   );
   const state = parse(raw);
   function update(next: Remembered) {
+    const raw = JSON.stringify(next);
     try {
-      window.localStorage.setItem(key, JSON.stringify(next));
+      window.localStorage.setItem(key, raw);
+      unsaved.delete(key);
     } catch {
-      // Private mode or blocked storage: the change lasts until reload.
+      // Private mode, blocked storage or a full quota.
+      unsaved.set(key, raw);
     }
     for (const listener of listeners) listener();
   }
