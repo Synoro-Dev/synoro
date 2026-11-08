@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { accountFormSchema } from "./account";
 import {
   availabilityFormSchema,
-  CLIENT_CANCEL_WINDOW_MS,
-  clientMayCancel,
+  clientCancel,
+  clientMayMove,
   creditGrantFormSchema,
+  formatCancelHours,
+  formatHoursLess,
   formatMinutes,
   freeBookingFormSchema,
   guestBookingFormSchema,
@@ -803,45 +805,65 @@ describe("intro length", () => {
   });
 });
 
-describe("clientMayCancel", () => {
+describe("clientCancel", () => {
   const now = Date.UTC(2030, 0, 7, 7);
-  const inHour = new Date(now + 60 * 60 * 1000);
+  const hours = (h: number) => new Date(now + h * 3_600_000);
+  const paid = (startsAt: Date) => ({
+    kind: "consultation",
+    credits: 1,
+    startsAt,
+  });
+  const strict = { cancelHours: 24, lateCancel: false };
+  const lenient = { cancelHours: 12, lateCancel: true };
 
-  test("a paid booking until 24 hours before", () => {
-    expect(
-      clientMayCancel(
-        { kind: "consultation", credits: 1, startsAt: inHour },
-        now,
-      ),
-    ).toBe(false);
-    expect(
-      clientMayCancel(
-        {
-          kind: "consultation",
-          credits: 1,
-          startsAt: new Date(now + CLIENT_CANCEL_WINDOW_MS),
-        },
-        now,
-      ),
-    ).toBe(true);
+  test("a paid booking with the credit back until the deadline", () => {
+    expect(clientCancel(paid(hours(24)), now, strict)).toBe("refund");
+    expect(clientCancel(paid(hours(23)), now, strict)).toBeNull();
+    expect(clientCancel(paid(hours(12)), now, lenient)).toBe("refund");
+  });
+
+  test("later, without the credit when the practice allows it", () => {
+    expect(clientCancel(paid(hours(11)), now, lenient)).toBe("forfeit");
+    expect(clientCancel(paid(new Date(now)), now, lenient)).toBeNull();
   });
 
   test("nothing taken — an intro or paid at the visit — until it starts", () => {
     expect(
-      clientMayCancel({ kind: "free", credits: 0, startsAt: inHour }, now),
-    ).toBe(true);
-    expect(
-      clientMayCancel(
-        { kind: "consultation", credits: 0, startsAt: inHour },
+      clientCancel(
+        { kind: "free", credits: 0, startsAt: hours(1) },
         now,
+        strict,
       ),
-    ).toBe(true);
+    ).toBe("refund");
     expect(
-      clientMayCancel(
+      clientCancel(
+        { kind: "consultation", credits: 0, startsAt: hours(1) },
+        now,
+        strict,
+      ),
+    ).toBe("refund");
+    expect(
+      clientCancel(
         { kind: "consultation", credits: 0, startsAt: new Date(now) },
         now,
+        strict,
       ),
-    ).toBe(false);
+    ).toBeNull();
+  });
+
+  test("a move only while the credit would come back", () => {
+    expect(clientMayMove(paid(hours(13)), now, lenient)).toBe(true);
+    expect(clientMayMove(paid(hours(11)), now, lenient)).toBe(false);
+  });
+
+  test("names the deadline", () => {
+    expect(formatCancelHours(3)).toBe("за 3 часа");
+    expect(formatCancelHours(12)).toBe("за 12 часов");
+    expect(formatCancelHours(24)).toBe("за 24 часа");
+    expect(formatCancelHours(72)).toBe("за 72 часа");
+    expect(formatHoursLess(3)).toBe("меньше 3 часов");
+    expect(formatHoursLess(24)).toBe("меньше 24 часов");
+    expect(formatHoursLess(21)).toBe("меньше 21 часа");
   });
 });
 

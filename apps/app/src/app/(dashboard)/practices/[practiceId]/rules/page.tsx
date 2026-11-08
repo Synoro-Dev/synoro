@@ -21,7 +21,14 @@ async function Rules({
   const practice = await loadStaffPractice((await params).practiceId);
   return (
     <PracticeSettingsShell practice={practice} title="Правила">
-      <PracticeRules />
+      <PracticeRules
+        practiceId={practice.id}
+        rules={{
+          cancelHours: practice.cancelHours,
+          lateCancel: practice.lateCancel,
+        }}
+        isOwner={practice.membership.role === "owner"}
+      />
     </PracticeSettingsShell>
   );
 }

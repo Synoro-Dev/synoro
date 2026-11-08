@@ -9,6 +9,7 @@ import { newPracticeNotice } from "@synoro/jobs";
 import {
   capitalize,
   isPremiumSlug,
+  PROFESSION_CANCEL_HOURS,
   practiceFormSchema,
   professionTerms,
 } from "@synoro/validators";
@@ -81,6 +82,7 @@ export const create = protectedProcedure
               ? `${input.slug}-${crypto.randomUUID().slice(0, 6)}`
               : input.slug,
             profession: input.profession,
+            cancelHours: PROFESSION_CANCEL_HOURS[input.profession],
             ownerId,
           })
           .returning();

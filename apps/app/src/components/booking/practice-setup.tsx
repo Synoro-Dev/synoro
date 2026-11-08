@@ -94,6 +94,8 @@ interface SetupPractice {
   timezone: string;
   freeBookingEnabled: boolean;
   introMinutes: number;
+  cancelHours: number;
+  lateCancel: boolean;
 }
 
 interface StepNav {
@@ -585,7 +587,14 @@ export function PracticeSetup({
       {step === "prices" && <PricesStep practice={practice} nav={nav} />}
       {step === "rules" && (
         <div className="flex flex-col gap-6">
-          <PracticeRules />
+          <PracticeRules
+            practiceId={practice.id}
+            rules={{
+              cancelHours: practice.cancelHours,
+              lateCancel: practice.lateCancel,
+            }}
+            isOwner
+          />
           <StepActions nav={nav} primary={<NextButton onClick={nav.next} />} />
         </div>
       )}

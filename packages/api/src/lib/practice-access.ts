@@ -70,7 +70,8 @@ export async function findOwnerMembership(
  * `theme` — the page's look, the owner's own only on «Про»;
  * `freeBooking` — visitors may book the free intro themselves;
  * `introMinutes` — how long it lasts; `payAtVisit` — services are booked
- * without payment (`booking.bookAtVisit`), paid at the visit.
+ * without payment (`booking.bookAtVisit`), paid at the visit;
+ * `cancelHours` / `lateCancel` — the practice's cancellation terms.
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -91,6 +92,8 @@ export async function publicPractice(
       freeBookingEnabled: true,
       introMinutes: true,
       payAtVisit: true,
+      cancelHours: true,
+      lateCancel: true,
     },
   });
   if (!practice || (await ownerLeaving(context.db, practice.ownerId))) {

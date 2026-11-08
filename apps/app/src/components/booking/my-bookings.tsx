@@ -54,6 +54,7 @@ import { PaymentReturn } from "../payment/payment-return";
 import { TopUpDialog } from "../payment/top-up-dialog";
 import { MessengerCard } from "../settings/messenger-notifications";
 import { useDisplayZone } from "./display-zone";
+import { seriesHeads } from "./series-heads";
 import { EmptyState, ErrorState } from "./states";
 import { formatTime, viewerTimeZoneName } from "./time";
 import { VideoLinkButton, VideoServiceName } from "./video-link";
@@ -579,18 +580,7 @@ export function MyBookings() {
     clientOf[0];
 
   const topUpPractice = clientOf.find((p) => p.practiceId === topUp);
-  // The nearest booking of each series the client may still cancel: the only
-  // one that offers cancelling the whole series. `cancelSeries` takes every
-  // upcoming booking past the 24-hour line, so none before this one is lost;
-  // those too close to cancel stay.
-  const seriesHeads = new Set<string>();
-  const seenSeries = new Set<string>();
-  for (const b of upcomingAll) {
-    if (!b.canCancel) continue;
-    if (!b.seriesId || seenSeries.has(b.seriesId)) continue;
-    seenSeries.add(b.seriesId);
-    seriesHeads.add(b.id);
-  }
+  const heads = seriesHeads(upcomingAll);
   const mine = (bookings.data ?? []).filter(
     (b) => b.practiceId === practice?.practiceId,
   );
@@ -803,7 +793,7 @@ export function MyBookings() {
           clientOf.find((p) => p.practiceId === acting?.booking.practiceId)
             ?.credits ?? 0
         }
-        seriesHead={acting !== null && seriesHeads.has(acting.booking.id)}
+        seriesHead={acting !== null && heads.has(acting.booking.id)}
         timeZone={zone}
         onClose={() => setActing(null)}
       />

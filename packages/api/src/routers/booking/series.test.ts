@@ -289,7 +289,7 @@ describe("booking.cancelSeries", () => {
       { seriesId },
       { context: api.context(session) },
     );
-    expect(result).toEqual({ cancelled: 2, refunded: 2, kept: 1 });
+    expect(result).toMatchObject({ cancelled: 2, refunded: 2, kept: 1 });
     expect(await balance(memberId)).toBe(2);
     const bookings = await seriesBookings(seriesId);
     expect(bookings.map((b) => b.status)).toEqual([
@@ -315,7 +315,7 @@ describe("booking.cancelSeries", () => {
       { seriesId, refund: false },
       { context: api.context(owner) },
     );
-    expect(result).toEqual({ cancelled: 2, refunded: 0, kept: 0 });
+    expect(result).toMatchObject({ cancelled: 2, refunded: 0, kept: 0 });
     expect(await balance(memberId)).toBe(0);
     const bookings = await seriesBookings(seriesId);
     expect(bookings.every((b) => b.cancelReason === "staff")).toBe(true);

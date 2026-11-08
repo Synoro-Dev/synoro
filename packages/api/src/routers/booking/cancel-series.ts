@@ -1,22 +1,23 @@
 import { and, asc, Booking, BookingSeries, eq, gt } from "@synoro/db";
 import { notifySeriesCancelled } from "@synoro/jobs/booking-video";
 import { notifyWaitlist } from "@synoro/jobs/waitlist";
+import { clientCancel } from "@synoro/validators";
 import { z } from "zod";
 
-import { cancelBookingRows } from "../../lib/bookings";
+import { cancelBookingRows, loadCancelRules } from "../../lib/bookings";
 import { removeBookingEvent } from "../../lib/google-calendar";
 import { findMembership, isStaff } from "../../lib/practice-access";
-import { clientMayCancel } from "../../lib/schedule";
 import { protectedProcedure } from "../../orpc";
 
 /**
  * Cancel the upcoming bookings of a recurring booking, one by one under the
  * rules of `booking.cancel`:
  *
- * - the client cancels the ones they may cancel alone (`clientMayCancel`:
- *   more than 24 h ahead, or any not started yet when paid at the visit) and
- *   gets their credits back; the nearer ones stay (`kept`) — refusing the
- *   whole series would leave them unable to stop it at all;
+ * - the client cancels the ones they may cancel alone with the credit back
+ *   (`clientCancel` by the practice's deadline, or any not started yet when
+ *   paid at the visit); the nearer ones stay (`kept`), even where the
+ *   practice allows late cancelling — that is for one booking, knowingly —
+ *   and refusing the whole series would leave them unable to stop it;
  * - staff cancel all upcoming ones, refunding unless `refund: false`.
  *
  * Past bookings are left alone. One mail tells the client and the staff
@@ -48,6 +49,7 @@ export const cancelSeries = protectedProcedure
     if (!staff && !own) throw errors.NOT_FOUND();
 
     const now = Date.now();
+    const rules = await loadCancelRules(context.db, series.practiceId);
     const upcoming = await context.db
       .select({
         id: Booking.id,
@@ -71,7 +73,7 @@ export const cancelSeries = protectedProcedure
       const rows: Awaited<ReturnType<typeof cancelBookingRows>>[] = [];
       let kept = 0;
       for (const booking of upcoming) {
-        if (!staff && !clientMayCancel(booking, now)) {
+        if (!staff && clientCancel(booking, now, rules) !== "refund") {
           kept++;
           continue;
         }
@@ -122,5 +124,11 @@ export const cancelSeries = protectedProcedure
       });
     }
 
-    return { cancelled: cancelled.length, refunded, kept: done.kept };
+    return {
+      cancelled: cancelled.length,
+      refunded,
+      kept: done.kept,
+      /** The deadline the kept ones missed, for the message. */
+      cancelHours: rules.cancelHours,
+    };
   });

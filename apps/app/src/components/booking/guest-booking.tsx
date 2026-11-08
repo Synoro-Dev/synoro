@@ -4,7 +4,12 @@ import { paths } from "@synoro/config";
 import { Button, Card, Skeleton, Spinner, toast } from "@synoro/ui";
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { IconTile } from "@synoro/ui/reui/icon-tile";
-import { formatCredits, professionTerms } from "@synoro/validators";
+import {
+  formatCancelHours,
+  formatCredits,
+  formatHoursLess,
+  professionTerms,
+} from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarClockIcon,
@@ -127,7 +132,9 @@ export function GuestBooking({ token }: { token: string }) {
                     ? "Время освободилось. Если передумаете — запишитесь снова или выберите платную запись."
                     : atVisit
                       ? "Время освободилось. Если передумаете — запишитесь снова."
-                      : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
+                      : data.forfeited
+                        ? `Отмена была позже срока, поэтому на баланс не вернулось: ${formatCredits(data.credits, terms)}. Сейчас на нём ${formatCredits(data.balance, terms)}.`
+                        : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                 }
               />
             )}
@@ -216,17 +223,29 @@ export function GuestBooking({ token }: { token: string }) {
               )}
               {data.state === "confirmed" && data.canCancel && (
                 <ConfirmButton
-                  title="Отменить запись?"
-                  description={
-                    intro
-                      ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
-                      : atVisit
-                        ? "Время освободится для других. Записаться снова можно на странице специалиста."
-                        : `${formatCredits(1, terms)} вернётся на ваш баланс — им можно оплатить другое время.`
+                  title={
+                    data.lateCancel
+                      ? "Отменить без возврата?"
+                      : "Отменить запись?"
                   }
-                  confirmLabel="Отменить запись"
+                  description={
+                    data.lateCancel
+                      ? `До начала ${formatHoursLess(data.cancelHours)}: по правилам специалиста на баланс не вернётся ${formatCredits(data.credits, terms)}. Время освободится для других.`
+                      : intro
+                        ? "Время освободится для других. Записаться бесплатно ещё раз будет можно."
+                        : atVisit
+                          ? "Время освободится для других. Записаться снова можно на странице специалиста."
+                          : "Оплата вернётся на ваш баланс — ею можно оплатить другое время."
+                  }
+                  confirmLabel={
+                    data.lateCancel
+                      ? "Отменить без возврата"
+                      : "Отменить запись"
+                  }
                   disabled={cancel.isPending}
-                  onConfirm={() => cancel.mutate({ token })}
+                  onConfirm={() =>
+                    cancel.mutate({ token, forfeit: data.lateCancel })
+                  }
                 >
                   Отменить запись
                 </ConfirmButton>
@@ -248,8 +267,9 @@ export function GuestBooking({ token }: { token: string }) {
               !atVisit && (
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                   <CalendarClockIcon className="size-3.5 shrink-0" />
-                  Отменить самостоятельно можно не позднее чем за 24 часа до
-                  начала — позже свяжитесь со специалистом.
+                  Отменить самостоятельно можно не позднее чем{" "}
+                  {formatCancelHours(data.cancelHours)} до начала — позже
+                  свяжитесь со специалистом.
                 </p>
               )}
             <p className="text-xs text-muted-foreground">

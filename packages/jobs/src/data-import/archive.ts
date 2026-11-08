@@ -18,7 +18,9 @@ import {
 } from "@synoro/db";
 import {
   bookingQuestionsSchema,
+  cancelHoursSchema,
   canonicalTimeZone,
+  DEFAULT_CANCEL_HOURS,
   normalizePhone,
   normalizeVideoUrl,
   PROFESSIONS,
@@ -75,7 +77,14 @@ const bookingSchema = z
     meeting_url: text(500).nullish(),
     hold_until: moment.nullish(),
     cancel_reason: z
-      .enum(["client", "staff", "no_show", "hold_expired", "payment_cancelled"])
+      .enum([
+        "client",
+        "staff",
+        "no_show",
+        "late_cancel",
+        "hold_expired",
+        "payment_cancelled",
+      ])
       .nullish(),
     cancelled_at: moment.nullish(),
     created_at: moment.nullish(),
@@ -93,6 +102,10 @@ const practiceSchema = z.object({
   booking_theme: z.unknown(),
   free_booking_enabled: z.boolean().default(false),
   pay_at_visit: z.boolean().default(false),
+  // Archives from before the setting: the rule everyone had then. A value
+  // that isn't one of `CANCEL_HOURS` is a broken file, not an old one.
+  cancel_hours: cancelHoursSchema.default(DEFAULT_CANCEL_HOURS),
+  late_cancel: z.boolean().default(false),
   intro_minutes: z.union([
     z.literal(30),
     z.literal(45),
@@ -558,6 +571,8 @@ export async function applyArchive(
         freeBookingEnabled: archive.free_booking_enabled,
         introMinutes: archive.intro_minutes,
         payAtVisit: archive.pay_at_visit,
+        cancelHours: archive.cancel_hours,
+        lateCancel: archive.late_cancel,
         remindClients: archive.remind_clients,
         notifyStaff: archive.notify_staff,
         dailyAgenda: archive.daily_agenda,
@@ -578,6 +593,8 @@ export async function applyArchive(
           freeBookingEnabled: practice.freeBookingEnabled,
           introMinutes: practice.introMinutes,
           payAtVisit: practice.payAtVisit,
+          cancelHours: practice.cancelHours,
+          lateCancel: practice.lateCancel,
           remindClients: practice.remindClients,
           notifyStaff: practice.notifyStaff,
           dailyAgenda: practice.dailyAgenda,

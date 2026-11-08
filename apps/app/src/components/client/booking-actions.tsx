@@ -14,7 +14,11 @@ import {
   toast,
 } from "@synoro/ui";
 import { Alert, AlertDescription } from "@synoro/ui/reui/alert";
-import { formatCredits, professionTerms } from "@synoro/validators";
+import {
+  formatCredits,
+  formatHoursLess,
+  professionTerms,
+} from "@synoro/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleAlertIcon } from "lucide-react";
 import { useState } from "react";
@@ -106,7 +110,7 @@ export function BookingActionDialog({
       await refresh();
       toast.success(
         result.kept > 0
-          ? `Отменено записей: ${result.cancelled}. Ближайшую уже не отменить — до неё меньше 24 часов.`
+          ? `Отменено записей: ${result.cancelled}. Ближайшую уже не отменить — до неё ${formatHoursLess(result.cancelHours)}.`
           : free
             ? `Отменено записей: ${result.cancelled}`
             : `Отменено записей: ${result.cancelled}, оплата вернулась на баланс`,
@@ -127,7 +131,12 @@ export function BookingActionDialog({
   const terms = professionTerms(booking?.profession ?? "other");
   // Nothing was taken for it (an intro, paid at the visit): no balance to name.
   const free = booking !== null && !booking.charged;
-  const late = booking !== null && !booking.canCancel;
+  // Too late to do it alone: a move needs the credit to be refundable.
+  const late =
+    booking !== null &&
+    !(action === "move" ? booking.canMove : booking.canCancel);
+  /** Cancelling now loses the credit (the practice allows late cancels). */
+  const forfeit = booking !== null && action === "cancel" && booking.lateCancel;
 
   return (
     <AlertDialog
@@ -148,8 +157,8 @@ export function BookingActionDialog({
                 {booking.contact ? (
                   <>
                     <span>
-                      До начала меньше 24 часов. Изменить запись может только
-                      специалист. Как связаться:
+                      До начала {formatHoursLess(booking.cancelHours)}. Изменить
+                      запись может только специалист. Как связаться:
                     </span>
                     <span className="font-medium break-words text-foreground">
                       {booking.contact}
@@ -157,8 +166,9 @@ export function BookingActionDialog({
                   </>
                 ) : (
                   <span>
-                    До начала меньше 24 часов. Изменить запись может только
-                    специалист — свяжитесь с ним так, как вы договаривались.
+                    До начала {formatHoursLess(booking.cancelHours)}. Изменить
+                    запись может только специалист — свяжитесь с ним так, как вы
+                    договаривались.
                   </span>
                 )}
               </AlertDialogDescription>
@@ -221,17 +231,28 @@ export function BookingActionDialog({
         ) : booking ? (
           <>
             <AlertDialogHeader>
-              <AlertDialogTitle>Отменить запись?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {forfeit ? "Отменить без возврата?" : "Отменить запись?"}
+              </AlertDialogTitle>
               <AlertDialogDescription className="flex flex-col gap-2">
                 <span className="font-medium text-foreground first-letter:uppercase">
                   {formatDateTime(booking.startsAt, timeZone)}
                 </span>
                 <span>
-                  {consequence({ free, balance, terms, wholeSeries })}
+                  {forfeit
+                    ? `До начала ${formatHoursLess(booking.cancelHours)}: по правилам специалиста на баланс не вернётся ${formatCredits(booking.credits, terms)}. Время освободится для других.`
+                    : consequence({
+                        free,
+                        balance,
+                        credits: booking.credits,
+                        cancelHours: booking.cancelHours,
+                        terms,
+                        wholeSeries,
+                      })}
                 </span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            {booking.seriesId && seriesHead && (
+            {booking.seriesId && seriesHead && !forfeit && (
               <label className="flex min-h-11 items-center gap-3 text-sm">
                 <input
                   type="checkbox"
@@ -260,12 +281,12 @@ export function BookingActionDialog({
                   if (wholeSeries && booking.seriesId) {
                     cancelSeries.mutate({ seriesId: booking.seriesId });
                   } else {
-                    cancel.mutate({ bookingId: booking.id });
+                    cancel.mutate({ bookingId: booking.id, forfeit });
                   }
                 }}
               >
                 {pending && <Spinner />}
-                Отменить запись
+                {forfeit ? "Отменить без возврата" : "Отменить запись"}
               </Button>
             </AlertDialogFooter>
           </>
@@ -278,17 +299,22 @@ export function BookingActionDialog({
 function consequence({
   free,
   balance,
+  credits,
+  cancelHours,
   terms,
   wholeSeries,
 }: {
   free: boolean;
   balance: number;
+  /** What the booking took: a service may cost more than one. */
+  credits: number;
+  cancelHours: number;
   terms: ReturnType<typeof professionTerms>;
   wholeSeries: boolean;
 }) {
   if (free) return "Время освободится для других.";
   if (wholeSeries) {
-    return "Оплата за записи, до которых больше 24 часов, вернётся на баланс.";
+    return `Оплата вернётся на баланс за записи, до начала которых не ${formatHoursLess(cancelHours)}.`;
   }
-  return `Оплата вернётся на баланс — на нём станет ${formatCredits(balance + 1, terms)}.`;
+  return `Оплата вернётся на баланс — на нём станет ${formatCredits(balance + credits, terms)}.`;
 }

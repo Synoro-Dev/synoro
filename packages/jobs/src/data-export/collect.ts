@@ -250,6 +250,8 @@ export async function collectPractice(db: Database, practiceId: string) {
     free_booking_enabled: practice.freeBookingEnabled,
     intro_minutes: practice.introMinutes,
     pay_at_visit: practice.payAtVisit,
+    cancel_hours: practice.cancelHours,
+    late_cancel: practice.lateCancel,
     remind_clients: practice.remindClients,
     notify_staff: practice.notifyStaff,
     daily_agenda: practice.dailyAgenda,

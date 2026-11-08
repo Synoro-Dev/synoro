@@ -59,7 +59,7 @@ export function PracticeContact({
         <FrameDescription>
           Телефон, Telegram или другой способ связи. Его видят только клиенты с
           подтверждённой записью: на странице своей записи и в кабинете, когда
-          до начала меньше 24 часов.
+          изменить запись сами они уже не могут.
         </FrameDescription>
       </FrameHeader>
       <form onSubmit={submit} className="flex flex-col gap-2">

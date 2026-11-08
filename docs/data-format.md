@@ -25,7 +25,8 @@
 
 Настройки: `id`, `name`, `slug`, `old_slugs`, `domains`, `timezone`, `profession`,
 `video_url`, `client_contact`, `booking_questions`, `booking_theme`,
-`free_booking_enabled`, `intro_minutes`, `pay_at_visit`, `remind_clients`, `notify_staff`,
+`free_booking_enabled`, `intro_minutes`, `pay_at_visit`, `cancel_hours` (срок
+отмены в часах), `late_cancel` (поздняя отмена без возврата), `remind_clients`, `notify_staff`,
 `daily_agenda`, `created_at`, `working_hours`, `packages`, `messages`,
 `payment_accounts` (без ключей и идентификатора магазина).
 
@@ -51,7 +52,8 @@
 `cancelled`), `starts_at`, `ends_at`, `client_id` (→ `clients.id` или `team.id`),
 `guest_name`, `guest_phone`, `guest_contact`, `note`, `client_timezone`, `answers`
 (`[{ question, answer }]`, с формулировкой вопроса на момент записи),
-`series_id` (→ `series.id`), `meeting_url`, `hold_until`, `cancel_reason`,
+`series_id` (→ `series.id`), `meeting_url`, `hold_until`, `cancel_reason`
+(`client`, `late_cancel`, `staff`, `no_show`, `hold_expired`, `payment_cancelled`),
 `cancelled_at`, `created_at`.
 
 `series`: `id`, `client_id`, `interval_weeks`, `count`, `cancelled_at`,

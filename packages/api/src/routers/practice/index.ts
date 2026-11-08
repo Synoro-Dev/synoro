@@ -8,6 +8,7 @@ import { invitations } from "./invitations";
 import { join } from "./join";
 import { members } from "./members";
 import { mine } from "./mine";
+import { setCancelRules } from "./set-cancel-rules";
 import { setContact } from "./set-contact";
 import { setFreeBooking } from "./set-free-booking";
 import { setNotifications } from "./set-notifications";
@@ -35,6 +36,7 @@ export const practiceRouter = {
   setContact,
   setFreeBooking,
   setPayAtVisit,
+  setCancelRules,
   setNotifications,
   setTimezone,
   setSlug,

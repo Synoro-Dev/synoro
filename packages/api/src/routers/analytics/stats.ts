@@ -59,7 +59,12 @@ function counted(now: Date) {
     ),
     and(
       eq(Booking.status, "cancelled"),
-      inArray(Booking.cancelReason, ["client", "staff", "no_show"]),
+      inArray(Booking.cancelReason, [
+        "client",
+        "late_cancel",
+        "staff",
+        "no_show",
+      ]),
     ),
   );
 }
@@ -158,8 +163,9 @@ export async function periodStats(
       if (row.kind === "free") intros += row.n;
       else meetings += row.n;
       seconds += row.seconds;
-    } else if (row.reason === "client") cancelledByClient += row.n;
-    else if (row.reason === "staff") cancelledByStaff += row.n;
+    } else if (row.reason === "client" || row.reason === "late_cancel") {
+      cancelledByClient += row.n;
+    } else if (row.reason === "staff") cancelledByStaff += row.n;
     else if (row.reason === "no_show") noShows += row.n;
   }
 

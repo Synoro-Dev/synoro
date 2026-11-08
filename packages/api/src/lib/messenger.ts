@@ -25,10 +25,21 @@ import {
   sendToChat,
   webhookSecret,
 } from "@synoro/jobs/messenger";
-import { MESSENGERS, type Messenger } from "@synoro/validators";
+import {
+  type CancelRules,
+  formatCancelHours,
+  formatHoursLess,
+  MESSENGERS,
+  type Messenger,
+} from "@synoro/validators";
 
 import { track } from "./analytics";
-import { type CancelRefusal, cancelBookingAs, checkCancel } from "./bookings";
+import {
+  type CancelRefusal,
+  cancelBookingAs,
+  checkCancel,
+  loadCancelRules,
+} from "./bookings";
 
 /**
  * Linking a user to the Synoro bot in Telegram or MAX («Про»,
@@ -206,11 +217,18 @@ const PRESS_REPLIES = {
   kept: "Хорошо, запись остаётся.",
 } as const;
 
-const REFUSALS: Record<CancelRefusal, string> = {
-  NOT_FOUND: "Запись уже отменена или не найдена.",
-  TOO_LATE:
-    "Отменить запись можно не позднее чем за 24 часа до начала — напишите специалисту.",
-};
+/**
+ * Why the button can't cancel. A late cancellation without the credit back
+ * is never done from a messenger: the client confirms it in the cabinet,
+ * where they see what they lose.
+ */
+function refusalText(refusal: CancelRefusal, rules?: CancelRules) {
+  if (refusal === "NOT_FOUND") return "Запись уже отменена или не найдена.";
+  const hours = rules?.cancelHours ?? 24;
+  return rules?.lateCancel
+    ? `До начала ${formatHoursLess(hours)}: отменить запись без возврата оплаты можно в кабинете.`
+    : `Отменить запись можно не позднее чем ${formatCancelHours(hours)} до начала — напишите специалисту.`;
+}
 
 /** A plain text in place of the pressed message, its buttons gone. */
 const replaced = (text: string): MessengerMessage => ({ text, buttons: [] });
@@ -274,8 +292,17 @@ async function press(
       return;
     case "cancel": {
       const check = await checkCancel(db, action.bookingId, chat.userId);
-      if ("refusal" in check) {
-        await answer(messenger, pressed, { notice: REFUSALS[check.refusal] });
+      if ("refusal" in check || check.terms === "forfeit") {
+        const refusal =
+          "refusal" in check
+            ? check
+            : {
+                refusal: "TOO_LATE" as const,
+                rules: await loadCancelRules(db, check.booking.practiceId),
+              };
+        await answer(messenger, pressed, {
+          notice: refusalText(refusal.refusal, refusal.rules),
+        });
         return;
       }
       const practice = await db.query.Practice.findFirst({
@@ -299,7 +326,7 @@ async function press(
       const result = await cancelBookingAs(db, action.bookingId, chat.userId);
       if ("refusal" in result) {
         await answer(messenger, pressed, {
-          replace: replaced(REFUSALS[result.refusal]),
+          replace: replaced(refusalText(result.refusal, result.rules)),
         });
         return;
       }
