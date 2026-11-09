@@ -31,8 +31,7 @@ const VERIFICATION_PREFIX = "_booking-verification";
 /** Pending reservations expire 24 hours after the hostname/token is set. */
 export const DOMAIN_RESERVATION_MS = 24 * 60 * 60 * 1000;
 
-const verificationRecordName = (hostname: string) =>
-  `${VERIFICATION_PREFIX}.${hostname}`;
+const verificationRecordName = () => `${VERIFICATION_PREFIX}`;
 
 /** Hostnames of the exact (non-wildcard) AUTH_TRUSTED_ORIGINS. */
 const trustedHosts = () =>
@@ -87,7 +86,7 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
   const records: DnsRecord[] = [
     {
       type: "TXT",
-      name: verificationRecordName(row.hostname),
+      name: verificationRecordName(),
       value: row.verificationToken,
       purpose: "ownership",
       recommended: true,
@@ -141,9 +140,7 @@ export async function checkDomainDns(
   resolver: DnsResolver = systemResolver,
 ) {
   const [txt, dns] = await Promise.all([
-    resolver
-      .resolveTxt(verificationRecordName(hostname))
-      .catch((): string[][] => []),
+    resolver.resolveTxt(verificationRecordName()).catch((): string[][] => []),
     lookupDns(hostname, targets.cname, resolver),
   ]);
 
