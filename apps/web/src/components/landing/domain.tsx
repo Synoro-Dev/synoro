@@ -2,7 +2,9 @@
 
 import { cn, Tabs, TabsContent, TabsList, TabsTrigger } from "@synoro/ui";
 import {
+  ArrowRightIcon,
   CheckIcon,
+  ChevronRightIcon,
   ClockIcon,
   GlobeIcon,
   LockIcon,
@@ -19,7 +21,7 @@ import { Initials, Lead, Section, SectionHeading } from "./primitives";
 const steps = [
   {
     title: "Выберите адрес",
-    text: "Проще всего поддомен вашего сайта — например, zapis.anna-ivanova.ru. Домен нужно заранее купить у любого регистратора.",
+    text: "Проще всего поддомен вашего сайта — например, zapis.anna-mironova.ru. Домен нужно заранее купить у любого регистратора.",
   },
   {
     title: "Добавьте две записи",
@@ -36,7 +38,7 @@ const modes = [
   {
     id: "sub",
     label: "Поддомен",
-    host: "zapis.anna-ivanova.ru",
+    host: "zapis.anna-mironova.ru",
     records: [
       { type: "CNAME", name: "zapis", value: `domains.${brand.rootDomain}` },
       {
@@ -50,7 +52,7 @@ const modes = [
   {
     id: "apex",
     label: "Домен целиком",
-    host: "anna-ivanova.ru",
+    host: "anna-mironova.ru",
     records: [
       { type: "ALIAS", name: "@", value: `domains.${brand.rootDomain}` },
       {
@@ -91,9 +93,9 @@ function Browser({ host }: { host: string }) {
       </div>
       <div className="flex flex-col gap-4 p-4 sm:p-5">
         <div className="flex items-center gap-3">
-          <Initials name="Анна Иванова" className="size-10 text-sm" />
+          <Initials name="Анна Миронова" className="size-10 text-sm" />
           <div className="min-w-0 flex-1">
-            <p className="text-muted-foreground text-xs">Анна Иванова</p>
+            <p className="text-muted-foreground text-xs">Анна Миронова</p>
             <p className="truncate font-medium">Консультация психолога</p>
           </div>
           <p className="text-muted-foreground hidden items-center gap-1.5 text-xs sm:flex">
@@ -107,6 +109,38 @@ function Browser({ host }: { host: string }) {
           <Slot>15:00</Slot>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** The result in one line: the address before and after, no DNS words. */
+function Shift({ host }: { host: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">Было</span>
+          <span className="text-muted-foreground bg-muted rounded-md border px-2 py-1 font-mono text-xs">
+            {brand.rootDomain}/anna
+          </span>
+        </span>
+        <ArrowRightIcon
+          aria-hidden
+          className="text-muted-foreground size-4 shrink-0"
+        />
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="text-muted-foreground text-xs">Стало</span>
+          <span
+            key={host}
+            className="bg-background animate-in truncate rounded-md border px-2 py-1 font-mono text-xs font-medium duration-300 fade-in-0"
+          >
+            {host}
+          </span>
+        </span>
+      </p>
+      <p className="text-muted-foreground text-xs">
+        За несколько минут, по готовой подсказке в настройках
+      </p>
     </div>
   );
 }
@@ -245,11 +279,20 @@ export function Domain() {
               keepMounted
               className="flex min-w-0 flex-col gap-4"
             >
+              <Shift host={item.host} />
               <Browser host={item.host} />
-              <Records mode={item} />
-              <p className="text-muted-foreground text-xs text-pretty">
-                {item.note}
-              </p>
+              <details className="group">
+                <summary className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm transition-colors [&::-webkit-details-marker]:hidden">
+                  <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
+                  Технические детали для настройки
+                </summary>
+                <div className="mt-4 flex flex-col gap-4">
+                  <Records mode={item} />
+                  <p className="text-muted-foreground text-xs text-pretty">
+                    {item.note}
+                  </p>
+                </div>
+              </details>
             </TabsContent>
           ))}
         </Tabs>

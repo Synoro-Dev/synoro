@@ -14,14 +14,14 @@ type Row = {
 const rows: Row[] = [
   {
     when: "Вт, 24 нояб · 13:00–14:00",
-    who: "Ольга Петрова",
-    note: "olga.petrova@example.com",
+    who: "Вера Тихонова",
+    note: "vera.tikhonova@example.com",
     kind: "consultation",
     extra: "Осталось 8 занятий",
   },
   {
     when: "Вт, 24 нояб · 15:00–15:30",
-    who: "Ирина Лебедева",
+    who: "Надежда Светлова",
     note: "+7 916 123-45-67",
     kind: "free",
   },
@@ -33,8 +33,8 @@ const rows: Row[] = [
   },
   {
     when: "Ср, 25 нояб · 14:00–15:00",
-    who: "Дмитрий Иванов",
-    note: "dmitry.ivanov@example.com",
+    who: "Лев Добрынин",
+    note: "lev.dobrynin@example.com",
     kind: "consultation",
     extra: "Осталось 1 занятие",
   },

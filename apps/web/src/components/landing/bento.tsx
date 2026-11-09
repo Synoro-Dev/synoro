@@ -49,9 +49,9 @@ function CreditsVisual() {
   return (
     <div className="bg-background w-full max-w-md rounded-xl border shadow-sm">
       <div className="flex items-center gap-4 border-b p-4">
-        <Initials name="Ольга Петрова" />
+        <Initials name="Вера Тихонова" />
         <div className="flex-1">
-          <p className="text-sm font-medium">Ольга Петрова</p>
+          <p className="text-sm font-medium">Вера Тихонова</p>
           <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
             <div className="bg-foreground h-full w-[80%] rounded-full" />
           </div>
@@ -90,14 +90,14 @@ function ConflictVisual() {
   return (
     <div className="flex w-full max-w-60 flex-col gap-2.5">
       <div className="bg-background flex items-center gap-2.5 rounded-lg border p-2.5 text-sm shadow-sm">
-        <Initials name="Наталья Волкова" className="size-6 text-[10px]" />
+        <Initials name="Любовь Ясенева" className="size-6 text-[10px]" />
         <span className="flex-1">Пт, 10:00</span>
         <span className="flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white">
           <CheckIcon className="size-3" />
         </span>
       </div>
       <div className="bg-background flex items-center gap-2.5 rounded-lg border p-2.5 text-sm opacity-70 shadow-sm">
-        <Initials name="Алексей Кузнецов" className="size-6 text-[10px]" />
+        <Initials name="Марк Заречный" className="size-6 text-[10px]" />
         <span className="text-muted-foreground flex-1 line-through">
           Пт, 10:00
         </span>
@@ -115,7 +115,7 @@ function ConflictVisual() {
 const notices = [
   {
     channel: "TG",
-    title: "Новая запись · Ольга Петрова",
+    title: "Новая запись · Вера Тихонова",
     note: "Вт, 24 нояб · 13:00",
     fresh: true,
   },
@@ -179,19 +179,17 @@ function CancelVisual() {
   );
 }
 
-const team = [
+const owner = { name: "Анна Миронова", note: "Работает с клиентами" };
+
+/** Who takes the routine off the owner: shown below, branching from them. */
+const around = [
   {
-    name: "Андрей Клюев",
-    role: "Владелец",
-    tone: "bg-foreground text-background",
-  },
-  {
-    name: "Мария Соколова",
+    name: "София Белозерская",
     role: "Администратор",
     tone: "ring-border ring-1 ring-inset",
   },
   {
-    name: "Екатерина Смирнова",
+    name: "Вера Тихонова",
     role: "Клиент",
     tone: "bg-muted text-muted-foreground",
   },
@@ -199,24 +197,38 @@ const team = [
 
 function TeamVisual() {
   return (
-    <div className="flex w-full max-w-72 flex-col gap-2">
-      {team.map((member) => (
-        <div
-          key={member.name}
-          className="bg-background flex items-center gap-2.5 rounded-lg border p-2 pr-2.5 shadow-sm"
-        >
-          <Initials name={member.name} className="size-7 text-[10px]" />
-          <span className="flex-1 truncate text-sm">{member.name}</span>
-          <span
-            className={cn(
-              "rounded-md px-1.5 py-0.5 text-xs font-medium",
-              member.tone,
-            )}
-          >
-            {member.role}
-          </span>
+    <div className="flex w-full max-w-80 flex-col items-center">
+      <div className="bg-background flex items-center gap-3 rounded-xl border p-3 pr-3.5 shadow-sm">
+        <Initials name={owner.name} className="size-10 text-sm" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{owner.name}</p>
+          <p className="text-muted-foreground text-xs">{owner.note}</p>
         </div>
-      ))}
+        <span className="bg-foreground text-background rounded-md px-1.5 py-0.5 text-xs font-medium">
+          Владелец
+        </span>
+      </div>
+      <span aria-hidden className="bg-border h-3 w-px" />
+      <span aria-hidden className="h-3 w-1/2 rounded-t-lg border-x border-t" />
+      <div className="grid w-full grid-cols-2 gap-2">
+        {around.map((member) => (
+          <div
+            key={member.name}
+            className="bg-background flex min-w-0 flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center shadow-sm"
+          >
+            <Initials name={member.name} className="size-7 text-[10px]" />
+            <p className="w-full truncate text-xs">{member.name}</p>
+            <span
+              className={cn(
+                "rounded-md px-1.5 py-0.5 text-xs font-medium",
+                member.tone,
+              )}
+            >
+              {member.role}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

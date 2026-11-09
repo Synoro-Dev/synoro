@@ -75,12 +75,12 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
 
       <div className="flex items-center gap-3 border-b p-4 sm:px-5">
         <Initials
-          name={demo?.name ?? "Анна Смирнова"}
+          name={demo?.name ?? "Анна Миронова"}
           className="size-10 text-sm"
         />
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground text-xs">
-            {demo?.name ?? "Анна Смирнова"}
+            {demo?.name ?? "Анна Миронова"}
           </p>
           <p className="truncate font-medium">
             {demo?.service ?? "Индивидуальное занятие"}
