@@ -1,11 +1,10 @@
 "use client";
 
 import type { RouterOutputs } from "@synoro/api";
-import { Button, cn, Spinner, toast } from "@synoro/ui";
+import { Button, cn, Spinner } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
 import {
   CheckIcon,
-  CopyIcon,
   ExternalLinkIcon,
   GlobeIcon,
   LockIcon,
@@ -13,6 +12,8 @@ import {
   WaypointsIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
+
+import { CopyStateIcon, useCopied } from "../copy-value";
 
 export type DomainStage = RouterOutputs["domain"]["verify"]["stage"];
 
@@ -236,15 +237,6 @@ export function DomainProgress({
   );
 }
 
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success("Ссылка скопирована");
-  } catch {
-    toast.info(text);
-  }
-}
-
 /**
  * The finish: the domain works over https. `celebrate` when it got there
  * while the owner watched — the badge rings a few times.
@@ -261,6 +253,7 @@ export function DomainReady({
   /** Check again, disconnect. */
   actions: ReactNode;
 }) {
+  const { copied, copy } = useCopied();
   return (
     <div className="relative flex animate-in flex-col gap-4 overflow-hidden rounded-xl border border-success/30 bg-success/5 p-5 duration-500 fade-in zoom-in-95 motion-reduce:animate-none">
       <div
@@ -320,8 +313,11 @@ export function DomainReady({
           <ExternalLinkIcon />
           Открыть сайт
         </Button>
-        <Button variant="outline" onClick={() => copy(url)}>
-          <CopyIcon />
+        <Button
+          variant="outline"
+          onClick={() => copy(url, "Ссылка скопирована")}
+        >
+          <CopyStateIcon copied={copied} />
           Скопировать ссылку
         </Button>
         <div className="ml-auto flex gap-2">{actions}</div>

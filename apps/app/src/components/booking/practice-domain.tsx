@@ -32,7 +32,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CircleCheckIcon,
   CircleXIcon,
-  CopyIcon,
   ExternalLinkIcon,
   GlobeIcon,
   RefreshCwIcon,
@@ -42,7 +41,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { client, orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
-import { CopyValue } from "../copy-value";
+import { CopyStateIcon, CopyValue, useCopied } from "../copy-value";
 import { SaveState } from "../settings/save-state";
 import { ConfirmButton } from "./confirm-button";
 import {
@@ -70,16 +69,8 @@ const reservationOf = (
 /** How often the page checks while waiting: often at first, then calmer. */
 const checkInterval = (checks: number) => (checks < 40 ? 8_000 : 30_000);
 
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success("Скопировано");
-  } catch {
-    toast.info(text);
-  }
-}
-
 function LinkRow({ value, label }: { value: string; label: string }) {
+  const { copied, copy } = useCopied();
   return (
     <div className="flex gap-2">
       <Input readOnly value={value} aria-label={label} />
@@ -89,7 +80,7 @@ function LinkRow({ value, label }: { value: string; label: string }) {
         aria-label="Скопировать ссылку"
         onClick={() => copy(new URL(value, window.location.origin).href)}
       >
-        <CopyIcon />
+        <CopyStateIcon copied={copied} />
       </Button>
       <Button
         variant="outline"
@@ -496,14 +487,10 @@ export function PracticeDomain({
                               key={text}
                               className="max-w-56 align-top whitespace-normal"
                             >
-                              <button
-                                type="button"
-                                onClick={() => copy(text)}
-                                className="flex max-w-full items-center gap-1.5 rounded-sm text-left font-mono text-xs break-all transition-colors hover:text-primary"
-                              >
-                                {text}
-                                <CopyIcon className="size-3 shrink-0 opacity-50" />
-                              </button>
+                              <CopyValue
+                                value={text}
+                                className="font-mono text-xs"
+                              />
                             </TableCell>
                           ))}
                           <TableCell className="align-top">
@@ -537,8 +524,9 @@ export function PracticeDomain({
                   </li>
                 )}
                 <li>
-                  Если у регистратора поле «Имя» без домена, укажите только
-                  начало: «_booking-verification» или «@» для корня.
+                  Имена записей указаны относительно домена — если у
+                  регистратора поле «Имя» просит полный адрес, добавьте домен в
+                  конец (например, booking.stariva.ru).
                 </li>
                 <li>
                   Изменения DNS расходятся от нескольких минут до суток. Если у

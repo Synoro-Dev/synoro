@@ -23,13 +23,13 @@ import {
   CalendarCheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  CopyIcon,
   PhoneCallIcon,
   UserRoundPlusIcon,
 } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { CopyStateIcon, useCopied } from "../copy-value";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { ErrorState } from "./states";
 import { useTerms } from "./terms";
@@ -108,6 +108,7 @@ export function PracticeWindows({
   introMinutes: number;
 }) {
   const terms = useTerms();
+  const { copied, copy: write } = useCopied();
   const today = dateKey(new Date(), timezone);
   const [weekStart, setWeekStart] = useState(() => mondayOf(today));
   const [kind, setKind] = useState<Kind>("consultation");
@@ -157,7 +158,7 @@ export function PracticeWindows({
     });
   }
 
-  async function copy() {
+  function copy() {
     if (stale) return;
     const lines = days
       .filter((day) => day.slots[kind].length > 0)
@@ -174,12 +175,7 @@ export function PracticeWindows({
       `Время — ${zoneName(timezone)}:`,
       ...lines,
     ].join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("Свободное время скопировано — вставьте его в сообщение");
-    } catch {
-      toast.info(text);
-    }
+    void write(text, "Свободное время скопировано — вставьте его в сообщение");
   }
 
   if (windows.isError) {
@@ -254,7 +250,7 @@ export function PracticeWindows({
             </Button>
           )}
           <Button variant="outline" size="sm" disabled={stale} onClick={copy}>
-            <CopyIcon />
+            <CopyStateIcon copied={copied} />
             Скопировать
           </Button>
         </div>

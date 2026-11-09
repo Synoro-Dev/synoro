@@ -14,17 +14,13 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@synoro/ui/reui/alert";
 import { Badge } from "@synoro/ui/reui/badge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  CalendarDaysIcon,
-  CircleAlertIcon,
-  CopyIcon,
-  DownloadIcon,
-} from "lucide-react";
+import { CalendarDaysIcon, CircleAlertIcon, DownloadIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { ErrorState } from "../booking/states";
+import { CopyStateIcon, useCopied } from "../copy-value";
 import { useDataAccess } from "./data-access";
 import { DeleteAccountSection } from "./delete-account";
 
@@ -166,6 +162,7 @@ function FeedLine({ practice }: { practice: Overview["practices"][number] }) {
   const access = useDataAccess();
   // Only the hash is stored: the link is seen once, right after issuing it.
   const [url, setUrl] = useState<string | null>(null);
+  const { copied, copy } = useCopied();
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: orpc.data.key() });
   const input = { practiceId: practice.id };
@@ -256,13 +253,9 @@ function FeedLine({ practice }: { practice: Overview["practices"][number] }) {
             <Button
               variant="outline"
               aria-label="Скопировать ссылку"
-              onClick={() =>
-                navigator.clipboard
-                  .writeText(url)
-                  .then(() => toast.success("Ссылка скопирована"))
-              }
+              onClick={() => copy(url, "Ссылка скопирована")}
             >
-              <CopyIcon />
+              <CopyStateIcon copied={copied} />
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">

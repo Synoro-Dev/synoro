@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 
 import { orpc } from "~/orpc/react";
+import { CopyValue } from "../copy-value";
 import { ConfirmButton } from "./confirm-button";
 import { useDisplayZone } from "./display-zone";
 import { ErrorState } from "./states";
@@ -273,8 +274,9 @@ export function GuestBooking({ token }: { token: string }) {
                 </p>
               )}
             <p className="text-xs text-muted-foreground">
-              В кабинет вы войдёте по коду, который придёт на {data.email}.
-              Сохраните эту страницу — по ссылке запись открывается без входа.
+              В кабинет вы войдёте по коду, который придёт на{" "}
+              <CopyValue value={data.email} />. Сохраните эту страницу — по
+              ссылке запись открывается без входа.
             </p>
           </>
         )}
