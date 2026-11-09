@@ -131,6 +131,7 @@
         "@synoro/jobs": "workspace:*",
         "@synoro/validators": "workspace:*",
         "posthog-node": "^5.61.2",
+        "tldts": "7.4.17",
         "zod": "4.6.7",
       },
       "devDependencies": {
@@ -1857,6 +1858,10 @@
     "tinyglobby": ["tinyglobby@0.2.17", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.4" } }, "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="],
 
     "tinyps": ["tinyps@0.5.1", "", {}, "sha512-B6Ykif5HflC3AdDkS4Zst/2muYVfeXoVMy+KorqH80s/1x4vunIORpNySH681X7fjj+dFM9MDKD6/Hsccjb87Q=="],
+
+    "tldts": ["tldts@7.4.17", "", { "dependencies": { "tldts-core": "^7.4.17" }, "bin": { "tldts": "bin/cli.js" } }, "sha512-6DDZuBnzfvl05zNZ/J1kdYlsicrPmLZl9Tdg/BMq5nwnquw3mRCIasarwSXv+ExIN8185DRSlsaXAdvXEXOPhw=="],
+
+    "tldts-core": ["tldts-core@7.4.20", "", {}, "sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A=="],
 
     "ts-error": ["ts-error@1.0.6", "", {}, "sha512-tLJxacIQUM82IR7JO1UUkKlYuUTmoY9HBJAmNWFzheSlDS5SPMcNIepejHJa4BpPQLAcbRhRf3GDJzyj6rbKvA=="],
 

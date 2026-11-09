@@ -19,6 +19,7 @@ import {
   lookupDns,
   servesHttps,
 } from "@synoro/jobs/custom-domains";
+import { getDomain } from "tldts";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -31,7 +32,9 @@ const VERIFICATION_PREFIX = "_booking-verification";
 /** Pending reservations expire 24 hours after the hostname/token is set. */
 export const DOMAIN_RESERVATION_MS = 24 * 60 * 60 * 1000;
 
-const verificationRecordName = () => `${VERIFICATION_PREFIX}`;
+/** FQDN of the TXT record that proves ownership. */
+const verificationRecordName = (hostname: string) =>
+  `${VERIFICATION_PREFIX}.${hostname}`;
 
 /** Hostnames of the exact (non-wildcard) AUTH_TRUSTED_ORIGINS. */
 const trustedHosts = () =>
@@ -63,6 +66,14 @@ function dnsTargets(): DnsTargets {
   };
 }
 
+/**
+ * The zone the owner edits at their registrar: the registered domain
+ * (`stariva.ru` for `booking.stariva.ru`, `anna.co.uk` for itself), by the
+ * public suffix list.
+ */
+const dnsZone = (hostname: string) =>
+  getDomain(hostname, { allowPrivateDomains: true }) ?? hostname;
+
 // A type alias (not an interface) so router declarations can inline it.
 type DnsRecord = {
   type: "TXT" | "CNAME" | "ALIAS";
@@ -78,15 +89,26 @@ type DnsRecord = {
  * a CNAME for a subdomain. An apex domain can't hold a CNAME, so it also gets
  * an ALIAS (ANAME, «CNAME flattening» at some registrars) to the same target;
  * where there is none, a subdomain such as `zapis.<domain>` does the job.
- * Two labels is a guess at "apex" (wrong for `anna.msk.ru`), which is why a
- * CNAME stays listed beside the ALIAS.
+ * The apex comes from the public suffix list, which can't know a zone
+ * delegated below the registered domain — so a CNAME stays listed beside
+ * the ALIAS.
  */
 function dnsRecords(row: DomainRow, targets = dnsTargets()) {
-  const apex = row.hostname.split(".").length === 2;
+  const zone = dnsZone(row.hostname);
+  const apex = row.hostname === zone;
+  // Names are shown relative to the domain's zone — what the registrar's
+  // «Имя» field expects — so the owner never pastes their whole domain.
+  const displayZone = displayHost(zone);
+  const recordName = (fqdn: string) => {
+    const name = domainToUnicode(fqdn) || fqdn;
+    return name === displayZone
+      ? "@"
+      : name.slice(0, name.length - displayZone.length - 1);
+  };
   const records: DnsRecord[] = [
     {
       type: "TXT",
-      name: verificationRecordName(),
+      name: recordName(verificationRecordName(row.hostname)),
       value: row.verificationToken,
       purpose: "ownership",
       recommended: true,
@@ -95,7 +117,7 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
   if (targets.cname) {
     records.push({
       type: "CNAME",
-      name: row.hostname,
+      name: recordName(row.hostname),
       value: targets.cname,
       purpose: "routing",
       recommended: !apex,
@@ -103,7 +125,7 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
     if (apex) {
       records.push({
         type: "ALIAS",
-        name: row.hostname,
+        name: recordName(row.hostname),
         value: targets.cname,
         purpose: "routing",
         recommended: true,
@@ -140,7 +162,9 @@ export async function checkDomainDns(
   resolver: DnsResolver = systemResolver,
 ) {
   const [txt, dns] = await Promise.all([
-    resolver.resolveTxt(verificationRecordName()).catch((): string[][] => []),
+    resolver
+      .resolveTxt(verificationRecordName(hostname))
+      .catch((): string[][] => []),
     lookupDns(hostname, targets.cname, resolver),
   ]);
 
@@ -220,6 +244,8 @@ export async function domainSettings(db: Database, practiceId: string) {
           /** https answered with a trusted certificate: fully ready. */
           securedAt: row.securedAt,
           url: `https://${row.hostname}`,
+          /** The zone record names are relative to (`@` is the zone itself). */
+          zone: displayHost(dnsZone(row.hostname)),
           records: dnsRecords(row, targets),
         }
       : null,

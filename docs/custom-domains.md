@@ -52,7 +52,13 @@ still verifies ownership but warns that there is nothing to point DNS at.
 
 **A name, never an IP.** Specialists' records are a `TXT` (ownership) and a
 `CNAME` to this name; for an apex domain, which can't hold a CNAME, an `ALIAS`
-(`ANAME`, «CNAME flattening») to the same name. Nobody is ever told an address,
+(`ANAME`, «CNAME flattening») to the same name. Record names are shown
+relative to the domain's zone (`booking`, `@`, `_booking-verification.booking`)
+— what the registrar's «Имя» field expects; the TXT itself lives at
+`_booking-verification.<host>`. The zone (and with it the apex) is the
+registered domain by the public suffix list (`tldts`): `stariva.ru` for
+`booking.stariva.ru`, `anna.co.uk` for itself; the settings return it as
+`domain.zone` for the hint on full names. Nobody is ever told an address,
 so the hosting can move (another server, another cloud) by changing one record
 of ours, `domains.synoro.ru`. The routing check compares the host with the
 target's _current_ addresses, so it follows the move as well. For an ALIAS,

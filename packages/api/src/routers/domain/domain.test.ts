@@ -98,7 +98,13 @@ describe("domain.connect", () => {
       ["CNAME", false],
       ["ALIAS", true],
     ]);
-    expect(records[0]?.name).toBe("_booking-verification.anna-ivanova.ru");
+    // Names are relative to the domain's zone: what the registrar's
+    // «Имя» field expects, without the domain itself.
+    expect(records.map((r) => r.name)).toEqual([
+      "_booking-verification",
+      "@",
+      "@",
+    ]);
     // Names only: no address is ever shown to connect a domain.
     for (const record of records.filter((r) => r.purpose === "routing")) {
       expect(record.value).toBe("domains.pages.test");
@@ -118,6 +124,38 @@ describe("domain.connect", () => {
       ["TXT", true],
       ["CNAME", true],
     ]);
+    expect(settings.domain?.records.map((r) => r.name)).toEqual([
+      "_booking-verification.zapis",
+      "zapis",
+    ]);
+  });
+
+  it("names records relative to the zone of a deeper subdomain", async () => {
+    const other = await newPractice("deep-host");
+    const settings = await connect(
+      other.session,
+      other.practiceId,
+      "booking.stariva.ru",
+    );
+    expect(settings.domain?.zone).toBe("stariva.ru");
+    expect(settings.domain?.records.map((r) => r.name)).toEqual([
+      "_booking-verification.booking",
+      "booking",
+    ]);
+  });
+
+  it("takes the zone from the public suffix list, not the label count", async () => {
+    const cases = [
+      ["anna.co.uk", "anna.co.uk", ["_booking-verification", "@", "@"]],
+      ["anna.msk.ru", "anna.msk.ru", ["_booking-verification", "@", "@"]],
+      ["a.b.anna.com.au", "anna.com.au", ["_booking-verification.a.b", "a.b"]],
+    ] as const;
+    for (const [hostname, zone, names] of cases) {
+      const other = await newPractice(`zone-${zone.replaceAll(".", "-")}`);
+      const settings = await connect(other.session, other.practiceId, hostname);
+      expect(settings.domain?.zone).toBe(zone);
+      expect(settings.domain?.records.map((r) => r.name)).toEqual([...names]);
+    }
   });
 
   it("keeps the token when the same host is submitted again", async () => {
@@ -545,13 +583,17 @@ describe("checkDomainDns", () => {
   });
 
   it("finds the token, even split into TXT chunks", async () => {
-    const result = await checkDomainDns(
-      "anna.ru",
-      "abc123",
-      targets,
-      resolver({ txt: [["other"], ["abc", "123"]] }),
-    );
+    let queried = "";
+    const dns = resolver({ txt: [["other"], ["abc", "123"]] });
+    const resolveTxt = dns.resolveTxt;
+    dns.resolveTxt = async (name) => {
+      queried = name;
+      return resolveTxt(name);
+    };
+    const result = await checkDomainDns("anna.ru", "abc123", targets, dns);
     expect(result).toEqual({ ownership: true, routing: false });
+    // The TXT lives under the connected host, whatever the UI shows.
+    expect(queried).toBe("_booking-verification.anna.ru");
   });
 
   it("accepts a CNAME to the target, or an ALIAS (the target's addresses)", async () => {
