@@ -112,9 +112,10 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   at once.
 - Checks overlap (the page, a second tab, the sync), so every readiness write
   is guarded: it touches only the very record it checked (`id` and
-  `verification_token`; a new reservation gets a new token), and only if no
-  check that started later has written since — `last_checked_at` holds when
-  the last written check started.
+  `verification_token`; a new reservation gets a new token), and only if the
+  last written check started strictly before it — `last_checked_at` holds when
+  that one started. Of two checks started in the same millisecond, the first
+  to write wins.
 - With `secured_at` set the domain is the practice's address in the console:
   `practice.get` / `practice.mine` return `siteDomain`, shown first in
   «Страница записи» (`BookingLinkActions`), in the sidebar and the practice

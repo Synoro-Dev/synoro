@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, describe, expect, it, spyOn } from "bun:test";
+import {
+  afterAll,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  setSystemTime,
+  spyOn,
+} from "bun:test";
 import { call, isDefinedError } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import { env } from "@synoro/config";
@@ -457,6 +465,36 @@ describe("domain.verify stages", () => {
     expect(replaced.domain?.securedAt).toBeNull();
     await activate("zapis.stages.ru");
     expect((await mine(own.session))[0]?.siteDomain).toBeNull();
+  });
+
+  it("of two checks started in the same millisecond, the first to write wins", async () => {
+    const own = await newPractice("stages-tie");
+    await connect(own.session, own.practiceId, "tie.ru");
+    await activate("tie.ru");
+    const now = new Date("2030-06-01T12:00:00Z");
+    // The other check started at the very same instant and wrote first.
+    setSystemTime(now);
+    const dns = spyOn(domains, "checkDomainDns").mockImplementationOnce(
+      async () => {
+        await api.db
+          .update(PracticeDomain)
+          .set({ securedAt: now, lastCheckedAt: now })
+          .where(eq(PracticeDomain.practiceId, own.practiceId));
+        return { ownership: true, routing: false };
+      },
+    );
+    try {
+      const result = await call(
+        domainRouter.verify,
+        { practiceId: own.practiceId },
+        { context: api.context(own.session) },
+      );
+      expect(result.domain?.securedAt).toEqual(now);
+      expect(result.stage).toBe("ready");
+    } finally {
+      dns.mockRestore();
+      setSystemTime();
+    }
   });
 
   it("a check overtaken by a newer one doesn't undo it", async () => {
