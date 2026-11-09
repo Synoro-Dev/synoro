@@ -10,7 +10,7 @@ import {
   LockIcon,
   VideoIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { brand } from "~/lib/brand";
 import type { ProfessionPage } from "~/lib/professions";
@@ -55,6 +55,17 @@ const freeLabel = (count: number) =>
   `${count} ${count === 1 ? "свободное" : "свободных"} ${windows[plural.select(count)] ?? "окон"}`;
 
 /**
+ * Until the visitor touches the page it books a time by itself, in a loop:
+ * the day rests, a time is picked, the booking is confirmed (the note takes
+ * 600ms to come up and stays for 2.4s), and it starts over.
+ */
+type AutoStep = "day" | "aim" | "done";
+const autoTime = "15:00";
+const autoNext = { day: "aim", aim: "done", done: "day" } as const;
+const autoHold = { day: 2000, aim: 1400, done: 600 + 2400 } as const;
+const settle = "ease-[cubic-bezier(0.22,1,0.36,1)]";
+
+/**
  * A practice's public booking page that the visitor can actually click
  * through: pick a day, pick a time, book. Nothing is sent anywhere.
  */
@@ -62,12 +73,32 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
   const [day, setDay] = useState(initialDay);
   const [time, setTime] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
+  /** `null` once the visitor has taken over: the loop never comes back. */
+  const [auto, setAuto] = useState<AutoStep | null>("day");
+
+  useEffect(() => {
+    if (auto === null) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = setTimeout(() => setAuto(autoNext[auto]), autoHold[auto]);
+    return () => clearTimeout(timer);
+  }, [auto]);
+
+  const takeOver = () => setAuto(null);
+  const autoPicked = auto === "aim" ? autoTime : null;
+  const autoBooked = auto === "done";
 
   const dayLabel = `${weekdays[weekday(day)]}, ${day} ноября`;
-  const free = times.filter((_, index) => !isTaken(day, index)).length;
+  const free =
+    times.filter((_, index) => !isTaken(day, index)).length -
+    (autoBooked ? 1 : 0);
 
   return (
-    <div className="bg-background relative overflow-hidden rounded-2xl shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_2px_4px_rgb(0_0_0/0.03),0_32px_64px_-24px_rgb(0_0_0/0.22)]">
+    <div
+      onPointerEnter={takeOver}
+      onPointerDownCapture={takeOver}
+      onFocusCapture={takeOver}
+      className="bg-background relative overflow-hidden rounded-2xl shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_2px_4px_rgb(0_0_0/0.03),0_32px_64px_-24px_rgb(0_0_0/0.22)]"
+    >
       <div className="text-muted-foreground flex h-9 items-center justify-center gap-1.5 border-b text-xs">
         <LockIcon className="size-3" />
         {demo?.host ?? `${brand.rootDomain}/anna`}
@@ -164,29 +195,34 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
         <div className="flex flex-col gap-2 border-t p-4 sm:border-t-0 sm:border-l sm:p-5">
           <p className="text-sm font-medium">
             {dayLabel}
-            <span className="text-muted-foreground block text-xs font-normal">
+            <span
+              key={free}
+              className="text-muted-foreground animate-in fade-in block text-xs font-normal duration-600"
+            >
               {freeLabel(free)}
             </span>
           </p>
           <div className="mt-1 grid grid-cols-3 gap-1.5 sm:grid-cols-1">
             {times.map((value, index) => {
               const taken = isTaken(day, index);
-              const selected = value === time;
+              // The loop's own booking only looks taken: a click still lands.
+              const struck = taken || (autoBooked && value === autoTime);
+              const selected = value === (time ?? autoPicked);
               return (
                 <button
                   key={value}
                   type="button"
                   disabled={taken || booked}
-                  aria-pressed={selected}
+                  aria-pressed={value === time}
                   onClick={() => setTime(value)}
                   className={cn(
-                    "focus-visible:ring-ring/50 flex h-9 items-center justify-center rounded-lg border text-sm font-medium tabular-nums outline-none focus-visible:ring-3",
-                    taken &&
+                    "focus-visible:ring-ring/50 flex h-9 items-center justify-center rounded-lg border text-sm font-medium tabular-nums outline-none transition-[color,background-color,border-color,box-shadow,scale] focus-visible:ring-3",
+                    settle,
+                    struck &&
                       "text-muted-foreground/50 bg-muted/50 border-transparent line-through",
-                    !taken &&
-                      !selected &&
-                      "hover:border-foreground/40 transition-colors",
+                    !struck && !selected && "hover:border-foreground/40",
                     selected && "border-foreground ring-foreground ring-1",
+                    selected && autoPicked && "scale-[1.02]",
                   )}
                 >
                   {value}
@@ -198,11 +234,36 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
             type="button"
             disabled={!time || booked}
             onClick={() => setBooked(true)}
-            className="bg-foreground text-background focus-visible:ring-ring/50 disabled:bg-muted disabled:text-muted-foreground mt-auto flex h-9 items-center justify-center rounded-lg text-sm font-medium outline-none transition-colors focus-visible:ring-3 sm:mt-3"
+            className={cn(
+              "bg-foreground text-background focus-visible:ring-ring/50 disabled:bg-muted disabled:text-muted-foreground mt-auto flex h-9 items-center justify-center rounded-lg text-sm font-medium outline-none transition-colors focus-visible:ring-3 sm:mt-3",
+              autoPicked && "disabled:bg-foreground disabled:text-background",
+            )}
           >
-            {time ? "Записаться" : "Выберите время"}
+            {(time ?? autoPicked) ? "Записаться" : "Выберите время"}
           </button>
         </div>
+      </div>
+
+      <div
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute inset-x-3 bottom-3 flex justify-center transition-[opacity,translate] duration-600",
+          settle,
+          !autoBooked && "translate-y-2 opacity-0",
+        )}
+      >
+        <p className="bg-background flex items-center gap-2.5 rounded-xl border py-2 pr-4 pl-2 text-sm shadow-lg">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+            <CheckIcon className="size-4" />
+          </span>
+          <span>
+            <span className="block font-medium">Запись подтверждена</span>
+            <span className="text-muted-foreground block text-xs tabular-nums">
+              {weekdays[weekday(initialDay)]}, {initialDay} ноября, {autoTime} ·
+              письмо отправлено
+            </span>
+          </span>
+        </p>
       </div>
 
       {booked && time && (
