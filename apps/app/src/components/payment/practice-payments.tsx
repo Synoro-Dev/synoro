@@ -42,8 +42,10 @@ import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
 import { useTerms } from "../booking/terms";
 import { formatDateTime } from "../booking/time";
+import { ExportPartButton } from "../settings/export-part-button";
 import { FoldedBlock } from "./folded-block";
 import { formatRub, PAYMENT_STATUS } from "./format";
+import { OfflinePayments, UnpaidBookings } from "./offline-payments";
 import { PackagesEditor } from "./packages-editor";
 import { ProviderForm, TAX_SYSTEM_LABELS } from "./provider-form";
 
@@ -328,8 +330,8 @@ function PaymentsSection({ practiceId }: { practiceId: string }) {
 
   return (
     <Section
-      title="Платежи"
-      description={`Онлайн-оплаты клиентов; ${terms.credits} зачисляются автоматически`}
+      title="Онлайн-оплаты"
+      description={`Через ЮKassa или Т-Банк; ${terms.credits} зачисляются автоматически`}
     >
       {list.isError ? (
         <ErrorState onRetry={() => list.refetch()} />
@@ -430,21 +432,38 @@ export function PracticeOnlinePayment({ practiceId }: { practiceId: string }) {
   );
 }
 
-/** The payments coming in, for all staff. The owner also sees the connection. */
+/**
+ * The money coming in, for all staff: bookings paid at the visit still
+ * awaiting payment, payments received outside Synoro, online payments. The
+ * owner also sees the connection and takes the income out for the tax return.
+ */
 export function PracticePayments({
   practiceId,
+  timezone,
   isOwner,
 }: {
   practiceId: string;
+  timezone: string;
   isOwner: boolean;
 }) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
       <PageHeading
         title="Оплаты"
-        description="Платежи клиентов. Начислить оплату вручную можно в карточке клиента."
+        description="Всё, что клиенты заплатили: онлайн и напрямую вам. Пакет, оплаченный напрямую, начисляйте в карточке клиента — с суммой он попадёт и сюда."
+        actions={
+          isOwner ? (
+            <ExportPartButton
+              what="income"
+              practiceId={practiceId}
+              timezone={timezone}
+            />
+          ) : undefined
+        }
       />
       {isOwner ? <ConnectionStatus practiceId={practiceId} /> : null}
+      <UnpaidBookings practiceId={practiceId} timezone={timezone} />
+      <OfflinePayments practiceId={practiceId} timezone={timezone} />
       <PaymentsSection practiceId={practiceId} />
     </div>
   );

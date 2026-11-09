@@ -233,7 +233,7 @@ and run `tsc` by hand, build them first.
   (owner only, `report: null` without «Про») — meetings, no-shows, online
   revenue, clients and busy hours for 30/90/365 days against the stretch before;
   queries in `routers/analytics/stats.ts`, page `/practices/<id>/analytics`.
-  Revenue is online payments only (manual packages have no amount).
+  Revenue is online plus `offline_payments` (`onlineRevenue` / `offlineRevenue`).
 - **Messenger notices («Про»)** (`docs/reminders.md`, «Мессенджеры»):
   Synoro bots in Telegram and MAX (`TELEGRAM_*` / `MAX_*` env, webhooks
   `/api/telegram`, `/api/max`, registered by `bun messenger:webhooks`). A
@@ -321,6 +321,12 @@ and run `tsc` by hand, build them first.
   get no mail, because mail goes through `practice_members`. Every import is a
   batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
   `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
+- **Payments outside Synoro** (`docs/offline-payments.md`): `offline_payments`
+  (amount in kopecks, method, `paid_at`; linked to a booking paid at the visit
+  or a `credit.grant` entry), `offlinePayment.*` (staff): record, list, remove,
+  `unpaid` («Ждут оплаты»: ended `credits = 0` consultations with no payment).
+  A payment never moves the balance; `credit.grant { payment }` credits and
+  records in one transaction. Income CSV: `data.exportPart { what: "income" }`.
 - **Client notes** (`docs/client-notes.md`): the owner's working notes on a
   client, optionally about one booking (`client_notes`, `note.*`, card tab
   «Заметки»). Owner only, in person: administrators and impersonation get

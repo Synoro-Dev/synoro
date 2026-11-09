@@ -371,5 +371,9 @@ export async function recordCredit(
   db: Database,
   entry: typeof CreditEntry.$inferInsert,
 ) {
-  await db.insert(CreditEntry).values(entry);
+  const [row] = await db
+    .insert(CreditEntry)
+    .values(entry)
+    .returning({ id: CreditEntry.id });
+  return row?.id;
 }

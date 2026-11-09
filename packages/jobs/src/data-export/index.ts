@@ -6,7 +6,12 @@ export {
   DATA_FORMAT_VERSION,
   type PracticeDump,
 } from "./collect";
-export { appointmentsCsv, bookingEvents, clientsCsv } from "./files";
+export {
+  appointmentsCsv,
+  bookingEvents,
+  clientsCsv,
+  incomeCsv,
+} from "./files";
 export { buildCalendar } from "./ics";
 export {
   cleanupDataExports,

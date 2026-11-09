@@ -1,4 +1,8 @@
-import { type Profession, professionTerms } from "@synoro/validators";
+import {
+  OFFLINE_PAYMENT_METHOD_LABELS,
+  type Profession,
+  professionTerms,
+} from "@synoro/validators";
 import { strToU8, zipSync } from "fflate";
 
 import type { AccountDump, PracticeDump } from "./collect";
@@ -226,6 +230,71 @@ function servicesCsv(practices: PracticeDump[]) {
   );
 }
 
+/** Credits of each balance entry, for a package paid outside Synoro. */
+function creditsOf(practice: PracticeDump) {
+  return new Map(
+    practice.credit_entries.map((entry) => [entry.id, entry.delta] as const),
+  );
+}
+
+/**
+ * The practice's income between `from` and `to`, for the tax return: online
+ * payments that went through and money received outside Synoro, by the day
+ * it came, oldest first.
+ */
+export function incomeCsv(practice: PracticeDump, from: Date, to: Date) {
+  const people = peopleOf(practice);
+  const credits = creditsOf(practice);
+  const terms = professionTerms(practice.profession as Profession);
+  const within = (at: string | null) =>
+    at !== null && new Date(at) >= from && new Date(at) < to;
+  const rows: { at: string; cells: Cell[] }[] = [];
+  for (const payment of practice.payments) {
+    if (payment.status !== "succeeded" || !within(payment.paid_at)) continue;
+    rows.push({
+      at: payment.paid_at as string,
+      cells: [
+        csvDate(payment.paid_at, practice.timezone),
+        payment.client_id ? people.get(payment.client_id)?.name : null,
+        rublesCell(payment.amount_kopecks),
+        `Онлайн, ${PROVIDERS[payment.provider]}`,
+        `Пакет: ${payment.credits} ${terms.credit[2]}`,
+        payment.external_id,
+      ],
+    });
+  }
+  const bookings = new Map(practice.bookings.map((b) => [b.id, b] as const));
+  for (const payment of practice.offline_payments) {
+    if (!within(payment.paid_at)) continue;
+    const booking = payment.booking_id
+      ? bookings.get(payment.booking_id)
+      : undefined;
+    const package_ = payment.credit_entry_id
+      ? credits.get(payment.credit_entry_id)
+      : undefined;
+    rows.push({
+      at: payment.paid_at,
+      cells: [
+        csvDate(payment.paid_at, practice.timezone),
+        payment.client_id ? people.get(payment.client_id)?.name : null,
+        rublesCell(payment.amount_kopecks),
+        OFFLINE_PAYMENT_METHOD_LABELS[payment.method],
+        booking
+          ? `Запись ${csvDate(booking.starts_at, practice.timezone)}`
+          : package_
+            ? `Пакет: ${package_} ${terms.credit[2]}`
+            : payment.note,
+        null,
+      ],
+    });
+  }
+  rows.sort((a, b) => a.at.localeCompare(b.at));
+  return toCsv(
+    ["Дата", "Клиент", "Сумма, ₽", "Способ", "За что", "Номер операции"],
+    rows.map((row) => row.cells),
+  );
+}
+
 /** Clients' online payments, then what the specialist paid Synoro. */
 function paymentsCsv(dump: AccountDump) {
   const rows: Cell[][] = [];
@@ -237,7 +306,7 @@ function paymentsCsv(dump: AccountDump) {
         : undefined;
       rows.push([
         practice.name,
-        "Оплата клиента",
+        "Оплата клиента онлайн",
         csvDate(payment.created_at, practice.timezone),
         csvDate(payment.paid_at, practice.timezone),
         person?.name,
@@ -246,6 +315,24 @@ function paymentsCsv(dump: AccountDump) {
         PAYMENT_STATUSES[payment.status],
         PROVIDERS[payment.provider],
         payment.external_id,
+      ]);
+    }
+  }
+  for (const practice of dump.practices) {
+    const people = peopleOf(practice);
+    const credits = creditsOf(practice);
+    for (const payment of practice.offline_payments) {
+      rows.push([
+        practice.name,
+        "Оплата клиента вне Synoro",
+        csvDate(payment.created_at, practice.timezone),
+        csvDate(payment.paid_at, practice.timezone),
+        payment.client_id ? people.get(payment.client_id)?.name : null,
+        payment.credit_entry_id ? credits.get(payment.credit_entry_id) : null,
+        rublesCell(payment.amount_kopecks),
+        "Получена",
+        OFFLINE_PAYMENT_METHOD_LABELS[payment.method],
+        null,
       ]);
     }
   }

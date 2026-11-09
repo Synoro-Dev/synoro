@@ -11,6 +11,7 @@ import {
   type Database,
   eq,
   gte,
+  OfflinePayment,
   Payment,
   PaymentAccount,
   PaymentPackage,
@@ -148,6 +149,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     cards,
     archived,
     notes,
+    offline,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -229,6 +231,11 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(ClientNote)
       .where(eq(ClientNote.practiceId, practice.id))
       .orderBy(asc(ClientNote.createdAt), asc(ClientNote.id)),
+    db
+      .select()
+      .from(OfflinePayment)
+      .where(eq(OfflinePayment.practiceId, practice.id))
+      .orderBy(asc(OfflinePayment.paidAt), asc(OfflinePayment.id)),
   ]);
 
   // History from an earlier archive goes out with the live rows, in their form.
@@ -329,6 +336,18 @@ export async function collectPractice(db: Database, practiceId: string) {
         }),
       ),
     ],
+    // Money staff wrote down as received outside Synoro.
+    offline_payments: offline.map((row) => ({
+      id: row.id,
+      client_id: row.memberId,
+      booking_id: row.bookingId,
+      credit_entry_id: row.creditEntryId,
+      amount_kopecks: row.amount,
+      method: row.method,
+      paid_at: iso(row.paidAt) as string,
+      note: row.note,
+      created_at: iso(row.createdAt),
+    })),
     payment_accounts: accounts.map((row) => ({
       provider: row.provider,
       active: row.active,

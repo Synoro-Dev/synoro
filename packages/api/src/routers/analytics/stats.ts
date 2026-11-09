@@ -11,6 +11,7 @@ import {
   lt,
   lte,
   ne,
+  OfflinePayment,
   or,
   Payment,
   sql,
@@ -34,8 +35,13 @@ export interface PeriodStats {
   noShows: number;
   /** No-shows among everything planned and not cancelled in time, or null. */
   noShowRate: number | null;
-  /** Online payments received, kopecks. */
+  /** Money received, kopecks: online plus written down by staff. */
   revenue: number;
+  /** Of it, paid online through the practice's provider. */
+  onlineRevenue: number;
+  /** Of it, paid outside Synoro (`offline_payments`). */
+  offlineRevenue: number;
+  /** Payments of both kinds. */
   payments: number;
   /** Clients with at least one consultation in the window. */
   activeClients: number;
@@ -79,6 +85,14 @@ function bookingsIn(practiceId: string, range: Range, now: Date) {
   );
 }
 
+function offlineIn(practiceId: string, range: Range) {
+  return and(
+    eq(OfflinePayment.practiceId, practiceId),
+    gte(OfflinePayment.paidAt, range.from),
+    lt(OfflinePayment.paidAt, range.to),
+  );
+}
+
 function paymentsIn(practiceId: string, range: Range) {
   return and(
     eq(Payment.practiceId, practiceId),
@@ -116,7 +130,7 @@ export async function periodStats(
     .groupBy(Booking.memberId)
     .as("per_client");
 
-  const [bookings, [payments], [clients]] = await Promise.all([
+  const [bookings, [payments], [offline], [clients]] = await Promise.all([
     db
       .select({
         kind: Booking.kind,
@@ -140,6 +154,15 @@ export async function periodStats(
       })
       .from(Payment)
       .where(paymentsIn(practiceId, range)),
+    db
+      .select({
+        amount: sql<number>`coalesce(sum(${OfflinePayment.amount}), 0)`.mapWith(
+          Number,
+        ),
+        n: count(),
+      })
+      .from(OfflinePayment)
+      .where(offlineIn(practiceId, range)),
     db
       .select({
         active: count(),
@@ -178,8 +201,10 @@ export async function periodStats(
     cancelledByStaff,
     noShows,
     noShowRate: planned === 0 ? null : noShows / planned,
-    revenue: payments?.amount ?? 0,
-    payments: payments?.n ?? 0,
+    revenue: (payments?.amount ?? 0) + (offline?.amount ?? 0),
+    onlineRevenue: payments?.amount ?? 0,
+    offlineRevenue: offline?.amount ?? 0,
+    payments: (payments?.n ?? 0) + (offline?.n ?? 0),
     activeClients: clients?.active ?? 0,
     newClients: clients?.fresh ?? 0,
   };
@@ -229,7 +254,7 @@ export function usableTimeZone(timeZone: string) {
 }
 
 /**
- * Meetings and online payments per day or week of `range`, in the practice's
+ * Meetings and money received (online and outside Synoro) per day or week of `range`, in the practice's
  * time zone, with the empty ones filled in with zeros.
  */
 export async function seriesStats(
@@ -240,10 +265,15 @@ export async function seriesStats(
   timeZone: string,
   unit: SeriesUnit,
 ): Promise<SeriesPoint[]> {
-  const bucket = (column: typeof Booking.startsAt | typeof Payment.paidAt) =>
+  const bucket = (
+    column:
+      | typeof Booking.startsAt
+      | typeof Payment.paidAt
+      | typeof OfflinePayment.paidAt,
+  ) =>
     sql<string>`to_char(date_trunc(${sql.raw(`'${unit}'`)}, ${column} at time zone ${timeZone}), 'YYYY-MM-DD')`;
 
-  const [meetingRows, paymentRows] = await Promise.all([
+  const [meetingRows, paymentRows, offlineRows] = await Promise.all([
     db
       .select({ bucket: bucket(Booking.startsAt), n: count() })
       .from(Booking)
@@ -258,6 +288,14 @@ export async function seriesStats(
       })
       .from(Payment)
       .where(paymentsIn(practiceId, range))
+      .groupBy(sql`1`),
+    db
+      .select({
+        bucket: bucket(OfflinePayment.paidAt),
+        amount: sql<number>`sum(${OfflinePayment.amount})`.mapWith(Number),
+      })
+      .from(OfflinePayment)
+      .where(offlineIn(practiceId, range))
       .groupBy(sql`1`),
   ]);
 
@@ -276,9 +314,9 @@ export async function seriesStats(
     const point = points.get(row.bucket);
     if (point) point.meetings = row.n;
   }
-  for (const row of paymentRows) {
+  for (const row of [...paymentRows, ...offlineRows]) {
     const point = points.get(row.bucket);
-    if (point) point.revenue = row.amount;
+    if (point) point.revenue += row.amount;
   }
   return [...points.values()];
 }

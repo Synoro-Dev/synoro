@@ -67,6 +67,12 @@ a proven email. If fake bookings show up, the next step is to wait for the
 emailed link before the time is taken, as `waitlist.confirm` does — a hold
 that does not mean «awaiting payment», which `hold_until` does today.
 
+## Marking it paid
+
+Once such a booking has taken place it waits in «Ждут оплаты» on the payments
+page until staff write the payment down (`offlinePayment.record` with
+`bookingId`): see `docs/offline-payments.md`.
+
 ## Not done
 
 - No price shown: services keep their price in credits, which the page hides

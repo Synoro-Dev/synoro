@@ -13,7 +13,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * How the practice is doing over the last 30, 90 or 365 days, next to the
- * same stretch before it: meetings, no-shows, online revenue, clients, the
+ * same stretch before it: meetings, no-shows, income (online and outside
+ * Synoro), clients, the
  * busy hours. `report` is null while the owner has no «Про». Owner only —
  * the numbers include the practice's money.
  *
