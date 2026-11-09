@@ -52,6 +52,20 @@ import {
 } from "./domain-progress";
 import { ErrorState } from "./states";
 
+/** One reservation of a domain: its hostname and the token issued for it. */
+const reservationOf = (
+  domain:
+    | {
+        hostname: string;
+        records: { purpose: string; value: string }[];
+      }
+    | null
+    | undefined,
+) =>
+  domain
+    ? `${domain.hostname} ${domain.records.find((r) => r.purpose === "ownership")?.value}`
+    : undefined;
+
 /** How often the page checks while waiting: often at first, then calmer. */
 const checkInterval = (checks: number) => (checks < 40 ? 8_000 : 30_000);
 
@@ -146,16 +160,17 @@ export function PracticeDomain({
 
   const domain = settings.data?.domain;
   const live = useQuery({
-    queryKey: [...checkKey, domain?.hostname],
+    queryKey: [...checkKey, reservationOf(domain)],
     queryFn: async () => {
-      const checking = domain?.hostname;
+      const checking = reservationOf(domain);
       const { check, stage, ...data } = await client.domain.verify({
         practiceId,
       });
       const before = queryClient.getQueryData(queryKey)?.domain;
-      // Disconnected or replaced while this check ran: its answer is about a
-      // domain that is no longer on the screen, so it must not bring it back.
-      if (before?.hostname !== checking) return { check, stage };
+      // Disconnected, replaced or connected anew (same hostname, new token)
+      // while this check ran: its answer is about a reservation no longer on
+      // the screen, so it must not bring that one back.
+      if (reservationOf(before) !== checking) return { check, stage };
       save(data);
       if (stage === "ready" && !before?.securedAt) {
         setCelebrate(true);
@@ -197,7 +212,7 @@ export function PracticeDomain({
   // anything else (the network) is retried on the next tick.
   const stopped = isDefinedError(live.error);
   const checks =
-    queryClient.getQueryState([...checkKey, domain?.hostname])
+    queryClient.getQueryState([...checkKey, reservationOf(domain)])
       ?.dataUpdateCount ?? 0;
   // Whether another check comes by itself (not once the domain is ready).
   const polling =

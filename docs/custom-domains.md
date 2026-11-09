@@ -55,7 +55,11 @@ still verifies ownership but warns that there is nothing to point DNS at.
 (`ANAME`, «CNAME flattening») to the same name. Nobody is ever told an address,
 so the hosting can move (another server, another cloud) by changing one record
 of ours, `domains.synoro.ru`. The routing check compares the host with the
-target's _current_ addresses, so it follows the move as well. Apex domains need a
+target's _current_ addresses, so it follows the move as well. For an ALIAS,
+**every** address the host answers with, IPv4 and IPv6, must be the target's:
+one foreign A or AAAA would send some visitors (and Let's Encrypt, which
+prefers IPv6) elsewhere (`leadsToTarget`, shared by `verify` and the routes
+sync). Apex domains need a
 registrar that offers ALIAS; where there is none, the owner connects a
 subdomain (`zapis.anna.ru`), which the page says.
 
@@ -104,7 +108,13 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   route, DNS leading here — on its own, since a route stays through a DNS
   change — and the probe) and sets or clears `secured_at`: a domain becomes
   ready even if the owner closed the page, and stops being offered once it
-  breaks. `secured_at` means «works now, since».
+  breaks. `secured_at` means «works now, since». At most 8 domains are probed
+  at once.
+- Checks overlap (the page, a second tab, the sync), so every readiness write
+  is guarded: it touches only the very record it checked (`id` and
+  `verification_token`; a new reservation gets a new token), and only if no
+  check that started later has written since — `last_checked_at` holds when
+  the last written check started.
 - With `secured_at` set the domain is the practice's address in the console:
   `practice.get` / `practice.mine` return `siteDomain`, shown first in
   «Страница записи» (`BookingLinkActions`), in the sidebar and the practice

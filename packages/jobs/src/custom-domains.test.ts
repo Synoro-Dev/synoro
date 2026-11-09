@@ -80,10 +80,14 @@ describe("ingressRoute", () => {
 
 describe("reachesUs", () => {
   const resolver = (
-    records: Record<string, { cname?: string[]; a?: string[] }>,
+    records: Record<
+      string,
+      { cname?: string[]; a?: string[]; aaaa?: string[] }
+    >,
   ) => ({
     resolveCname: async (host: string) => records[host]?.cname ?? [],
     resolve4: async (host: string) => records[host]?.a ?? [],
+    resolve6: async (host: string) => records[host]?.aaaa ?? [],
   });
 
   test("a CNAME to the target, or the target's own addresses", async () => {
@@ -116,6 +120,20 @@ describe("reachesUs", () => {
     expect(await reachesUs("a.ru", { cname: "domains.synoro.ru" }, dns)).toBe(
       true,
     );
+  });
+
+  test("every address must be ours: one foreign A or AAAA is not enough", async () => {
+    const dns = resolver({
+      "domains.synoro.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::10"] },
+      "both.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::10"] },
+      "mixed-a.ru": { a: ["203.0.113.10", "198.51.100.7"] },
+      "foreign-v6.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::99"] },
+      "v6-only.ru": { aaaa: ["2001:db8::10"] },
+    });
+    expect(await reachesUs("both.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("v6-only.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("mixed-a.ru", targets, dns)).toBe(false);
+    expect(await reachesUs("foreign-v6.ru", targets, dns)).toBe(false);
   });
 
   test("nothing configured, nothing reaches us", async () => {
@@ -178,6 +196,8 @@ describe("planRoutes", () => {
 
 describe("planReadiness", () => {
   const at = new Date("2026-01-01T00:00:00Z");
+  const hosts = (domains: { hostname: string }[]) =>
+    domains.map((d) => d.hostname);
   const domain = (hostname: string, securedAt: Date | null = null) => ({
     hostname,
     practiceId: `practice-of-${hostname}`,
@@ -210,18 +230,42 @@ describe("planReadiness", () => {
   };
 
   test("marks a routed host that leads here and serves its practice", async () => {
-    const result = await plan([domain("anna.ru")]);
-    expect(result).toEqual({
-      secure: ["anna.ru"],
-      unsecure: [],
-      probed: [["anna.ru", "domains.synoro.ru", "practice-of-anna.ru"]],
+    const anna = domain("anna.ru");
+    const result = await plan([anna]);
+    // The checked record itself, for the caller to update exactly that one.
+    expect(result.secure).toEqual([anna]);
+    expect(result.unsecure).toEqual([]);
+    expect(result.probed).toEqual([
+      ["anna.ru", "domains.synoro.ru", "practice-of-anna.ru"],
+    ]);
+  });
+
+  test("checks a few domains at a time, all of them in the end", async () => {
+    const domains = Array.from({ length: 20 }, (_, i) => domain(`d${i}.ru`));
+    let running = 0;
+    let most = 0;
+    const result = await planReadiness({
+      domains,
+      routed: new Set(domains.map((d) => d.hostname)),
+      via: "domains.synoro.ru",
+      reaches: async () => true,
+      probe: async () => {
+        running++;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running--;
+        return true;
+      },
+      concurrency: 3,
     });
+    expect(most).toBe(3);
+    expect(result.secure).toHaveLength(20);
   });
 
   test("an existing route whose DNS moved away is not ready", async () => {
     // The route stays through a DNS change (planRoutes), readiness doesn't.
     const result = await plan([domain("anna.ru", at)], { reaching: [] });
-    expect(result.unsecure).toEqual(["anna.ru"]);
+    expect(hosts(result.unsecure)).toEqual(["anna.ru"]);
     expect(result.probed).toEqual([]);
   });
 
@@ -231,12 +275,12 @@ describe("planReadiness", () => {
       { routed: ["broken.ru", "ok.ru"], serving: ["ok.ru"] },
     );
     expect(result.secure).toEqual([]);
-    expect(result.unsecure).toEqual(["broken.ru", "gone.ru"]);
+    expect(hosts(result.unsecure)).toEqual(["broken.ru", "gone.ru"]);
   });
 
   test("nothing works without a target to point DNS at", async () => {
     const result = await plan([domain("anna.ru", at)], { via: undefined });
-    expect(result.unsecure).toEqual(["anna.ru"]);
+    expect(hosts(result.unsecure)).toEqual(["anna.ru"]);
     expect(result.probed).toEqual([]);
   });
 

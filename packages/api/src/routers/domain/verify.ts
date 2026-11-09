@@ -1,4 +1,4 @@
-import { and, eq, gt, PracticeDomain } from "@synoro/db";
+import { and, eq, gt, isNull, lte, or, PracticeDomain } from "@synoro/db";
 import { z } from "zod";
 
 import {
@@ -52,6 +52,9 @@ export const verify = ownerProcedure
       throw errors.RESERVATION_EXPIRED();
     }
 
+    // Checks can overlap (this page, a second tab, the routes sync): what
+    // started later and already wrote is newer, and this one doesn't undo it.
+    const startedAt = new Date();
     const dns = await checkDomainDns(row.hostname, row.verificationToken);
     const owned = row.status === "active" || dns.ownership;
     // A certificate exists only for a host the cluster routes: an owned one
@@ -71,7 +74,7 @@ export const verify = ownerProcedure
     const updated = await context.db
       .update(PracticeDomain)
       .set({
-        lastCheckedAt: now,
+        lastCheckedAt: startedAt,
         ...(row.status === "pending" && dns.ownership
           ? { status: "active" as const, verifiedAt: now }
           : {}),
@@ -84,6 +87,10 @@ export const verify = ownerProcedure
           eq(PracticeDomain.hostname, row.hostname),
           eq(PracticeDomain.verificationToken, row.verificationToken),
           eq(PracticeDomain.status, row.status),
+          or(
+            isNull(PracticeDomain.lastCheckedAt),
+            lte(PracticeDomain.lastCheckedAt, startedAt),
+          ),
           row.status === "pending"
             ? gt(
                 PracticeDomain.createdAt,
@@ -95,19 +102,24 @@ export const verify = ownerProcedure
       .returning({ id: PracticeDomain.id });
 
     const settings = await domainSettings(context.db, input.practiceId);
-    // The row changed meanwhile (replaced, expired, disconnected): this check
-    // proved nothing about it, so report where the stored row stands.
+    // The row changed meanwhile (replaced, expired, disconnected, or a newer
+    // check wrote), before the update or after it: this check proved nothing
+    // about the domain returned, so report where that one stands.
     const stored = settings.domain;
+    const sameDomain =
+      updated.length > 0 &&
+      stored?.hostname === row.hostname &&
+      stored.records.find((record) => record.purpose === "ownership")?.value ===
+        row.verificationToken;
     return {
       ...settings,
       check,
-      stage:
-        updated.length > 0
-          ? stage
-          : stored?.securedAt
-            ? ("ready" as const)
-            : stored?.status === "active"
-              ? ("routing" as const)
-              : ("ownership" as const),
+      stage: sameDomain
+        ? stage
+        : stored?.securedAt
+          ? ("ready" as const)
+          : stored?.status === "active"
+            ? ("routing" as const)
+            : ("ownership" as const),
     };
   });

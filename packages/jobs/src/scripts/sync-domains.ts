@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request } from "node:https";
 import { env, logger } from "@synoro/config";
-import { and, db, eq, inArray, isNull, PracticeDomain } from "@synoro/db";
+import { and, db, eq, isNull, lte, or, PracticeDomain } from "@synoro/db";
 
 import {
   hostOfRoute,
@@ -115,9 +115,13 @@ async function main() {
   const namespace = dryRun ? "default" : read("namespace").toString().trim();
   const routes = `/apis/traefik.io/v1alpha1/namespaces/${namespace}/ingressroutes`;
 
+  // Readiness writes only win over checks that started before this run.
+  const startedAt = new Date();
   const rows = await db
     .select({
+      id: PracticeDomain.id,
       hostname: PracticeDomain.hostname,
+      verificationToken: PracticeDomain.verificationToken,
       practiceId: PracticeDomain.practiceId,
       securedAt: PracticeDomain.securedAt,
     })
@@ -237,43 +241,55 @@ async function main() {
     reaches,
     probe: servesHttps,
   });
-  await markSecured(readiness.secure);
-  await clearSecured(readiness.unsecure);
+  await setSecured(readiness.secure, startedAt, true);
+  await setSecured(readiness.unsecure, startedAt, false);
   // A non-zero exit shows the failed Job in `kubectl get jobs`.
   if (failed > 0) process.exitCode = 1;
 }
 
-/**
- * Hosts that now work (`planReadiness`) get `secured_at`. A host whose
- * certificate isn't there yet is simply checked again on the next run.
- */
-async function markSecured(secured: string[]) {
-  if (secured.length === 0) return;
-  await db
-    .update(PracticeDomain)
-    .set({ securedAt: new Date() })
-    .where(
-      and(
-        inArray(PracticeDomain.hostname, secured),
-        eq(PracticeDomain.status, "active"),
-        isNull(PracticeDomain.securedAt),
-      ),
-    );
-  logger.info("domains.sync_secured", { hosts: secured });
-}
+type CheckedDomain = {
+  id: string;
+  hostname: string;
+  verificationToken: string;
+};
 
 /**
- * Hosts that stopped working (no route, DNS moved away, or the platform no
- * longer serves their practice): the console goes back to offering the
- * platform address for them.
+ * Marks (`secure`) or unmarks the domains `planReadiness` just checked — the
+ * very records: a replacement hostname or a new reservation gets a new token,
+ * and a domain that moved meanwhile isn't touched. A check (`domain.verify` or
+ * another run) that started after this run and already wrote wins: its answer
+ * is newer. A host whose certificate isn't there yet is simply checked again
+ * on the next run.
  */
-async function clearSecured(hosts: string[]) {
-  if (hosts.length === 0) return;
+async function setSecured(
+  domains: CheckedDomain[],
+  startedAt: Date,
+  secure: boolean,
+) {
+  if (domains.length === 0) return;
   await db
     .update(PracticeDomain)
-    .set({ securedAt: null })
-    .where(inArray(PracticeDomain.hostname, hosts));
-  logger.warn("domains.sync_unsecured", { hosts });
+    .set({ securedAt: secure ? startedAt : null, lastCheckedAt: startedAt })
+    .where(
+      and(
+        or(
+          ...domains.map((domain) =>
+            and(
+              eq(PracticeDomain.id, domain.id),
+              eq(PracticeDomain.verificationToken, domain.verificationToken),
+            ),
+          ),
+        ),
+        eq(PracticeDomain.status, "active"),
+        or(
+          isNull(PracticeDomain.lastCheckedAt),
+          lte(PracticeDomain.lastCheckedAt, startedAt),
+        ),
+      ),
+    );
+  const hosts = domains.map((domain) => domain.hostname);
+  if (secure) logger.info("domains.sync_secured", { hosts });
+  else logger.warn("domains.sync_unsecured", { hosts });
 }
 
 try {

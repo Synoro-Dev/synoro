@@ -458,6 +458,35 @@ describe("domain.verify stages", () => {
     await activate("zapis.stages.ru");
     expect((await mine(own.session))[0]?.siteDomain).toBeNull();
   });
+
+  it("a check overtaken by a newer one doesn't undo it", async () => {
+    const own = await newPractice("stages-race");
+    await connect(own.session, own.practiceId, "race.ru");
+    await activate("race.ru");
+    const secured = new Date("2030-01-01T00:00:00Z");
+    // While this (failing) check runs, a newer one starts later and writes
+    // first: the domain works.
+    const dns = spyOn(domains, "checkDomainDns").mockImplementationOnce(
+      async () => {
+        await api.db
+          .update(PracticeDomain)
+          .set({ securedAt: secured, lastCheckedAt: new Date(Date.now() + 1) })
+          .where(eq(PracticeDomain.practiceId, own.practiceId));
+        return { ownership: true, routing: false };
+      },
+    );
+    try {
+      const result = await call(
+        domainRouter.verify,
+        { practiceId: own.practiceId },
+        { context: api.context(own.session) },
+      );
+      expect(result.domain?.securedAt).toEqual(secured);
+      expect(result.stage).toBe("ready");
+    } finally {
+      dns.mockRestore();
+    }
+  });
 });
 
 describe("checkDomainDns", () => {
@@ -466,6 +495,7 @@ describe("checkDomainDns", () => {
     txt?: string[][];
     cname?: string[];
     a?: Record<string, string[]>;
+    aaaa?: Record<string, string[]>;
   }): DnsResolver => ({
     resolveTxt: async () => records.txt ?? [],
     resolveCname: async () => {
@@ -473,6 +503,7 @@ describe("checkDomainDns", () => {
       return records.cname;
     },
     resolve4: async (host) => records.a?.[host] ?? [],
+    resolve6: async (host) => records.aaaa?.[host] ?? [],
   });
 
   it("finds the token, even split into TXT chunks", async () => {
@@ -514,5 +545,38 @@ describe("checkDomainDns", () => {
     expect((await check({ a: { "anna.ru": ["192.0.2.1"] } })).routing).toBe(
       false,
     );
+  });
+
+  it("an ALIAS counts only if every address, IPv6 too, is the target's", async () => {
+    const check = (records: Parameters<typeof resolver>[0]) =>
+      checkDomainDns("anna.ru", "t", targets, resolver(records));
+    const target = { "domains.pages.test": ["198.51.100.7"] };
+    const target6 = { "domains.pages.test": ["2001:db8::7"] };
+
+    // One of ours and one foreign A record.
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7", "203.0.113.10"], ...target },
+        })
+      ).routing,
+    ).toBe(false);
+    // Our A record, someone else's AAAA.
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7"], ...target },
+          aaaa: { "anna.ru": ["2001:db8::99"], ...target6 },
+        })
+      ).routing,
+    ).toBe(false);
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7"], ...target },
+          aaaa: { "anna.ru": ["2001:db8::7"], ...target6 },
+        })
+      ).routing,
+    ).toBe(true);
   });
 });

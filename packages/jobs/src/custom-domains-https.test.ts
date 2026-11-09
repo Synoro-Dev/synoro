@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createServer, type Server, type ServerResponse } from "node:https";
-import type { AddressInfo } from "node:net";
+import type { AddressInfo, Socket } from "node:net";
 
 import { TEST_CA, TEST_CERT, TEST_KEY } from "../test/fixtures/tls";
 import { DOMAIN_CHECK_PATH, probeHttps } from "./custom-domains";
@@ -19,19 +19,29 @@ const seen: { host?: string; path?: string }[] = [];
 
 let server: Server;
 let port: number;
+/** Open connections: a test that leaves one hanging can't stall the rest. */
+const sockets = new Set<Socket>();
+/** Requests whose connection the probe has closed. */
+let closed = 0;
 
 beforeAll(async () => {
   server = createServer(
     { key: TEST_KEY, cert: TEST_CERT },
     (request, response) => {
       seen.push({ host: request.headers.host, path: request.url });
+      response.on("close", () => closed++);
       answer(response);
     },
   );
+  server.on("secureConnection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   port = (server.address() as AddressInfo).port;
 });
 afterAll(() => {
+  for (const socket of sockets) socket.destroy();
   server.close();
 });
 
@@ -41,7 +51,12 @@ const json = (body: unknown) => (response: ServerResponse) => {
 };
 
 function probe(
-  options: { host?: string; trust?: boolean; practiceId?: string } = {},
+  options: {
+    host?: string;
+    trust?: boolean;
+    practiceId?: string;
+    timeoutMs?: number;
+  } = {},
 ) {
   return probeHttps({
     host: options.host ?? "anna.test",
@@ -50,7 +65,16 @@ function probe(
     practiceId: options.practiceId ?? PRACTICE,
     port,
     ca: options.trust === false ? undefined : ca,
+    timeoutMs: options.timeoutMs,
   });
+}
+
+/** Waits until the server has seen the probe close the connection. */
+async function closedBy(count: number) {
+  for (let i = 0; i < 100 && closed < count; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  return closed >= count;
 }
 
 describe("probeHttps", () => {
@@ -107,6 +131,29 @@ describe("probeHttps", () => {
   test("an oversized body, even if it is valid JSON", async () => {
     answer = json({ practiceId: PRACTICE, padding: "x".repeat(4_096) });
     expect(await probe()).toBe(false);
+  });
+
+  test("a server that never answers: gives up and closes", async () => {
+    answer = () => {};
+    const before = closed;
+    const started = Date.now();
+    expect(await probe({ timeoutMs: 300 })).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await closedBy(before + 1)).toBe(true);
+  });
+
+  test("a body trickling in: the deadline holds for the whole exchange", async () => {
+    // A byte every 50 ms never leaves the socket idle long enough to time out.
+    answer = (response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      const drip = setInterval(() => response.write(" "), 50);
+      response.on("close", () => clearInterval(drip));
+    };
+    const before = closed;
+    const started = Date.now();
+    expect(await probe({ timeoutMs: 300 })).toBe(false);
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(await closedBy(before + 1)).toBe(true);
   });
 
   test("nothing listening", async () => {

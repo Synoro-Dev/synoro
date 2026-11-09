@@ -1,4 +1,9 @@
-import { resolve4, resolveCname, resolveTxt } from "node:dns/promises";
+import {
+  resolve4,
+  resolve6,
+  resolveCname,
+  resolveTxt,
+} from "node:dns/promises";
 import { domainToUnicode } from "node:url";
 import { env } from "@synoro/config";
 import {
@@ -9,7 +14,11 @@ import {
   Practice,
   PracticeDomain,
 } from "@synoro/db";
-import { servesHttps } from "@synoro/jobs/custom-domains";
+import {
+  leadsToTarget,
+  lookupDns,
+  servesHttps,
+} from "@synoro/jobs/custom-domains";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -109,17 +118,21 @@ export interface DnsResolver {
   resolveTxt(hostname: string): Promise<string[][]>;
   resolveCname(hostname: string): Promise<string[]>;
   resolve4(hostname: string): Promise<string[]>;
+  resolve6(hostname: string): Promise<string[]>;
 }
 
-const systemResolver: DnsResolver = { resolveTxt, resolveCname, resolve4 };
-
-const none = (): string[] => [];
+const systemResolver: DnsResolver = {
+  resolveTxt,
+  resolveCname,
+  resolve4,
+  resolve6,
+};
 
 /**
  * Live DNS check. `ownership`: the TXT record holds the token. `routing`:
- * the host points here — a CNAME to the target, or the same addresses as the
- * target (an ALIAS / CNAME flattening at the apex, which answers with A
- * records). No address is configured anywhere: the target's own are read.
+ * the host points here — a CNAME to the target, or only the target's own
+ * addresses, IPv4 and IPv6 (an ALIAS / CNAME flattening at the apex). The
+ * rule is `leadsToTarget`, shared with the routes sync.
  */
 export async function checkDomainDns(
   hostname: string,
@@ -127,22 +140,15 @@ export async function checkDomainDns(
   targets: DnsTargets = dnsTargets(),
   resolver: DnsResolver = systemResolver,
 ) {
-  const [txt, cnames, addresses, targetAddresses] = await Promise.all([
+  const [txt, dns] = await Promise.all([
     resolver
       .resolveTxt(verificationRecordName(hostname))
       .catch((): string[][] => []),
-    resolver.resolveCname(hostname).catch(none),
-    resolver.resolve4(hostname).catch(none),
-    targets.cname ? resolver.resolve4(targets.cname).catch(none) : none(),
+    lookupDns(hostname, targets.cname, resolver),
   ]);
 
   const ownership = txt.some((chunks) => chunks.join("").trim() === token);
-  const routing =
-    (!!targets.cname &&
-      cnames.some(
-        (c) => c.toLowerCase().replace(/\.$/, "") === targets.cname,
-      )) ||
-    addresses.some((ip) => targetAddresses.includes(ip));
+  const routing = leadsToTarget(targets.cname, dns);
 
   return { ownership, routing };
 }

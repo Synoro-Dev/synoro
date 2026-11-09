@@ -1,4 +1,4 @@
-import { resolve4, resolveCname } from "node:dns/promises";
+import { resolve4, resolve6, resolveCname } from "node:dns/promises";
 import { request } from "node:https";
 
 /**
@@ -81,34 +81,69 @@ export interface DnsTargets {
 export interface DnsResolver {
   resolveCname(hostname: string): Promise<string[]>;
   resolve4(hostname: string): Promise<string[]>;
+  resolve6(hostname: string): Promise<string[]>;
 }
 
-const systemResolver: DnsResolver = { resolveCname, resolve4 };
+const systemResolver: DnsResolver = { resolveCname, resolve4, resolve6 };
 const none = (): string[] => [];
+
+/** What DNS answered for a host and for our target (`CUSTOM_DOMAIN_CNAME`). */
+export interface DnsAnswers {
+  cnames: string[];
+  v4: string[];
+  v6: string[];
+  targetV4: string[];
+  targetV6: string[];
+}
+
+/**
+ * Does a host lead here, by its DNS answers? A CNAME to the target, or — an
+ * ALIAS / CNAME flattening at the apex — **every** address it answers with,
+ * IPv4 and IPv6, is one of the target's. One foreign A or AAAA among ours
+ * sends some visitors (and Let's Encrypt, which prefers IPv6) elsewhere, so
+ * it doesn't count. No address is configured: the target's are read. The one
+ * rule for `checkDomainDns` in `@synoro/api` and `reachesUs` here.
+ */
+export function leadsToTarget(target: string | undefined, dns: DnsAnswers) {
+  if (!target) return false;
+  if (dns.cnames.some((c) => c.toLowerCase().replace(/\.$/, "") === target)) {
+    return true;
+  }
+  return (
+    dns.v4.length + dns.v6.length > 0 &&
+    dns.v4.every((ip) => dns.targetV4.includes(ip)) &&
+    dns.v6.every((ip) => dns.targetV6.includes(ip))
+  );
+}
+
+/** Looks up what `leadsToTarget` needs, a missing record being none. */
+export async function lookupDns(
+  host: string,
+  target: string | undefined,
+  resolver: DnsResolver = systemResolver,
+): Promise<DnsAnswers> {
+  const [cnames, v4, v6, targetV4, targetV6] = await Promise.all([
+    resolver.resolveCname(host).catch(none),
+    resolver.resolve4(host).catch(none),
+    resolver.resolve6(host).catch(none),
+    target ? resolver.resolve4(target).catch(none) : none(),
+    target ? resolver.resolve6(target).catch(none) : none(),
+  ]);
+  return { cnames, v4, v6, targetV4, targetV6 };
+}
 
 /**
  * Does the host's DNS already lead here? A certificate request for a host that
- * doesn't would fail, and Traefik doesn't retry on its own. Same rule as the
- * `routing` half of `checkDomainDns` in `@synoro/api` (keep them in step):
- * a CNAME to the target, or the target's own addresses (an ALIAS / CNAME
- * flattening at the apex). No address is configured: the target's are read.
+ * doesn't would fail, and Traefik doesn't retry on its own.
  */
 export async function reachesUs(
   host: string,
   targets: DnsTargets,
   resolver: DnsResolver = systemResolver,
 ) {
-  const [cnames, addresses, targetAddresses] = await Promise.all([
-    resolver.resolveCname(host).catch(none),
-    resolver.resolve4(host).catch(none),
-    targets.cname ? resolver.resolve4(targets.cname).catch(none) : none(),
-  ]);
-  return (
-    (!!targets.cname &&
-      cnames.some(
-        (c) => c.toLowerCase().replace(/\.$/, "") === targets.cname,
-      )) ||
-    addresses.some((ip) => targetAddresses.includes(ip))
+  return leadsToTarget(
+    targets.cname,
+    await lookupDns(host, targets.cname, resolver),
   );
 }
 
@@ -149,14 +184,24 @@ export function probeHttps({
   practiceId,
   port = 443,
   ca,
+  timeoutMs = 5_000,
 }: {
   host: string;
   via: string;
   practiceId: string;
   port?: number;
   ca?: string;
+  /** For the whole exchange, however slowly the bytes trickle in. */
+  timeoutMs?: number;
 }) {
   return new Promise<boolean>((resolve) => {
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    // The first answer wins; whatever comes after is ignored.
+    const settle = (ready: boolean) => {
+      clearTimeout(deadline);
+      resolve(ready);
+      if (!ready) req.destroy();
+    };
     const req = request(
       {
         host: via,
@@ -172,12 +217,11 @@ export function probeHttps({
         },
         rejectUnauthorized: true,
         agent: false,
-        timeout: 5_000,
+        timeout: timeoutMs,
       },
       (response) => {
         if (response.statusCode !== 200) {
-          response.destroy();
-          resolve(false);
+          settle(false);
           return;
         }
         let body = "";
@@ -185,31 +229,27 @@ export function probeHttps({
         response.on("data", (chunk: string) => {
           body += chunk;
           // `{"practiceId":"<uuid>"}` is tiny: anything bigger isn't ours.
-          if (body.length > 1_024) {
-            resolve(false);
-            response.destroy();
-          }
+          if (body.length > 1_024) settle(false);
         });
-        // Only a body that arrived whole counts; the first settle wins.
+        // Only a body that arrived whole counts.
         response.on("end", () => {
           try {
-            resolve(
+            settle(
               (JSON.parse(body) as { practiceId?: unknown }).practiceId ===
                 practiceId,
             );
           } catch {
-            resolve(false);
+            settle(false);
           }
         });
-        response.on("error", () => resolve(false));
-        response.on("close", () => resolve(false));
+        response.on("error", () => settle(false));
+        response.on("close", () => settle(false));
       },
     );
-    req.on("error", () => resolve(false));
-    req.on("timeout", () => {
-      req.destroy();
-      resolve(false);
-    });
+    // An idle socket times out on its own; a slow trickle needs this.
+    deadline = setTimeout(() => settle(false), timeoutMs);
+    req.on("error", () => settle(false));
+    req.on("timeout", () => settle(false));
     req.end();
   });
 }
@@ -220,39 +260,48 @@ export function probeHttps({
  * own, because a route stays through a DNS change — and the platform serves
  * its practice over https. Without a target (`via`) nothing can lead here.
  */
-export async function planReadiness({
+export async function planReadiness<
+  Domain extends {
+    hostname: string;
+    practiceId: string;
+    securedAt: Date | null;
+  },
+>({
   domains,
   routed,
   via,
   reaches,
   probe,
+  concurrency = 8,
 }: {
-  domains: readonly {
-    hostname: string;
-    practiceId: string;
-    securedAt: Date | null;
-  }[];
+  domains: readonly Domain[];
   routed: ReadonlySet<string>;
   via: string | undefined;
   reaches: (host: string) => Promise<boolean>;
   probe: HttpsProbe;
+  /** Domains checked at once: thousands of requests at a time would fail. */
+  concurrency?: number;
 }) {
-  const works = await Promise.all(
-    domains.map(
-      async ({ hostname, practiceId }) =>
+  const works = new Array<boolean>(domains.length).fill(false);
+  let next = 0;
+  const worker = async () => {
+    while (next < domains.length) {
+      const i = next++;
+      const { hostname, practiceId } = domains[i] as Domain;
+      works[i] =
         !!via &&
         routed.has(hostname) &&
         (await reaches(hostname)) &&
-        (await probe(hostname, via, practiceId)),
-    ),
+        (await probe(hostname, via, practiceId));
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, domains.length) }, worker),
   );
+  // The checked records themselves: the caller updates exactly those.
   return {
-    secure: domains
-      .filter((domain, i) => works[i] && !domain.securedAt)
-      .map((domain) => domain.hostname),
-    unsecure: domains
-      .filter((domain, i) => !works[i] && domain.securedAt)
-      .map((domain) => domain.hostname),
+    secure: domains.filter((domain, i) => works[i] && !domain.securedAt),
+    unsecure: domains.filter((domain, i) => !works[i] && domain.securedAt),
   };
 }
 
