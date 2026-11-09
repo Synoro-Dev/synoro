@@ -137,11 +137,31 @@ export type HttpsProbe = (
  * separate question (`reachesUs`): ask both.
  */
 export const servesHttps: HttpsProbe = (host, via, practiceId) =>
-  new Promise((resolve) => {
+  probeHttps({ host, via, practiceId });
+
+/**
+ * `servesHttps` with the knobs tests need: another port, and a CA to trust
+ * instead of the public ones (`test/fixtures/tls`). Production never sets them.
+ */
+export function probeHttps({
+  host,
+  via,
+  practiceId,
+  port = 443,
+  ca,
+}: {
+  host: string;
+  via: string;
+  practiceId: string;
+  port?: number;
+  ca?: string;
+}) {
+  return new Promise<boolean>((resolve) => {
     const req = request(
       {
         host: via,
-        port: 443,
+        port,
+        ca,
         path: DOMAIN_CHECK_PATH,
         method: "GET",
         servername: host,
@@ -165,10 +185,13 @@ export const servesHttps: HttpsProbe = (host, via, practiceId) =>
         response.on("data", (chunk: string) => {
           body += chunk;
           // `{"practiceId":"<uuid>"}` is tiny: anything bigger isn't ours.
-          if (body.length > 1_024) response.destroy();
+          if (body.length > 1_024) {
+            resolve(false);
+            response.destroy();
+          }
         });
-        response.on("error", () => resolve(false));
-        response.on("close", () => {
+        // Only a body that arrived whole counts; the first settle wins.
+        response.on("end", () => {
           try {
             resolve(
               (JSON.parse(body) as { practiceId?: unknown }).practiceId ===
@@ -178,6 +201,8 @@ export const servesHttps: HttpsProbe = (host, via, practiceId) =>
             resolve(false);
           }
         });
+        response.on("error", () => resolve(false));
+        response.on("close", () => resolve(false));
       },
     );
     req.on("error", () => resolve(false));
@@ -187,6 +212,7 @@ export const servesHttps: HttpsProbe = (host, via, practiceId) =>
     });
     req.end();
   });
+}
 
 /**
  * Which domains work now (`secure`: to mark) and which stopped (`unsecure`:
