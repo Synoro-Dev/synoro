@@ -86,7 +86,7 @@ export function Header({
     <header
       ref={header}
       className={cn(
-        "fixed inset-x-0 top-0 z-50 border-b transition-colors duration-200",
+        "fixed inset-x-0 top-0 z-50 border-b transition-colors",
         open
           ? "bg-background border-border"
           : scrolled
@@ -177,7 +177,7 @@ export function Header({
       {open && (
         <div
           id="mobile-menu"
-          className="bg-background absolute inset-x-0 top-full flex h-[calc(100dvh-4rem)] animate-in flex-col overflow-y-auto overscroll-contain px-4 duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] fade-in-0 slide-in-from-top-2 sm:px-6 md:hidden"
+          className="bg-background absolute inset-x-0 top-full flex h-[calc(100dvh-4rem)] animate-in flex-col overflow-y-auto overscroll-contain px-4 duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] fade-in-0 slide-in-from-top-2 sm:px-6 md:hidden"
         >
           <nav aria-label="Разделы" className="flex flex-col pt-2">
             {items.map((item) => (

@@ -208,9 +208,9 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
       {booked && time && (
         <div
           role="status"
-          className="bg-background animate-in fade-in absolute inset-x-0 top-9 bottom-0 flex items-center justify-center p-6 duration-200"
+          className="bg-background animate-in fade-in absolute inset-x-0 top-9 bottom-0 flex items-center justify-center p-6 duration-400"
         >
-          <div className="animate-in zoom-in-95 slide-in-from-bottom-2 flex max-w-xs flex-col items-center text-center duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]">
+          <div className="animate-in zoom-in-95 slide-in-from-bottom-2 flex max-w-xs flex-col items-center text-center duration-400 ease-[cubic-bezier(0.22,1,0.36,1)]">
             <span className="flex size-11 items-center justify-center rounded-full bg-emerald-600 text-white">
               <CheckIcon className="size-5" />
             </span>

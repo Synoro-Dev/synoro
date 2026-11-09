@@ -1,11 +1,12 @@
 import { cn } from "@synoro/ui";
 import {
   CheckIcon,
+  LockIcon,
+  MousePointer2Icon,
   ShieldCheckIcon,
   UndoIcon,
   UserRoundIcon,
   UsersIcon,
-  XIcon,
 } from "lucide-react";
 
 import { IconTile, Initials, Section, SectionHeading } from "./primitives";
@@ -23,25 +24,39 @@ function Card({
 }) {
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
-      <div className="flex flex-col gap-1.5 p-6 sm:p-8">
-        <p className="font-medium">{title}</p>
-        <p className="text-muted-foreground text-sm text-pretty">{text}</p>
-      </div>
-      <div className="bg-muted/50 relative flex min-h-60 flex-1 items-center justify-center overflow-hidden border-t p-6 sm:p-8">
-        {children}
+      {/* The cell's borders are the grid's lines: only what's inside fades. */}
+      <div data-reveal="" className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-1.5 p-6 sm:p-8">
+          <p className="font-medium">{title}</p>
+          <p className="text-muted-foreground text-sm text-pretty">{text}</p>
+        </div>
+        <div className="bg-muted/50 relative flex min-h-60 flex-1 items-center justify-center overflow-hidden border-t p-6 sm:p-8">
+          {children}
+        </div>
       </div>
     </div>
   );
 }
 
+/**
+ * The last two lines arrive in the loop (keyframes in `styles.css`): the
+ * booking that takes the balance from 9 to 8, then the cancellation that
+ * leaves it there.
+ */
 const ledger = [
   { delta: "+10", label: "Пакет из 10 занятий", date: "4 нояб" },
   { delta: "−1", label: "Запись на 12 нояб, 10:00", date: "8 нояб" },
-  { delta: "−1", label: "Запись на 16 нояб, 13:00", date: "12 нояб" },
+  {
+    delta: "−1",
+    label: "Запись на 16 нояб, 13:00",
+    date: "12 нояб",
+    motion: "motion-safe:animate-ledger-third",
+  },
   {
     delta: "−1/+1",
     label: "Отмена за 2 дня — занятие вернулось",
     date: "16 нояб",
+    motion: "motion-safe:animate-ledger-fourth",
   },
 ];
 
@@ -53,11 +68,25 @@ function CreditsVisual() {
         <div className="flex-1">
           <p className="text-sm font-medium">Вера Тихонова</p>
           <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-            <div className="bg-foreground h-full w-[80%] rounded-full" />
+            <div className="bg-foreground motion-safe:animate-count-bar h-full w-[80%] rounded-full" />
           </div>
         </div>
         <div className="text-right">
-          <p className="text-2xl leading-none font-medium tabular-nums">8</p>
+          <p className="relative ml-auto w-fit text-2xl leading-none font-medium tabular-nums">
+            <span
+              aria-hidden
+              className="motion-safe:animate-count-flash absolute -inset-x-2 -inset-y-1.5 rounded-lg bg-emerald-500/15 opacity-0"
+            />
+            <span
+              aria-hidden
+              className="motion-safe:animate-count-old absolute inset-0 opacity-0"
+            >
+              9
+            </span>
+            <span className="motion-safe:animate-count-new relative inline-block">
+              8
+            </span>
+          </p>
           <p className="text-muted-foreground text-xs">осталось</p>
         </div>
       </div>
@@ -65,7 +94,10 @@ function CreditsVisual() {
         {ledger.map((entry) => (
           <li
             key={entry.label}
-            className="flex items-center gap-3 px-4 py-2.5 text-sm"
+            className={cn(
+              "flex items-center gap-3 px-4 py-2.5 text-sm",
+              entry.motion,
+            )}
           >
             <span
               className={cn(
@@ -88,26 +120,35 @@ function CreditsVisual() {
 
 function ConflictVisual() {
   return (
-    <div className="flex w-full max-w-60 flex-col gap-2.5">
-      <div className="bg-background flex items-center gap-2.5 rounded-lg border p-2.5 text-sm shadow-sm">
+    <div className="relative flex w-full max-w-60 flex-col gap-2.5">
+      <div className="bg-background motion-safe:animate-slot-press flex items-center gap-2.5 rounded-lg border p-2.5 text-sm shadow-sm">
         <Initials name="Любовь Ясенева" className="size-6 text-[10px]" />
         <span className="flex-1">Пт, 10:00</span>
-        <span className="flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white">
+        <span className="motion-safe:animate-slot-badge flex size-5 items-center justify-center rounded-full bg-emerald-500 text-white">
           <CheckIcon className="size-3" />
         </span>
       </div>
-      <div className="bg-background flex items-center gap-2.5 rounded-lg border p-2.5 text-sm opacity-70 shadow-sm">
+      <div className="bg-background motion-safe:animate-slot-dim flex items-center gap-2.5 rounded-lg border p-2.5 text-sm opacity-70 shadow-sm">
         <Initials name="Марк Заречный" className="size-6 text-[10px]" />
-        <span className="text-muted-foreground flex-1 line-through">
+        <span className="text-muted-foreground motion-safe:animate-slot-strike flex-1 line-through">
           Пт, 10:00
         </span>
-        <span className="flex size-5 items-center justify-center rounded-full bg-rose-500 text-white">
-          <XIcon className="size-3" />
+        <span className="motion-safe:animate-slot-badge flex size-5 items-center justify-center rounded-full bg-zinc-500 text-white">
+          <LockIcon className="size-3" />
         </span>
       </div>
       <p className="text-muted-foreground text-center text-xs">
         двое выбрали одно время
       </p>
+      {/* Two pointers going for the same time; seen only while the loop runs. */}
+      <MousePointer2Icon
+        aria-hidden
+        className="fill-foreground stroke-background motion-safe:animate-cursor-first pointer-events-none absolute top-5 right-10 size-5 opacity-0"
+      />
+      <MousePointer2Icon
+        aria-hidden
+        className="fill-foreground stroke-background motion-safe:animate-cursor-second pointer-events-none absolute top-[4.75rem] right-10 size-5 opacity-0"
+      />
     </div>
   );
 }

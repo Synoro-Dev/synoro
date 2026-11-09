@@ -9,8 +9,253 @@
   --font-sans: var(--font-onest);
 }
 
+/*
+ * The landing's rhythm. 400ms — anything the visitor switches themself
+ * (hovers, tabs, menus): every `transition-*` without its own duration.
+ * 600ms — blocks that appear on their own (the hero, scroll reveals).
+ * The demo loops below run on 8s; one step in them takes those same 600ms.
+ */
 @theme {
-  --animate-fade-up: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --default-transition-duration: 400ms;
+  --ease-breath: cubic-bezier(0.45, 0, 0.55, 1);
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  --animate-count-old: count-old 8s ease-in-out infinite;
+  --animate-count-new: count-new 8s ease-in-out infinite;
+  --animate-count-flash: count-flash 8s ease-in-out infinite;
+  --animate-count-bar: count-bar 8s ease-in-out infinite;
+  --animate-ledger-third: ledger-third 8s ease-in-out infinite;
+  --animate-ledger-fourth: ledger-fourth 8s ease-in-out infinite;
+
+  --animate-slot-press: slot-press 8s ease-in-out infinite;
+  --animate-slot-badge: slot-badge 8s ease-in-out infinite;
+  --animate-slot-dim: slot-dim 8s ease-in-out infinite;
+  --animate-slot-strike: slot-strike 8s ease-in-out infinite;
+  --animate-cursor-first: cursor-first 8s ease-in-out infinite;
+  --animate-cursor-second: cursor-second 8s ease-in-out infinite;
+
+  /*
+   * «Пакеты»: a booking takes one lesson, 9 → 8, with its line in the ledger.
+   * Without the animation every element rests in the loop's settled state.
+   */
+  @keyframes count-old {
+    0%,
+    20% {
+      opacity: 1;
+      transform: none;
+    }
+    27.5% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    92% {
+      opacity: 0;
+      transform: none;
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes count-new {
+    0%,
+    20% {
+      opacity: 0;
+      transform: translateY(6px);
+      color: var(--color-emerald-600);
+    }
+    27.5% {
+      opacity: 1;
+      transform: none;
+      color: var(--color-emerald-600);
+    }
+    35% {
+      color: var(--color-emerald-600);
+    }
+    47.5% {
+      color: var(--foreground);
+    }
+    92% {
+      opacity: 1;
+      transform: none;
+      color: var(--foreground);
+    }
+    100% {
+      opacity: 0;
+      transform: none;
+      color: var(--foreground);
+    }
+  }
+  @keyframes count-flash {
+    0%,
+    22% {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    28% {
+      opacity: 1;
+      transform: none;
+    }
+    47.5%,
+    100% {
+      opacity: 0;
+      transform: scale(1.15);
+    }
+  }
+  @keyframes count-bar {
+    0%,
+    20% {
+      width: 90%;
+    }
+    27.5%,
+    92% {
+      width: 80%;
+    }
+    100% {
+      width: 90%;
+    }
+  }
+  @keyframes ledger-third {
+    0%,
+    20% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    27.5%,
+    92% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  @keyframes ledger-fourth {
+    0%,
+    50% {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    57.5%,
+    92% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+
+  /*
+   * «Ни одной двойной записи»: two pointers go for one time, the first click
+   * takes it and the second finds it locked.
+   */
+  @keyframes slot-press {
+    0%,
+    30% {
+      transform: none;
+    }
+    32% {
+      transform: scale(0.97);
+    }
+    35%,
+    100% {
+      transform: none;
+    }
+  }
+  @keyframes slot-badge {
+    0%,
+    33% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    40.5%,
+    92% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  @keyframes slot-dim {
+    0%,
+    33% {
+      opacity: 1;
+    }
+    40.5%,
+    92% {
+      opacity: 0.7;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes slot-strike {
+    0%,
+    33% {
+      color: var(--foreground);
+      text-decoration-color: transparent;
+    }
+    40.5%,
+    92% {
+      color: var(--muted-foreground);
+      text-decoration-color: var(--muted-foreground);
+    }
+    100% {
+      color: var(--foreground);
+      text-decoration-color: transparent;
+    }
+  }
+  @keyframes cursor-first {
+    0%,
+    8% {
+      opacity: 0;
+      transform: translate(36px, 44px);
+    }
+    14% {
+      opacity: 1;
+    }
+    30% {
+      opacity: 1;
+      transform: none;
+    }
+    32% {
+      transform: scale(0.88);
+    }
+    35% {
+      opacity: 1;
+      transform: none;
+    }
+    44%,
+    100% {
+      opacity: 0;
+      transform: none;
+    }
+  }
+  @keyframes cursor-second {
+    0%,
+    12% {
+      opacity: 0;
+      transform: translate(48px, 40px);
+    }
+    18% {
+      opacity: 1;
+    }
+    36% {
+      opacity: 1;
+      transform: translate(10px, 8px);
+    }
+    46%,
+    100% {
+      opacity: 0;
+      transform: translate(14px, 12px);
+    }
+  }
 
   @keyframes fade-up {
     from {
@@ -58,6 +303,21 @@
   body {
     letter-spacing: var(--tracking-normal);
   }
+}
+
+/*
+ * Blocks marked `data-reveal` come up softly as they scroll into view.
+ * `ScrollReveal` hides only what is still below the fold, so without the
+ * script, and under reduced motion, everything is simply there.
+ */
+[data-reveal="hidden"] {
+  opacity: 0;
+  transform: translateY(12px);
+}
+[data-reveal="shown"] {
+  transition:
+    opacity 600ms var(--ease-breath),
+    transform 600ms var(--ease-breath);
 }
 
 @media (prefers-reduced-motion: reduce) {

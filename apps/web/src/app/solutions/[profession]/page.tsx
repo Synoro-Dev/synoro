@@ -13,6 +13,7 @@ import { ProfessionPoints } from "~/components/landing/profession-points";
 import { Scheduling } from "~/components/landing/scheduling";
 import { Steps } from "~/components/landing/steps";
 import { StickyCta } from "~/components/landing/sticky-cta";
+import { ScrollReveal } from "~/components/scroll-reveal";
 import {
   professionPage,
   professionPages,
@@ -74,6 +75,7 @@ export default async function ProfessionLandingPage(
       {/* Room for the mobile sticky CTA, so it never covers the footer. */}
       <div aria-hidden className="h-18 md:hidden" />
       <StickyCta signupUrl={links.signup} />
+      <ScrollReveal />
     </>
   );
 }
