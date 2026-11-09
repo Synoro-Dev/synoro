@@ -4,7 +4,6 @@ import { env, logger } from "@synoro/config";
 import { and, db, eq, inArray, isNull, PracticeDomain } from "@synoro/db";
 
 import {
-  hasTrustedCertificate,
   hostOfRoute,
   ingressRoute,
   MANAGED_BY,
@@ -13,6 +12,7 @@ import {
   type RouteTarget,
   reachesUs,
   routeName,
+  servesHttps,
 } from "../custom-domains";
 
 /**
@@ -213,22 +213,31 @@ async function main() {
       logger.error("domains.sync_delete_failed", error, { host });
     }
   }
+  const routed = new Set(plan.apply);
   await markSecured(
-    plan.apply.filter((host) =>
-      rows.some((row) => row.hostname === host && !row.securedAt),
-    ),
+    rows
+      .filter((row) => routed.has(row.hostname) && !row.securedAt)
+      .map((row) => row.hostname),
+    targets.cname,
+  );
+  await clearSecured(
+    rows
+      .filter((row) => !routed.has(row.hostname) && row.securedAt)
+      .map((row) => row.hostname),
   );
   // A non-zero exit shows the failed Job in `kubectl get jobs`.
   if (failed > 0) process.exitCode = 1;
 }
 
 /**
- * Routed hosts whose certificate is now trusted get `secured_at`. A host whose
+ * Routed hosts whose page now works over https get `secured_at`. A host whose
  * certificate isn't there yet is simply checked again next minute.
  */
-async function markSecured(hosts: string[]) {
+async function markSecured(hosts: string[], via: string | undefined) {
   if (hosts.length === 0) return;
-  const results = await Promise.all(hosts.map(hasTrustedCertificate));
+  const results = await Promise.all(
+    hosts.map((host) => servesHttps(host, via)),
+  );
   const secured = hosts.filter((_, i) => results[i]);
   if (secured.length === 0) return;
   await db
@@ -242,6 +251,19 @@ async function markSecured(hosts: string[]) {
       ),
     );
   logger.info("domains.sync_secured", { hosts: secured });
+}
+
+/**
+ * Hosts without a route (DNS moved away, or refused) don't work: the console
+ * goes back to offering the platform address for them.
+ */
+async function clearSecured(hosts: string[]) {
+  if (hosts.length === 0) return;
+  await db
+    .update(PracticeDomain)
+    .set({ securedAt: null })
+    .where(inArray(PracticeDomain.hostname, hosts));
+  logger.warn("domains.sync_unsecured", { hosts });
 }
 
 try {

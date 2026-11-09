@@ -9,7 +9,7 @@ import {
   Practice,
   PracticeDomain,
 } from "@synoro/db";
-import { hasTrustedCertificate } from "@synoro/jobs/custom-domains";
+import { servesHttps } from "@synoro/jobs/custom-domains";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -148,12 +148,14 @@ export async function checkDomainDns(
 }
 
 /**
- * Does `https://<hostname>` already work with a trusted certificate? Only
- * worth asking once DNS leads here: the cluster requests the certificate then
- * (docs/custom-domains.md, «Hosting»).
+ * Does `https://<hostname>/` already work on the platform — a trusted
+ * certificate and the practice's page? Asked through our own entry point
+ * (`CUSTOM_DOMAIN_CNAME`), so another server the host may point at can't
+ * answer for us. Only worth asking once DNS leads here: the cluster requests
+ * the certificate then (docs/custom-domains.md, «Hosting»).
  */
-export function checkCertificate(hostname: string) {
-  return hasTrustedCertificate(hostname);
+export function checkHttps(hostname: string) {
+  return servesHttps(hostname, dnsTargets().cname);
 }
 
 /**

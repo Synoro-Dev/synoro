@@ -293,6 +293,7 @@ describe("domain.verify", () => {
           return { ownership: true, routing: true };
         },
       );
+      const https = spyOn(domains, "checkHttps").mockResolvedValue(true);
       try {
         const result = await call(
           domainRouter.verify,
@@ -305,9 +306,19 @@ describe("domain.verify", () => {
         );
         if (change === "status")
           expect(result.domain?.verifiedAt).toEqual(verifiedAt);
-        if (change !== "none") expect(result.domain?.lastCheckedAt).toBeNull();
+        if (change !== "none") {
+          expect(result.domain?.lastCheckedAt).toBeNull();
+          // Nothing was proved about the row as it is now: never «ready».
+          expect(result.stage).toBe(
+            change === "status" ? "routing" : "ownership",
+          );
+          expect(result.domain?.securedAt ?? null).toBeNull();
+        } else {
+          expect(result.stage).toBe("ready");
+        }
       } finally {
         dns.mockRestore();
+        https.mockRestore();
       }
     });
   }
@@ -342,7 +353,7 @@ describe("domain.verify stages", () => {
     tls: boolean,
   ) {
     const dnsSpy = spyOn(domains, "checkDomainDns").mockResolvedValue(dns);
-    const tlsSpy = spyOn(domains, "checkCertificate").mockResolvedValue(tls);
+    const tlsSpy = spyOn(domains, "checkHttps").mockResolvedValue(tls);
     try {
       const result = await call(
         domainRouter.verify,
@@ -416,10 +427,36 @@ describe("domain.verify stages", () => {
     );
     expect(practice.siteDomain?.url).toBe("https://stages.ru");
 
-    // Another hostname starts over: nothing is shown until it is secured.
-    await connect(own.session, own.practiceId, "zapis.stages.ru");
-    const [replaced] = await mine(own.session);
-    expect(replaced?.siteDomain).toBeNull();
+    // A later failed check takes it back: the console offers the platform
+    // address again, and the page resumes its steps.
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      false,
+    );
+    expect(step.result.stage).toBe("certificate");
+    expect(step.result.domain?.securedAt).toBeNull();
+    expect((await mine(own.session))[0]?.siteDomain).toBeNull();
+
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      true,
+    );
+    expect(step.result.stage).toBe("ready");
+
+    // Another hostname starts over, its mark cleared: nothing is shown until
+    // it is secured itself, even once its ownership is confirmed.
+    const replaced = await connect(
+      own.session,
+      own.practiceId,
+      "zapis.stages.ru",
+    );
+    expect(replaced.domain?.securedAt).toBeNull();
+    await activate("zapis.stages.ru");
+    expect((await mine(own.session))[0]?.siteDomain).toBeNull();
   });
 });
 

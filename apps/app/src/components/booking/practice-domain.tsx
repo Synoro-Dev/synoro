@@ -144,17 +144,21 @@ export function PracticeDomain({
   const live = useQuery({
     queryKey: [...checkKey, domain?.hostname],
     queryFn: async () => {
+      const checking = domain?.hostname;
       const { check, stage, ...data } = await client.domain.verify({
         practiceId,
       });
       const before = queryClient.getQueryData(queryKey)?.domain;
+      // Disconnected or replaced while this check ran: its answer is about a
+      // domain that is no longer on the screen, so it must not bring it back.
+      if (before?.hostname !== checking) return { check, stage };
       save(data);
-      if (stage === "ready" && before && !before.securedAt) {
+      if (stage === "ready" && !before?.securedAt) {
         setCelebrate(true);
         toast.success(`Готово: ${data.domain?.displayHostname} работает`);
-        // The sidebar and «Сегодня» show the domain from now on.
-        router.refresh();
       }
+      // The sidebar and «Сегодня» show the domain only while it works.
+      if (!!before?.securedAt !== !!data.domain?.securedAt) router.refresh();
       return { check, stage };
     },
     // Watch until https works; once secured, only on «Проверить».
@@ -169,6 +173,9 @@ export function PracticeDomain({
   const expired =
     live.error instanceof ORPCError &&
     live.error.code === "RESERVATION_EXPIRED";
+  // A defined error (signed out, no longer the owner…) stops the checks;
+  // anything else (the network) is retried on the next tick.
+  const stopped = isDefinedError(live.error);
   const checks =
     queryClient.getQueryState([...checkKey, domain?.hostname])
       ?.dataUpdateCount ?? 0;
@@ -378,10 +385,26 @@ export function PracticeDomain({
               ) : (
                 <DomainProgress
                   stage={stage}
+                  stopped={stopped}
                   checking={live.isFetching}
                   checkedAt={live.dataUpdatedAt}
                   interval={checkInterval(checks)}
                 />
+              )}
+
+              {live.isError && !expired && (
+                <Alert variant={stopped ? "destructive" : "warning"}>
+                  <AlertTitle>
+                    {stopped
+                      ? "Проверка остановлена"
+                      : "Не удалось проверить домен"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {stopped
+                      ? `${live.error.message}. Затем нажмите «Проверить сейчас».`
+                      : "Повторим автоматически. Если ошибка не уходит, проверьте подключение к интернету."}
+                  </AlertDescription>
+                </Alert>
               )}
 
               {!targetsConfigured && (

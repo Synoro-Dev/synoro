@@ -104,16 +104,26 @@ function StepIndicator({
 /** How the page keeps checking by itself, shown under the current step. */
 function BackgroundCheck({
   stage,
+  stopped,
   checking,
   checkedAt,
   interval,
 }: {
   stage: DomainStage;
+  /** The checks stopped on an error: no countdown, no promise of more. */
+  stopped: boolean;
   checking: boolean;
   /** `dataUpdatedAt` of the last check: restarts the countdown. */
   checkedAt: number;
   interval: number;
 }) {
+  if (stopped && !checking) {
+    return (
+      <span className="mt-3 text-xs text-muted-foreground">
+        Автоматическая проверка остановлена
+      </span>
+    );
+  }
   return (
     <div className="mt-3 flex flex-col gap-1.5">
       <div className="h-1 w-full max-w-64 overflow-hidden rounded-full bg-muted">
@@ -151,12 +161,14 @@ function BackgroundCheck({
  */
 export function DomainProgress({
   stage,
+  stopped,
   checking,
   checkedAt,
   interval,
   children,
 }: {
   stage: DomainStage;
+  stopped: boolean;
   checking: boolean;
   checkedAt: number;
   interval: number;
@@ -208,6 +220,7 @@ export function DomainProgress({
                   </p>
                   <BackgroundCheck
                     stage={stage}
+                    stopped={stopped}
                     checking={checking}
                     checkedAt={checkedAt}
                     interval={interval}

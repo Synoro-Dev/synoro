@@ -1,5 +1,5 @@
 import { resolve4, resolveCname } from "node:dns/promises";
-import { connect } from "node:tls";
+import { request } from "node:https";
 
 /**
  * Hosting side of the practices' own domains (docs/custom-domains.md): which
@@ -112,35 +112,46 @@ export async function reachesUs(
   );
 }
 
-/** Opens a TLS connection to the host; `true` when its certificate is trusted. */
-export type CertificateProbe = (host: string) => Promise<boolean>;
+/** `true` when `https://<host>/` works on the platform. */
+export type HttpsProbe = (host: string, via?: string) => Promise<boolean>;
 
 /**
- * Does `https://<host>` answer with a certificate a browser trusts (a public
- * CA, valid now, issued for this host)? Until Let's Encrypt issues one Traefik
- * serves its own self-signed default, which fails here. Only the handshake:
- * nothing is sent. Call it for hosts whose DNS leads to us.
+ * Does `https://<host>/` work on the platform: a certificate a browser trusts
+ * (a public CA, valid now, issued for this host) and the practice's page
+ * itself (2xx)? Until Let's Encrypt issues one, Traefik serves its own
+ * self-signed default, which fails here; a route without a working app
+ * answers 404/502, which fails too.
+ *
+ * It connects to `via` — the platform's own entry point
+ * (`CUSTOM_DOMAIN_CNAME`) — with the host as SNI and `Host`, so whatever the
+ * host's DNS says right now, the answer is ours and never another server's.
  */
-export const hasTrustedCertificate: CertificateProbe = (host) =>
+export const servesHttps: HttpsProbe = (host, via = host) =>
   new Promise((resolve) => {
-    const socket = connect(
+    const req = request(
       {
-        host,
+        host: via,
         port: 443,
+        path: "/",
+        method: "GET",
         servername: host,
+        headers: { host, "user-agent": "synoro-domain-check" },
         rejectUnauthorized: true,
+        agent: false,
         timeout: 5_000,
       },
-      () => {
-        resolve(socket.authorized);
-        socket.end();
+      (response) => {
+        const status = response.statusCode ?? 0;
+        resolve(status >= 200 && status < 300);
+        response.destroy();
       },
     );
-    socket.on("error", () => resolve(false));
-    socket.on("timeout", () => {
-      socket.destroy();
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
       resolve(false);
     });
+    req.end();
   });
 
 /**
