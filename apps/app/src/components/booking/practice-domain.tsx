@@ -1,7 +1,6 @@
 "use client";
 
-import { isDefinedError } from "@orpc/client";
-import { paths } from "@synoro/config";
+import { isDefinedError, ORPCError } from "@orpc/client";
 import {
   Button,
   Field,
@@ -38,15 +37,37 @@ import {
   GlobeIcon,
   RefreshCwIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
-import { orpc } from "~/orpc/react";
+import { client, orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
 import { SaveState } from "../settings/save-state";
 import { ConfirmButton } from "./confirm-button";
+import {
+  DomainProgress,
+  DomainReady,
+  type DomainStage,
+  STAGE_BADGE,
+} from "./domain-progress";
 import { ErrorState } from "./states";
 
-type DnsCheck = { ownership: boolean; routing: boolean };
+/** One reservation of a domain: its hostname and the token issued for it. */
+const reservationOf = (
+  domain:
+    | {
+        hostname: string;
+        records: { purpose: string; value: string }[];
+      }
+    | null
+    | undefined,
+) =>
+  domain
+    ? `${domain.hostname} ${domain.records.find((r) => r.purpose === "ownership")?.value}`
+    : undefined;
+
+/** How often the page checks while waiting: often at first, then calmer. */
+const checkInterval = (checks: number) => (checks < 40 ? 8_000 : 30_000);
 
 async function copy(text: string) {
   try {
@@ -85,9 +106,17 @@ function LinkRow({ value, label }: { value: string; label: string }) {
 function CheckMark({ ok }: { ok: boolean | undefined }) {
   if (ok === undefined) return null;
   return ok ? (
-    <CircleCheckIcon className="size-4 text-success" aria-label="Найдена" />
+    <CircleCheckIcon
+      key="ok"
+      className="size-4 animate-in text-success duration-300 zoom-in-50 motion-reduce:animate-none"
+      aria-label="Найдена"
+    />
   ) : (
-    <CircleXIcon className="size-4 text-destructive" aria-label="Не найдена" />
+    <CircleXIcon
+      key="no"
+      className="size-4 text-muted-foreground"
+      aria-label="Пока не найдена"
+    />
   );
 }
 
@@ -96,6 +125,9 @@ function CheckMark({ ok }: { ok: boolean | undefined }) {
  * specialist's own domain — connected with a TXT record (ownership) plus a
  * CNAME or ALIAS record (routing). Owner only. The certificate is issued by the
  * cluster once the routing record is seen (docs/custom-domains.md).
+ *
+ * Until the domain works over https the page re-runs `domain.verify` in the
+ * background and walks the steps (TXT → DNS → SSL → ready) as they pass.
  */
 export function PracticeDomain({
   practiceId,
@@ -107,24 +139,107 @@ export function PracticeDomain({
   isOwner: boolean;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const queryKey = orpc.domain.get.queryKey({ input: { practiceId } });
   const settings = useQuery({
     ...orpc.domain.get.queryOptions({ input: { practiceId } }),
     enabled: isOwner,
+    // Ready, the page stops checking DNS; the routes sync may still find the
+    // domain broken and clear `securedAt`, so re-read it now and then.
+    refetchInterval: (query) =>
+      query.state.data?.domain?.securedAt ? 60_000 : false,
   });
   const [hostname, setHostname] = useState("");
   const [inputError, setInputError] = useState<string>();
-  const [check, setCheck] = useState<DnsCheck>();
+  // Became ready while the owner watched: worth a celebration.
+  const [celebrate, setCelebrate] = useState(false);
 
   const save = (data: NonNullable<typeof settings.data>) =>
     queryClient.setQueryData(queryKey, data);
+  const checkKey = ["domain-check", practiceId] as const;
+
+  const domain = settings.data?.domain;
+  const live = useQuery({
+    queryKey: [...checkKey, reservationOf(domain)],
+    queryFn: async () => {
+      const checking = reservationOf(domain);
+      const { check, stage, ...data } = await client.domain.verify({
+        practiceId,
+      });
+      const before = queryClient.getQueryData(queryKey)?.domain;
+      // Disconnected, replaced or connected anew (same hostname, new token)
+      // while this check ran: its answer is about a reservation no longer on
+      // the screen, so it must not bring that one back.
+      if (reservationOf(before) !== checking) return { check, stage };
+      save(data);
+      if (stage === "ready" && !before?.securedAt) {
+        setCelebrate(true);
+        toast.success(`Готово: ${data.domain?.displayHostname} работает`);
+      }
+      return { check, stage };
+    },
+    // Watch until https works; once secured, only on «Проверить».
+    enabled: isOwner && !!domain && !domain.securedAt,
+    refetchInterval: (query) =>
+      isDefinedError(query.state.error) || query.state.data?.stage === "ready"
+        ? false
+        : checkInterval(query.state.dataUpdateCount),
+    retry: false,
+  });
+  const check = live.data?.check;
+
+  // Readiness flipped — by a check here, the routes sync, a new hostname or a
+  // disconnect: the sidebar and «Сегодня» show the domain only while it
+  // works. Lost, the last check («ready») is stale: start the steps afresh.
+  const loaded = !!settings.data;
+  const secured = !!domain?.securedAt;
+  const securedBefore = useRef<boolean>(undefined);
+  useEffect(() => {
+    if (!loaded) return;
+    const was = securedBefore.current;
+    securedBefore.current = secured;
+    if (was === undefined || was === secured) return;
+    router.refresh();
+    if (!secured) {
+      setCelebrate(false);
+      queryClient.removeQueries({ queryKey: ["domain-check", practiceId] });
+    }
+  }, [loaded, secured, router, queryClient, practiceId]);
+  const expired =
+    live.error instanceof ORPCError &&
+    live.error.code === "RESERVATION_EXPIRED";
+  // A defined error (signed out, no longer the owner…) stops the checks;
+  // anything else (the network) is retried on the next tick.
+  const stopped = isDefinedError(live.error);
+  const checks =
+    queryClient.getQueryState([...checkKey, reservationOf(domain)])
+      ?.dataUpdateCount ?? 0;
+  // Whether another check comes by itself (not once the domain is ready).
+  const polling =
+    !!domain && !domain.securedAt && !stopped && live.data?.stage !== "ready";
+
+  const checkAlert = live.isError && !expired && (
+    <Alert variant={stopped ? "destructive" : "warning"}>
+      <AlertTitle>
+        {stopped ? "Проверка остановлена" : "Не удалось проверить домен"}
+      </AlertTitle>
+      <AlertDescription>
+        {stopped
+          ? live.error.message
+          : polling
+            ? "Повторим автоматически. Если ошибка не уходит, проверьте подключение к интернету."
+            : "Проверьте подключение к интернету и нажмите «Проверить ещё раз»."}
+      </AlertDescription>
+    </Alert>
+  );
 
   const connect = useMutation({
     ...orpc.domain.connect.mutationOptions(),
     onSuccess: (data) => {
       save(data);
       setHostname("");
-      setCheck(undefined);
+      setCelebrate(false);
+      queryClient.removeQueries({ queryKey: checkKey });
     },
     onError: (error) =>
       isDefinedError(error)
@@ -132,29 +247,12 @@ export function PracticeDomain({
         : toast.error("Не удалось подключить домен"),
   });
 
-  const verify = useMutation({
-    ...orpc.domain.verify.mutationOptions(),
-    onSuccess: ({ check: result, ...data }) => {
-      save(data);
-      setCheck(result);
-      if (data.domain?.status !== "active") {
-        toast.warning("TXT-запись пока не видна. DNS обновляется до суток.");
-      } else if (!result.routing) {
-        toast.info("Домен подтверждён. Осталось направить его на платформу.");
-      } else {
-        toast.success(
-          "Домен подключён. Защищённое соединение включится за пару минут.",
-        );
-      }
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
   const disconnect = useMutation({
     ...orpc.domain.disconnect.mutationOptions(),
     onSuccess: (data) => {
       save(data);
-      setCheck(undefined);
+      setCelebrate(false);
+      queryClient.removeQueries({ queryKey: checkKey });
       toast.success("Домен отключён");
     },
     onError: (error) => toast.error(error.message),
@@ -209,13 +307,41 @@ export function PracticeDomain({
     );
   }
 
-  const { domain, targetsConfigured, pro } = settings.data;
+  const { targetsConfigured, pro } = settings.data;
   const routing = domain?.records.filter((r) => r.purpose === "routing") ?? [];
+  const stage: DomainStage =
+    live.data?.stage ??
+    (domain?.securedAt
+      ? "ready"
+      : domain?.status === "active"
+        ? "routing"
+        : "ownership");
+
+  const checkButton = (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={live.isFetching}
+      onClick={() => live.refetch()}
+    >
+      <RefreshCwIcon className={live.isFetching ? "animate-spin" : undefined} />
+      {stage === "ready" ? "Проверить ещё раз" : "Проверить сейчас"}
+    </Button>
+  );
+  const disconnectButton = domain && (
+    <ConfirmButton
+      title="Отключить домен?"
+      description={`Страница перестанет открываться на ${domain.displayHostname}. Ссылки на платформе продолжат работать.`}
+      confirmLabel="Отключить"
+      disabled={disconnect.isPending}
+      onConfirm={() => disconnect.mutate({ practiceId })}
+    >
+      Отключить
+    </ConfirmButton>
+  );
 
   return (
     <div className="flex max-w-3xl flex-col gap-6">
-      {platform}
-
       <Frame spacing="default" className="min-w-0">
         <FramePanel className="flex flex-col gap-4">
           <FrameHeader className="p-0">
@@ -260,50 +386,68 @@ export function PracticeDomain({
               </Field>
               <SaveState dirty={hostname.trim() !== ""} savedAt={null} />
             </form>
+          ) : stage === "ready" ? (
+            <>
+              <DomainReady
+                hostname={domain.displayHostname}
+                url={domain.url}
+                celebrate={celebrate}
+                actions={
+                  <>
+                    {checkButton}
+                    {disconnectButton}
+                  </>
+                }
+              />
+              {checkAlert}
+            </>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <GlobeIcon className="size-4 text-muted-foreground" />
-                <span className="font-medium">{domain.displayHostname}</span>
-                <Badge
-                  variant={
-                    domain.status === "active"
-                      ? "success-light"
-                      : "warning-light"
-                  }
-                >
-                  {domain.status === "active"
-                    ? "Подключён"
-                    : "Ожидает проверки"}
+                <span className="font-medium break-all">
+                  {domain.displayHostname}
+                </span>
+                <Badge variant={STAGE_BADGE[stage].variant}>
+                  {STAGE_BADGE[stage].label}
                 </Badge>
                 <div className="ml-auto flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={verify.isPending}
-                    onClick={() => verify.mutate({ practiceId })}
-                  >
-                    <RefreshCwIcon />
-                    Проверить DNS
-                  </Button>
-                  <ConfirmButton
-                    title="Отключить домен?"
-                    description={`Страница перестанет открываться на ${domain.displayHostname}. Ссылки на платформе продолжат работать.`}
-                    confirmLabel="Отключить"
-                    disabled={disconnect.isPending}
-                    onConfirm={() => disconnect.mutate({ practiceId })}
-                  >
-                    Отключить
-                  </ConfirmButton>
+                  {checkButton}
+                  {disconnectButton}
                 </div>
               </div>
 
-              {domain.status === "active" && (
-                <LinkRow
-                  value={`https://${domain.hostname}`}
-                  label="Ваш домен"
+              {expired ? (
+                <Alert variant="warning">
+                  <AlertTitle>Срок проверки истёк</AlertTitle>
+                  <AlertDescription className="flex flex-col items-start gap-2">
+                    За сутки TXT-запись так и не появилась. Подключите домен
+                    заново — мы выдадим новую запись.
+                    <Button
+                      size="sm"
+                      disabled={connect.isPending}
+                      onClick={() =>
+                        connect.mutate({
+                          practiceId,
+                          hostname: domain.hostname,
+                        })
+                      }
+                    >
+                      Подключить заново
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <DomainProgress
+                  stage={stage}
+                  stopped={stopped}
+                  checking={live.isFetching}
+                  checkedAt={live.dataUpdatedAt}
+                  interval={checkInterval(checks)}
                 />
               )}
+
+              {checkAlert}
 
               {!targetsConfigured && (
                 <Alert variant="warning">
@@ -316,63 +460,66 @@ export function PracticeDomain({
                 </Alert>
               )}
 
-              <div className="flex flex-col gap-2">
-                <span className="text-sm font-medium">
-                  Добавьте записи в DNS у регистратора домена
-                </span>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Тип</TableHead>
-                      <TableHead>Имя</TableHead>
-                      <TableHead>Значение</TableHead>
-                      <TableHead className="w-8" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {domain.records.map((record) => (
-                      <TableRow key={`${record.type}-${record.name}`}>
-                        <TableCell className="align-top">
-                          <div className="flex flex-col items-start gap-1">
-                            <Badge variant="info-light">{record.type}</Badge>
-                            {record.purpose === "routing" &&
-                              routing.length > 1 &&
-                              record.recommended && (
-                                <span className="text-xs text-muted-foreground">
-                                  рекомендуем
-                                </span>
-                              )}
-                          </div>
-                        </TableCell>
-                        {[record.name, record.value].map((text) => (
-                          <TableCell
-                            key={text}
-                            className="max-w-56 align-top whitespace-normal"
-                          >
-                            <button
-                              type="button"
-                              onClick={() => copy(text)}
-                              className="flex max-w-full items-center gap-1.5 rounded-sm text-left font-mono text-xs break-all transition-colors hover:text-primary"
-                            >
-                              {text}
-                              <CopyIcon className="size-3 shrink-0 opacity-50" />
-                            </button>
-                          </TableCell>
-                        ))}
-                        <TableCell className="align-top">
-                          <CheckMark
-                            ok={
-                              record.purpose === "ownership"
-                                ? check?.ownership
-                                : check?.routing
-                            }
-                          />
-                        </TableCell>
+              {stage !== "certificate" && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium">
+                    Добавьте записи в DNS у регистратора домена
+                  </span>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Тип</TableHead>
+                        <TableHead>Имя</TableHead>
+                        <TableHead>Значение</TableHead>
+                        <TableHead className="w-8" />
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {domain.records.map((record) => (
+                        <TableRow key={`${record.type}-${record.name}`}>
+                          <TableCell className="align-top">
+                            <div className="flex flex-col items-start gap-1">
+                              <Badge variant="info-light">{record.type}</Badge>
+                              {record.purpose === "routing" &&
+                                routing.length > 1 &&
+                                record.recommended && (
+                                  <span className="text-xs text-muted-foreground">
+                                    рекомендуем
+                                  </span>
+                                )}
+                            </div>
+                          </TableCell>
+                          {[record.name, record.value].map((text) => (
+                            <TableCell
+                              key={text}
+                              className="max-w-56 align-top whitespace-normal"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => copy(text)}
+                                className="flex max-w-full items-center gap-1.5 rounded-sm text-left font-mono text-xs break-all transition-colors hover:text-primary"
+                              >
+                                {text}
+                                <CopyIcon className="size-3 shrink-0 opacity-50" />
+                              </button>
+                            </TableCell>
+                          ))}
+                          <TableCell className="align-top">
+                            <CheckMark
+                              ok={
+                                record.purpose === "ownership"
+                                  ? domain.status === "active" ||
+                                    check?.ownership
+                                  : check?.routing
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs text-muted-foreground">
                 <li>
                   TXT подтверждает, что домен ваш. Его можно удалить после
@@ -396,12 +543,6 @@ export function PracticeDomain({
                   регистратора включено проксирование или CDN для домена,
                   выключите его: записи должны вести прямо на платформу.
                 </li>
-                <li>
-                  Добавив записи, нажмите «Проверить DNS»: пока TXT не найдена,
-                  домен не подключён. Затем, когда DNS поведёт на платформу,
-                  сертификат (https) выпустится сам — обычно за 2–5 минут. До
-                  этого адрес может открываться с предупреждением браузера.
-                </li>
               </ul>
             </>
           )}
@@ -411,6 +552,8 @@ export function PracticeDomain({
           перейдут туда по кнопке «Войти и записаться».
         </FrameFooter>
       </Frame>
+
+      {platform}
     </div>
   );
 }

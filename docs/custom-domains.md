@@ -55,7 +55,11 @@ still verifies ownership but warns that there is nothing to point DNS at.
 (`ANAME`, «CNAME flattening») to the same name. Nobody is ever told an address,
 so the hosting can move (another server, another cloud) by changing one record
 of ours, `domains.synoro.ru`. The routing check compares the host with the
-target's _current_ addresses, so it follows the move as well. Apex domains need a
+target's _current_ addresses, so it follows the move as well. For an ALIAS,
+**every** address the host answers with, IPv4 and IPv6, must be the target's:
+one foreign A or AAAA would send some visitors (and Let's Encrypt, which
+prefers IPv6) elsewhere (`leadsToTarget`, shared by `verify` and the routes
+sync). Apex domains need a
 registrar that offers ALIAS; where there is none, the owner connects a
 subdomain (`zapis.anna.ru`), which the page says.
 
@@ -68,7 +72,7 @@ and the cluster follows the database:
 ```
 specialist's DNS ──► node :80/:443 ──► Traefik ──► synoro-app (proxy.ts: Host → /site/<host>)
                                          ▲
-   CronJob synoro-domains-sync (every minute)
+   CronJob synoro-domains-sync (every 5 minutes)
      1. active domains from `practice_domains`
      2. keeps those whose DNS already leads here (a certificate request for
         a host that doesn't would fail, and Traefik doesn't retry)
@@ -87,9 +91,35 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   platform's own hosts (`APP_URL`, `BOOKING_URL`, `ADMIN_URL`, exact
   `AUTH_TRUSTED_ORIGINS`), whatever the database says: a route is a rule with
   the host in it.
-- A route exists once the TXT record is seen **and** DNS leads here. The owner
-  sees it as: «Проверить DNS» → both marks green → https works in 2–5 minutes.
-- Disconnecting removes the route within a minute. The certificate stays in
+- A route exists once the TXT record is seen **and** DNS leads here.
+- The owner watches it as steps on the domain page (`domain-progress.tsx`):
+  TXT → DNS → SSL → «Сайт полностью готов». While the domain isn't secured the
+  page re-runs `domain.verify` every 8 s (30 s after ~5 minutes); `verify`
+  returns `stage` (`ownership` / `routing` / `certificate` / `ready`). Once DNS
+  leads here it also requests `https://<host>/api/domains/check`
+  (`servesHttps` in `custom-domains.ts`) — sent to our own entry point
+  (`CUSTOM_DOMAIN_CNAME`) with the host as SNI and `Host`, so another server
+  the host may point at can't answer for us. That route answers
+  `{ practiceId }` only once the practice is resolved by `Host` (the booking
+  page itself streams a 200 before its data loads), so a trusted certificate
+  **and** the right practice set `practice_domains.secured_at`; a later failed
+  check clears it, and the page resumes its steps.
+- Every run the CronJob re-checks every active domain (`planReadiness`: a
+  route, DNS leading here — on its own, since a route stays through a DNS
+  change — and the probe) and sets or clears `secured_at`: a domain becomes
+  ready even if the owner closed the page, and stops being offered once it
+  breaks. `secured_at` means «works now, since». At most 8 domains are probed
+  at once.
+- Checks overlap (the page, a second tab, the sync), so every readiness write
+  is guarded: it touches only the very record it checked (`id` and
+  `verification_token`; a new reservation gets a new token), and only if no
+  check that started later has written since — `last_checked_at` holds when
+  the last written check started.
+- With `secured_at` set the domain is the practice's address in the console:
+  `practice.get` / `practice.mine` return `siteDomain`, shown first in
+  «Страница записи» (`BookingLinkActions`), in the sidebar and the practice
+  switcher. A new hostname clears it.
+- Disconnecting removes the route within 5 minutes (the next sync). The certificate stays in
   Traefik's `acme.json` and expires on its own.
 
 Platform DNS (where `synoro.ru` is managed): `A domains.synoro.ru` → the node's
@@ -114,7 +144,7 @@ it started).
 
 `GET /api/domains/tls?domain=` answers 200 only for active domains. It is the
 `ask` endpoint of Caddy's on-demand TLS, which issues a certificate at the first
-visit instead of within a minute. Not used on k3s (it would need Caddy behind a
+visit instead of on the next sync run. Not used on k3s (it would need Caddy behind a
 TCP passthrough in Traefik); kept for a self-hosted setup:
 
 ```caddyfile

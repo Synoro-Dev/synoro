@@ -1,5 +1,6 @@
-import { eq, PracticeSlugAlias } from "@synoro/db";
+import { eq, Practice, PracticeDomain, PracticeSlugAlias } from "@synoro/db";
 import { z } from "zod";
+import { readyDomainOn, siteDomain } from "../../lib/domains";
 import {
   findMembership,
   findPractice,
@@ -25,10 +26,17 @@ export const get = practiceProcedure
       member && (await findPractice(context.db, member.practiceId));
     if (!member || !practice) throw errors.FORBIDDEN();
 
-    const formerSlugs = await context.db.query.PracticeSlugAlias.findMany({
-      where: eq(PracticeSlugAlias.practiceId, practice.id),
-      columns: { slug: true },
-    });
+    const [formerSlugs, [domain]] = await Promise.all([
+      context.db.query.PracticeSlugAlias.findMany({
+        where: eq(PracticeSlugAlias.practiceId, practice.id),
+        columns: { slug: true },
+      }),
+      context.db
+        .select({ hostname: PracticeDomain.hostname })
+        .from(Practice)
+        .innerJoin(PracticeDomain, readyDomainOn(Practice.id))
+        .where(eq(Practice.id, practice.id)),
+    ]);
 
     // The questionnaire and the page's look are settings of their own
     // (`question.list`, `practice.theme`); clients get what they're shown
@@ -50,6 +58,8 @@ export const get = practiceProcedure
       imageUrl: practiceImageUrl(practice.slug, image),
       /** The main address of the booking page, for sharing. */
       bookingUrl: publicBookingUrl(practice.slug),
+      /** The own domain once it fully works: shown first, where links are. */
+      siteDomain: siteDomain(domain?.hostname),
       /** Addresses it had before: the owner goes back to them for free. */
       formerSlugs: formerSlugs.map((former) => former.slug),
       membership: { id: member.id, role: member.role, credits: member.credits },

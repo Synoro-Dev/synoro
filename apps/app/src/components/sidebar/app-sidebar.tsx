@@ -22,6 +22,7 @@ import {
   CalendarSearchIcon,
   ChartNoAxesColumnIcon,
   ExternalLinkIcon,
+  GlobeIcon,
   LayoutDashboardIcon,
   type LucideIcon,
   PlusIcon,
@@ -121,10 +122,11 @@ function practiceNav(practice: SidebarPractice, pathname: string) {
   ];
   const groups = practiceSections(id, owner);
   const sections = groups.flatMap((g) => g.sections);
+  // The own domain, once it fully works, is the page's address: in plain sight.
   const open: NavItem = {
-    title: "Открыть страницу записи",
-    href: paths.booking.public(practice.slug),
-    icon: ExternalLinkIcon,
+    title: practice.siteDomain?.hostname ?? "Открыть страницу записи",
+    href: practice.siteDomain?.url ?? paths.booking.public(practice.slug),
+    icon: practice.siteDomain ? GlobeIcon : ExternalLinkIcon,
     active: false,
     external: true,
   };

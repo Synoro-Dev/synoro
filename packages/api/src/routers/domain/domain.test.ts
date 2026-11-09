@@ -293,6 +293,7 @@ describe("domain.verify", () => {
           return { ownership: true, routing: true };
         },
       );
+      const https = spyOn(domains, "checkHttps").mockResolvedValue(true);
       try {
         const result = await call(
           domainRouter.verify,
@@ -305,9 +306,19 @@ describe("domain.verify", () => {
         );
         if (change === "status")
           expect(result.domain?.verifiedAt).toEqual(verifiedAt);
-        if (change !== "none") expect(result.domain?.lastCheckedAt).toBeNull();
+        if (change !== "none") {
+          expect(result.domain?.lastCheckedAt).toBeNull();
+          // Nothing was proved about the row as it is now: never «ready».
+          expect(result.stage).toBe(
+            change === "status" ? "routing" : "ownership",
+          );
+          expect(result.domain?.securedAt ?? null).toBeNull();
+        } else {
+          expect(result.stage).toBe("ready");
+        }
       } finally {
         dns.mockRestore();
+        https.mockRestore();
       }
     });
   }
@@ -334,12 +345,157 @@ describe("domain.verify", () => {
   });
 });
 
+describe("domain.verify stages", () => {
+  async function verifyWith(
+    session: Session,
+    id: string,
+    dns: { ownership: boolean; routing: boolean },
+    tls: boolean,
+  ) {
+    const dnsSpy = spyOn(domains, "checkDomainDns").mockResolvedValue(dns);
+    const tlsSpy = spyOn(domains, "checkHttps").mockResolvedValue(tls);
+    try {
+      const result = await call(
+        domainRouter.verify,
+        { practiceId: id },
+        { context: api.context(session) },
+      );
+      return { result, probed: tlsSpy.mock.calls.length > 0 };
+    } finally {
+      dnsSpy.mockRestore();
+      tlsSpy.mockRestore();
+    }
+  }
+
+  const mine = (session: Session) =>
+    call(practiceRouter.mine, undefined, { context: api.context(session) });
+
+  it("walks TXT → DNS → certificate → ready, then shows the domain", async () => {
+    const own = await newPractice("stages");
+    await connect(own.session, own.practiceId, "stages.ru");
+
+    // No TXT yet: the certificate is never probed.
+    let step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      true,
+    );
+    expect(step.result.stage).toBe("ownership");
+    expect(step.probed).toBe(false);
+
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: true, routing: false },
+      true,
+    );
+    expect(step.result.stage).toBe("routing");
+    expect(step.result.domain?.status).toBe("active");
+    expect(step.probed).toBe(false);
+
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      false,
+    );
+    expect(step.result.stage).toBe("certificate");
+    expect(step.result.domain?.securedAt).toBeNull();
+    const [before] = await mine(own.session);
+    expect(before?.siteDomain).toBeNull();
+
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      true,
+    );
+    expect(step.result.stage).toBe("ready");
+    expect(step.result.check.tls).toBe(true);
+    expect(step.result.domain?.securedAt).toBeInstanceOf(Date);
+
+    const [after] = await mine(own.session);
+    expect(after?.siteDomain).toEqual({
+      hostname: "stages.ru",
+      url: "https://stages.ru",
+    });
+    const practice = await call(
+      practiceRouter.get,
+      { practiceId: own.practiceId },
+      { context: api.context(own.session) },
+    );
+    expect(practice.siteDomain?.url).toBe("https://stages.ru");
+
+    // A later failed check takes it back: the console offers the platform
+    // address again, and the page resumes its steps.
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      false,
+    );
+    expect(step.result.stage).toBe("certificate");
+    expect(step.result.domain?.securedAt).toBeNull();
+    expect((await mine(own.session))[0]?.siteDomain).toBeNull();
+
+    step = await verifyWith(
+      own.session,
+      own.practiceId,
+      { ownership: false, routing: true },
+      true,
+    );
+    expect(step.result.stage).toBe("ready");
+
+    // Another hostname starts over, its mark cleared: nothing is shown until
+    // it is secured itself, even once its ownership is confirmed.
+    const replaced = await connect(
+      own.session,
+      own.practiceId,
+      "zapis.stages.ru",
+    );
+    expect(replaced.domain?.securedAt).toBeNull();
+    await activate("zapis.stages.ru");
+    expect((await mine(own.session))[0]?.siteDomain).toBeNull();
+  });
+
+  it("a check overtaken by a newer one doesn't undo it", async () => {
+    const own = await newPractice("stages-race");
+    await connect(own.session, own.practiceId, "race.ru");
+    await activate("race.ru");
+    const secured = new Date("2030-01-01T00:00:00Z");
+    // While this (failing) check runs, a newer one starts later and writes
+    // first: the domain works.
+    const dns = spyOn(domains, "checkDomainDns").mockImplementationOnce(
+      async () => {
+        await api.db
+          .update(PracticeDomain)
+          .set({ securedAt: secured, lastCheckedAt: new Date(Date.now() + 1) })
+          .where(eq(PracticeDomain.practiceId, own.practiceId));
+        return { ownership: true, routing: false };
+      },
+    );
+    try {
+      const result = await call(
+        domainRouter.verify,
+        { practiceId: own.practiceId },
+        { context: api.context(own.session) },
+      );
+      expect(result.domain?.securedAt).toEqual(secured);
+      expect(result.stage).toBe("ready");
+    } finally {
+      dns.mockRestore();
+    }
+  });
+});
+
 describe("checkDomainDns", () => {
   const targets = { cname: "domains.pages.test" };
   const resolver = (records: {
     txt?: string[][];
     cname?: string[];
     a?: Record<string, string[]>;
+    aaaa?: Record<string, string[]>;
   }): DnsResolver => ({
     resolveTxt: async () => records.txt ?? [],
     resolveCname: async () => {
@@ -347,6 +503,7 @@ describe("checkDomainDns", () => {
       return records.cname;
     },
     resolve4: async (host) => records.a?.[host] ?? [],
+    resolve6: async (host) => records.aaaa?.[host] ?? [],
   });
 
   it("finds the token, even split into TXT chunks", async () => {
@@ -388,5 +545,38 @@ describe("checkDomainDns", () => {
     expect((await check({ a: { "anna.ru": ["192.0.2.1"] } })).routing).toBe(
       false,
     );
+  });
+
+  it("an ALIAS counts only if every address, IPv6 too, is the target's", async () => {
+    const check = (records: Parameters<typeof resolver>[0]) =>
+      checkDomainDns("anna.ru", "t", targets, resolver(records));
+    const target = { "domains.pages.test": ["198.51.100.7"] };
+    const target6 = { "domains.pages.test": ["2001:db8::7"] };
+
+    // One of ours and one foreign A record.
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7", "203.0.113.10"], ...target },
+        })
+      ).routing,
+    ).toBe(false);
+    // Our A record, someone else's AAAA.
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7"], ...target },
+          aaaa: { "anna.ru": ["2001:db8::99"], ...target6 },
+        })
+      ).routing,
+    ).toBe(false);
+    expect(
+      (
+        await check({
+          a: { "anna.ru": ["198.51.100.7"], ...target },
+          aaaa: { "anna.ru": ["2001:db8::7"], ...target6 },
+        })
+      ).routing,
+    ).toBe(true);
   });
 });

@@ -19,6 +19,31 @@
     var(--booking-font, var(--font-literata)), ui-serif, Georgia, serif;
 }
 
+/* The own-domain steps (`domain-progress.tsx`). */
+@theme {
+  /* Work with no known end: the certificate being issued. */
+  --animate-sweep: sweep 1.6s ease-in-out infinite;
+  /* Fills up to the next background check; duration set inline. */
+  --animate-countdown: countdown 8s linear forwards;
+
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+  @keyframes countdown {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
 @custom-variant auto (&:where(.auto, .auto *));

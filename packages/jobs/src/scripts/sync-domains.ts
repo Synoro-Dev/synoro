@@ -1,24 +1,30 @@
 import { readFileSync } from "node:fs";
 import { request } from "node:https";
 import { env, logger } from "@synoro/config";
-import { db, eq, PracticeDomain } from "@synoro/db";
+import { and, db, eq, isNull, lte, or, PracticeDomain } from "@synoro/db";
 
 import {
   hostOfRoute,
   ingressRoute,
   MANAGED_BY,
   MANAGED_LABEL,
+  planReadiness,
   planRoutes,
   type RouteTarget,
   reachesUs,
   routeName,
+  servesHttps,
 } from "../custom-domains";
 
 /**
  * Makes the cluster's Traefik routes match the connected domains
  * (docs/custom-domains.md, «Hosting»): one IngressRoute per verified domain,
- * which is what makes Traefik request its certificate. A CronJob runs it every
- * minute (`infra/synoro/domains.yaml`):
+ * which is what makes Traefik request its certificate. Each run also re-checks
+ * which domains work (`planReadiness`: route, DNS, and the practice over https
+ * through our own entry point) and sets or clears `secured_at`: the owner's
+ * page says it's fully ready even if they closed it meanwhile, and a domain
+ * that stops working stops being offered. A CronJob runs it every 5 minutes
+ * (`schedule` in `infra/synoro/domains.yaml`, the infra submodule):
  *
  *   bun run packages/jobs/src/scripts/sync-domains.ts
  *
@@ -109,12 +115,19 @@ async function main() {
   const namespace = dryRun ? "default" : read("namespace").toString().trim();
   const routes = `/apis/traefik.io/v1alpha1/namespaces/${namespace}/ingressroutes`;
 
-  const active = (
-    await db
-      .select({ hostname: PracticeDomain.hostname })
-      .from(PracticeDomain)
-      .where(eq(PracticeDomain.status, "active"))
-  ).map((row) => row.hostname);
+  // Readiness writes only win over checks that started before this run.
+  const startedAt = new Date();
+  const rows = await db
+    .select({
+      id: PracticeDomain.id,
+      hostname: PracticeDomain.hostname,
+      verificationToken: PracticeDomain.verificationToken,
+      practiceId: PracticeDomain.practiceId,
+      securedAt: PracticeDomain.securedAt,
+    })
+    .from(PracticeDomain)
+    .where(eq(PracticeDomain.status, "active"));
+  const active = rows.map((row) => row.hostname);
 
   // Every route of the namespace, not only ours: a route that already has a
   // `cd-<host>` name but was made by someone else is theirs, not to be adopted.
@@ -149,11 +162,22 @@ async function main() {
     ...exactTrusted,
   ]);
 
+  // One DNS lookup per host and run, shared by routes and readiness.
+  const looked = new Map<string, Promise<boolean>>();
+  const reaches = (host: string) => {
+    let answer = looked.get(host);
+    if (!answer) {
+      answer = reachesUs(host, targets);
+      looked.set(host, answer);
+    }
+    return answer;
+  };
+
   const plan = await planRoutes({
     active,
     existing,
     ownHosts,
-    reaches: (host) => reachesUs(host, targets),
+    reaches,
   });
 
   if (plan.refused.length > 0) {
@@ -210,8 +234,62 @@ async function main() {
       logger.error("domains.sync_delete_failed", error, { host });
     }
   }
+  const readiness = await planReadiness({
+    domains: rows,
+    routed: new Set(plan.apply),
+    via: targets.cname,
+    reaches,
+    probe: servesHttps,
+  });
+  await setSecured(readiness.secure, startedAt, true);
+  await setSecured(readiness.unsecure, startedAt, false);
   // A non-zero exit shows the failed Job in `kubectl get jobs`.
   if (failed > 0) process.exitCode = 1;
+}
+
+type CheckedDomain = {
+  id: string;
+  hostname: string;
+  verificationToken: string;
+};
+
+/**
+ * Marks (`secure`) or unmarks the domains `planReadiness` just checked — the
+ * very records: a replacement hostname or a new reservation gets a new token,
+ * and a domain that moved meanwhile isn't touched. A check (`domain.verify` or
+ * another run) that started after this run and already wrote wins: its answer
+ * is newer. A host whose certificate isn't there yet is simply checked again
+ * on the next run.
+ */
+async function setSecured(
+  domains: CheckedDomain[],
+  startedAt: Date,
+  secure: boolean,
+) {
+  if (domains.length === 0) return;
+  await db
+    .update(PracticeDomain)
+    .set({ securedAt: secure ? startedAt : null, lastCheckedAt: startedAt })
+    .where(
+      and(
+        or(
+          ...domains.map((domain) =>
+            and(
+              eq(PracticeDomain.id, domain.id),
+              eq(PracticeDomain.verificationToken, domain.verificationToken),
+            ),
+          ),
+        ),
+        eq(PracticeDomain.status, "active"),
+        or(
+          isNull(PracticeDomain.lastCheckedAt),
+          lte(PracticeDomain.lastCheckedAt, startedAt),
+        ),
+      ),
+    );
+  const hosts = domains.map((domain) => domain.hostname);
+  if (secure) logger.info("domains.sync_secured", { hosts });
+  else logger.warn("domains.sync_unsecured", { hosts });
 }
 
 try {

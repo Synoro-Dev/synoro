@@ -1,7 +1,24 @@
-import { resolve4, resolveCname, resolveTxt } from "node:dns/promises";
+import {
+  resolve4,
+  resolve6,
+  resolveCname,
+  resolveTxt,
+} from "node:dns/promises";
 import { domainToUnicode } from "node:url";
 import { env } from "@synoro/config";
-import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
+import {
+  and,
+  type Database,
+  eq,
+  isNotNull,
+  Practice,
+  PracticeDomain,
+} from "@synoro/db";
+import {
+  leadsToTarget,
+  lookupDns,
+  servesHttps,
+} from "@synoro/jobs/custom-domains";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -101,17 +118,21 @@ export interface DnsResolver {
   resolveTxt(hostname: string): Promise<string[][]>;
   resolveCname(hostname: string): Promise<string[]>;
   resolve4(hostname: string): Promise<string[]>;
+  resolve6(hostname: string): Promise<string[]>;
 }
 
-const systemResolver: DnsResolver = { resolveTxt, resolveCname, resolve4 };
-
-const none = (): string[] => [];
+const systemResolver: DnsResolver = {
+  resolveTxt,
+  resolveCname,
+  resolve4,
+  resolve6,
+};
 
 /**
  * Live DNS check. `ownership`: the TXT record holds the token. `routing`:
- * the host points here — a CNAME to the target, or the same addresses as the
- * target (an ALIAS / CNAME flattening at the apex, which answers with A
- * records). No address is configured anywhere: the target's own are read.
+ * the host points here — a CNAME to the target, or only the target's own
+ * addresses, IPv4 and IPv6 (an ALIAS / CNAME flattening at the apex). The
+ * rule is `leadsToTarget`, shared with the routes sync.
  */
 export async function checkDomainDns(
   hostname: string,
@@ -119,24 +140,59 @@ export async function checkDomainDns(
   targets: DnsTargets = dnsTargets(),
   resolver: DnsResolver = systemResolver,
 ) {
-  const [txt, cnames, addresses, targetAddresses] = await Promise.all([
+  const [txt, dns] = await Promise.all([
     resolver
       .resolveTxt(verificationRecordName(hostname))
       .catch((): string[][] => []),
-    resolver.resolveCname(hostname).catch(none),
-    resolver.resolve4(hostname).catch(none),
-    targets.cname ? resolver.resolve4(targets.cname).catch(none) : none(),
+    lookupDns(hostname, targets.cname, resolver),
   ]);
 
   const ownership = txt.some((chunks) => chunks.join("").trim() === token);
-  const routing =
-    (!!targets.cname &&
-      cnames.some(
-        (c) => c.toLowerCase().replace(/\.$/, "") === targets.cname,
-      )) ||
-    addresses.some((ip) => targetAddresses.includes(ip));
+  const routing = leadsToTarget(targets.cname, dns);
 
   return { ownership, routing };
+}
+
+/**
+ * Does `https://<hostname>` already serve this practice on the platform — a
+ * trusted certificate, the route, the app? Asked through our own entry point
+ * (`CUSTOM_DOMAIN_CNAME`), so another server the host may point at can't
+ * answer for us; without it nothing can lead here. Only worth asking once DNS
+ * leads here: the cluster requests the certificate then
+ * (docs/custom-domains.md, «Hosting»).
+ */
+export async function checkHttps(hostname: string, practiceId: string) {
+  const via = dnsTargets().cname;
+  return !!via && (await servesHttps(hostname, via, practiceId));
+}
+
+/**
+ * Where the connection stands, for the owner's progress steps:
+ * `ownership` (TXT) → `routing` (CNAME / ALIAS) → `certificate` (https is
+ * being issued) → `ready`.
+ */
+export type DomainStage = "ownership" | "routing" | "certificate" | "ready";
+
+/** `xn--…` back into the letters the owner typed (`анна.рф`). */
+const displayHost = (hostname: string) => domainToUnicode(hostname) || hostname;
+
+/** Joins a practice to its domain once that fully works (TXT, DNS, https). */
+export const readyDomainOn = (practiceId: typeof Practice.id) =>
+  and(
+    eq(PracticeDomain.practiceId, practiceId),
+    eq(PracticeDomain.status, "active"),
+    isNotNull(PracticeDomain.securedAt),
+  );
+
+/**
+ * The practice's own domain, for the console to show in place of the
+ * platform address — only once it fully works, so a shared link never lands
+ * on a browser warning.
+ */
+export function siteDomain(hostname: string | null | undefined) {
+  return hostname
+    ? { hostname: displayHost(hostname), url: `https://${hostname}` }
+    : null;
 }
 
 /** What the domain settings page shows for a practice. */
@@ -160,10 +216,13 @@ export async function domainSettings(db: Database, practiceId: string) {
     domain: row
       ? {
           hostname: row.hostname,
-          displayHostname: domainToUnicode(row.hostname) || row.hostname,
+          displayHostname: displayHost(row.hostname),
           status: row.status,
           verifiedAt: row.verifiedAt,
           lastCheckedAt: row.lastCheckedAt,
+          /** https answered with a trusted certificate: fully ready. */
+          securedAt: row.securedAt,
+          url: `https://${row.hostname}`,
           records: dnsRecords(row, targets),
         }
       : null,

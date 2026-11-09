@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   hostOfRoute,
   ingressRoute,
+  planReadiness,
   planRoutes,
   reachesUs,
   routeName,
@@ -79,10 +80,14 @@ describe("ingressRoute", () => {
 
 describe("reachesUs", () => {
   const resolver = (
-    records: Record<string, { cname?: string[]; a?: string[] }>,
+    records: Record<
+      string,
+      { cname?: string[]; a?: string[]; aaaa?: string[] }
+    >,
   ) => ({
     resolveCname: async (host: string) => records[host]?.cname ?? [],
     resolve4: async (host: string) => records[host]?.a ?? [],
+    resolve6: async (host: string) => records[host]?.aaaa ?? [],
   });
 
   test("a CNAME to the target, or the target's own addresses", async () => {
@@ -115,6 +120,20 @@ describe("reachesUs", () => {
     expect(await reachesUs("a.ru", { cname: "domains.synoro.ru" }, dns)).toBe(
       true,
     );
+  });
+
+  test("every address must be ours: one foreign A or AAAA is not enough", async () => {
+    const dns = resolver({
+      "domains.synoro.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::10"] },
+      "both.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::10"] },
+      "mixed-a.ru": { a: ["203.0.113.10", "198.51.100.7"] },
+      "foreign-v6.ru": { a: ["203.0.113.10"], aaaa: ["2001:db8::99"] },
+      "v6-only.ru": { aaaa: ["2001:db8::10"] },
+    });
+    expect(await reachesUs("both.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("v6-only.ru", targets, dns)).toBe(true);
+    expect(await reachesUs("mixed-a.ru", targets, dns)).toBe(false);
+    expect(await reachesUs("foreign-v6.ru", targets, dns)).toBe(false);
   });
 
   test("nothing configured, nothing reaches us", async () => {
@@ -172,5 +191,101 @@ describe("planRoutes", () => {
     expect((await plan(["a.ru", "a.ru"], [], ["a.ru"])).apply).toEqual([
       "a.ru",
     ]);
+  });
+});
+
+describe("planReadiness", () => {
+  const at = new Date("2026-01-01T00:00:00Z");
+  const hosts = (domains: { hostname: string }[]) =>
+    domains.map((d) => d.hostname);
+  const domain = (hostname: string, securedAt: Date | null = null) => ({
+    hostname,
+    practiceId: `practice-of-${hostname}`,
+    securedAt,
+  });
+  const plan = (
+    domains: ReturnType<typeof domain>[],
+    options: {
+      routed?: string[];
+      via?: string;
+      reaching?: string[];
+      serving?: string[];
+    } = {},
+  ) => {
+    const all = domains.map((d) => d.hostname);
+    const { routed = all, reaching = all, serving = all } = options;
+    // An explicit `via: undefined` is the no-target case, not the default.
+    const via = "via" in options ? options.via : "domains.synoro.ru";
+    const probed: [string, string, string][] = [];
+    return planReadiness({
+      domains,
+      routed: new Set(routed),
+      via,
+      reaches: async (host) => reaching.includes(host),
+      probe: async (host, through, practiceId) => {
+        probed.push([host, through, practiceId]);
+        return serving.includes(host);
+      },
+    }).then((result) => ({ ...result, probed }));
+  };
+
+  test("marks a routed host that leads here and serves its practice", async () => {
+    const anna = domain("anna.ru");
+    const result = await plan([anna]);
+    // The checked record itself, for the caller to update exactly that one.
+    expect(result.secure).toEqual([anna]);
+    expect(result.unsecure).toEqual([]);
+    expect(result.probed).toEqual([
+      ["anna.ru", "domains.synoro.ru", "practice-of-anna.ru"],
+    ]);
+  });
+
+  test("checks a few domains at a time, all of them in the end", async () => {
+    const domains = Array.from({ length: 20 }, (_, i) => domain(`d${i}.ru`));
+    let running = 0;
+    let most = 0;
+    const result = await planReadiness({
+      domains,
+      routed: new Set(domains.map((d) => d.hostname)),
+      via: "domains.synoro.ru",
+      reaches: async () => true,
+      probe: async () => {
+        running++;
+        most = Math.max(most, running);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        running--;
+        return true;
+      },
+      concurrency: 3,
+    });
+    expect(most).toBe(3);
+    expect(result.secure).toHaveLength(20);
+  });
+
+  test("an existing route whose DNS moved away is not ready", async () => {
+    // The route stays through a DNS change (planRoutes), readiness doesn't.
+    const result = await plan([domain("anna.ru", at)], { reaching: [] });
+    expect(hosts(result.unsecure)).toEqual(["anna.ru"]);
+    expect(result.probed).toEqual([]);
+  });
+
+  test("clears a host the platform no longer serves, or without a route", async () => {
+    const result = await plan(
+      [domain("broken.ru", at), domain("gone.ru", at), domain("ok.ru", at)],
+      { routed: ["broken.ru", "ok.ru"], serving: ["ok.ru"] },
+    );
+    expect(result.secure).toEqual([]);
+    expect(hosts(result.unsecure)).toEqual(["broken.ru", "gone.ru"]);
+  });
+
+  test("nothing works without a target to point DNS at", async () => {
+    const result = await plan([domain("anna.ru", at)], { via: undefined });
+    expect(hosts(result.unsecure)).toEqual(["anna.ru"]);
+    expect(result.probed).toEqual([]);
+  });
+
+  test("a host still waiting for its certificate is simply left as is", async () => {
+    const result = await plan([domain("anna.ru")], { serving: [] });
+    expect(result).toMatchObject({ secure: [], unsecure: [] });
   });
 });

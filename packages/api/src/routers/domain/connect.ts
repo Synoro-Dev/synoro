@@ -64,6 +64,7 @@ export const connect = ownerProcedure
         status: "pending" as const,
         verifiedAt: null,
         lastCheckedAt: null,
+        securedAt: null,
         // A replacement hostname starts a new reservation period.
         createdAt: now,
       };
