@@ -68,7 +68,7 @@ and the cluster follows the database:
 ```
 specialist's DNS ──► node :80/:443 ──► Traefik ──► synoro-app (proxy.ts: Host → /site/<host>)
                                          ▲
-   CronJob synoro-domains-sync (every minute)
+   CronJob synoro-domains-sync (every 5 minutes)
      1. active domains from `practice_domains`
      2. keeps those whose DNS already leads here (a certificate request for
         a host that doesn't would fail, and Traefik doesn't retry)
@@ -109,7 +109,7 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   `practice.get` / `practice.mine` return `siteDomain`, shown first in
   «Страница записи» (`BookingLinkActions`), in the sidebar and the practice
   switcher. A new hostname clears it.
-- Disconnecting removes the route within a minute. The certificate stays in
+- Disconnecting removes the route within 5 minutes (the next sync). The certificate stays in
   Traefik's `acme.json` and expires on its own.
 
 Platform DNS (where `synoro.ru` is managed): `A domains.synoro.ru` → the node's
@@ -134,7 +134,7 @@ it started).
 
 `GET /api/domains/tls?domain=` answers 200 only for active domains. It is the
 `ask` endpoint of Caddy's on-demand TLS, which issues a certificate at the first
-visit instead of within a minute. Not used on k3s (it would need Caddy behind a
+visit instead of on the next sync run. Not used on k3s (it would need Caddy behind a
 TCP passthrough in Traefik); kept for a self-hosted setup:
 
 ```caddyfile

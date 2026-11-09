@@ -19,8 +19,12 @@ import {
 /**
  * Makes the cluster's Traefik routes match the connected domains
  * (docs/custom-domains.md, «Hosting»): one IngressRoute per verified domain,
- * which is what makes Traefik request its certificate. A CronJob runs it every
- * minute (`infra/synoro/domains.yaml`):
+ * which is what makes Traefik request its certificate. Each run also re-checks
+ * which domains work (`planReadiness`: route, DNS, and the practice over https
+ * through our own entry point) and sets or clears `secured_at`: the owner's
+ * page says it's fully ready even if they closed it meanwhile, and a domain
+ * that stops working stops being offered. A CronJob runs it every 5 minutes
+ * (`schedule` in `infra/synoro/domains.yaml`, the infra submodule):
  *
  *   bun run packages/jobs/src/scripts/sync-domains.ts
  *
@@ -241,7 +245,7 @@ async function main() {
 
 /**
  * Hosts that now work (`planReadiness`) get `secured_at`. A host whose
- * certificate isn't there yet is simply checked again next minute.
+ * certificate isn't there yet is simply checked again on the next run.
  */
 async function markSecured(secured: string[]) {
   if (secured.length === 0) return;
