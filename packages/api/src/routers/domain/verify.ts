@@ -56,7 +56,8 @@ export const verify = ownerProcedure
     const owned = row.status === "active" || dns.ownership;
     // A certificate exists only for a host the cluster routes: an owned one
     // that leads here.
-    const tls = owned && dns.routing && (await checkHttps(row.hostname));
+    const tls =
+      owned && dns.routing && (await checkHttps(row.hostname, row.practiceId));
     const check = { ...dns, tls };
     const stage: DomainStage = !owned
       ? "ownership"

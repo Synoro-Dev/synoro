@@ -112,38 +112,72 @@ export async function reachesUs(
   );
 }
 
-/** `true` when `https://<host>/` works on the platform. */
-export type HttpsProbe = (host: string, via?: string) => Promise<boolean>;
+/** Where the readiness probe asks a host which practice it serves. */
+export const DOMAIN_CHECK_PATH = "/api/domains/check";
+
+/** `true` when `https://<host>` serves `practiceId` on the platform. */
+export type HttpsProbe = (
+  host: string,
+  via: string,
+  practiceId: string,
+) => Promise<boolean>;
 
 /**
- * Does `https://<host>/` work on the platform: a certificate a browser trusts
- * (a public CA, valid now, issued for this host) and the practice's page
- * itself (2xx)? Until Let's Encrypt issues one, Traefik serves its own
- * self-signed default, which fails here; a route without a working app
- * answers 404/502, which fails too.
+ * Does `https://<host>` work on the platform for this practice? It asks
+ * `/api/domains/check` there, which answers only after the practice is
+ * resolved by `Host`: a certificate a browser trusts (a public CA, valid now,
+ * issued for this host), the route, the app and the database, and the very
+ * practice expected. Until Let's Encrypt issues a certificate, Traefik serves
+ * its own self-signed default, which fails here; a route without a working
+ * app answers 404/502, which fails too.
  *
  * It connects to `via` — the platform's own entry point
- * (`CUSTOM_DOMAIN_CNAME`) — with the host as SNI and `Host`, so whatever the
- * host's DNS says right now, the answer is ours and never another server's.
+ * (`CUSTOM_DOMAIN_CNAME`) — with the host as SNI and `Host`, so the answer is
+ * ours and never another server's. Whether the host's DNS leads here is a
+ * separate question (`reachesUs`): ask both.
  */
-export const servesHttps: HttpsProbe = (host, via = host) =>
+export const servesHttps: HttpsProbe = (host, via, practiceId) =>
   new Promise((resolve) => {
     const req = request(
       {
         host: via,
         port: 443,
-        path: "/",
+        path: DOMAIN_CHECK_PATH,
         method: "GET",
         servername: host,
-        headers: { host, "user-agent": "synoro-domain-check" },
+        headers: {
+          host,
+          accept: "application/json",
+          "user-agent": "synoro-domain-check",
+        },
         rejectUnauthorized: true,
         agent: false,
         timeout: 5_000,
       },
       (response) => {
-        const status = response.statusCode ?? 0;
-        resolve(status >= 200 && status < 300);
-        response.destroy();
+        if (response.statusCode !== 200) {
+          response.destroy();
+          resolve(false);
+          return;
+        }
+        let body = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk: string) => {
+          body += chunk;
+          // `{"practiceId":"<uuid>"}` is tiny: anything bigger isn't ours.
+          if (body.length > 1_024) response.destroy();
+        });
+        response.on("error", () => resolve(false));
+        response.on("close", () => {
+          try {
+            resolve(
+              (JSON.parse(body) as { practiceId?: unknown }).practiceId ===
+                practiceId,
+            );
+          } catch {
+            resolve(false);
+          }
+        });
       },
     );
     req.on("error", () => resolve(false));
@@ -153,6 +187,48 @@ export const servesHttps: HttpsProbe = (host, via = host) =>
     });
     req.end();
   });
+
+/**
+ * Which domains work now (`secure`: to mark) and which stopped (`unsecure`:
+ * to unmark). Works = it has a route, its DNS leads here — checked on its
+ * own, because a route stays through a DNS change — and the platform serves
+ * its practice over https. Without a target (`via`) nothing can lead here.
+ */
+export async function planReadiness({
+  domains,
+  routed,
+  via,
+  reaches,
+  probe,
+}: {
+  domains: readonly {
+    hostname: string;
+    practiceId: string;
+    securedAt: Date | null;
+  }[];
+  routed: ReadonlySet<string>;
+  via: string | undefined;
+  reaches: (host: string) => Promise<boolean>;
+  probe: HttpsProbe;
+}) {
+  const works = await Promise.all(
+    domains.map(
+      async ({ hostname, practiceId }) =>
+        !!via &&
+        routed.has(hostname) &&
+        (await reaches(hostname)) &&
+        (await probe(hostname, via, practiceId)),
+    ),
+  );
+  return {
+    secure: domains
+      .filter((domain, i) => works[i] && !domain.securedAt)
+      .map((domain) => domain.hostname),
+    unsecure: domains
+      .filter((domain, i) => !works[i] && domain.securedAt)
+      .map((domain) => domain.hostname),
+  };
+}
 
 /**
  * What to do so the cluster matches the database.

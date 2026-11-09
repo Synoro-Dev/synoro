@@ -92,14 +92,19 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   TXT → DNS → SSL → «Сайт полностью готов». While the domain isn't secured the
   page re-runs `domain.verify` every 8 s (30 s after ~5 minutes); `verify`
   returns `stage` (`ownership` / `routing` / `certificate` / `ready`). Once DNS
-  leads here it also requests `https://<host>/` (`servesHttps` in
-  `custom-domains.ts`) — sent to our own entry point (`CUSTOM_DOMAIN_CNAME`)
-  with the host as SNI and `Host`, so another server the host may point at
-  can't answer for us. A trusted certificate **and** a 2xx page set
-  `practice_domains.secured_at`; a later failed check clears it, and the page
-  resumes its steps. The CronJob marks routed hosts the same way (so a domain
-  becomes ready even if the owner closed the page) and clears the mark of
-  hosts that lost their route. `secured_at` means «works now, since».
+  leads here it also requests `https://<host>/api/domains/check`
+  (`servesHttps` in `custom-domains.ts`) — sent to our own entry point
+  (`CUSTOM_DOMAIN_CNAME`) with the host as SNI and `Host`, so another server
+  the host may point at can't answer for us. That route answers
+  `{ practiceId }` only once the practice is resolved by `Host` (the booking
+  page itself streams a 200 before its data loads), so a trusted certificate
+  **and** the right practice set `practice_domains.secured_at`; a later failed
+  check clears it, and the page resumes its steps.
+- Every run the CronJob re-checks every active domain (`planReadiness`: a
+  route, DNS leading here — on its own, since a route stays through a DNS
+  change — and the probe) and sets or clears `secured_at`: a domain becomes
+  ready even if the owner closed the page, and stops being offered once it
+  breaks. `secured_at` means «works now, since».
 - With `secured_at` set the domain is the practice's address in the console:
   `practice.get` / `practice.mine` return `siteDomain`, shown first in
   «Страница записи» (`BookingLinkActions`), in the sidebar and the practice

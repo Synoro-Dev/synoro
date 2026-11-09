@@ -148,14 +148,16 @@ export async function checkDomainDns(
 }
 
 /**
- * Does `https://<hostname>/` already work on the platform — a trusted
- * certificate and the practice's page? Asked through our own entry point
+ * Does `https://<hostname>` already serve this practice on the platform — a
+ * trusted certificate, the route, the app? Asked through our own entry point
  * (`CUSTOM_DOMAIN_CNAME`), so another server the host may point at can't
- * answer for us. Only worth asking once DNS leads here: the cluster requests
- * the certificate then (docs/custom-domains.md, «Hosting»).
+ * answer for us; without it nothing can lead here. Only worth asking once DNS
+ * leads here: the cluster requests the certificate then
+ * (docs/custom-domains.md, «Hosting»).
  */
-export function checkHttps(hostname: string) {
-  return servesHttps(hostname, dnsTargets().cname);
+export async function checkHttps(hostname: string, practiceId: string) {
+  const via = dnsTargets().cname;
+  return !!via && (await servesHttps(hostname, via, practiceId));
 }
 
 /**

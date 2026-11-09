@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   hostOfRoute,
   ingressRoute,
+  planReadiness,
   planRoutes,
   reachesUs,
   routeName,
@@ -172,5 +173,75 @@ describe("planRoutes", () => {
     expect((await plan(["a.ru", "a.ru"], [], ["a.ru"])).apply).toEqual([
       "a.ru",
     ]);
+  });
+});
+
+describe("planReadiness", () => {
+  const at = new Date("2026-01-01T00:00:00Z");
+  const domain = (hostname: string, securedAt: Date | null = null) => ({
+    hostname,
+    practiceId: `practice-of-${hostname}`,
+    securedAt,
+  });
+  const plan = (
+    domains: ReturnType<typeof domain>[],
+    options: {
+      routed?: string[];
+      via?: string;
+      reaching?: string[];
+      serving?: string[];
+    } = {},
+  ) => {
+    const all = domains.map((d) => d.hostname);
+    const { routed = all, reaching = all, serving = all } = options;
+    // An explicit `via: undefined` is the no-target case, not the default.
+    const via = "via" in options ? options.via : "domains.synoro.ru";
+    const probed: [string, string, string][] = [];
+    return planReadiness({
+      domains,
+      routed: new Set(routed),
+      via,
+      reaches: async (host) => reaching.includes(host),
+      probe: async (host, through, practiceId) => {
+        probed.push([host, through, practiceId]);
+        return serving.includes(host);
+      },
+    }).then((result) => ({ ...result, probed }));
+  };
+
+  test("marks a routed host that leads here and serves its practice", async () => {
+    const result = await plan([domain("anna.ru")]);
+    expect(result).toEqual({
+      secure: ["anna.ru"],
+      unsecure: [],
+      probed: [["anna.ru", "domains.synoro.ru", "practice-of-anna.ru"]],
+    });
+  });
+
+  test("an existing route whose DNS moved away is not ready", async () => {
+    // The route stays through a DNS change (planRoutes), readiness doesn't.
+    const result = await plan([domain("anna.ru", at)], { reaching: [] });
+    expect(result.unsecure).toEqual(["anna.ru"]);
+    expect(result.probed).toEqual([]);
+  });
+
+  test("clears a host the platform no longer serves, or without a route", async () => {
+    const result = await plan(
+      [domain("broken.ru", at), domain("gone.ru", at), domain("ok.ru", at)],
+      { routed: ["broken.ru", "ok.ru"], serving: ["ok.ru"] },
+    );
+    expect(result.secure).toEqual([]);
+    expect(result.unsecure).toEqual(["broken.ru", "gone.ru"]);
+  });
+
+  test("nothing works without a target to point DNS at", async () => {
+    const result = await plan([domain("anna.ru", at)], { via: undefined });
+    expect(result.unsecure).toEqual(["anna.ru"]);
+    expect(result.probed).toEqual([]);
+  });
+
+  test("a host still waiting for its certificate is simply left as is", async () => {
+    const result = await plan([domain("anna.ru")], { serving: [] });
+    expect(result).toMatchObject({ secure: [], unsecure: [] });
   });
 });

@@ -179,6 +179,24 @@ export function PracticeDomain({
   const checks =
     queryClient.getQueryState([...checkKey, domain?.hostname])
       ?.dataUpdateCount ?? 0;
+  // Whether another check comes by itself (not once the domain is ready).
+  const polling =
+    !!domain && !domain.securedAt && !stopped && live.data?.stage !== "ready";
+
+  const checkAlert = live.isError && !expired && (
+    <Alert variant={stopped ? "destructive" : "warning"}>
+      <AlertTitle>
+        {stopped ? "Проверка остановлена" : "Не удалось проверить домен"}
+      </AlertTitle>
+      <AlertDescription>
+        {stopped
+          ? live.error.message
+          : polling
+            ? "Повторим автоматически. Если ошибка не уходит, проверьте подключение к интернету."
+            : "Проверьте подключение к интернету и нажмите «Проверить ещё раз»."}
+      </AlertDescription>
+    </Alert>
+  );
 
   const connect = useMutation({
     ...orpc.domain.connect.mutationOptions(),
@@ -335,17 +353,20 @@ export function PracticeDomain({
               <SaveState dirty={hostname.trim() !== ""} savedAt={null} />
             </form>
           ) : stage === "ready" ? (
-            <DomainReady
-              hostname={domain.displayHostname}
-              url={domain.url}
-              celebrate={celebrate}
-              actions={
-                <>
-                  {checkButton}
-                  {disconnectButton}
-                </>
-              }
-            />
+            <>
+              <DomainReady
+                hostname={domain.displayHostname}
+                url={domain.url}
+                celebrate={celebrate}
+                actions={
+                  <>
+                    {checkButton}
+                    {disconnectButton}
+                  </>
+                }
+              />
+              {checkAlert}
+            </>
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2">
@@ -392,20 +413,7 @@ export function PracticeDomain({
                 />
               )}
 
-              {live.isError && !expired && (
-                <Alert variant={stopped ? "destructive" : "warning"}>
-                  <AlertTitle>
-                    {stopped
-                      ? "Проверка остановлена"
-                      : "Не удалось проверить домен"}
-                  </AlertTitle>
-                  <AlertDescription>
-                    {stopped
-                      ? `${live.error.message}. Затем нажмите «Проверить сейчас».`
-                      : "Повторим автоматически. Если ошибка не уходит, проверьте подключение к интернету."}
-                  </AlertDescription>
-                </Alert>
-              )}
+              {checkAlert}
 
               {!targetsConfigured && (
                 <Alert variant="warning">

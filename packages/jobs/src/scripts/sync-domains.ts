@@ -8,6 +8,7 @@ import {
   ingressRoute,
   MANAGED_BY,
   MANAGED_LABEL,
+  planReadiness,
   planRoutes,
   type RouteTarget,
   reachesUs,
@@ -113,6 +114,7 @@ async function main() {
   const rows = await db
     .select({
       hostname: PracticeDomain.hostname,
+      practiceId: PracticeDomain.practiceId,
       securedAt: PracticeDomain.securedAt,
     })
     .from(PracticeDomain)
@@ -152,11 +154,22 @@ async function main() {
     ...exactTrusted,
   ]);
 
+  // One DNS lookup per host and run, shared by routes and readiness.
+  const looked = new Map<string, Promise<boolean>>();
+  const reaches = (host: string) => {
+    let answer = looked.get(host);
+    if (!answer) {
+      answer = reachesUs(host, targets);
+      looked.set(host, answer);
+    }
+    return answer;
+  };
+
   const plan = await planRoutes({
     active,
     existing,
     ownHosts,
-    reaches: (host) => reachesUs(host, targets),
+    reaches,
   });
 
   if (plan.refused.length > 0) {
@@ -213,32 +226,24 @@ async function main() {
       logger.error("domains.sync_delete_failed", error, { host });
     }
   }
-  const routed = new Set(plan.apply);
-  await markSecured(
-    rows
-      .filter((row) => routed.has(row.hostname) && !row.securedAt)
-      .map((row) => row.hostname),
-    targets.cname,
-  );
-  await clearSecured(
-    rows
-      .filter((row) => !routed.has(row.hostname) && row.securedAt)
-      .map((row) => row.hostname),
-  );
+  const readiness = await planReadiness({
+    domains: rows,
+    routed: new Set(plan.apply),
+    via: targets.cname,
+    reaches,
+    probe: servesHttps,
+  });
+  await markSecured(readiness.secure);
+  await clearSecured(readiness.unsecure);
   // A non-zero exit shows the failed Job in `kubectl get jobs`.
   if (failed > 0) process.exitCode = 1;
 }
 
 /**
- * Routed hosts whose page now works over https get `secured_at`. A host whose
+ * Hosts that now work (`planReadiness`) get `secured_at`. A host whose
  * certificate isn't there yet is simply checked again next minute.
  */
-async function markSecured(hosts: string[], via: string | undefined) {
-  if (hosts.length === 0) return;
-  const results = await Promise.all(
-    hosts.map((host) => servesHttps(host, via)),
-  );
-  const secured = hosts.filter((_, i) => results[i]);
+async function markSecured(secured: string[]) {
   if (secured.length === 0) return;
   await db
     .update(PracticeDomain)
@@ -254,8 +259,9 @@ async function markSecured(hosts: string[], via: string | undefined) {
 }
 
 /**
- * Hosts without a route (DNS moved away, or refused) don't work: the console
- * goes back to offering the platform address for them.
+ * Hosts that stopped working (no route, DNS moved away, or the platform no
+ * longer serves their practice): the console goes back to offering the
+ * platform address for them.
  */
 async function clearSecured(hosts: string[]) {
   if (hosts.length === 0) return;
