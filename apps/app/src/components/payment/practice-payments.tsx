@@ -29,7 +29,6 @@ import {
   ArrowRightIcon,
   CircleCheckIcon,
   CircleDashedIcon,
-  CopyIcon,
   FlaskConicalIcon,
   ReceiptIcon,
 } from "lucide-react";
@@ -46,21 +45,13 @@ import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
 import { useTerms } from "../booking/terms";
 import { formatDateTime } from "../booking/time";
+import { CopyStateIcon, useCopied } from "../copy-value";
 import { FoldedBlock } from "./folded-block";
 import { formatRub, PAYMENT_STATUS } from "./format";
 import { PackagesEditor } from "./packages-editor";
 import { ProviderForm, TAX_SYSTEM_LABELS } from "./provider-form";
 
 type Settings = RouterOutputs["payment"]["settings"];
-
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success("Скопировано");
-  } catch {
-    toast.info(text);
-  }
-}
 
 function Section({
   title,
@@ -143,6 +134,7 @@ function ConnectedAccount({
   onEdit: () => void;
 }) {
   const account = settings.account;
+  const { copied, copy } = useCopied();
   const disconnect = useMutation({
     ...orpc.payment.disconnect.mutationOptions(),
     onSuccess: (data) => {
@@ -206,7 +198,7 @@ function ConnectedAccount({
                 aria-label="Скопировать адрес"
                 onClick={() => copy(settings.notificationUrls.yookassa)}
               >
-                <CopyIcon />
+                <CopyStateIcon copied={copied} />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">

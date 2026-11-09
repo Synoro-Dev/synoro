@@ -1,27 +1,12 @@
 "use client";
 
-import { Button, Input, toast } from "@synoro/ui";
+import { Button, Input } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
-import {
-  CodeIcon,
-  CopyIcon,
-  ExternalLinkIcon,
-  GlobeIcon,
-  LockIcon,
-} from "lucide-react";
+import { CodeIcon, ExternalLinkIcon, GlobeIcon, LockIcon } from "lucide-react";
 
 import { embedCode } from "~/lib/embed";
 
-import { CopyValue } from "../copy-value";
-
-async function copy(text: string, done: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-    toast.success(done);
-  } catch {
-    toast.info(text);
-  }
-}
+import { CopyStateIcon, CopyValue, useCopied } from "../copy-value";
 
 /** The practice's own domain once it fully works (`practice.get`). */
 export type SiteDomain = { hostname: string; url: string } | null;
@@ -38,6 +23,8 @@ export function BookingLinkActions({
   url: string;
   siteDomain?: SiteDomain;
 }) {
+  const { copied, copy } = useCopied();
+  const embedCopy = useCopied();
   const share = siteDomain?.url ?? url;
   return (
     <>
@@ -73,7 +60,7 @@ export function BookingLinkActions({
           aria-label="Скопировать ссылку"
           onClick={() => copy(share, "Ссылка скопирована")}
         >
-          <CopyIcon />
+          <CopyStateIcon copied={copied} />
         </Button>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -90,7 +77,10 @@ export function BookingLinkActions({
           variant="outline"
           size="sm"
           onClick={() =>
-            copy(embedCode(url), "Код скопирован — вставьте его на свой сайт")
+            embedCopy.copy(
+              embedCode(url),
+              "Код скопирован — вставьте его на свой сайт",
+            )
           }
         >
           <CodeIcon />
