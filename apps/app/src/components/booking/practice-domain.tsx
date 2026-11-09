@@ -38,7 +38,7 @@ import {
   RefreshCwIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { client, orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
@@ -130,6 +130,10 @@ export function PracticeDomain({
   const settings = useQuery({
     ...orpc.domain.get.queryOptions({ input: { practiceId } }),
     enabled: isOwner,
+    // Ready, the page stops checking DNS; the routes sync may still find the
+    // domain broken and clear `securedAt`, so re-read it now and then.
+    refetchInterval: (query) =>
+      query.state.data?.domain?.securedAt ? 60_000 : false,
   });
   const [hostname, setHostname] = useState("");
   const [inputError, setInputError] = useState<string>();
@@ -157,8 +161,6 @@ export function PracticeDomain({
         setCelebrate(true);
         toast.success(`Готово: ${data.domain?.displayHostname} работает`);
       }
-      // The sidebar and «Сегодня» show the domain only while it works.
-      if (!!before?.securedAt !== !!data.domain?.securedAt) router.refresh();
       return { check, stage };
     },
     // Watch until https works; once secured, only on «Проверить».
@@ -170,6 +172,24 @@ export function PracticeDomain({
     retry: false,
   });
   const check = live.data?.check;
+
+  // Readiness flipped — by a check here, the routes sync, a new hostname or a
+  // disconnect: the sidebar and «Сегодня» show the domain only while it
+  // works. Lost, the last check («ready») is stale: start the steps afresh.
+  const loaded = !!settings.data;
+  const secured = !!domain?.securedAt;
+  const securedBefore = useRef<boolean>(undefined);
+  useEffect(() => {
+    if (!loaded) return;
+    const was = securedBefore.current;
+    securedBefore.current = secured;
+    if (was === undefined || was === secured) return;
+    router.refresh();
+    if (!secured) {
+      setCelebrate(false);
+      queryClient.removeQueries({ queryKey: ["domain-check", practiceId] });
+    }
+  }, [loaded, secured, router, queryClient, practiceId]);
   const expired =
     live.error instanceof ORPCError &&
     live.error.code === "RESERVATION_EXPIRED";
@@ -219,7 +239,6 @@ export function PracticeDomain({
       setCelebrate(false);
       queryClient.removeQueries({ queryKey: checkKey });
       toast.success("Домен отключён");
-      router.refresh();
     },
     onError: (error) => toast.error(error.message),
   });
