@@ -7,6 +7,7 @@ import { ShieldIcon } from "lucide-react";
 import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
+import { CopyValue } from "../copy-value";
 import { ROLE_LABELS } from "../sidebar/types";
 import { AddMemberDialog } from "./client-dialogs";
 import { ErrorState, PageHeading } from "./states";
@@ -45,9 +46,10 @@ export function PracticeTeam({
               />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm font-medium">{m.name}</span>
-                <span className="truncate text-sm text-muted-foreground">
-                  {m.email}
-                </span>
+                <CopyValue
+                  value={m.email}
+                  className="w-fit text-sm text-muted-foreground"
+                />
               </span>
               <Badge variant="outline">{ROLE_LABELS[m.role]}</Badge>
             </li>
