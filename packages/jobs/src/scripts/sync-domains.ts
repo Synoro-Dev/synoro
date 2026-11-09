@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { request } from "node:https";
 import { env, logger } from "@synoro/config";
-import { and, db, eq, isNull, lte, or, PracticeDomain } from "@synoro/db";
+import { and, db, eq, isNull, lt, or, PracticeDomain } from "@synoro/db";
 
 import {
   hostOfRoute,
@@ -283,7 +283,9 @@ async function setSecured(
         eq(PracticeDomain.status, "active"),
         or(
           isNull(PracticeDomain.lastCheckedAt),
-          lte(PracticeDomain.lastCheckedAt, startedAt),
+          // Strictly before: of two checks started in the same millisecond, the
+          // first to write wins and the other can't undo it.
+          lt(PracticeDomain.lastCheckedAt, startedAt),
         ),
       ),
     );

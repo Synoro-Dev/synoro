@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lte, or, PracticeDomain } from "@synoro/db";
+import { and, eq, gt, isNull, lt, or, PracticeDomain } from "@synoro/db";
 import { z } from "zod";
 
 import {
@@ -89,7 +89,9 @@ export const verify = ownerProcedure
           eq(PracticeDomain.status, row.status),
           or(
             isNull(PracticeDomain.lastCheckedAt),
-            lte(PracticeDomain.lastCheckedAt, startedAt),
+            // Strictly before: of two checks started in the same millisecond, the
+            // first to write wins and the other can't undo it.
+            lt(PracticeDomain.lastCheckedAt, startedAt),
           ),
           row.status === "pending"
             ? gt(
