@@ -112,6 +112,7 @@ function CurrentPlan({ billing }: { billing: Billing }) {
       {plan.status === "trial" && (
         <TrialDays
           left={left}
+          total={plan.trialDays}
           endingSoon={endingSoon}
           className="[&>span]:h-2"
         />

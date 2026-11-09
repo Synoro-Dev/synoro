@@ -9,21 +9,25 @@ import { formatDays } from "./plan";
  */
 export function TrialDays({
   left,
+  total,
   endingSoon,
   className,
 }: {
   left: number;
+  /** The trial's length in days, as stored for this user. */
+  total: number | null;
   endingSoon: boolean;
   className?: string;
 }) {
-  const used = TRIAL_DAYS - Math.min(left, TRIAL_DAYS);
+  const days = total ?? TRIAL_DAYS;
+  const used = days - Math.min(left, days);
   return (
     <div
       role="img"
-      aria-label={`Осталось ${formatDays(left)} из ${TRIAL_DAYS}`}
+      aria-label={`Осталось ${formatDays(left)} из ${days}`}
       className={cn("flex gap-0.5", className)}
     >
-      {Array.from({ length: TRIAL_DAYS }, (_, day) => (
+      {Array.from({ length: days }, (_, day) => (
         <span
           // biome-ignore lint/suspicious/noArrayIndexKey: days are positional
           key={day}

@@ -458,7 +458,7 @@ export async function seedDemoPractice(db: Database) {
 
   // The specialist paid a year of «Про» when the trial ran out, so every
   // paid feature is on. Kopecks: 2400 ₽ (PRO_PRICES.year).
-  const trialEnd = new Date(longAgo.getTime() + 15 * DAY_MS);
+  const trialEnd = new Date(longAgo.getTime() + 14 * DAY_MS);
   const paidUntil = new Date(trialEnd);
   paidUntil.setFullYear(paidUntil.getFullYear() + 1);
   await db.insert(Subscription).values({

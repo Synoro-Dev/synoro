@@ -46,12 +46,15 @@ type SubscriptionPaymentRow = typeof SubscriptionPayment.$inferSelect;
  */
 type PlanStatus = "none" | "trial" | "active" | "expired";
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function planOf(row: SubscriptionRow | undefined, now = new Date()) {
   if (!row) {
     return {
       status: "none" as PlanStatus,
       pro: false,
       trialEndsAt: null,
+      trialDays: null,
       paidUntil: null,
       activeUntil: null,
     };
@@ -69,6 +72,13 @@ export function planOf(row: SubscriptionRow | undefined, now = new Date()) {
     status,
     pro: activeUntil > now,
     trialEndsAt: row.trialEndsAt,
+    /** The trial's own length: one started before a `TRIAL_DAYS` change keeps it. */
+    trialDays: Math.max(
+      1,
+      Math.round(
+        (row.trialEndsAt.getTime() - row.createdAt.getTime()) / DAY_MS,
+      ),
+    ),
     paidUntil,
     activeUntil,
   };

@@ -13,7 +13,7 @@ const stages = [
   { label: "В настройках страницы записи", value: "Код для сайта" },
   {
     label: "На странице вашего сайта",
-    value: "anna-ivanova.ru/zapis",
+    value: "anna-mironova.ru/zapis",
     highlight: true,
   },
 ];

@@ -192,7 +192,7 @@ and run `tsc` by hand, build them first.
   phone); staff book guests with `bookFree`. `booking.windows` +
   `/practices/<id>/windows` show free time for booking a caller.
 - **«Про» billing** (`docs/billing.md`): 240 ₽/month or 2400 ₽/year, a
-  15-day trial from the first practice (`subscriptions`). Specialists pay
+  14-day trial from the first practice (`subscriptions`). Specialists pay
   Synoro through Точка Банк payment links (`TOCHKA_*` env); gate paid
   features with `hasPro` / `payableAccount`. Prices: `PRO_PRICES` in
   `@synoro/validators` and `apps/web/src/lib/pricing.ts` — keep in sync.
