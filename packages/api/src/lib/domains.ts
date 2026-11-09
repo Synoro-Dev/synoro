@@ -31,7 +31,9 @@ const VERIFICATION_PREFIX = "_booking-verification";
 /** Pending reservations expire 24 hours after the hostname/token is set. */
 export const DOMAIN_RESERVATION_MS = 24 * 60 * 60 * 1000;
 
-const verificationRecordName = () => `${VERIFICATION_PREFIX}`;
+/** FQDN of the TXT record that proves ownership. */
+const verificationRecordName = (hostname: string) =>
+  `${VERIFICATION_PREFIX}.${hostname}`;
 
 /** Hostnames of the exact (non-wildcard) AUTH_TRUSTED_ORIGINS. */
 const trustedHosts = () =>
@@ -83,10 +85,22 @@ type DnsRecord = {
  */
 function dnsRecords(row: DomainRow, targets = dnsTargets()) {
   const apex = row.hostname.split(".").length === 2;
+  // Names are shown relative to the domain's zone — what the registrar's
+  // «Имя» field expects — so the owner never pastes their whole domain.
+  // The zone is guessed as the host minus its first label (the host itself
+  // for an apex).
+  const zone = apex ? row.hostname : row.hostname.split(".").slice(1).join(".");
+  const displayZone = domainToUnicode(zone) || zone;
+  const recordName = (fqdn: string) => {
+    const name = domainToUnicode(fqdn) || fqdn;
+    return name === displayZone
+      ? "@"
+      : name.slice(0, name.length - displayZone.length - 1);
+  };
   const records: DnsRecord[] = [
     {
       type: "TXT",
-      name: verificationRecordName(),
+      name: recordName(verificationRecordName(row.hostname)),
       value: row.verificationToken,
       purpose: "ownership",
       recommended: true,
@@ -95,7 +109,7 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
   if (targets.cname) {
     records.push({
       type: "CNAME",
-      name: row.hostname,
+      name: recordName(row.hostname),
       value: targets.cname,
       purpose: "routing",
       recommended: !apex,
@@ -103,7 +117,7 @@ function dnsRecords(row: DomainRow, targets = dnsTargets()) {
     if (apex) {
       records.push({
         type: "ALIAS",
-        name: row.hostname,
+        name: recordName(row.hostname),
         value: targets.cname,
         purpose: "routing",
         recommended: true,
@@ -140,7 +154,9 @@ export async function checkDomainDns(
   resolver: DnsResolver = systemResolver,
 ) {
   const [txt, dns] = await Promise.all([
-    resolver.resolveTxt(verificationRecordName()).catch((): string[][] => []),
+    resolver
+      .resolveTxt(verificationRecordName(hostname))
+      .catch((): string[][] => []),
     lookupDns(hostname, targets.cname, resolver),
   ]);
 
