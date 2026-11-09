@@ -60,10 +60,10 @@ const freeLabel = (count: number) =>
  * 600ms to come up and stays for 2.4s), and it starts over.
  */
 type AutoStep = "day" | "aim" | "done";
-const autoTime = "15:00";
-const autoNext = { day: "aim", aim: "done", done: "day" } as const;
-const autoHold = { day: 2000, aim: 1400, done: 600 + 2400 } as const;
-const settle = "ease-[cubic-bezier(0.22,1,0.36,1)]";
+const AUTO_TIME = "15:00";
+const AUTO_NEXT = { day: "aim", aim: "done", done: "day" } as const;
+const AUTO_HOLD = { day: 2000, aim: 1400, done: 600 + 2400 } as const;
+const SETTLE = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 
 /**
  * A practice's public booking page that the visitor can actually click
@@ -79,12 +79,16 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
   useEffect(() => {
     if (auto === null) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = setTimeout(() => setAuto(autoNext[auto]), autoHold[auto]);
+    const timer = setTimeout(() => setAuto(AUTO_NEXT[auto]), AUTO_HOLD[auto]);
     return () => clearTimeout(timer);
   }, [auto]);
 
-  const takeOver = () => setAuto(null);
-  const autoPicked = auto === "aim" ? autoTime : null;
+  /** A time the loop is pointing at becomes the visitor's own pick. */
+  const takeOver = () => {
+    if (auto === "aim") setTime(AUTO_TIME);
+    setAuto(null);
+  };
+  const autoPicked = auto === "aim" ? AUTO_TIME : null;
   const autoBooked = auto === "done";
 
   const dayLabel = `${weekdays[weekday(day)]}, ${day} ноября`;
@@ -206,7 +210,7 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
             {times.map((value, index) => {
               const taken = isTaken(day, index);
               // The loop's own booking only looks taken: a click still lands.
-              const struck = taken || (autoBooked && value === autoTime);
+              const struck = taken || (autoBooked && value === AUTO_TIME);
               const selected = value === (time ?? autoPicked);
               return (
                 <button
@@ -217,7 +221,7 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
                   onClick={() => setTime(value)}
                   className={cn(
                     "focus-visible:ring-ring/50 flex h-9 items-center justify-center rounded-lg border text-sm font-medium tabular-nums outline-none transition-[color,background-color,border-color,box-shadow,scale] focus-visible:ring-3",
-                    settle,
+                    SETTLE,
                     struck &&
                       "text-muted-foreground/50 bg-muted/50 border-transparent line-through",
                     !struck && !selected && "hover:border-foreground/40",
@@ -248,7 +252,7 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
         aria-hidden
         className={cn(
           "pointer-events-none absolute inset-x-3 bottom-3 flex justify-center transition-[opacity,translate] duration-600",
-          settle,
+          SETTLE,
           !autoBooked && "translate-y-2 opacity-0",
         )}
       >
@@ -259,8 +263,8 @@ export function BookingDemo({ demo }: { demo?: ProfessionPage["demo"] }) {
           <span>
             <span className="block font-medium">Запись подтверждена</span>
             <span className="text-muted-foreground block text-xs tabular-nums">
-              {weekdays[weekday(initialDay)]}, {initialDay} ноября, {autoTime} ·
-              письмо отправлено
+              {weekdays[weekday(initialDay)]}, {initialDay} ноября, {AUTO_TIME}{" "}
+              · письмо отправлено
             </span>
           </span>
         </p>
