@@ -42,6 +42,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { client, orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
+import { CopyValue } from "../copy-value";
 import { SaveState } from "../settings/save-state";
 import { ConfirmButton } from "./confirm-button";
 import {
@@ -290,7 +291,7 @@ export function PracticeDomain({
           <GlobeIcon />
           <AlertTitle>Домен подключает владелец практики</AlertTitle>
           <AlertDescription>
-            Ссылка на страницу записи — {bookingUrl}
+            Ссылка на страницу записи — <CopyValue value={bookingUrl} />
           </AlertDescription>
         </Alert>
       </div>
@@ -405,9 +406,10 @@ export function PracticeDomain({
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <GlobeIcon className="size-4 text-muted-foreground" />
-                <span className="font-medium break-all">
-                  {domain.displayHostname}
-                </span>
+                <CopyValue
+                  value={domain.displayHostname}
+                  className="font-medium"
+                />
                 <Badge variant={STAGE_BADGE[stage].variant}>
                   {STAGE_BADGE[stage].label}
                 </Badge>

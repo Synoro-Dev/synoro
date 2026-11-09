@@ -12,6 +12,8 @@ import {
 
 import { embedCode } from "~/lib/embed";
 
+import { CopyValue } from "../copy-value";
+
 async function copy(text: string, done: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -97,7 +99,7 @@ export function BookingLinkActions({
       </div>
       {siteDomain && (
         <p className="text-xs text-muted-foreground">
-          Адрес на платформе тоже работает: {url}
+          Адрес на платформе тоже работает: <CopyValue value={url} />
         </p>
       )}
     </>
