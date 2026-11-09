@@ -230,13 +230,6 @@ function servicesCsv(practices: PracticeDump[]) {
   );
 }
 
-/** Credits of each balance entry, for a package paid outside Synoro. */
-function creditsOf(practice: PracticeDump) {
-  return new Map(
-    practice.credit_entries.map((entry) => [entry.id, entry.delta] as const),
-  );
-}
-
 /**
  * The practice's income between `from` and `to`, for the tax return: online
  * payments that went through and money received outside Synoro, by the day
@@ -244,7 +237,6 @@ function creditsOf(practice: PracticeDump) {
  */
 export function incomeCsv(practice: PracticeDump, from: Date, to: Date) {
   const people = peopleOf(practice);
-  const credits = creditsOf(practice);
   const terms = professionTerms(practice.profession as Profession);
   const within = (at: string | null) =>
     at !== null && new Date(at) >= from && new Date(at) < to;
@@ -269,9 +261,7 @@ export function incomeCsv(practice: PracticeDump, from: Date, to: Date) {
     const booking = payment.booking_id
       ? bookings.get(payment.booking_id)
       : undefined;
-    const package_ = payment.credit_entry_id
-      ? credits.get(payment.credit_entry_id)
-      : undefined;
+    const package_ = payment.credits;
     rows.push({
       at: payment.paid_at,
       cells: [
@@ -288,7 +278,8 @@ export function incomeCsv(practice: PracticeDump, from: Date, to: Date) {
       ],
     });
   }
-  rows.sort((a, b) => a.at.localeCompare(b.at));
+  // By the moment, not the text: imported dates may carry other offsets.
+  rows.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   return toCsv(
     ["Дата", "Клиент", "Сумма, ₽", "Способ", "За что", "Номер операции"],
     rows.map((row) => row.cells),
@@ -320,7 +311,6 @@ function paymentsCsv(dump: AccountDump) {
   }
   for (const practice of dump.practices) {
     const people = peopleOf(practice);
-    const credits = creditsOf(practice);
     for (const payment of practice.offline_payments) {
       rows.push([
         practice.name,
@@ -328,7 +318,7 @@ function paymentsCsv(dump: AccountDump) {
         csvDate(payment.created_at, practice.timezone),
         csvDate(payment.paid_at, practice.timezone),
         payment.client_id ? people.get(payment.client_id)?.name : null,
-        payment.credit_entry_id ? credits.get(payment.credit_entry_id) : null,
+        payment.credits,
         rublesCell(payment.amount_kopecks),
         "Получена",
         OFFLINE_PAYMENT_METHOD_LABELS[payment.method],

@@ -53,13 +53,16 @@ import {
   TrashIcon,
 } from "lucide-react";
 import { type FormEvent, useState } from "react";
-
+import { ConfirmButton } from "~/components/booking/confirm-button";
+import { EmptyState, ErrorState } from "~/components/booking/states";
+import { useTerms } from "~/components/booking/terms";
+import {
+  dateKey,
+  formatDateTime,
+  zonedDayStart,
+} from "~/components/booking/time";
+import { formatRub } from "~/components/payment/format";
 import { orpc } from "~/orpc/react";
-import { ConfirmButton } from "../booking/confirm-button";
-import { EmptyState, ErrorState } from "../booking/states";
-import { useTerms } from "../booking/terms";
-import { dateKey, formatDateTime, zonedDayStart } from "../booking/time";
-import { formatRub } from "./format";
 
 /** What a payment is for when it pays a booking from «Ждут оплаты». */
 interface PaidBooking {
@@ -99,31 +102,36 @@ function OfflinePaymentDialog({
   const [day, setDay] = useState(today);
   const [note, setNote] = useState("");
 
-  function reset() {
+  /** Close and forget the draft: the next booking starts blank. */
+  function close() {
     setMemberId(null);
     setAmount("");
     setMethod("transfer");
     setDay(today);
     setNote("");
+    onClose();
+  }
+
+  /** Income moves: the payments page and the analytics show it. */
+  async function refresh() {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: orpc.offlinePayment.key() }),
+      queryClient.invalidateQueries({ queryKey: orpc.analytics.key() }),
+    ]);
   }
 
   const save = useMutation({
     ...orpc.offlinePayment.record.mutationOptions(),
     onSuccess: async () => {
       toast.success("Оплата записана");
-      await queryClient.invalidateQueries({
-        queryKey: orpc.offlinePayment.key(),
-      });
-      reset();
-      onClose();
+      await refresh();
+      close();
     },
     onError: async (error) => {
       toast.error(error.message);
       if (isDefinedError(error) && error.code === "ALREADY_PAID") {
-        await queryClient.invalidateQueries({
-          queryKey: orpc.offlinePayment.key(),
-        });
-        onClose();
+        await refresh();
+        close();
       }
     },
   });
@@ -158,10 +166,11 @@ function OfflinePaymentDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next && !save.isPending) onClose();
+        if (!next && !save.isPending) close();
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      {/* Clients' names: `ph-no-capture`, like the list it opens from. */}
+      <DialogContent className="ph-no-capture sm:max-w-md">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>Внести оплату</DialogTitle>
@@ -176,7 +185,9 @@ function OfflinePaymentDialog({
           {!booking && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="offline-client">Клиент</Label>
-              {members.isPending ? (
+              {members.isError ? (
+                <ErrorState onRetry={() => members.refetch()} />
+              ) : members.isPending ? (
                 <Skeleton className="h-9 w-full rounded-md" />
               ) : (
                 <Select
@@ -189,7 +200,8 @@ function OfflinePaymentDialog({
                   <SelectTrigger id="offline-client" className="w-full">
                     <SelectValue placeholder="Выберите клиента" />
                   </SelectTrigger>
-                  <SelectContent>
+                  {/* The list opens in a portal of its own. */}
+                  <SelectContent className="ph-no-capture">
                     {clients.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -265,7 +277,7 @@ function OfflinePaymentDialog({
               type="button"
               variant="outline"
               disabled={save.isPending}
-              onClick={onClose}
+              onClick={close}
             >
               Отмена
             </Button>
@@ -392,9 +404,10 @@ export function OfflinePayments({
     ...orpc.offlinePayment.remove.mutationOptions(),
     onSuccess: async () => {
       toast.success("Оплата удалена");
-      await queryClient.invalidateQueries({
-        queryKey: orpc.offlinePayment.key(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: orpc.offlinePayment.key() }),
+        queryClient.invalidateQueries({ queryKey: orpc.analytics.key() }),
+      ]);
     },
     onError: (error) => toast.error(error.message),
   });

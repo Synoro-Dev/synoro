@@ -173,6 +173,7 @@ export type ImportStatus = (typeof importStatus.enumValues)[number];
 export const archivedRecordKind = pgEnum("archived_record_kind", [
   "payment",
   "credit_entry",
+  "offline_payment",
 ]);
 
 export const ArchivedRecord = pgTable(

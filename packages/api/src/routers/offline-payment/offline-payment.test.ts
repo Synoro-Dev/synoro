@@ -110,6 +110,21 @@ describe("offline payments", () => {
     expect(stored).toMatchObject({ memberId, amount: 300_000, method: "cash" });
   });
 
+  it("won't take a booking paid from the balance", async () => {
+    const charged = await bookingAt(-98, 1);
+    await expect(record(owner, { bookingId: charged })).rejects.toMatchObject({
+      code: "PREPAID",
+    });
+  });
+
+  it("keeps a booking that began before the 90 days but ended within them", async () => {
+    const edge = await bookingAt(-90 * 24 - 0.5);
+    const gone = await bookingAt(-91 * 24);
+    const ids = await unpaidIds();
+    expect(ids).toContain(edge);
+    expect(ids).not.toContain(gone);
+  });
+
   it("is staff only and stays within the practice", async () => {
     await expect(record(client, { memberId })).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -195,6 +210,7 @@ describe("offline payments", () => {
       offlineRevenue: 1_700_000,
       onlineRevenue: 0,
       revenue: 1_700_000,
+      payments: 2,
     });
   });
 });

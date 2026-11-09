@@ -1,7 +1,6 @@
 import {
   and,
   Booking,
-  CreditEntry,
   desc,
   eq,
   gte,
@@ -48,7 +47,7 @@ export const list = practiceProcedure
           /** The booking it paid for, when paid at the visit. */
           bookingStartsAt: Booking.startsAt,
           /** The credits of a package credited with it. */
-          credits: CreditEntry.delta,
+          credits: OfflinePayment.credits,
         })
         .from(OfflinePayment)
         .leftJoin(
@@ -57,13 +56,16 @@ export const list = practiceProcedure
         )
         .leftJoin(user, eq(user.id, PracticeMember.userId))
         .leftJoin(Booking, eq(Booking.id, OfflinePayment.bookingId))
-        .leftJoin(CreditEntry, eq(CreditEntry.id, OfflinePayment.creditEntryId))
         .where(eq(OfflinePayment.practiceId, input.practiceId))
         .orderBy(desc(OfflinePayment.paidAt), desc(OfflinePayment.createdAt))
         .limit(100),
       context.db
         .select({
-          amount: sql<number>`coalesce(sum(${OfflinePayment.amount}), 0)::int`,
+          // A bigint: a month of a busy centre may pass 2^31 kopecks.
+          amount:
+            sql<number>`coalesce(sum(${OfflinePayment.amount}), 0)`.mapWith(
+              Number,
+            ),
           count: sql<number>`count(*)::int`,
         })
         .from(OfflinePayment)

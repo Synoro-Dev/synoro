@@ -130,6 +130,7 @@ function CreditForm({
       await queryClient.invalidateQueries({
         queryKey: orpc.offlinePayment.key(),
       });
+      await queryClient.invalidateQueries({ queryKey: orpc.analytics.key() });
       onDone();
     },
     onError: (error) => toast.error(error.message),

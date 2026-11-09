@@ -40,17 +40,21 @@ export const offlineAmountSchema = z
   .min(1, "Сумма должна быть больше нуля")
   .max(OFFLINE_PAYMENT_MAX, "Не больше 1 000 000 ₽ за раз");
 
+/** A little slack for a browser clock a bit ahead of the server's. */
+const CLOCK_SLACK_MS = 60_000;
+
 /**
  * A payment received outside Synoro (`offlinePayment.record`): how much, how,
- * when — a day, not in the future — and a note.
+ * when — not in the future — and a note. `paidAt` is a Date (oRPC carries
+ * one); nothing is coerced, so a null can't become 1970.
  */
 export const offlinePaymentFormSchema = z.object({
   amount: offlineAmountSchema,
   method: z.enum(OFFLINE_PAYMENT_METHODS),
-  paidAt: z.coerce
-    .date()
+  paidAt: z
+    .date({ message: "Укажите дату оплаты" })
     .refine(
-      (at) => at.getTime() <= Date.now() + 24 * 60 * 60 * 1000,
+      (at) => at.getTime() <= Date.now() + CLOCK_SLACK_MS,
       "Дата оплаты не может быть в будущем",
     ),
   note: z.string().trim().max(500).optional(),

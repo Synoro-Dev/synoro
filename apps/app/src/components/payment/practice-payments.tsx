@@ -35,17 +35,19 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-
+import {
+  OfflinePayments,
+  UnpaidBookings,
+} from "~/components/payment/offline-payments";
+import { ExportPartButton } from "~/components/settings/export-part-button";
 import { orpc } from "~/orpc/react";
 import { ProRequired } from "../billing/pro-required";
 import { ConfirmButton } from "../booking/confirm-button";
 import { EmptyState, ErrorState, PageHeading } from "../booking/states";
 import { useTerms } from "../booking/terms";
 import { formatDateTime } from "../booking/time";
-import { ExportPartButton } from "../settings/export-part-button";
 import { FoldedBlock } from "./folded-block";
 import { formatRub, PAYMENT_STATUS } from "./format";
-import { OfflinePayments, UnpaidBookings } from "./offline-payments";
 import { PackagesEditor } from "./packages-editor";
 import { ProviderForm, TAX_SYSTEM_LABELS } from "./provider-form";
 

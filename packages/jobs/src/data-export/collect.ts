@@ -49,6 +49,19 @@ interface CreditEntryDump {
   created_at: string | null;
 }
 
+interface OfflinePaymentDump {
+  id: string;
+  client_id: string | null;
+  booking_id: string | null;
+  credit_entry_id: string | null;
+  credits: number | null;
+  amount_kopecks: number;
+  method: "cash" | "transfer" | "card" | "other";
+  paid_at: string;
+  note: string | null;
+  created_at: string | null;
+}
+
 interface PaymentDump {
   id: string;
   client_id: string | null;
@@ -239,8 +252,9 @@ export async function collectPractice(db: Database, practiceId: string) {
   ]);
 
   // History from an earlier archive goes out with the live rows, in their form.
-  const archivedOf = <T>(kind: "payment" | "credit_entry") =>
-    archived.filter((row) => row.kind === kind).map((row) => row.data as T);
+  const archivedOf = <T>(
+    kind: "payment" | "credit_entry" | "offline_payment",
+  ) => archived.filter((row) => row.kind === kind).map((row) => row.data as T);
 
   return {
     id: practice.id,
@@ -336,18 +350,25 @@ export async function collectPractice(db: Database, practiceId: string) {
         }),
       ),
     ],
-    // Money staff wrote down as received outside Synoro.
-    offline_payments: offline.map((row) => ({
-      id: row.id,
-      client_id: row.memberId,
-      booking_id: row.bookingId,
-      credit_entry_id: row.creditEntryId,
-      amount_kopecks: row.amount,
-      method: row.method,
-      paid_at: iso(row.paidAt) as string,
-      note: row.note,
-      created_at: iso(row.createdAt),
-    })),
+    // Money staff wrote down as received outside Synoro, history from an
+    // earlier archive first.
+    offline_payments: [
+      ...archivedOf<OfflinePaymentDump>("offline_payment"),
+      ...offline.map(
+        (row): OfflinePaymentDump => ({
+          id: row.id,
+          client_id: row.memberId,
+          booking_id: row.bookingId,
+          credit_entry_id: row.creditEntryId,
+          credits: row.credits,
+          amount_kopecks: row.amount,
+          method: row.method,
+          paid_at: iso(row.paidAt) as string,
+          note: row.note,
+          created_at: iso(row.createdAt),
+        }),
+      ),
+    ],
     payment_accounts: accounts.map((row) => ({
       provider: row.provider,
       active: row.active,

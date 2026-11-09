@@ -169,6 +169,22 @@ const practiceSchema = z.object({
       }),
     )
     .default([]),
+  offline_payments: z
+    .array(
+      z.object({
+        id: z.string().max(64),
+        client_id: z.string().max(64).nullish(),
+        booking_id: z.string().max(64).nullish(),
+        credit_entry_id: z.string().max(64).nullish(),
+        credits: z.number().int().min(-100_000).max(100_000).nullish(),
+        amount_kopecks: z.number().int().min(1).max(100_000_000),
+        method: z.enum(["cash", "transfer", "card", "other"]),
+        paid_at: moment,
+        note: text(500).nullish(),
+        created_at: moment.nullish(),
+      }),
+    )
+    .default([]),
   payments: z
     .array(
       z.object({
@@ -524,6 +540,10 @@ export async function applyArchive(
       ...archive.payments.map((data) => ({ kind: "payment" as const, data })),
       ...archive.credit_entries.map((data) => ({
         kind: "credit_entry" as const,
+        data,
+      })),
+      ...archive.offline_payments.map((data) => ({
+        kind: "offline_payment" as const,
         data,
       })),
     ];

@@ -73,6 +73,7 @@ export const grant = practiceProcedure
           practiceId: input.practiceId,
           memberId: member.id,
           creditEntryId: entryId,
+          credits: input.delta,
           amount: payment.amount,
           method: payment.method,
           paidAt: payment.paidAt,

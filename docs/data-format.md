@@ -74,8 +74,9 @@
 
 `offline_payments` (оплаты вне Synoro, записанные сотрудниками): `id`, `client_id`,
 `booking_id` (запись, оплаченная на приёме), `credit_entry_id` (→ `credit_entries.id`,
-если это пакет), `amount_kopecks`, `method` (`cash`, `transfer`, `card`, `other`),
-`paid_at`, `note`, `created_at`.
+если это пакет), `credits` (сколько занятий начислено вместе с ней, или `null`),
+`amount_kopecks`, `method` (`cash`, `transfer`, `card`, `other`), `paid_at`, `note`,
+`created_at`. Перенесённые из прошлого архива идут первыми, в том же виде.
 
 ## Чего в файле нет намеренно
 

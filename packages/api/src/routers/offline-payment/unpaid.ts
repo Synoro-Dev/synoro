@@ -25,7 +25,7 @@ const UNPAID_DAYS = 90;
 
 /**
  * «Ждут оплаты»: bookings paid at the visit (a client's consultation that
- * took nothing from the balance, `credits` 0) that have ended in the last 90
+ * took nothing from the balance, `credits` 0) that ended within the last 90
  * days, weren't cancelled and have no payment written down — staff only.
  * Oldest first. Imported bookings, with no account behind them, aren't here.
  *
@@ -66,7 +66,7 @@ export const unpaid = practiceProcedure
           isNotNull(Booking.memberId),
           lte(Booking.endsAt, now),
           gte(
-            Booking.startsAt,
+            Booking.endsAt,
             new Date(now.getTime() - UNPAID_DAYS * 24 * 60 * 60 * 1000),
           ),
           notExists(

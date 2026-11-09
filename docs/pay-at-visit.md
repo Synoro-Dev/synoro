@@ -71,7 +71,8 @@ that does not mean «awaiting payment», which `hold_until` does today.
 
 Once such a booking has taken place it waits in «Ждут оплаты» on the payments
 page until staff write the payment down (`offlinePayment.record` with
-`bookingId`): see `docs/offline-payments.md`.
+`bookingId`), for 90 days after it ended; an older one is paid through
+«Внести оплату». See `docs/offline-payments.md`.
 
 ## Not done
 

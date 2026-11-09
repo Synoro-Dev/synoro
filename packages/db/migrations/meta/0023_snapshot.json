@@ -1,5 +1,5 @@
 {
-  "id": "da507faa-7631-4eec-84cc-6659185cefe7",
+  "id": "4c1bd349-a623-4eb0-a0af-9fc4b679d46d",
   "prevId": "8ae7e1a5-50c8-46bd-be69-bac1e251961b",
   "version": "7",
   "dialect": "postgresql",
@@ -4701,6 +4701,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "credits": {
+          "name": "credits",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
         "method": {
           "name": "method",
           "type": "offline_payment_method",
@@ -5346,7 +5352,8 @@
       "schema": "public",
       "values": [
         "payment",
-        "credit_entry"
+        "credit_entry",
+        "offline_payment"
       ]
     },
     "public.import_item_action": {

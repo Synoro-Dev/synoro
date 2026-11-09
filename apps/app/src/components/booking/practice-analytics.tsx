@@ -361,9 +361,9 @@ export function PracticeAnalytics({
           <FrameHeader className="p-0">
             <FrameTitle>Итоги</FrameTitle>
             <FrameDescription>
-              Считаются встречи, которые уже прошли. Оплаты — только онлайн, те,
-              что прошли через вашу кассу; пакеты, которые вы внесли вручную,
-              сюда не входят.
+              Считаются встречи, которые уже прошли. Доход — онлайн-оплаты и
+              оплаты вне Synoro, которые вы записали; пакет, начисленный вручную
+              без суммы, сюда не входит.
             </FrameDescription>
           </FrameHeader>
           <Tiles stats={stats} previous={previous} />

@@ -41,6 +41,11 @@ export const OfflinePayment = pgTable(
       .references(() => CreditEntry.id, { onDelete: "set null" }),
     /** Kopecks. */
     amount: t.integer().notNull(),
+    /**
+     * Credits granted with it (`credit.grant`), kept here so the income table
+     * still says what was paid for after the client's entries are gone.
+     */
+    credits: t.smallint(),
     method: offlinePaymentMethod().notNull(),
     /** When the money came, as staff said. */
     paidAt: t.timestamp({ withTimezone: true }).notNull(),

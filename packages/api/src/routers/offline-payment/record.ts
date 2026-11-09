@@ -11,8 +11,9 @@ import {
  * Write down money a client paid outside Synoro — staff only. For a booking
  * paid at the visit pass `bookingId` (the client is the booking's; it then
  * leaves «Ждут оплаты»), for anything else `memberId`. A booking is paid
- * once (ALREADY_PAID). Nothing on the balance changes: a package paid this
- * way goes through `credit.grant` with `payment`.
+ * once (ALREADY_PAID), and only one that took nothing from the balance — one
+ * paid with credits was paid already (PREPAID). Nothing on the balance
+ * changes: a package paid this way goes through `credit.grant` with `payment`.
  *
  * @example client.offlinePayment.record({ practiceId, bookingId, amount: 300_000, method: "cash", paidAt: new Date() })
  */
@@ -20,6 +21,7 @@ export const record = practiceProcedure
   .errors({
     NOT_FOUND: { message: "Не нашли клиента или запись" },
     ALREADY_PAID: { message: "Эта запись уже отмечена оплаченной" },
+    PREPAID: { message: "Эта запись оплачена с баланса клиента" },
   })
   .input(
     offlinePaymentFormSchema
@@ -46,9 +48,10 @@ export const record = practiceProcedure
           eq(Booking.id, input.bookingId),
           eq(Booking.practiceId, input.practiceId),
         ),
-        columns: { kind: true, memberId: true },
+        columns: { kind: true, memberId: true, credits: true },
       });
       if (!booking || booking.kind === "blocked") throw errors.NOT_FOUND();
+      if (booking.credits > 0) throw errors.PREPAID();
       memberId = booking.memberId;
     } else if (memberId) {
       const member = await db.query.PracticeMember.findFirst({

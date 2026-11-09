@@ -1,4 +1,5 @@
 CREATE TYPE "public"."offline_payment_method" AS ENUM('cash', 'transfer', 'card', 'other');--> statement-breakpoint
+ALTER TYPE "public"."archived_record_kind" ADD VALUE 'offline_payment';--> statement-breakpoint
 CREATE TABLE "offline_payments" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"practice_id" uuid NOT NULL,
@@ -6,6 +7,7 @@ CREATE TABLE "offline_payments" (
 	"booking_id" uuid,
 	"credit_entry_id" uuid,
 	"amount" integer NOT NULL,
+	"credits" smallint,
 	"method" "offline_payment_method" NOT NULL,
 	"paid_at" timestamp with time zone NOT NULL,
 	"note" varchar(500),
