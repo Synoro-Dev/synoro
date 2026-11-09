@@ -118,7 +118,9 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
         <GlobeIcon className="text-muted-foreground size-4" />
         Что указать у регистратора
       </div>
-      <div className="overflow-x-auto">
+      {/* `relative`: the sr-only header is absolute and would escape the
+          scroll box, widening the whole page on phones. */}
+      <div className="relative overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="text-muted-foreground">
             <tr>

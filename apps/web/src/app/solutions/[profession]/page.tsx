@@ -56,7 +56,7 @@ export default async function ProfessionLandingPage(
   const { links } = site;
   return (
     <>
-      <Header links={links} />
+      <Header links={links} domain={false} />
       <main>
         <Hero links={links} page={page} />
         <ProfessionPoints page={page} />
