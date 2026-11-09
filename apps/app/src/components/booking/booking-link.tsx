@@ -24,6 +24,7 @@ export function BookingLinkActions({
   siteDomain?: SiteDomain;
 }) {
   const { copied, copy } = useCopied();
+  const embedCopy = useCopied();
   const share = siteDomain?.url ?? url;
   return (
     <>
@@ -76,7 +77,10 @@ export function BookingLinkActions({
           variant="outline"
           size="sm"
           onClick={() =>
-            copy(embedCode(url), "Код скопирован — вставьте его на свой сайт")
+            embedCopy.copy(
+              embedCode(url),
+              "Код скопирован — вставьте его на свой сайт",
+            )
           }
         >
           <CodeIcon />

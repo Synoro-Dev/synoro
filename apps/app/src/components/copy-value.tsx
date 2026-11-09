@@ -54,13 +54,14 @@ export function CopyStateIcon({
 export function CopyValue({
   value,
   children,
-  label = "Скопировать",
+  label,
   className,
 }: {
   /** What lands in the clipboard. */
   value: string;
   /** What's shown; defaults to `value`. */
   children?: ReactNode;
+  /** Accessible name; defaults to "Скопировать <value>". */
   label?: string;
   className?: string;
 }) {
@@ -69,7 +70,7 @@ export function CopyValue({
   return (
     <button
       type="button"
-      aria-label={label}
+      aria-label={label ?? `Скопировать ${value}`}
       onClick={() => copy(value)}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-sm break-all transition-colors hover:text-primary",
