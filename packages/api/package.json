@@ -28,6 +28,7 @@
     "@synoro/jobs": "workspace:*",
     "@synoro/validators": "workspace:*",
     "posthog-node": "^5.61.2",
+    "tldts": "7.4.17",
     "zod": "4.6.7"
   },
   "devDependencies": {

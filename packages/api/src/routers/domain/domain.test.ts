@@ -137,10 +137,25 @@ describe("domain.connect", () => {
       other.practiceId,
       "booking.stariva.ru",
     );
+    expect(settings.domain?.zone).toBe("stariva.ru");
     expect(settings.domain?.records.map((r) => r.name)).toEqual([
       "_booking-verification.booking",
       "booking",
     ]);
+  });
+
+  it("takes the zone from the public suffix list, not the label count", async () => {
+    const cases = [
+      ["anna.co.uk", "anna.co.uk", ["_booking-verification", "@", "@"]],
+      ["anna.msk.ru", "anna.msk.ru", ["_booking-verification", "@", "@"]],
+      ["a.b.anna.com.au", "anna.com.au", ["_booking-verification.a.b", "a.b"]],
+    ] as const;
+    for (const [hostname, zone, names] of cases) {
+      const other = await newPractice(`zone-${zone.replaceAll(".", "-")}`);
+      const settings = await connect(other.session, other.practiceId, hostname);
+      expect(settings.domain?.zone).toBe(zone);
+      expect(settings.domain?.records.map((r) => r.name)).toEqual([...names]);
+    }
   });
 
   it("keeps the token when the same host is submitted again", async () => {

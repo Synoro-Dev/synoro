@@ -19,6 +19,7 @@ import {
   lookupDns,
   servesHttps,
 } from "@synoro/jobs/custom-domains";
+import { getDomain } from "tldts";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -65,6 +66,14 @@ function dnsTargets(): DnsTargets {
   };
 }
 
+/**
+ * The zone the owner edits at their registrar: the registered domain
+ * (`stariva.ru` for `booking.stariva.ru`, `anna.co.uk` for itself), by the
+ * public suffix list.
+ */
+const dnsZone = (hostname: string) =>
+  getDomain(hostname, { allowPrivateDomains: true }) ?? hostname;
+
 // A type alias (not an interface) so router declarations can inline it.
 type DnsRecord = {
   type: "TXT" | "CNAME" | "ALIAS";
@@ -80,17 +89,16 @@ type DnsRecord = {
  * a CNAME for a subdomain. An apex domain can't hold a CNAME, so it also gets
  * an ALIAS (ANAME, «CNAME flattening» at some registrars) to the same target;
  * where there is none, a subdomain such as `zapis.<domain>` does the job.
- * Two labels is a guess at "apex" (wrong for `anna.msk.ru`), which is why a
- * CNAME stays listed beside the ALIAS.
+ * The apex comes from the public suffix list, which can't know a zone
+ * delegated below the registered domain — so a CNAME stays listed beside
+ * the ALIAS.
  */
 function dnsRecords(row: DomainRow, targets = dnsTargets()) {
-  const apex = row.hostname.split(".").length === 2;
+  const zone = dnsZone(row.hostname);
+  const apex = row.hostname === zone;
   // Names are shown relative to the domain's zone — what the registrar's
   // «Имя» field expects — so the owner never pastes their whole domain.
-  // The zone is guessed as the host minus its first label (the host itself
-  // for an apex).
-  const zone = apex ? row.hostname : row.hostname.split(".").slice(1).join(".");
-  const displayZone = domainToUnicode(zone) || zone;
+  const displayZone = displayHost(zone);
   const recordName = (fqdn: string) => {
     const name = domainToUnicode(fqdn) || fqdn;
     return name === displayZone
@@ -236,6 +244,8 @@ export async function domainSettings(db: Database, practiceId: string) {
           /** https answered with a trusted certificate: fully ready. */
           securedAt: row.securedAt,
           url: `https://${row.hostname}`,
+          /** The zone record names are relative to (`@` is the zone itself). */
+          zone: displayHost(dnsZone(row.hostname)),
           records: dnsRecords(row, targets),
         }
       : null,
