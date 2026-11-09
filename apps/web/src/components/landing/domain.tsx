@@ -85,7 +85,7 @@ function Browser({ host }: { host: string }) {
         </span>
         <span
           key={host}
-          className="bg-background text-foreground flex min-w-0 flex-1 animate-in items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs duration-300 fade-in-0 slide-in-from-bottom-1"
+          className="bg-background text-foreground flex min-w-0 flex-1 animate-in items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs duration-400 fade-in-0 slide-in-from-bottom-1"
         >
           <LockIcon className="size-3 shrink-0 text-emerald-600" />
           <span className="truncate">{host}</span>
@@ -132,7 +132,7 @@ function Shift({ host }: { host: string }) {
           <span className="text-muted-foreground text-xs">Стало</span>
           <span
             key={host}
-            className="bg-background animate-in truncate rounded-md border px-2 py-1 font-mono text-xs font-medium duration-300 fade-in-0"
+            className="bg-background animate-in truncate rounded-md border px-2 py-1 font-mono text-xs font-medium duration-400 fade-in-0"
           >
             {host}
           </span>

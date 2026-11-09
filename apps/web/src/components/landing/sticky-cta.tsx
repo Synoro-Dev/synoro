@@ -34,7 +34,7 @@ export function StickyCta({ signupUrl }: { signupUrl: string }) {
       aria-hidden={!visible}
       inert={!visible}
       className={cn(
-        "bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 backdrop-blur-xl transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] md:hidden",
+        "bg-background/90 fixed inset-x-0 bottom-0 z-40 border-t px-4 py-3 backdrop-blur-xl transition-transform ease-[cubic-bezier(0.22,1,0.36,1)] md:hidden",
         visible ? "translate-y-0" : "translate-y-full",
       )}
     >

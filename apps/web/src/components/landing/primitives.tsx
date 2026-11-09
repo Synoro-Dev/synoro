@@ -76,6 +76,7 @@ export function SectionHeading({
 }: React.ComponentProps<"h2">) {
   return (
     <h2
+      data-reveal=""
       className={cn(
         display,
         "text-3xl leading-[1.05] sm:text-4xl md:text-[3.25rem]",
