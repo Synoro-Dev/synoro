@@ -34,6 +34,7 @@ export function Header({
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
+  const header = useRef<HTMLElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const items = domain ? nav : nav.filter((item) => item.href !== "#domain");
 
@@ -44,13 +45,24 @@ export function Header({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // While the menu is open the page under it stays put, Escape closes it,
-  // and growing past `md` (a phone turned sideways) puts the top bar back.
+  // While the menu is open the page under it stays put and out of reach of
+  // Tab, Escape closes it, and growing past `md` (a phone turned sideways)
+  // puts the top bar back. A page restored from the back/forward cache after
+  // leaving through the menu (sign-up, sign-in) comes back with it closed.
   useEffect(() => {
     if (!open) return;
     const root = document.documentElement;
     const overflow = root.style.overflow;
     root.style.overflow = "hidden";
+    const behind = [...document.body.children].filter(
+      (element): element is HTMLElement =>
+        element instanceof HTMLElement &&
+        element !== header.current &&
+        !element.inert,
+    );
+    for (const element of behind) element.inert = true;
+    const onShow = (event: PageTransitionEvent) =>
+      event.persisted && setOpen(false);
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setOpen(false);
@@ -60,15 +72,19 @@ export function Header({
     const onWide = () => wide.matches && setOpen(false);
     document.addEventListener("keydown", onKey);
     wide.addEventListener("change", onWide);
+    window.addEventListener("pageshow", onShow);
     return () => {
       root.style.overflow = overflow;
+      for (const element of behind) element.inert = false;
       document.removeEventListener("keydown", onKey);
       wide.removeEventListener("change", onWide);
+      window.removeEventListener("pageshow", onShow);
     };
   }, [open]);
 
   return (
     <header
+      ref={header}
       className={cn(
         "fixed inset-x-0 top-0 z-50 border-b transition-colors duration-200",
         open
