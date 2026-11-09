@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@synoro/ui";
+import { cn, Tabs, TabsContent, TabsList, TabsTrigger } from "@synoro/ui";
 import {
   CheckIcon,
   ClockIcon,
@@ -132,7 +132,7 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
           </thead>
           <tbody className="font-mono">
             {mode.records.map((record) => (
-              <tr key={record.type} className="border-t">
+              <tr key={`${record.type}-${record.name}`} className="border-t">
                 <td className="px-4 py-3">
                   <span className="bg-muted rounded-md border px-1.5 py-0.5">
                     {record.type}
@@ -161,7 +161,6 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
 
 export function Domain() {
   const [id, setId] = useState<(typeof modes)[number]["id"]>("sub");
-  const mode = modes.find((item) => item.id === id) ?? modes[0];
 
   return (
     <Section
@@ -214,34 +213,44 @@ export function Domain() {
         </p>
       </div>
 
-      <div className="flex min-w-0 flex-col gap-4">
-        <fieldset className="bg-muted m-0 flex w-fit min-w-0 gap-1 rounded-full border p-1">
-          <legend className="sr-only">Как подключить адрес</legend>
-          {modes.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              aria-pressed={item.id === id}
-              onClick={() => setId(item.id)}
-              className={cn(
-                "focus-visible:ring-ring/50 rounded-full px-3.5 py-1.5 text-sm outline-none transition-colors focus-visible:ring-3",
-                item.id === id
-                  ? "bg-background text-foreground font-medium shadow-xs"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </fieldset>
-        <Browser host={mode.host} />
-        <Records mode={mode} />
-        <p
-          className="text-muted-foreground text-xs text-pretty"
-          aria-live="polite"
+      <div className="flex min-w-0 flex-col">
+        <Tabs
+          value={id}
+          onValueChange={(value) => setId(value as typeof id)}
+          className="min-w-0 gap-4"
         >
-          {mode.note}
-        </p>
+          <TabsList
+            aria-label="Как подключить адрес"
+            className="h-auto gap-1 rounded-full border p-1"
+          >
+            {modes.map((item) => (
+              <TabsTrigger
+                key={item.id}
+                value={item.id}
+                className={cn(
+                  "h-auto flex-none rounded-full border-0 px-3.5 py-1.5 font-normal transition-colors",
+                  "text-muted-foreground hover:text-foreground data-active:text-foreground data-active:font-medium data-active:shadow-xs",
+                )}
+              >
+                {item.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {modes.map((item) => (
+            <TabsContent
+              key={item.id}
+              value={item.id}
+              keepMounted
+              className="flex min-w-0 flex-col gap-4"
+            >
+              <Browser host={item.host} />
+              <Records mode={item} />
+              <p className="text-muted-foreground text-xs text-pretty">
+                {item.note}
+              </p>
+            </TabsContent>
+          ))}
+        </Tabs>
       </div>
     </Section>
   );
