@@ -56,7 +56,7 @@ export const plans: Plan[] = [
     description: "Когда клиенты готовы платить онлайн.",
     monthly: 240,
     yearly: 2400,
-    trialDays: 15,
+    trialDays: 14,
     features: [
       "Всё из «Бесплатного»",
       "Оплата пакетов онлайн через ЮKassa",

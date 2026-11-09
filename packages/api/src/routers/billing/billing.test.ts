@@ -140,14 +140,14 @@ afterAll(async () => {
 });
 
 describe("trial", () => {
-  it("starts with the first practice and lasts 15 days", async () => {
+  it("starts with the first practice and lasts 14 days", async () => {
     const { session } = await specialist("trial-anna");
     const before = await subscriptionOf(session);
     if (!before) throw new Error("No subscription");
 
     const left = before.trialEndsAt.getTime() - Date.now();
-    expect(left).toBeGreaterThan(15 * DAY_MS - 60_000);
-    expect(left).toBeLessThanOrEqual(15 * DAY_MS);
+    expect(left).toBeGreaterThan(14 * DAY_MS - 60_000);
+    expect(left).toBeLessThanOrEqual(14 * DAY_MS);
 
     await call(
       practiceRouter.create,

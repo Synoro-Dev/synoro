@@ -5,7 +5,7 @@ export const BILLING_PERIODS = ["month", "year"] as const;
 export type BillingPeriodId = (typeof BILLING_PERIODS)[number];
 
 /** Days of «Про» a new specialist gets before the first payment. */
-export const TRIAL_DAYS = 15;
+export const TRIAL_DAYS = 14;
 
 /**
  * «Про» prices in kopecks. A year costs ten months. Keep in sync with
