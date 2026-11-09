@@ -110,7 +110,7 @@ export function BookingActionDialog({
       await refresh();
       toast.success(
         result.kept > 0
-          ? `Отменено записей: ${result.cancelled}. Ближайшую уже не отменить — до неё ${formatHoursLess(result.cancelHours)}.`
+          ? `Отменено записей: ${result.cancelled}. Осталось записей: ${result.kept}.`
           : free
             ? `Отменено записей: ${result.cancelled}`
             : `Отменено записей: ${result.cancelled}, оплата вернулась на баланс`,

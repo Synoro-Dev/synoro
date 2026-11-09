@@ -133,7 +133,7 @@ export function GuestBooking({ token }: { token: string }) {
                     : atVisit
                       ? "Время освободилось. Если передумаете — запишитесь снова."
                       : data.forfeited
-                        ? `Отмена была позже срока, поэтому на баланс не вернулось: ${formatCredits(data.credits, terms)}. Сейчас на нём ${formatCredits(data.balance, terms)}.`
+                        ? `Отмена была позже срока, поэтому списанное за запись на баланс не вернулось (${formatCredits(data.credits, terms)}). Сейчас на нём ${formatCredits(data.balance, terms)}.`
                         : `Оплата вернулась на баланс. Сейчас на нём ${formatCredits(data.balance, terms)}.`
                 }
               />
