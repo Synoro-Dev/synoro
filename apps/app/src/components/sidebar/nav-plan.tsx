@@ -108,7 +108,11 @@ export function NavPlan() {
             <span className="font-medium">{name}</span>
           </div>
           {plan.status === "trial" && (
-            <TrialDays left={left} endingSoon={endingSoon} />
+            <TrialDays
+              left={left}
+              total={plan.trialDays}
+              endingSoon={endingSoon}
+            />
           )}
           <span
             className={cn(
