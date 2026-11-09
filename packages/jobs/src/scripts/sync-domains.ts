@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { request } from "node:https";
 import { env, logger } from "@synoro/config";
-import { db, eq, PracticeDomain } from "@synoro/db";
+import { and, db, eq, inArray, isNull, PracticeDomain } from "@synoro/db";
 
 import {
+  hasTrustedCertificate,
   hostOfRoute,
   ingressRoute,
   MANAGED_BY,
@@ -109,12 +110,14 @@ async function main() {
   const namespace = dryRun ? "default" : read("namespace").toString().trim();
   const routes = `/apis/traefik.io/v1alpha1/namespaces/${namespace}/ingressroutes`;
 
-  const active = (
-    await db
-      .select({ hostname: PracticeDomain.hostname })
-      .from(PracticeDomain)
-      .where(eq(PracticeDomain.status, "active"))
-  ).map((row) => row.hostname);
+  const rows = await db
+    .select({
+      hostname: PracticeDomain.hostname,
+      securedAt: PracticeDomain.securedAt,
+    })
+    .from(PracticeDomain)
+    .where(eq(PracticeDomain.status, "active"));
+  const active = rows.map((row) => row.hostname);
 
   // Every route of the namespace, not only ours: a route that already has a
   // `cd-<host>` name but was made by someone else is theirs, not to be adopted.
@@ -210,8 +213,35 @@ async function main() {
       logger.error("domains.sync_delete_failed", error, { host });
     }
   }
+  await markSecured(
+    plan.apply.filter((host) =>
+      rows.some((row) => row.hostname === host && !row.securedAt),
+    ),
+  );
   // A non-zero exit shows the failed Job in `kubectl get jobs`.
   if (failed > 0) process.exitCode = 1;
+}
+
+/**
+ * Routed hosts whose certificate is now trusted get `secured_at`. A host whose
+ * certificate isn't there yet is simply checked again next minute.
+ */
+async function markSecured(hosts: string[]) {
+  if (hosts.length === 0) return;
+  const results = await Promise.all(hosts.map(hasTrustedCertificate));
+  const secured = hosts.filter((_, i) => results[i]);
+  if (secured.length === 0) return;
+  await db
+    .update(PracticeDomain)
+    .set({ securedAt: new Date() })
+    .where(
+      and(
+        inArray(PracticeDomain.hostname, secured),
+        eq(PracticeDomain.status, "active"),
+        isNull(PracticeDomain.securedAt),
+      ),
+    );
+  logger.info("domains.sync_secured", { hosts: secured });
 }
 
 try {

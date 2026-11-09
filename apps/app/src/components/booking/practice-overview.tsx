@@ -34,7 +34,7 @@ import {
   type CalendarBooking,
   kindLabel,
 } from "./booking-dialog";
-import { BookingLinkActions } from "./booking-link";
+import { BookingLinkActions, type SiteDomain } from "./booking-link";
 import { EntryDialog, type EntryDraft } from "./entry-dialog";
 import { SetupProgress } from "./setup-progress";
 import { EmptyState, ErrorState } from "./states";
@@ -56,6 +56,7 @@ interface PracticeSummary {
   name: string;
   imageUrl: string | null;
   bookingUrl: string;
+  siteDomain: SiteDomain;
   timezone: string;
   videoUrl: string | null;
   freeBookingEnabled: boolean;
@@ -462,7 +463,10 @@ function BookingLink({ practice }: { practice: PracticeSummary }) {
             Клиенты записываются по ссылке без регистрации
           </FrameDescription>
         </FrameHeader>
-        <BookingLinkActions url={practice.bookingUrl} />
+        <BookingLinkActions
+          url={practice.bookingUrl}
+          siteDomain={practice.siteDomain}
+        />
       </FramePanel>
     </Frame>
   );

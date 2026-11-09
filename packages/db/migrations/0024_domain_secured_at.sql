@@ -1,0 +1,1 @@
+ALTER TABLE "practice_domains" ADD COLUMN "secured_at" timestamp with time zone;

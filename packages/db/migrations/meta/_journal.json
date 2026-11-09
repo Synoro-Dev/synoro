@@ -169,6 +169,13 @@
       "when": 1794203307380,
       "tag": "0023_offline_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794205913748,
+      "tag": "0024_domain_secured_at",
+      "breakpoints": true
     }
   ]
 }

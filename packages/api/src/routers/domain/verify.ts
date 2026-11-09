@@ -2,8 +2,10 @@ import { and, eq, gt, PracticeDomain } from "@synoro/db";
 import { z } from "zod";
 
 import {
+  checkCertificate,
   checkDomainDns,
   DOMAIN_RESERVATION_MS,
+  type DomainStage,
   domainSettings,
 } from "../../lib/domains";
 import { findOwnerMembership } from "../../lib/practice-access";
@@ -12,7 +14,10 @@ import { ownerProcedure } from "./owner";
 /**
  * Look up the domain's DNS now. The TXT record activates a pending domain;
  * `routing` only reports whether traffic reaches us yet. An active domain
- * stays active: if it stops pointing here, it simply gets no traffic.
+ * stays active: if it stops pointing here, it simply gets no traffic. Once
+ * DNS leads here, `https://<host>` is tried too: a trusted certificate marks
+ * the domain `securedAt` (fully ready). The domain page calls this every few
+ * seconds while it waits, so the owner watches the steps pass by.
  *
  * @example client.domain.verify({ practiceId })
  */
@@ -45,15 +50,30 @@ export const verify = ownerProcedure
       throw errors.RESERVATION_EXPIRED();
     }
 
-    const check = await checkDomainDns(row.hostname, row.verificationToken);
+    const dns = await checkDomainDns(row.hostname, row.verificationToken);
+    const owned = row.status === "active" || dns.ownership;
+    // A certificate exists only for a host the cluster routes: an owned one
+    // that leads here (the probe is never sent anywhere else).
+    const tls = owned && dns.routing && (await checkCertificate(row.hostname));
+    const check = { ...dns, tls };
+    const stage: DomainStage = !owned
+      ? "ownership"
+      : !dns.routing
+        ? "routing"
+        : !tls
+          ? "certificate"
+          : "ready";
+
     const now = new Date();
     await context.db
       .update(PracticeDomain)
-      .set(
-        row.status === "pending" && check.ownership
-          ? { status: "active", verifiedAt: now, lastCheckedAt: now }
-          : { lastCheckedAt: now },
-      )
+      .set({
+        lastCheckedAt: now,
+        ...(row.status === "pending" && dns.ownership
+          ? { status: "active" as const, verifiedAt: now }
+          : {}),
+        ...(tls && !row.securedAt ? { securedAt: now } : {}),
+      })
       .where(
         and(
           eq(PracticeDomain.id, row.id),
@@ -69,5 +89,9 @@ export const verify = ownerProcedure
         ),
       );
 
-    return { ...(await domainSettings(context.db, input.practiceId)), check };
+    return {
+      ...(await domainSettings(context.db, input.practiceId)),
+      check,
+      stage,
+    };
   });

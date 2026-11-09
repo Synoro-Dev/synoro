@@ -81,7 +81,11 @@ export function PracticeSwitcher({
                 {current?.name ?? "Synoro"}
               </span>
               <span className="truncate text-xs text-muted-foreground">
-                {current ? ROLE_LABELS[current.role] : "Выберите практику"}
+                {current
+                  ? [ROLE_LABELS[current.role], current.siteDomain?.hostname]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "Выберите практику"}
               </span>
             </div>
             <ChevronsUpDownIcon className="ml-auto size-3.5! opacity-60 group-data-[collapsible=icon]:hidden" />

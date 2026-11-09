@@ -87,8 +87,19 @@ synoro-domains-sync`. It refuses anything that isn't a plain hostname, and the
   platform's own hosts (`APP_URL`, `BOOKING_URL`, `ADMIN_URL`, exact
   `AUTH_TRUSTED_ORIGINS`), whatever the database says: a route is a rule with
   the host in it.
-- A route exists once the TXT record is seen **and** DNS leads here. The owner
-  sees it as: «Проверить DNS» → both marks green → https works in 2–5 minutes.
+- A route exists once the TXT record is seen **and** DNS leads here.
+- The owner watches it as steps on the domain page (`domain-progress.tsx`):
+  TXT → DNS → SSL → «Сайт полностью готов». While the domain isn't secured the
+  page re-runs `domain.verify` every 8 s (30 s after ~5 minutes); `verify`
+  returns `stage` (`ownership` / `routing` / `certificate` / `ready`). Once DNS
+  leads here it also opens a TLS connection to `<host>:443`
+  (`hasTrustedCertificate` in `custom-domains.ts`, handshake only): a trusted
+  certificate sets `practice_domains.secured_at`. The CronJob does the same for
+  routed hosts, so a domain becomes ready even if the owner closed the page.
+- With `secured_at` set the domain is the practice's address in the console:
+  `practice.get` / `practice.mine` return `siteDomain`, shown first in
+  «Страница записи» (`BookingLinkActions`), in the sidebar and the practice
+  switcher. A new hostname clears it.
 - Disconnecting removes the route within a minute. The certificate stays in
   Traefik's `acme.json` and expires on its own.
 

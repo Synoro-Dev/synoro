@@ -1,7 +1,15 @@
 import { resolve4, resolveCname, resolveTxt } from "node:dns/promises";
 import { domainToUnicode } from "node:url";
 import { env } from "@synoro/config";
-import { type Database, eq, Practice, PracticeDomain } from "@synoro/db";
+import {
+  and,
+  type Database,
+  eq,
+  isNotNull,
+  Practice,
+  PracticeDomain,
+} from "@synoro/db";
+import { hasTrustedCertificate } from "@synoro/jobs/custom-domains";
 
 import { hasPro } from "./billing";
 import { publicBookingUrl } from "./urls";
@@ -139,6 +147,44 @@ export async function checkDomainDns(
   return { ownership, routing };
 }
 
+/**
+ * Does `https://<hostname>` already work with a trusted certificate? Only
+ * worth asking once DNS leads here: the cluster requests the certificate then
+ * (docs/custom-domains.md, «Hosting»).
+ */
+export function checkCertificate(hostname: string) {
+  return hasTrustedCertificate(hostname);
+}
+
+/**
+ * Where the connection stands, for the owner's progress steps:
+ * `ownership` (TXT) → `routing` (CNAME / ALIAS) → `certificate` (https is
+ * being issued) → `ready`.
+ */
+export type DomainStage = "ownership" | "routing" | "certificate" | "ready";
+
+/** `xn--…` back into the letters the owner typed (`анна.рф`). */
+const displayHost = (hostname: string) => domainToUnicode(hostname) || hostname;
+
+/** Joins a practice to its domain once that fully works (TXT, DNS, https). */
+export const readyDomainOn = (practiceId: typeof Practice.id) =>
+  and(
+    eq(PracticeDomain.practiceId, practiceId),
+    eq(PracticeDomain.status, "active"),
+    isNotNull(PracticeDomain.securedAt),
+  );
+
+/**
+ * The practice's own domain, for the console to show in place of the
+ * platform address — only once it fully works, so a shared link never lands
+ * on a browser warning.
+ */
+export function siteDomain(hostname: string | null | undefined) {
+  return hostname
+    ? { hostname: displayHost(hostname), url: `https://${hostname}` }
+    : null;
+}
+
 /** What the domain settings page shows for a practice. */
 export async function domainSettings(db: Database, practiceId: string) {
   const [practice, row] = await Promise.all([
@@ -160,10 +206,13 @@ export async function domainSettings(db: Database, practiceId: string) {
     domain: row
       ? {
           hostname: row.hostname,
-          displayHostname: domainToUnicode(row.hostname) || row.hostname,
+          displayHostname: displayHost(row.hostname),
           status: row.status,
           verifiedAt: row.verifiedAt,
           lastCheckedAt: row.lastCheckedAt,
+          /** https answered with a trusted certificate: fully ready. */
+          securedAt: row.securedAt,
+          url: `https://${row.hostname}`,
           records: dnsRecords(row, targets),
         }
       : null,

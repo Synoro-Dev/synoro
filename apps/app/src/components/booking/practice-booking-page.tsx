@@ -23,7 +23,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 
-import { BookingLinkActions } from "./booking-link";
+import { BookingLinkActions, type SiteDomain } from "./booking-link";
 import { PracticeAddress } from "./practice-address";
 import { PracticeAvatar } from "./practice-avatar";
 import {
@@ -53,6 +53,7 @@ export function PracticeBookingPage({
     formerSlugs: string[];
     imageUrl: string | null;
     bookingUrl: string;
+    siteDomain: SiteDomain;
     videoUrl: string | null;
     clientContact: string | null;
     freeBookingEnabled: boolean;
@@ -147,7 +148,10 @@ export function PracticeBookingPage({
                   встройте форму на свой сайт
                 </FrameDescription>
               </FrameHeader>
-              <BookingLinkActions url={practice.bookingUrl} />
+              <BookingLinkActions
+                url={practice.bookingUrl}
+                siteDomain={practice.siteDomain}
+              />
             </FramePanel>
           </Frame>
 

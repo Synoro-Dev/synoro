@@ -1,4 +1,5 @@
 import { resolve4, resolveCname } from "node:dns/promises";
+import { connect } from "node:tls";
 
 /**
  * Hosting side of the practices' own domains (docs/custom-domains.md): which
@@ -110,6 +111,37 @@ export async function reachesUs(
     addresses.some((ip) => targetAddresses.includes(ip))
   );
 }
+
+/** Opens a TLS connection to the host; `true` when its certificate is trusted. */
+export type CertificateProbe = (host: string) => Promise<boolean>;
+
+/**
+ * Does `https://<host>` answer with a certificate a browser trusts (a public
+ * CA, valid now, issued for this host)? Until Let's Encrypt issues one Traefik
+ * serves its own self-signed default, which fails here. Only the handshake:
+ * nothing is sent. Call it for hosts whose DNS leads to us.
+ */
+export const hasTrustedCertificate: CertificateProbe = (host) =>
+  new Promise((resolve) => {
+    const socket = connect(
+      {
+        host,
+        port: 443,
+        servername: host,
+        rejectUnauthorized: true,
+        timeout: 5_000,
+      },
+      () => {
+        resolve(socket.authorized);
+        socket.end();
+      },
+    );
+    socket.on("error", () => resolve(false));
+    socket.on("timeout", () => {
+      socket.destroy();
+      resolve(false);
+    });
+  });
 
 /**
  * What to do so the cluster matches the database.

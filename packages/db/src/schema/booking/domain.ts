@@ -31,6 +31,12 @@ export const PracticeDomain = pgTable("practice_domains", (t) => ({
   status: domainStatus().notNull().default("pending"),
   verifiedAt: t.timestamp({ withTimezone: true }),
   lastCheckedAt: t.timestamp({ withTimezone: true }),
+  /**
+   * When https first answered with a trusted certificate for the host: the
+   * page is fully ready. Set by `domain.verify` or the routes sync; cleared
+   * with a new hostname.
+   */
+  securedAt: t.timestamp({ withTimezone: true }),
   createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: t
     .timestamp({ mode: "date", withTimezone: true })
