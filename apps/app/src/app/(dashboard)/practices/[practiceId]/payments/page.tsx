@@ -33,6 +33,7 @@ async function Payments({
       <main className="flex min-w-0 flex-col p-4 lg:p-6">
         <PracticePayments
           practiceId={practice.id}
+          timezone={practice.timezone}
           isOwner={practice.membership.role === "owner"}
         />
       </main>

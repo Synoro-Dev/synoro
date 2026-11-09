@@ -8,6 +8,7 @@ import {
   eq,
   ImportBatch,
   ImportFile,
+  OfflinePayment,
   Payment,
   PaymentAccount,
   PaymentPackage,
@@ -232,6 +233,15 @@ async function richPractice() {
       note: "Вернули",
     },
   ]);
+  await api.db.insert(OfflinePayment).values({
+    practiceId,
+    memberId: olga.id,
+    bookingId: past?.id,
+    amount: 350_000,
+    method: "cash",
+    paidAt: at(-30),
+    note: "Наличными на приёме",
+  });
   return source;
 }
 
@@ -306,6 +316,16 @@ function canonical(dump: AccountDump) {
         client: who(client_id),
         booking: bookingAt(booking_id),
       })),
+    ),
+    offline_payments: sorted(
+      practice.offline_payments.map(
+        ({ id: _, client_id, booking_id, credit_entry_id, ...row }) => ({
+          ...row,
+          client: who(client_id),
+          booking: bookingAt(booking_id),
+          package: credit_entry_id !== null,
+        }),
+      ),
     ),
     credit_entries: sorted(
       practice.credit_entries.map(

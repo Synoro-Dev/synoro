@@ -9,8 +9,13 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
   Label,
   Skeleton,
+  ToggleGroup,
+  ToggleGroupItem,
   toast,
 } from "@synoro/ui";
 import { Badge } from "@synoro/ui/reui/badge";
@@ -35,6 +40,11 @@ import {
   creditGrantFormSchema,
   type MemberInviteFormValues,
   memberInviteFormSchema,
+  OFFLINE_PAYMENT_METHOD_LABELS,
+  OFFLINE_PAYMENT_METHODS,
+  type OfflinePaymentMethod,
+  offlinePaymentFormSchema,
+  parseRubles,
 } from "@synoro/validators";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HistoryIcon } from "lucide-react";
@@ -102,6 +112,9 @@ function CreditForm({
     grantOnly || member.credits === 0 ? 1 : -1,
   );
   const [note, setNote] = useState("");
+  /** What the client paid for a grant outside Synoro, if anything. */
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<OfflinePaymentMethod>("transfer");
   const next = member.credits + (delta ?? 0);
 
   const grant = useMutation({
@@ -114,6 +127,10 @@ function CreditForm({
       );
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
       await queryClient.invalidateQueries({ queryKey: orpc.credit.key() });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.offlinePayment.key(),
+      });
+      await queryClient.invalidateQueries({ queryKey: orpc.analytics.key() });
       onDone();
     },
     onError: (error) => toast.error(error.message),
@@ -129,7 +146,20 @@ function CreditForm({
       toast.error(parsed.error.issues[0]?.message ?? "Проверьте количество");
       return;
     }
-    grant.mutate({ practiceId, memberId: member.id, ...parsed.data });
+    let payment: ReturnType<typeof offlinePaymentFormSchema.parse> | undefined;
+    if (grantOnly && amount.trim() !== "") {
+      const paid = offlinePaymentFormSchema.safeParse({
+        amount: parseRubles(amount),
+        method,
+        paidAt: new Date(),
+      });
+      if (!paid.success) {
+        toast.error(paid.error.issues[0]?.message ?? "Проверьте сумму");
+        return;
+      }
+      payment = paid.data;
+    }
+    grant.mutate({ practiceId, memberId: member.id, ...parsed.data, payment });
   }
 
   return (
@@ -178,6 +208,44 @@ function CreditForm({
           </span>
         </div>
       </div>
+
+      {grantOnly && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="credit-amount">Сколько заплатил клиент</Label>
+          <InputGroup>
+            <InputGroupInput
+              id="credit-amount"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="По желанию"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <InputGroupAddon align="inline-end">₽</InputGroupAddon>
+          </InputGroup>
+          {amount.trim() !== "" && (
+            <ToggleGroup
+              aria-label="Способ оплаты"
+              variant="outline"
+              size="sm"
+              value={[method]}
+              onValueChange={(value) => {
+                const next = value[0] as OfflinePaymentMethod | undefined;
+                if (next) setMethod(next);
+              }}
+            >
+              {OFFLINE_PAYMENT_METHODS.map((option) => (
+                <ToggleGroupItem key={option} value={option} className="px-2.5">
+                  {OFFLINE_PAYMENT_METHOD_LABELS[option]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          )}
+          <p className="text-xs text-muted-foreground">
+            С суммой оплата попадёт в раздел «Оплаты» и в доход практики.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="credit-note">Комментарий</Label>

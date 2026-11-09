@@ -72,6 +72,12 @@
 `payments` (онлайн-оплаты клиентов): `id`, `client_id`, `booking_id`, `provider`,
 `external_id`, `status`, `credits`, `amount_kopecks`, `paid_at`, `created_at`.
 
+`offline_payments` (оплаты вне Synoro, записанные сотрудниками): `id`, `client_id`,
+`booking_id` (запись, оплаченная на приёме), `credit_entry_id` (→ `credit_entries.id`,
+если это пакет), `credits` (сколько занятий начислено вместе с ней, или `null`),
+`amount_kopecks`, `method` (`cash`, `transfer`, `card`, `other`), `paid_at`, `note`,
+`created_at`. Перенесённые из прошлого архива идут первыми, в том же виде.
+
 ## Чего в файле нет намеренно
 
 Ключи ЮKassa и Т-Банка, токены Google, чаты мессенджеров, сессии, хэши паролей и

@@ -88,7 +88,7 @@ function Tiles({ stats, previous }: { stats: Stats; previous: Stats }) {
         before={String(previous.hours)}
       />
       <Tile
-        label="Онлайн-оплаты"
+        label="Доход"
         value={formatRub(stats.revenue)}
         before={formatRub(previous.revenue)}
       />
@@ -116,7 +116,7 @@ const meetingsConfig = {
 } satisfies ChartConfig;
 
 const revenueConfig = {
-  revenue: { label: "Оплаты, ₽", color: "var(--chart-1)" },
+  revenue: { label: "Доход, ₽", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
 function Series({
@@ -361,9 +361,9 @@ export function PracticeAnalytics({
           <FrameHeader className="p-0">
             <FrameTitle>Итоги</FrameTitle>
             <FrameDescription>
-              Считаются встречи, которые уже прошли. Оплаты — только онлайн, те,
-              что прошли через вашу кассу; пакеты, которые вы внесли вручную,
-              сюда не входят.
+              Считаются встречи, которые уже прошли. Доход — онлайн-оплаты и
+              оплаты вне Synoro, которые вы записали; пакет, начисленный вручную
+              без суммы, сюда не входит.
             </FrameDescription>
           </FrameHeader>
           <Tiles stats={stats} previous={previous} />
@@ -400,10 +400,12 @@ export function PracticeAnalytics({
             <Frame spacing="default" className="min-w-0">
               <FramePanel className="flex flex-col gap-4">
                 <FrameHeader className="p-0">
-                  <FrameTitle>Онлайн-оплаты</FrameTitle>
+                  <FrameTitle>Доход</FrameTitle>
                   <FrameDescription>
-                    {series.unit === "week" ? "По неделям." : "По дням."} Всего
-                    оплат: {stats.payments}.
+                    {series.unit === "week" ? "По неделям." : "По дням."} Онлайн{" "}
+                    {formatRub(stats.onlineRevenue)}, вне Synoro{" "}
+                    {formatRub(stats.offlineRevenue)}. Всего оплат:{" "}
+                    {stats.payments}.
                   </FrameDescription>
                 </FrameHeader>
                 <Series

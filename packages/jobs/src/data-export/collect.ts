@@ -11,6 +11,7 @@ import {
   type Database,
   eq,
   gte,
+  OfflinePayment,
   Payment,
   PaymentAccount,
   PaymentPackage,
@@ -44,6 +45,19 @@ interface CreditEntryDump {
   reason: string;
   booking_id: string | null;
   payment_id: string | null;
+  note: string | null;
+  created_at: string | null;
+}
+
+interface OfflinePaymentDump {
+  id: string;
+  client_id: string | null;
+  booking_id: string | null;
+  credit_entry_id: string | null;
+  credits: number | null;
+  amount_kopecks: number;
+  method: "cash" | "transfer" | "card" | "other";
+  paid_at: string;
   note: string | null;
   created_at: string | null;
 }
@@ -148,6 +162,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     cards,
     archived,
     notes,
+    offline,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -229,11 +244,17 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(ClientNote)
       .where(eq(ClientNote.practiceId, practice.id))
       .orderBy(asc(ClientNote.createdAt), asc(ClientNote.id)),
+    db
+      .select()
+      .from(OfflinePayment)
+      .where(eq(OfflinePayment.practiceId, practice.id))
+      .orderBy(asc(OfflinePayment.paidAt), asc(OfflinePayment.id)),
   ]);
 
   // History from an earlier archive goes out with the live rows, in their form.
-  const archivedOf = <T>(kind: "payment" | "credit_entry") =>
-    archived.filter((row) => row.kind === kind).map((row) => row.data as T);
+  const archivedOf = <T>(
+    kind: "payment" | "credit_entry" | "offline_payment",
+  ) => archived.filter((row) => row.kind === kind).map((row) => row.data as T);
 
   return {
     id: practice.id,
@@ -325,6 +346,25 @@ export async function collectPractice(db: Database, practiceId: string) {
           credits: row.credits,
           amount_kopecks: row.amount,
           paid_at: iso(row.paidAt),
+          created_at: iso(row.createdAt),
+        }),
+      ),
+    ],
+    // Money staff wrote down as received outside Synoro, history from an
+    // earlier archive first.
+    offline_payments: [
+      ...archivedOf<OfflinePaymentDump>("offline_payment"),
+      ...offline.map(
+        (row): OfflinePaymentDump => ({
+          id: row.id,
+          client_id: row.memberId,
+          booking_id: row.bookingId,
+          credit_entry_id: row.creditEntryId,
+          credits: row.credits,
+          amount_kopecks: row.amount,
+          method: row.method,
+          paid_at: iso(row.paidAt) as string,
+          note: row.note,
           created_at: iso(row.createdAt),
         }),
       ),

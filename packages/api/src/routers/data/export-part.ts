@@ -3,6 +3,7 @@ import {
   appointmentsCsv,
   clientsCsv,
   collectPractice,
+  incomeCsv,
   recordDataAudit,
 } from "@synoro/jobs/data-export";
 import { z } from "zod";
@@ -16,22 +17,27 @@ import {
 const PARTIAL_EXPORTS_PER_DAY = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const input = z.discriminatedUnion("what", [
-  z.object({ what: z.literal("clients"), practiceId: z.uuid() }),
+const period = <T extends "appointments" | "income">(what: T) =>
   z
     .object({
-      what: z.literal("appointments"),
+      what: z.literal(what),
       practiceId: z.uuid(),
       from: z.date(),
       to: z.date(),
     })
-    .refine((period) => period.from < period.to, {
+    .refine((range) => range.from < range.to, {
       message: "Начало периода должно быть раньше конца",
-    }),
+    });
+
+const input = z.discriminatedUnion("what", [
+  z.object({ what: z.literal("clients"), practiceId: z.uuid() }),
+  period("appointments"),
+  period("income"),
 ]);
 
 /**
- * One table from a list: all the clients, or the bookings of a period. A CSV
+ * One table from a list: all the clients, the bookings of a period, or the
+ * income of a period (online and outside Synoro, for the tax return). A CSV
  * returned as text, the browser saves it. The whole client base is the same
  * data as in the archive, so it asks for the same confirmation.
  *
@@ -74,15 +80,17 @@ export const exportPart = dataProcedure
     const csv =
       input.what === "clients"
         ? clientsCsv([practice])
-        : appointmentsCsv([
-            {
-              ...practice,
-              bookings: practice.bookings.filter((booking) => {
-                const at = new Date(booking.starts_at);
-                return at >= input.from && at < input.to;
-              }),
-            },
-          ]);
+        : input.what === "income"
+          ? incomeCsv(practice, input.from, input.to)
+          : appointmentsCsv([
+              {
+                ...practice,
+                bookings: practice.bookings.filter((booking) => {
+                  const at = new Date(booking.starts_at);
+                  return at >= input.from && at < input.to;
+                }),
+              },
+            ]);
 
     await recordDataAudit(context.db, {
       userId: user.id,

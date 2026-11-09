@@ -25,6 +25,8 @@
  *                     payment via Точка Банк              (protected)
  *   payment.*       – ЮKassa / Т-Банк: setup (owner), packages, client
  *                     checkout + status, payment history (client / staff)
+ *   offlinePayment.* – money received outside Synoro: record, list,
+ *                     remove, bookings awaiting payment        (staff)
  *   question.*      – the questionnaire clients fill in when booking,
  *                     on «Про»                                      (owner)
  *   service.*       – what clients book: name, length, price in credits
@@ -61,6 +63,7 @@ import { googleCalendarRouter } from "./google-calendar";
 import { importRouter } from "./import";
 import { messengerRouter } from "./messenger";
 import { noteRouter } from "./note";
+import { offlinePaymentRouter } from "./offline-payment";
 import { paymentRouter } from "./payment";
 import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
@@ -80,6 +83,7 @@ export const appRouter = {
   credit: creditRouter,
   domain: domainRouter,
   payment: paymentRouter,
+  offlinePayment: offlinePaymentRouter,
   billing: billingRouter,
   googleCalendar: googleCalendarRouter,
   workflow: workflowRouter,

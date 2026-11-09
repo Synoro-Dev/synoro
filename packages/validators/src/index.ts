@@ -10,6 +10,7 @@ export * from "./client-import";
 export * from "./login";
 export * from "./messenger";
 export * from "./note";
+export * from "./offline-payment";
 export * from "./otp";
 export * from "./password";
 export * from "./payment";

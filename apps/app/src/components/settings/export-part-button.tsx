@@ -48,13 +48,32 @@ function ClientsButton({ practiceId }: { practiceId: string }) {
   );
 }
 
-function AppointmentsButton({
+/** What a period's table is, in the button and the dialog. */
+const PERIOD_TABLES = {
+  appointments: {
+    button: "Скачать записи",
+    title: "Записи за период",
+    description:
+      "Таблица для Excel со всеми записями, в том числе отменёнными. Даты в часовом поясе практики.",
+  },
+  income: {
+    button: "Скачать доходы",
+    title: "Доходы за период",
+    description:
+      "Таблица для Excel: онлайн-оплаты и оплаты вне Synoro по дням поступления — для налоговой декларации.",
+  },
+} as const;
+
+function PeriodButton({
+  what,
   practiceId,
   timezone,
 }: {
+  what: keyof typeof PERIOD_TABLES;
   practiceId: string;
   timezone: string;
 }) {
+  const table = PERIOD_TABLES[what];
   const { mutation, dialog } = useExportPart();
   const [open, setOpen] = useState(false);
   const today = dateKey(new Date(), timezone);
@@ -65,7 +84,7 @@ function AppointmentsButton({
     event.preventDefault();
     mutation.mutate(
       {
-        what: "appointments",
+        what,
         practiceId,
         from: zonedDayStart(from, timezone),
         // The last day counts too: up to the start of the next one.
@@ -79,17 +98,14 @@ function AppointmentsButton({
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <DownloadIcon />
-        Скачать записи
+        {table.button}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm">
           <form onSubmit={submit} className="flex flex-col gap-4">
             <DialogHeader>
-              <DialogTitle>Записи за период</DialogTitle>
-              <DialogDescription>
-                Таблица для Excel со всеми записями, в том числе отменёнными.
-                Даты в часовом поясе практики.
-              </DialogDescription>
+              <DialogTitle>{table.title}</DialogTitle>
+              <DialogDescription>{table.description}</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
@@ -138,12 +154,17 @@ function AppointmentsButton({
 export function ExportPartButton(
   props:
     | { what: "clients"; practiceId: string }
-    | { what: "appointments"; practiceId: string; timezone: string },
+    | {
+        what: "appointments" | "income";
+        practiceId: string;
+        timezone: string;
+      },
 ) {
   return props.what === "clients" ? (
     <ClientsButton practiceId={props.practiceId} />
   ) : (
-    <AppointmentsButton
+    <PeriodButton
+      what={props.what}
       practiceId={props.practiceId}
       timezone={props.timezone}
     />

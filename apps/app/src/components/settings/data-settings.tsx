@@ -368,6 +368,7 @@ function auditDetail(row: AuditRow) {
   if (kind === "weekly") return "недельная копия";
   if (what === "clients") return "клиенты";
   if (what === "appointments") return "записи за период";
+  if (what === "income") return "доходы за период";
   return null;
 }
 
