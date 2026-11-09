@@ -11,7 +11,7 @@ import {
   ShieldCheckIcon,
   SparklesIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { brand } from "~/lib/brand";
 import { paidPlan } from "~/lib/pricing";
@@ -65,6 +65,66 @@ const modes = [
   },
 ] as const;
 
+/** One turn of the demo, the same 8s as the loops in `styles.css`. */
+const LOOP_MS = 8000;
+/** How long the address stays Synoro's before it becomes the practice's. */
+const OLD_ADDRESS_MS = 1600;
+/** The records check out after the address has changed, one by one. */
+const CHECK_DELAY_MS = 400;
+const CHECK_STEP_MS = 200;
+
+/**
+ * Runs the demo while it is on screen: the address is Synoro's for a moment,
+ * then the practice's own, and the records check out. Connected without the
+ * script and under reduced motion, so the block rests in its settled state.
+ */
+function useConnected(ref: React.RefObject<HTMLElement | null>) {
+  const [connected, setConnected] = useState(true);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let turn: ReturnType<typeof setInterval> | undefined;
+    let connect: ReturnType<typeof setTimeout> | undefined;
+    const play = () => {
+      setConnected(false);
+      clearTimeout(connect);
+      connect = setTimeout(() => setConnected(true), OLD_ADDRESS_MS);
+    };
+    const stop = () => {
+      clearInterval(turn);
+      clearTimeout(connect);
+      turn = undefined;
+    };
+
+    // Off screen the demo waits at its start, so it never plays backwards
+    // in front of the visitor.
+    setConnected(false);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry?.isIntersecting) {
+          stop();
+          setConnected(false);
+        } else if (!turn) {
+          play();
+          turn = setInterval(play, LOOP_MS);
+        }
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(node);
+
+    return () => {
+      observer.disconnect();
+      stop();
+    };
+  }, [ref]);
+
+  return connected;
+}
+
 function Slot({ children }: { children: string }) {
   return (
     <span className="bg-muted text-muted-foreground flex h-8 items-center justify-center rounded-lg border text-xs font-medium tabular-nums">
@@ -74,7 +134,7 @@ function Slot({ children }: { children: string }) {
 }
 
 /** A browser window: the address is the point, the page is a hint of it. */
-function Browser({ host }: { host: string }) {
+function Browser({ host, connected }: { host: string; connected: boolean }) {
   return (
     <div className="bg-background overflow-hidden rounded-xl shadow-[0_0_0_1px_rgb(0_0_0/0.07),0_2px_4px_rgb(0_0_0/0.03),0_24px_48px_-24px_rgb(0_0_0/0.2)]">
       <div className="bg-muted/60 flex items-center gap-3 border-b px-3 py-2.5">
@@ -88,7 +148,25 @@ function Browser({ host }: { host: string }) {
           className="bg-background text-foreground flex min-w-0 flex-1 animate-in items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs duration-400 fade-in-0 slide-in-from-bottom-1"
         >
           <LockIcon className="size-3 shrink-0 text-emerald-600" />
-          <span className="truncate">{host}</span>
+          <span className="relative min-w-0 flex-1 truncate">
+            <span
+              aria-hidden
+              className={cn(
+                "absolute inset-0 truncate transition-[opacity,translate]",
+                connected && "-translate-y-1 opacity-0",
+              )}
+            >
+              {brand.rootDomain}/anna
+            </span>
+            <span
+              className={cn(
+                "block truncate transition-[opacity,translate]",
+                !connected && "translate-y-1 opacity-0",
+              )}
+            >
+              {host}
+            </span>
+          </span>
         </span>
       </div>
       <div className="flex flex-col gap-4 p-4 sm:p-5">
@@ -145,7 +223,20 @@ function Shift({ host }: { host: string }) {
   );
 }
 
-function Records({ mode }: { mode: (typeof modes)[number] }) {
+function Records({
+  mode,
+  connected,
+}: {
+  mode: (typeof modes)[number];
+  connected: boolean;
+}) {
+  /** Appears in its turn; leaves at once when the loop starts over. */
+  const turn = (step: number) => ({
+    transitionDelay: connected
+      ? `${CHECK_DELAY_MS + step * CHECK_STEP_MS}ms`
+      : "0ms",
+  });
+
   return (
     <div className="bg-background overflow-hidden rounded-xl border">
       <div className="flex items-center gap-2 border-b px-4 py-3 text-sm font-medium">
@@ -167,7 +258,7 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
             </tr>
           </thead>
           <tbody className="font-mono">
-            {mode.records.map((record) => (
+            {mode.records.map((record, index) => (
               <tr key={`${record.type}-${record.name}`} className="border-t">
                 <td className="px-4 py-3">
                   <span className="bg-muted rounded-md border px-1.5 py-0.5">
@@ -179,7 +270,11 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
                 <td className="px-4 py-3">
                   <CheckIcon
                     aria-label="Запись найдена"
-                    className="size-3.5 text-emerald-600"
+                    style={turn(index)}
+                    className={cn(
+                      "size-3.5 text-emerald-600 transition-[opacity,scale]",
+                      !connected && "scale-50 opacity-0",
+                    )}
                   />
                 </td>
               </tr>
@@ -187,16 +282,26 @@ function Records({ mode }: { mode: (typeof modes)[number] }) {
           </tbody>
         </table>
       </div>
-      <p className="text-muted-foreground flex items-center gap-2 border-t px-4 py-3 text-xs">
-        <ShieldCheckIcon className="size-3.5 shrink-0 text-emerald-600" />
-        Записи проверены — страница открывается по новому адресу
-      </p>
+      <div className="border-t px-4 py-3">
+        <p
+          style={turn(mode.records.length + 1)}
+          className={cn(
+            "text-muted-foreground flex items-center gap-2 text-xs transition-opacity",
+            !connected && "opacity-0",
+          )}
+        >
+          <ShieldCheckIcon className="size-3.5 shrink-0 text-emerald-600" />
+          Записи проверены — страница открывается по новому адресу
+        </p>
+      </div>
     </div>
   );
 }
 
 export function Domain() {
   const [id, setId] = useState<(typeof modes)[number]["id"]>("sub");
+  const demo = useRef<HTMLDivElement>(null);
+  const connected = useConnected(demo);
 
   return (
     <Section
@@ -249,7 +354,7 @@ export function Domain() {
         </p>
       </div>
 
-      <div className="flex min-w-0 flex-col">
+      <div ref={demo} className="flex min-w-0 flex-col">
         <Tabs
           value={id}
           onValueChange={(value) => setId(value as typeof id)}
@@ -280,14 +385,14 @@ export function Domain() {
               className="flex min-w-0 flex-col gap-4"
             >
               <Shift host={item.host} />
-              <Browser host={item.host} />
+              <Browser host={item.host} connected={connected} />
               <details className="group">
                 <summary className="text-muted-foreground hover:text-foreground flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm transition-colors [&::-webkit-details-marker]:hidden">
                   <ChevronRightIcon className="size-4 transition-transform group-open:rotate-90" />
                   Технические детали для настройки
                 </summary>
                 <div className="mt-4 flex flex-col gap-4">
-                  <Records mode={item} />
+                  <Records mode={item} connected={connected} />
                   <p className="text-muted-foreground text-xs text-pretty">
                     {item.note}
                   </p>

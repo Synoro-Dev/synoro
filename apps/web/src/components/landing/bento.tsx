@@ -128,7 +128,7 @@ function ConflictVisual() {
           <CheckIcon className="size-3" />
         </span>
       </div>
-      <div className="bg-background motion-safe:animate-slot-dim flex items-center gap-2.5 rounded-lg border p-2.5 text-sm opacity-70 shadow-sm">
+      <div className="bg-background motion-safe:animate-slot-dim flex items-center gap-2.5 rounded-lg border p-2.5 text-sm opacity-50 shadow-sm">
         <Initials name="Марк Заречный" className="size-6 text-[10px]" />
         <span className="text-muted-foreground motion-safe:animate-slot-strike flex-1 line-through">
           Пт, 10:00
@@ -137,9 +137,15 @@ function ConflictVisual() {
           <LockIcon className="size-3" />
         </span>
       </div>
-      <p className="text-muted-foreground text-center text-xs">
-        двое выбрали одно время
-      </p>
+      {/* One place for both lines: the caption, then the second one's answer. */}
+      <div className="grid text-center text-xs *:col-start-1 *:row-start-1">
+        <p className="text-muted-foreground motion-safe:animate-slot-caption self-center opacity-0">
+          двое выбрали одно время
+        </p>
+        <p className="bg-background motion-safe:animate-slot-badge mx-auto w-fit rounded-lg border px-2.5 py-1 text-balance">
+          Время уже занято — выберите другое
+        </p>
+      </div>
       {/* Two pointers going for the same time; seen only while the loop runs. */}
       <MousePointer2Icon
         aria-hidden
