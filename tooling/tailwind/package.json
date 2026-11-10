@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "4.3.4",
+    "@tailwindcss/postcss": "4.3.5",
     "postcss": "^8.5.26",
-    "tailwindcss": "4.3.4"
+    "tailwindcss": "4.3.5"
   },
   "devDependencies": {
     "@synoro/tsconfig": "workspace:*",
