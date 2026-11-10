@@ -86,7 +86,8 @@ function useConnected(ref: React.RefObject<HTMLElement | null>) {
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let visible = false;
 
     let turn: ReturnType<typeof setInterval> | undefined;
     let connect: ReturnType<typeof setTimeout> | undefined;
@@ -101,28 +102,37 @@ function useConnected(ref: React.RefObject<HTMLElement | null>) {
       turn = undefined;
     };
 
-    // Off screen the demo waits at its start, so it never plays backwards
-    // in front of the visitor.
-    setConnected(false);
+    const sync = () => {
+      if (reducedMotion.matches) {
+        stop();
+        setConnected(true);
+      } else if (!visible) {
+        // Off screen the demo waits at its start, so it never plays backwards
+        // in front of the visitor.
+        stop();
+        setConnected(false);
+      } else if (!turn) {
+        play();
+        turn = setInterval(play, LOOP_MS);
+      }
+    };
+    reducedMotion.addEventListener("change", sync);
+    sync();
     const observer = new IntersectionObserver(
       ([entry]) => {
         // `isIntersecting` is already true at the block's edge, below the
         // threshold: play only once enough of it is in view.
-        const visible =
-          entry?.isIntersecting && entry.intersectionRatio >= VISIBLE_RATIO;
-        if (!visible) {
-          stop();
-          setConnected(false);
-        } else if (!turn) {
-          play();
-          turn = setInterval(play, LOOP_MS);
-        }
+        visible = Boolean(
+          entry?.isIntersecting && entry.intersectionRatio >= VISIBLE_RATIO,
+        );
+        sync();
       },
       { threshold: VISIBLE_RATIO },
     );
     observer.observe(node);
 
     return () => {
+      reducedMotion.removeEventListener("change", sync);
       observer.disconnect();
       stop();
     };
