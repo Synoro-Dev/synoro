@@ -4,6 +4,7 @@ import {
   eq,
   Practice,
   PracticeMember,
+  SignIn,
   Subscription,
   SubscriptionPayment,
   user,
@@ -160,6 +161,52 @@ describe("admin", () => {
     expect(overview.pro.paying).toBe(1);
     expect(overview.revenue.month).toBe(14_900);
     expect(overview.practices.total).toBe(1);
+  });
+
+  it("users.list shows where each user came from", async () => {
+    const admin = await createSession(api.db, {
+      role: "admin",
+      emailVerified: true,
+    });
+    const viaAd = await createSession(api.db);
+    const direct = await createSession(api.db);
+    const lateVisitor = await createSession(api.db);
+
+    const at = (createdAt: Date, ms: number) =>
+      new Date(createdAt.getTime() + ms);
+    await api.db.insert(SignIn).values([
+      {
+        userId: viaAd.user.id,
+        createdAt: at(viaAd.user.createdAt, 1000),
+        yclid: "clid-1",
+        utmSource: "yandex",
+        utmMedium: "cpc",
+        utmCampaign: "psychologist",
+      },
+      { userId: direct.user.id, createdAt: at(direct.user.createdAt, 1000) },
+      // A much later visit is not where the user came from.
+      {
+        userId: lateVisitor.user.id,
+        createdAt: at(lateVisitor.user.createdAt, 2 * DAY),
+        utmSource: "later",
+      },
+    ]);
+
+    const { items } = await call(
+      adminRouter.users.list,
+      { limit: 100 },
+      { context: api.context(admin) },
+    );
+    const sourceById = new Map(items.map((u) => [u.id, u.source]));
+    expect(sourceById.get(viaAd.user.id)).toMatchObject({
+      kind: "ad",
+      yclid: "clid-1",
+      utmSource: "yandex",
+      utmMedium: "cpc",
+      utmCampaign: "psychologist",
+    });
+    expect(sourceById.get(direct.user.id)).toMatchObject({ kind: "direct" });
+    expect(sourceById.get(lateVisitor.user.id)).toBeNull();
   });
 
   it("reports an unknown user as NOT_FOUND", async () => {

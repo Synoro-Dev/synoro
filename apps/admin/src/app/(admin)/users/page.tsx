@@ -16,6 +16,7 @@ import { Pager, SearchForm } from "~/components/list-toolbar";
 import { PageHeader } from "~/components/page-header";
 import { PlanBadge } from "~/components/plan-badge";
 import { TableSkeleton } from "~/components/table-skeleton";
+import { VisitSource } from "~/components/visit-source";
 import { formatDate } from "~/lib/format";
 import { bookingPageUrl } from "~/lib/links";
 import { listParams, type SearchParams } from "~/lib/list-params";
@@ -59,13 +60,14 @@ async function Users({ searchParams }: { searchParams: SearchParams }) {
             <TableHead>Тариф</TableHead>
             <TableHead>Практики</TableHead>
             <TableHead>Регистрация</TableHead>
+            <TableHead>Источник</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={6}
                 className="text-muted-foreground h-24 text-center"
               >
                 Никого не нашли
@@ -128,6 +130,9 @@ async function Users({ searchParams }: { searchParams: SearchParams }) {
                 </div>
               </TableCell>
               <TableCell>{formatDate(user.createdAt)}</TableCell>
+              <TableCell>
+                <VisitSource source={user.source} />
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

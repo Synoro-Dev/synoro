@@ -1,4 +1,5 @@
 import {
+  asc,
   count,
   desc,
   eq,
@@ -6,6 +7,7 @@ import {
   inArray,
   or,
   Practice,
+  SignIn,
   type SQL,
   Subscription,
   sql,
@@ -16,6 +18,10 @@ import { planOf } from "../../../lib/billing";
 import { adminProcedure } from "../../../orpc";
 import { containsPattern } from "../contains";
 import { pageInput } from "../page-input";
+import { sourceKind } from "../sign-ins/source";
+
+/** A first sign-in this soon after the registration is the sign-up itself. */
+const SIGNUP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Registered users, newest first, with their «Про» plan and the practices
@@ -77,14 +83,59 @@ export const list = adminProcedure
           .orderBy(Practice.createdAt, Practice.id)
       : [];
 
+    // Where each user came from is the source of their first sign-in —
+    // the one that opened the registration session.
+    const origins = rows.length
+      ? await context.db
+          .selectDistinctOn([SignIn.userId], {
+            userId: SignIn.userId,
+            createdAt: SignIn.createdAt,
+            yclid: SignIn.yclid,
+            utmSource: SignIn.utmSource,
+            utmMedium: SignIn.utmMedium,
+            utmCampaign: SignIn.utmCampaign,
+            utmContent: SignIn.utmContent,
+            utmTerm: SignIn.utmTerm,
+            referrerHost: SignIn.referrerHost,
+          })
+          .from(SignIn)
+          .where(
+            inArray(
+              SignIn.userId,
+              rows.map((row) => row.id),
+            ),
+          )
+          .orderBy(asc(SignIn.userId), asc(SignIn.createdAt), asc(SignIn.id))
+      : [];
+    const originByUser = new Map(origins.map((o) => [o.userId, o]));
+
     return {
-      items: rows.map(({ subscription, ...row }) => ({
-        ...row,
-        plan: planOf(subscription ?? undefined).status,
-        practiceList: owned
-          .filter((practice) => practice.ownerId === row.id)
-          .map(({ name, slug }) => ({ name, slug })),
-      })),
+      items: rows.map(({ subscription, ...row }) => {
+        const origin = originByUser.get(row.id);
+        const atSignup =
+          origin &&
+          origin.createdAt.getTime() - row.createdAt.getTime() <=
+            SIGNUP_WINDOW_MS;
+        return {
+          ...row,
+          plan: planOf(subscription ?? undefined).status,
+          practiceList: owned
+            .filter((practice) => practice.ownerId === row.id)
+            .map(({ name, slug }) => ({ name, slug })),
+          source: atSignup
+            ? {
+                kind: sourceKind(origin),
+                yclid: origin.yclid,
+                utmSource: origin.utmSource,
+                utmMedium: origin.utmMedium,
+                utmCampaign: origin.utmCampaign,
+                utmContent: origin.utmContent,
+                utmTerm: origin.utmTerm,
+                referrerHost: origin.referrerHost,
+              }
+            : null,
+        };
+      }),
       total: total?.value ?? 0,
     };
   });

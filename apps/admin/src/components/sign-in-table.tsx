@@ -12,6 +12,7 @@ import Link from "next/link";
 
 import { formatDateTime } from "~/lib/format";
 import { deviceLabel, locationLabel, methodLabel } from "~/lib/sign-ins";
+import { VisitSource } from "./visit-source";
 
 export interface SignInItem {
   id: string;
@@ -38,37 +39,7 @@ export interface SignInItem {
 }
 
 function Source({ item }: { item: SignInItem }) {
-  if (item.source === "direct") {
-    return <span className="text-muted-foreground">Напрямую</span>;
-  }
-  if (item.source === "referral") {
-    return (
-      <div className="flex flex-col">
-        <span>{item.referrerHost}</span>
-        <span className="text-muted-foreground text-xs">переход с сайта</span>
-      </div>
-    );
-  }
-  const channel = [item.utmSource, item.utmMedium].filter(Boolean).join(" / ");
-  const details = [item.utmCampaign, item.utmContent, item.utmTerm]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="flex items-center gap-2">
-        <Badge variant="secondary">реклама</Badge>
-        {channel || (item.yclid ? "Яндекс Директ" : "Реклама")}
-      </span>
-      {details && (
-        <span className="text-muted-foreground text-xs">{details}</span>
-      )}
-      {item.yclid && (
-        <span className="text-muted-foreground text-xs">
-          yclid <code>{item.yclid}</code>
-        </span>
-      )}
-    </div>
-  );
+  return <VisitSource source={{ kind: item.source, ...item }} />;
 }
 
 /** One row per sign-in; `showUser` is off on a user's own card. */
