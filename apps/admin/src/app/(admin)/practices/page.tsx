@@ -6,6 +6,7 @@ import {
   TableHeader,
   TableRow,
 } from "@synoro/ui";
+import { PROFESSION_TERMS } from "@synoro/validators";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -51,6 +52,7 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
         <TableHeader>
           <TableRow>
             <TableHead>Практика</TableHead>
+            <TableHead>Тип</TableHead>
             <TableHead>Владелец</TableHead>
             <TableHead>Тариф</TableHead>
             <TableHead className="text-right">Клиентов</TableHead>
@@ -62,7 +64,7 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
           {items.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={6}
+                colSpan={7}
                 className="text-muted-foreground h-24 text-center"
               >
                 Ничего не нашли
@@ -83,6 +85,9 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
                     /{practice.slug}
                   </span>
                 </a>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {PROFESSION_TERMS[practice.profession].label}
               </TableCell>
               <TableCell>
                 <Link
