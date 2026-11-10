@@ -32,6 +32,7 @@
   --animate-slot-badge: slot-badge 8s ease-in-out infinite;
   --animate-slot-dim: slot-dim 8s ease-in-out infinite;
   --animate-slot-strike: slot-strike 8s ease-in-out infinite;
+  --animate-slot-caption: slot-caption 8s ease-in-out infinite;
   --animate-cursor-first: cursor-first 8s ease-in-out infinite;
   --animate-cursor-second: cursor-second 8s ease-in-out infinite;
 
@@ -97,7 +98,20 @@
       opacity: 1;
       transform: none;
     }
-    47.5%,
+    47.5% {
+      opacity: 0;
+      transform: scale(1.15);
+    }
+    /* Once more for the cancellation: the lesson is back, 8 stays 8. */
+    51% {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+    57.5% {
+      opacity: 1;
+      transform: none;
+    }
+    72%,
     100% {
       opacity: 0;
       transform: scale(1.15);
@@ -189,7 +203,21 @@
     }
     40.5%,
     92% {
-      opacity: 0.7;
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  /* The caption gives its place to what the second client is told. */
+  @keyframes slot-caption {
+    0%,
+    33% {
+      opacity: 1;
+    }
+    40.5%,
+    92% {
+      opacity: 0;
     }
     100% {
       opacity: 1;
