@@ -72,6 +72,8 @@ const OLD_ADDRESS_MS = 1600;
 /** The records check out after the address has changed, one by one. */
 const CHECK_DELAY_MS = 400;
 const CHECK_STEP_MS = 200;
+/** The share of the demo on screen before it plays. */
+const VISIBLE_RATIO = 0.4;
 
 /**
  * Runs the demo while it is on screen: the address is Synoro's for a moment,
@@ -104,7 +106,11 @@ function useConnected(ref: React.RefObject<HTMLElement | null>) {
     setConnected(false);
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting) {
+        // `isIntersecting` is already true at the block's edge, below the
+        // threshold: play only once enough of it is in view.
+        const visible =
+          entry?.isIntersecting && entry.intersectionRatio >= VISIBLE_RATIO;
+        if (!visible) {
           stop();
           setConnected(false);
         } else if (!turn) {
@@ -112,7 +118,7 @@ function useConnected(ref: React.RefObject<HTMLElement | null>) {
           turn = setInterval(play, LOOP_MS);
         }
       },
-      { threshold: 0.4 },
+      { threshold: VISIBLE_RATIO },
     );
     observer.observe(node);
 
@@ -270,6 +276,7 @@ function Records({
                 <td className="px-4 py-3">
                   <CheckIcon
                     aria-label="Запись найдена"
+                    aria-hidden={connected ? undefined : true}
                     style={turn(index)}
                     className={cn(
                       "size-3.5 text-emerald-600 transition-[opacity,scale]",
@@ -284,6 +291,7 @@ function Records({
       </div>
       <div className="border-t px-4 py-3">
         <p
+          aria-hidden={connected ? undefined : true}
           style={turn(mode.records.length + 1)}
           className={cn(
             "text-muted-foreground flex items-center gap-2 text-xs transition-opacity",
