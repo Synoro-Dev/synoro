@@ -1,0 +1,325 @@
+import { env } from "@synoro/config";
+import type { PaymentStatus } from "@synoro/db";
+
+import { ProviderError } from "../payments/types";
+
+/**
+ * Synoro's own Точка Банк internet acquiring: payment links (card, СБП)
+ * for «Про». Unlike `lib/payments`, the merchant is the platform, so the
+ * credentials come from env, not from a practice.
+ * @see https://developers.tochka.com/docs/tochka-api/opisanie-metodov/platyozhnye-ssylki
+ */
+
+/** Payment link lifetime, minutes: a pending payment expires after a day. */
+const LINK_TTL_MINUTES = 24 * 60;
+
+/**
+ * The official sandbox: one public test token and fixed ids, no keys to
+ * issue. Its answers are hardcoded (the same `operationId` every time) and
+ * its payment links lead nowhere.
+ * @see https://developers.tochka.com/docs/tochka-api/pesochnica
+ */
+const SANDBOX = {
+  url: "https://enter.tochka.com/sandbox/v2",
+  token: "sandbox.jwt.token",
+  customerCode: "1234567ab",
+  merchantId: "200000000001097",
+  taxSystem: "usn_income",
+} as const;
+
+/** `externalId` prefix of payments opened in the sandbox. */
+const SANDBOX_ID_PREFIX = "sandbox-";
+
+export const tochkaSandbox = () => env.TOCHKA_SANDBOX;
+
+export const sandboxExternalId = (paymentId: string) =>
+  `${SANDBOX_ID_PREFIX}${paymentId}`;
+
+/**
+ * A payment that only exists here: the sandbox bank can't settle it, and a
+ * real one (opened before the sandbox was switched on) must never be.
+ */
+export function isSandboxPayment(payment: { externalId: string | null }) {
+  return (
+    env.TOCHKA_SANDBOX && !!payment.externalId?.startsWith(SANDBOX_ID_PREFIX)
+  );
+}
+
+/** Credentials in force: the sandbox's when TOCHKA_SANDBOX, else the env's. */
+export function tochkaConfig() {
+  if (env.TOCHKA_SANDBOX) return SANDBOX;
+  return {
+    url: env.TOCHKA_API_URL,
+    token: env.TOCHKA_API_TOKEN,
+    customerCode: env.TOCHKA_CUSTOMER_CODE,
+    merchantId: env.TOCHKA_MERCHANT_ID,
+    taxSystem: env.TOCHKA_TAX_SYSTEM,
+  };
+}
+
+export function tochkaAvailable() {
+  const { token, customerCode } = tochkaConfig();
+  return !!token && !!customerCode;
+}
+
+/**
+ * The demo stand (DEMO_LOGIN_EMAIL) has no bank behind it: a payment to the
+ * platform there is paid the moment it starts, like payments to `demo-` shops.
+ */
+export function isDemoBilling() {
+  return !!env.DEMO_LOGIN_EMAIL && !tochkaAvailable();
+}
+
+/**
+ * APPROVED — paid. EXPIRED — the link ran out unpaid. CREATED (and the
+ * two-stage AUTHORIZED, which we don't use) — not yet. Refund statuses
+ * only follow APPROVED, and a settled payment never changes.
+ */
+function tochkaStatus(status: string): PaymentStatus {
+  if (status === "APPROVED") return "succeeded";
+  if (status === "EXPIRED") return "canceled";
+  return "pending";
+}
+
+interface TochkaOperation {
+  operationId: string;
+  status: string;
+  amount: number;
+  paymentLink: string;
+}
+
+export interface TochkaPayment {
+  externalId: string;
+  status: PaymentStatus;
+  /** Rubles, as the bank reports it. */
+  amount: number;
+  confirmationUrl: string;
+}
+
+async function call<T>(
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+  /** A 2xx without a JSON body is an answer too (`{}`), not a refusal. */
+  allowEmptyBody = false,
+): Promise<T> {
+  const { url, token } = tochkaConfig();
+  let response: Response;
+  try {
+    response = await fetch(`${url}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch (error) {
+    throw new ProviderError("unavailable", "Точка Банк не отвечает", {
+      cause: error,
+    });
+  }
+  if (response.status >= 500) {
+    throw new ProviderError("unavailable", "Точка Банк временно недоступен");
+  }
+  const data = (await response.json().catch(() => null)) as
+    | (T & { message?: string; Errors?: { message?: string }[] })
+    | null;
+  if (response.status === 401 || response.status === 403) {
+    throw new ProviderError("credentials", "Точка Банк не принял JWT-ключ");
+  }
+  if (!response.ok || (!data && !allowEmptyBody)) {
+    throw new ProviderError(
+      "rejected",
+      data?.Errors?.[0]?.message ??
+        data?.message ??
+        `Точка Банк: ошибка ${response.status}`,
+    );
+  }
+  return data ?? ({} as T);
+}
+
+function toPayment(operation: TochkaOperation): TochkaPayment {
+  return {
+    externalId: operation.operationId,
+    status: tochkaStatus(operation.status),
+    amount: Number(operation.amount),
+    confirmationUrl: operation.paymentLink,
+  };
+}
+
+const rubles = (kopecks: number) => Math.round(kopecks) / 100;
+
+/**
+ * Open a payment link through `payments_with_receipt`: Точка's cash
+ * register mails the 54-ФЗ receipt to `email`. Requires TOCHKA_TAX_SYSTEM.
+ *
+ * With `autorenew` the link is a subscription without a schedule
+ * (`subscriptions_with_receipt`, `recurring: true`): the first payment binds
+ * the card, and the `billing-renewals` job charges it later for each period
+ * (`@synoro/jobs/billing-renewal`). Such a link takes cards only and lives
+ * seven days (168 h), the buyer then has an hour to pay; it has no
+ * `paymentMode` or `ttl`.
+ * @see https://developers.tochka.com/docs/tochka-api/opisanie-metodov/podpiski-rekurrentnye-platezhi/rabota-s-podpiskami-bez-grafika-spisania
+ */
+export async function createTochkaPayment(request: {
+  /** Our payment id, Точка's `paymentLinkId` (unique per link). */
+  orderId: string;
+  /** Kopecks. */
+  amount: number;
+  purpose: string;
+  itemName: string;
+  email: string;
+  returnUrl: string;
+  /** Open a schedule-less subscription instead of a one-off payment. */
+  autorenew?: boolean;
+  /** How long a one-off link lives; a day unless said otherwise. */
+  ttlMinutes?: number;
+}): Promise<TochkaPayment> {
+  const { customerCode, merchantId, taxSystem } = tochkaConfig();
+  if (!taxSystem) {
+    throw new ProviderError(
+      "credentials",
+      "Не настроена фискализация оплаты тарифа",
+    );
+  }
+  const amount = rubles(request.amount);
+  const base = {
+    customerCode,
+    ...(merchantId && { merchantId }),
+    amount,
+    redirectUrl: request.returnUrl,
+    failRedirectUrl: request.returnUrl,
+    paymentLinkId: request.orderId,
+    ...(request.autorenew
+      ? { purpose: request.purpose.slice(0, 140), recurring: true }
+      : {
+          purpose: request.purpose.slice(0, 210),
+          paymentMode: ["card", "sbp"],
+          ttl: request.ttlMinutes ?? LINK_TTL_MINUTES,
+        }),
+  };
+  const { Data } = await call<{ Data: TochkaOperation }>(
+    "POST",
+    request.autorenew
+      ? "/acquiring/v1.0/subscriptions_with_receipt"
+      : "/acquiring/v1.0/payments_with_receipt",
+    {
+      Data: {
+        ...base,
+        taxSystemCode: taxSystem,
+        Client: { email: request.email },
+        Items: [
+          {
+            name: request.itemName.slice(0, 128),
+            amount,
+            quantity: 1,
+            vatType: "none",
+            paymentMethod: "full_prepayment",
+            paymentObject: "service",
+            measure: "шт.",
+          },
+        ],
+      },
+    },
+  );
+  return toPayment(Data);
+}
+
+export async function fetchTochkaPayment(
+  operationId: string,
+): Promise<TochkaPayment> {
+  const { Data } = await call<{ Data: { Operation: TochkaOperation[] } }>(
+    "GET",
+    `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}`,
+  );
+  const operation = Data.Operation[0];
+  if (!operation) {
+    throw new ProviderError("rejected", `Операция ${operationId} не найдена`);
+  }
+  return toPayment(operation);
+}
+
+/**
+ * Send the money of an `APPROVED` operation back to the customer's card or
+ * account (`POST …/payments/{operationId}/refund`). `amount` is kopecks; we
+ * only ever refund a payment whole. A 2xx is the bank's acceptance; the
+ * collection documents no response body, so only an explicit
+ * `isRefund: false` is read as a refusal.
+ */
+export async function refundTochkaPayment(
+  operationId: string,
+  amount: number,
+): Promise<void> {
+  const { Data } = await call<{ Data?: { isRefund?: boolean } }>(
+    "POST",
+    `/acquiring/v1.0/payments/${encodeURIComponent(operationId)}/refund`,
+    { Data: { amount: rubles(amount) } },
+    true,
+  );
+  if (Data?.isRefund === false) {
+    throw new ProviderError("rejected", "Точка Банк не вернул платёж");
+  }
+}
+
+/** The only notification billing listens to: `acquiringInternetPayment`. */
+const WEBHOOK_TYPE = "acquiringInternetPayment";
+
+/**
+ * Manage the platform key's webhook (`/webhook/v1.0/{client_id}`): register
+ * `url` for payments, read what is registered, drop it, or ask Точка to send a
+ * test notification there. `clientId` is the one saved next to the JWT key.
+ */
+export async function manageTochkaWebhook(
+  action: "create" | "show" | "delete" | "test",
+  clientId: string,
+  url: string,
+) {
+  const path = `/webhook/v1.0/${encodeURIComponent(clientId)}`;
+  const registration = { webhooksList: [WEBHOOK_TYPE], url };
+  switch (action) {
+    case "create":
+      return call<unknown>("PUT", path, registration);
+    case "show":
+      return call<unknown>("GET", path);
+    case "delete": {
+      const answer = await call<{ Data?: { result?: boolean } }>(
+        "DELETE",
+        path,
+        registration,
+      );
+      // The contract allows a 200 with `Data.result: false`: not deleted.
+      if (answer.Data?.result === false) {
+        throw new ProviderError("rejected", "Точка Банк не удалил вебхук");
+      }
+      return answer;
+    }
+    case "test":
+      return call<unknown>("POST", `${path}/test_send`, {
+        webhookType: WEBHOOK_TYPE,
+      });
+  }
+}
+
+/**
+ * The `operationId` of an `acquiringInternetPayment` webhook. The body is a
+ * JWT (RS256, Точка's key); its claims are read WITHOUT checking the
+ * signature, because nothing is trusted from them: the operation is then
+ * re-read through the API with our own key, as with ЮKassa.
+ */
+export function tochkaWebhookOperationId(body: string): string | undefined {
+  const payload = body.trim().split(".")[1];
+  if (!payload) return undefined;
+  try {
+    const claims = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as { webhookType?: unknown; operationId?: unknown };
+    return claims.webhookType === "acquiringInternetPayment" &&
+      typeof claims.operationId === "string"
+      ? claims.operationId
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}

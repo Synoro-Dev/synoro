@@ -1,0 +1,68 @@
+import { buttonVariants, cn } from "@synoro/ui";
+import { CalendarRangeIcon, CoffeeIcon, HandshakeIcon } from "lucide-react";
+
+import { BookingsListMockup } from "~/components/mockups/bookings-list";
+import type { SiteLinks } from "~/lib/site";
+
+import { Lead, Section, SectionHeading } from "./primitives";
+
+const points = [
+  {
+    icon: CalendarRangeIcon,
+    title: "Рабочие часы по дням недели",
+    text: "Укажите рабочие часы один раз — свободное время на месяц вперёд появится само.",
+  },
+  {
+    icon: HandshakeIcon,
+    title: "Бесплатная первая встреча",
+    text: "Знакомство, пробное занятие или первичная консультация — клиент записывается сам, ему достаточно имени и контакта.",
+  },
+  {
+    icon: CoffeeIcon,
+    title: "Время для себя",
+    text: "Закройте отпуск, обучение или паузу между встречами — на это время никто не запишется.",
+  },
+];
+
+export function Scheduling({ links }: { links: SiteLinks }) {
+  return (
+    <Section id="features">
+      <div className="flex flex-col gap-5 px-4 pt-16 pb-12 sm:px-10 sm:pt-24">
+        <SectionHeading>
+          Расписание, которое
+          <br className="hidden sm:block" /> заполняется без вас
+        </SectionHeading>
+        <Lead>
+          Клиент видит только свободное время и записывается в пару кликов. Вы
+          видите все записи, бесплатные встречи и закрытое время в одном
+          календаре.
+        </Lead>
+        {links.demo && (
+          <a
+            href={links.demo}
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "mt-2 w-fit rounded-full px-4",
+            )}
+          >
+            Посмотреть, как видит клиент
+          </a>
+        )}
+      </div>
+
+      <div className="bg-muted/70 bg-dots relative border-y px-4 py-14 sm:px-10 sm:py-20">
+        <BookingsListMockup />
+      </div>
+
+      <div className="grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        {points.map((point) => (
+          <div key={point.title} className="flex flex-col gap-2 p-6 sm:p-8">
+            <point.icon className="text-muted-foreground size-5" />
+            <p className="mt-2 font-medium">{point.title}</p>
+            <p className="text-muted-foreground text-sm">{point.text}</p>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}

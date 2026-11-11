@@ -1,0 +1,268 @@
+import { createEnv } from "@t3-oss/env-core";
+import { z } from "zod";
+
+const httpOrigin = z
+  .url({ protocol: /^https?$/ })
+  .refine(
+    (value) => !new URL(value).hostname.includes("*"),
+    "Expected an HTTP(S) URL without host wildcards",
+  )
+  .transform((value) => new URL(value).origin);
+
+// Better Auth matches wildcard patterns against the origin (with a scheme)
+// or host (without one). Normalize without parsing wildcard characters as URLs.
+const wildcardOrigin = z
+  .string()
+  .regex(/^(?:https?:\/\/)?[a-z0-9.*?-]+(?::[0-9*?]+)?$/i)
+  .refine((value) => /[*?]/.test(value), "Expected a wildcard pattern")
+  .refine((value) => {
+    const url = value.includes("://") ? value : `https://${value}`;
+    return httpOrigin.safeParse(url.replace(/[*?]/g, "1")).success;
+  }, "Invalid origin wildcard pattern")
+  .transform((value) =>
+    value
+      .toLowerCase()
+      .replace(/^(https?:\/\/[^:]+):\d+$/, (pattern, origin) => {
+        const port = new URL(pattern.replace(/[*?]/g, "1")).port;
+        return `${origin}${port ? `:${port}` : ""}`;
+      }),
+  );
+
+export const env = createEnv({
+  server: {
+    // Node environment
+    NODE_ENV: z.enum(["development", "production", "test"]).optional(),
+
+    // Database
+    POSTGRES_URL: z.url().optional(),
+
+    // App
+    APP_URL: z.url().default("http://localhost:3000"),
+    // The admin site (apps/admin), e.g. "https://admin.synoro.ru": its own
+    // Better Auth base URL; the session cookie is shared with the app.
+    ADMIN_URL: z.url().default("http://localhost:3001"),
+    // Main address of the public booking pages, e.g. "https://synoro.ru":
+    // links specialists share, the page visitors return to after paying and
+    // the one the app host redirects booking pages to. Unset: APP_URL.
+    BOOKING_URL: z.url().optional(),
+
+    // Practice pages on their own hosts (see docs/custom-domains.md).
+    // What specialists point their own domain at: a CNAME for a subdomain, an
+    // ALIAS / ANAME for an apex one. A name, never an IP, so the hosting can
+    // move without anyone touching their DNS.
+    CUSTOM_DOMAIN_CNAME: z.string().optional(),
+
+    // Email: Yandex Cloud Postbox (HTTP API, static access key of a service
+    // account with `postbox.sender`) first, Resend as the fallback. Neither:
+    // no mail.
+    POSTBOX_ACCESS_KEY_ID: z.string().optional(),
+    POSTBOX_SECRET_ACCESS_KEY: z.string().optional(),
+    POSTBOX_ENDPOINT: z
+      .url({ protocol: /^https$/ })
+      .default("https://postbox.cloud.yandex.net"),
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_SANDBOX_ENABLED: z.coerce.boolean().optional().default(false),
+    EMAIL_SANDBOX_HOST: z.string().default("localhost"),
+    EMAIL_FROM: z.string().default("Synoro <info@synoro.ru>"),
+    // Where the team hears of a new account and a new practice. Empty: nobody
+    // is told (a demo stand, a fork).
+    TEAM_NOTICE_EMAIL: z
+      .string()
+      .default("info@synoro.ru")
+      .transform((value) => value.trim() || undefined)
+      .pipe(z.email().optional()),
+
+    // Auth
+    AUTH_SECRET: z.string().optional(),
+    // Comma-separated list of emails granted `adminProcedure` access
+    ADMIN_EMAILS: z.string().optional(),
+    // Share the session cookie across subdomains, e.g. ".synoro.ru" for
+    // app.synoro.ru + synoro.ru. Unset: the cookie stays on the app host.
+    AUTH_COOKIE_DOMAIN: z.string().optional(),
+    // Prefix of the auth cookie names. The library's own default
+    // ("better-auth") would name it in every visitor's DevTools. Set another
+    // value when a deployment shares cookies with this host, e.g.
+    // demo.synoro.ru receives production's `.synoro.ru` session cookie.
+    AUTH_COOKIE_PREFIX: z
+      .string()
+      .regex(/^[a-z0-9-]+$/i, "Letters, digits and dashes only")
+      .default("synoro"),
+    // Demo stand only (demo.synoro.ru): every visitor is signed in as this
+    // seeded `@example.com` account, and the sign-in pages are skipped. Never
+    // set it on a deployment with real users.
+    DEMO_LOGIN_EMAIL: z.email().optional(),
+    // Comma-separated extra origins allowed to call the auth API and to be
+    // redirected to, e.g. "https://synoro.ru". APP_URL is always trusted.
+    AUTH_TRUSTED_ORIGINS: z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((origin) => origin.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.union([wildcardOrigin, httpOrigin])))
+      .transform((origins) => origins.join(","))
+      .optional(),
+
+    // City by IP for the sign-in history (docs/sign-in-history.md): a JSON
+    // geo service, `{ip}` is replaced by the visitor's address. Visitors' IPs
+    // are sent to it. Understands ipwho.is, ip-api.com and ipapi.co answers.
+    // Empty string: no lookup, the history keeps IPs only.
+    GEOIP_URL: z
+      .string()
+      .refine(
+        (value) => value === "" || /^https:\/\/[^\s]*\{ip\}/.test(value),
+        "Expected an https URL containing {ip}",
+      )
+      .default("https://ipwho.is/{ip}?lang=ru"),
+
+    // Online payments: encrypts specialists' ЮKassa / Т-Банк keys at rest.
+    // Any long random string (openssl rand -base64 32). Unset: specialists
+    // can't connect a payment provider. Changing it orphans stored keys.
+    PAYMENTS_SECRET_KEY: z.string().min(32).optional(),
+
+    // «Про» subscription billing: Synoro's own Точка Банк internet
+    // acquiring (payment links), see docs/billing.md. JWT key from the
+    // internet bank («Интеграции и API», permissions MakeAcquiringOperation
+    // and ReadAcquiringData) and the business customerCode. Unset:
+    // specialists can't pay for «Про» (the trial still runs).
+    TOCHKA_API_TOKEN: z.string().optional(),
+    TOCHKA_CUSTOMER_CODE: z.string().optional(),
+    // Retailer id (15 digits); needed only with several retailers.
+    TOCHKA_MERCHANT_ID: z.string().optional(),
+    TOCHKA_API_URL: z.url().default("https://enter.tochka.com/uapi"),
+    // Точка's official sandbox (docs/billing.md): ignores the four settings
+    // above and uses its public test credentials. Its answers are hardcoded
+    // and its payment links can't be paid, so the "payment" is confirmed by a
+    // button on the billing page instead. Never on a deployment with real
+    // customers: anyone could then grant themselves «Про» for free.
+    TOCHKA_SANDBOX: z.boolean().default(false),
+    // Taxation system for 54-ФЗ receipts (Точка's online cash register).
+    // Required for real billing: unset disables payment links.
+    TOCHKA_TAX_SYSTEM: z
+      .enum(["osn", "usn_income", "usn_income_outcome", "esn", "patent"])
+      .optional(),
+
+    // Yandex Direct pays per annual customer (docs/direct.md): the first paid
+    // year goes to Metrika as the offline conversion `paid_year`. The counter
+    // and an OAuth token of the counter's owner (scope metrika:write). Unset
+    // either: nothing is sent.
+    METRIKA_COUNTER_ID: z.coerce.number().int().positive().optional(),
+    METRIKA_OAUTH_TOKEN: z.string().optional(),
+
+    // Google Calendar sync: OAuth client (type "Web application") with the
+    // redirect URI <APP_URL>/api/google-calendar/callback and the Calendar
+    // API enabled. Tokens are encrypted with PAYMENTS_SECRET_KEY. Unset:
+    // specialists can't connect a calendar.
+    GOOGLE_CLIENT_ID: z.string().optional(),
+    GOOGLE_CLIENT_SECRET: z.string().optional(),
+
+    // Messenger bots («Про» notices, docs/reminders.md): the bot's token,
+    // its @name for the start link (without @) and the secret the platform
+    // sends with every webhook call (bun messenger:webhooks registers it).
+    // All three unset: that messenger is off and notices go by mail.
+    TELEGRAM_BOT_TOKEN: z.string().optional(),
+    TELEGRAM_BOT_USERNAME: z.string().optional(),
+    TELEGRAM_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^[\w-]{16,256}$/)
+      .optional(),
+    // Bot API host: a relay can stand in where api.telegram.org is blocked.
+    // https only: the bot token travels in the path.
+    TELEGRAM_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://api.telegram.org"),
+    // MAX (business.max.ru → Чат-боты). Its API is served with a
+    // certificate of the Russian Trusted Root CA: the images trust it via
+    // NODE_EXTRA_CA_CERTS (apps/app/certs/russian-trusted-root-ca.crt).
+    MAX_BOT_TOKEN: z.string().optional(),
+    MAX_BOT_USERNAME: z.string().optional(),
+    MAX_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^[\w-]{16,256}$/)
+      .optional(),
+    // https only: the bot token travels in a header.
+    MAX_API_URL: z
+      .url({ protocol: /^https$/ })
+      .default("https://platform-api2.max.ru"),
+
+    // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
+    HATCHET_CLIENT_TOKEN: z.string().optional(),
+
+    // AWS S3
+    AWS_S3_ENDPOINT: z.string().optional(),
+    AWS_S3_FORCE_PATH_STYLE: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    AWS_REGION: z.string().default("us-east-1"),
+    AWS_S3_BUCKET: z.string().default("acme-bucket"),
+  },
+  client: {
+    NEXT_PUBLIC_APP_NAME: z.string().default("Acme Inc."),
+    NEXT_PUBLIC_APP_SHORT_NAME: z.string().default("Acme"),
+    NEXT_PUBLIC_APP_URL: z.url().default("http://localhost:3000"),
+    // PostHog project key (public by design) and the ingestion host of its
+    // region. Unset key: no analytics, in the browser and on the server.
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: z.string().min(1).optional(),
+    NEXT_PUBLIC_POSTHOG_HOST: z.url().default("https://eu.i.posthog.com"),
+  },
+  clientPrefix: "NEXT_PUBLIC_",
+  runtimeEnv: {
+    NODE_ENV: process.env.NODE_ENV,
+    POSTGRES_URL: process.env.POSTGRES_URL,
+    APP_URL: process.env.APP_URL,
+    ADMIN_URL: process.env.ADMIN_URL,
+    BOOKING_URL: process.env.BOOKING_URL,
+    CUSTOM_DOMAIN_CNAME: process.env.CUSTOM_DOMAIN_CNAME,
+    POSTBOX_ACCESS_KEY_ID: process.env.POSTBOX_ACCESS_KEY_ID,
+    POSTBOX_SECRET_ACCESS_KEY: process.env.POSTBOX_SECRET_ACCESS_KEY,
+    POSTBOX_ENDPOINT: process.env.POSTBOX_ENDPOINT,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_SANDBOX_ENABLED: process.env.EMAIL_SANDBOX_ENABLED === "true",
+    EMAIL_SANDBOX_HOST: process.env.EMAIL_SANDBOX_HOST,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    TEAM_NOTICE_EMAIL: process.env.TEAM_NOTICE_EMAIL,
+    AUTH_SECRET: process.env.AUTH_SECRET,
+    ADMIN_EMAILS: process.env.ADMIN_EMAILS,
+    AUTH_COOKIE_DOMAIN: process.env.AUTH_COOKIE_DOMAIN,
+    AUTH_COOKIE_PREFIX: process.env.AUTH_COOKIE_PREFIX,
+    DEMO_LOGIN_EMAIL: process.env.DEMO_LOGIN_EMAIL,
+    AUTH_TRUSTED_ORIGINS: process.env.AUTH_TRUSTED_ORIGINS,
+    GEOIP_URL: process.env.GEOIP_URL,
+    PAYMENTS_SECRET_KEY: process.env.PAYMENTS_SECRET_KEY,
+    TOCHKA_API_TOKEN: process.env.TOCHKA_API_TOKEN,
+    TOCHKA_CUSTOMER_CODE: process.env.TOCHKA_CUSTOMER_CODE,
+    TOCHKA_MERCHANT_ID: process.env.TOCHKA_MERCHANT_ID,
+    TOCHKA_API_URL: process.env.TOCHKA_API_URL,
+    TOCHKA_SANDBOX: process.env.TOCHKA_SANDBOX === "true",
+    TOCHKA_TAX_SYSTEM: process.env.TOCHKA_TAX_SYSTEM,
+    METRIKA_COUNTER_ID: process.env.METRIKA_COUNTER_ID,
+    METRIKA_OAUTH_TOKEN: process.env.METRIKA_OAUTH_TOKEN,
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_BOT_USERNAME: process.env.TELEGRAM_BOT_USERNAME,
+    TELEGRAM_WEBHOOK_SECRET: process.env.TELEGRAM_WEBHOOK_SECRET,
+    TELEGRAM_API_URL: process.env.TELEGRAM_API_URL,
+    MAX_BOT_TOKEN: process.env.MAX_BOT_TOKEN,
+    MAX_BOT_USERNAME: process.env.MAX_BOT_USERNAME,
+    MAX_WEBHOOK_SECRET: process.env.MAX_WEBHOOK_SECRET,
+    MAX_API_URL: process.env.MAX_API_URL,
+    HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
+    AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
+    AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+    AWS_REGION: process.env.AWS_REGION,
+    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
+    NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+    NEXT_PUBLIC_APP_SHORT_NAME: process.env.NEXT_PUBLIC_APP_SHORT_NAME,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN:
+      process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN,
+    NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
+  },
+  skipValidation:
+    !!process.env.CI || process.env.npm_lifecycle_event === "lint",
+});

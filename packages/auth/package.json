@@ -1,0 +1,36 @@
+{
+  "name": "@synoro/auth",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./roles": "./src/roles.ts",
+    "./demo": "./src/demo-accounts.ts",
+    "./password": "./src/password.ts",
+    "./env": "./env.ts"
+  },
+  "license": "MIT",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "seed": "bun run --cwd ../config build && bun --env-file=../../.env run script/seed.ts",
+    "generate": "bun --env-file=../../.env x @better-auth/cli generate --config script/auth-cli.ts --output ../db/src/auth-schema.ts",
+    "test": "bun run --cwd ../config build && bun test --timeout 30000",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
+    "better-auth": "1.7.19",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "1.4.21",
+    "@synoro/tsconfig": "workspace:*",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}

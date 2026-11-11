@@ -1,0 +1,83 @@
+import { asc, Booking, eq, PracticeMember, user } from "@synoro/db";
+import { z } from "zod";
+
+import { activeBookingOverlaps, localDaysRange } from "../../lib/bookings";
+import {
+  findPractice,
+  findStaffMembership,
+  practiceProcedure,
+} from "../../lib/practice-access";
+
+/**
+ * Active bookings, free consultations and blocks for `days` local days from
+ * `from`, with the client's name — staff only.
+ *
+ * @example client.booking.calendar({ practiceId, from: "2026-11-02", days: 7 })
+ */
+export const calendar = practiceProcedure
+  .input(
+    z.object({
+      practiceId: z.uuid(),
+      from: z.iso.date(),
+      // Up to 62: a month view shows six weeks.
+      days: z.number().int().min(1).max(62).default(7),
+    }),
+  )
+  .handler(async ({ context, input, errors }) => {
+    const [staff, practice] = await Promise.all([
+      findStaffMembership(
+        context.db,
+        input.practiceId,
+        context.session.user.id,
+      ),
+      findPractice(context.db, input.practiceId),
+    ]);
+    if (!staff || !practice) throw errors.FORBIDDEN();
+
+    const { start, end } = localDaysRange(
+      input.from,
+      input.days,
+      practice.timezone,
+    );
+
+    return context.db
+      .select({
+        id: Booking.id,
+        kind: Booking.kind,
+        /** Taken from the client's balance: 0 when paid at the visit. */
+        credits: Booking.credits,
+        startsAt: Booking.startsAt,
+        endsAt: Booking.endsAt,
+        note: Booking.note,
+        /** The client's answers to the questionnaire, if any. */
+        answers: Booking.answers,
+        /** This booking's own video link; see `videoUrl` for the one in force. */
+        meetingUrl: Booking.meetingUrl,
+        guestName: Booking.guestName,
+        guestPhone: Booking.guestPhone,
+        guestContact: Booking.guestContact,
+        memberId: Booking.memberId,
+        /** Set when the booking is part of a recurring booking. */
+        seriesId: Booking.seriesId,
+        clientName: user.name,
+        clientEmail: user.email,
+        clientPhone: user.phone,
+        /** Set while an online payment is awaited. */
+        holdUntil: Booking.holdUntil,
+      })
+      .from(Booking)
+      .leftJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))
+      .leftJoin(user, eq(user.id, PracticeMember.userId))
+      .where(activeBookingOverlaps(practice.id, start, end))
+      .orderBy(asc(Booking.startsAt))
+      .then((rows) =>
+        rows.map((row) => ({
+          ...row,
+          /** The link a client gets: the booking's own, else the practice room. */
+          videoUrl:
+            row.kind === "blocked"
+              ? null
+              : (row.meetingUrl ?? practice.videoUrl),
+        })),
+      );
+  });

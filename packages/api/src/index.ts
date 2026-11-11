@@ -1,0 +1,33 @@
+import type { InferRouterInputs, InferRouterOutputs } from "@orpc/server";
+
+import type { AppRouter } from "./routers";
+
+/**
+ * Inference helpers for input types.
+ *
+ * @example
+ *   type CreatePostInput = RouterInputs['post']['create']
+ *   //   ^? { title: string; content: string }
+ */
+type RouterInputs = InferRouterInputs<AppRouter>;
+
+/**
+ * Inference helpers for output types.
+ *
+ * @example
+ *   type PostListOutput = RouterOutputs['post']['list']
+ *   //   ^? { id: string; title: string; ... }[]
+ */
+type RouterOutputs = InferRouterOutputs<AppRouter>;
+
+export { errorStatusMap } from "./errors";
+export { handleBillingWebhook } from "./lib/billing";
+export { calendarFeedBody, openExportDownload } from "./lib/data-files";
+export { finishGoogleConnect } from "./lib/google-calendar";
+export { handleMaxWebhook, handleTelegramWebhook } from "./lib/messenger";
+export { handlePaymentWebhook } from "./lib/payments";
+export { findOwnerMembership } from "./lib/practice-access";
+export { findPracticeIdBySlug } from "./lib/practice-slugs";
+export { createORPCContext } from "./orpc";
+export { type AppRouter, appRouter } from "./routers";
+export type { RouterInputs, RouterOutputs };

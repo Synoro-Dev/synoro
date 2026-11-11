@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@synoro/tailwind-config/theme";
+@import "./booking-theme.css";
+
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+@theme inline {
+  /* Onest is drawn for Cyrillic first; the landing is set in it too. */
+  --font-sans: var(--font-onest);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  /*
+   * Public booking pages only (`displayFonts` sets the variables there);
+   * `--booking-font` is the owner's choice, see booking-theme.css.
+   */
+  --font-display:
+    var(--booking-font, var(--font-literata)), ui-serif, Georgia, serif;
+}
+
+/* The own-domain steps (`domain-progress.tsx`). */
+@theme {
+  /* Work with no known end: the certificate being issued. */
+  --animate-sweep: sweep 1.6s ease-in-out infinite;
+  /* Fills up to the next background check; duration set inline. */
+  --animate-countdown: countdown 8s linear forwards;
+
+  @keyframes sweep {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(300%);
+    }
+  }
+  @keyframes countdown {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant light (&:where(.light, .light *));
+@custom-variant auto (&:where(.auto, .auto *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/*
+ * The console's one accent, the landing's emerald: focus, the current
+ * place (nav, «now», progress), paid bookings in the calendar. Buttons stay
+ * ink. `--brand` on white and `--brand-foreground` on `--brand-soft` keep AA.
+ * Public booking pages re-tint `--primary` only (booking-theme.css).
+ */
+:root {
+  --brand: oklch(0.508 0.118 165.612);
+  --brand-foreground: oklch(0.432 0.095 166.913);
+  --brand-soft: oklch(0.979 0.021 166.113);
+  --ring: var(--brand);
+  --sidebar-ring: var(--brand);
+  --sidebar-primary: var(--brand);
+  /* Free bookings in the calendar: a quiet blue beside the accent. */
+  --calendar-free: oklch(0.588 0.158 241.966);
+}
+/*
+ * The landing's light surfaces. Light theme only: a bare `:root` here would
+ * outrank the shared theme's `.dark` (same weight, later in the cascade).
+ */
+:root:not(.dark) {
+  --background: oklch(0.993 0 0);
+  --muted: oklch(0.975 0.002 286);
+  --border: oklch(0.925 0.004 286);
+  --input: oklch(0.9 0.004 286);
+  --sidebar: oklch(0.985 0.001 286);
+  --sidebar-border: oklch(0.925 0.004 286);
+}
+.dark {
+  --brand: oklch(0.765 0.177 163.223);
+  --brand-foreground: oklch(0.845 0.143 164.978);
+  --brand-soft: oklch(0.262 0.051 172.552);
+  --ring: var(--brand);
+  --sidebar-ring: var(--brand);
+  --sidebar-primary: var(--brand);
+  --calendar-free: oklch(0.746 0.16 232.661);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+/*
+ * Touch screens: every button and menu row in the consoles is at least
+ * 44px tall — the phone's sidebar sheet too, portalled outside the page.
+ * The event calendar keeps its dense grid.
+ */
+@media (pointer: coarse) {
+  :is(.touch-targets, [data-sidebar="sidebar"][data-mobile="true"])
+    :is(
+      [data-slot="button"],
+      [data-slot="sidebar-menu-button"],
+      [data-slot="tabs-trigger"]
+    ):not([data-slot="event-calendar"] *) {
+    min-height: 2.75rem;
+  }
+  .touch-targets
+    [data-slot="button"]:is([class*="size-6"], [class*="size-8"], [class*="size-9"]):not(
+      [data-slot="event-calendar"] *
+    ) {
+    min-width: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

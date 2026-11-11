@@ -1,0 +1,59 @@
+import type { NextConfig } from "next";
+
+import { env } from "./src/env";
+
+/**
+ * Browser analytics goes through `/ingest` on our own origin (ad blockers
+ * block the PostHog hosts). Everything, static assets included, goes to the API
+ * host: PostHog Cloud's separate `-assets` host sits behind Cloudflare, whose
+ * addresses are throttled from the production server (about half of the TLS
+ * handshakes time out), while `eu.i.posthog.com` is reliable.
+ * @see https://posthog.com/docs/advanced/proxy/nextjs
+ */
+const posthogHost = env.NEXT_PUBLIC_POSTHOG_HOST;
+
+const securityHeaders = [
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+];
+
+export default async function createNextConfig(): Promise<NextConfig> {
+  const config: NextConfig = {
+    output: "standalone",
+    /** No `X-Powered-By: Next.js` on responses. */
+    poweredByHeader: false,
+    /**
+     * synoro.ru/_next/ is routed to the app (infra/synoro/app.yaml), so the
+     * landing serves its chunks from its own prefix. Next strips it itself;
+     * Traefik sends it to the landing via the synoro.ru catch-all.
+     */
+    assetPrefix: "/_landing",
+    /** Workspace packages consumed as TypeScript source (`exports` → src/). */
+    transpilePackages: ["@synoro/ui"],
+    typedRoutes: true,
+    reactCompiler: true,
+    cacheComponents: true,
+    partialPrefetching: true,
+
+    /** Required by the PostHog proxy: `/ingest/e/` must not be redirected. */
+    skipTrailingSlashRedirect: true,
+
+    async rewrites() {
+      if (!env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return [];
+      return [
+        { source: "/ingest/:path*", destination: `${posthogHost}/:path*` },
+      ];
+    },
+
+    async headers() {
+      return [{ source: "/:path*", headers: securityHeaders }];
+    },
+  };
+
+  return config;
+}

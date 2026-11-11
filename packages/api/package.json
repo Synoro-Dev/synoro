@@ -1,0 +1,41 @@
+{
+  "name": "@synoro/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "webhook": "bun run --cwd ../config build && bun --env-file=../../.env run src/scripts/tochka-webhook.ts",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "test": "bun test --timeout 30000",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@orpc/server": "2.0.0-beta.50",
+    "@synoro/auth": "workspace:*",
+    "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
+    "@synoro/jobs": "workspace:*",
+    "@synoro/validators": "workspace:*",
+    "posthog-node": "^5.61.2",
+    "tldts": "7.4.17",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@synoro/tsconfig": "workspace:*",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
+    "fflate": "0.8.2",
+    "typescript": "7.0.2"
+  }
+}

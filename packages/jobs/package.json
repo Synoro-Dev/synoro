@@ -1,0 +1,104 @@
+{
+  "name": "@synoro/jobs",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./workflows": {
+      "types": "./dist/workflows/index.d.ts",
+      "default": "./src/workflows/index.ts"
+    },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "default": "./src/billing.ts"
+    },
+    "./billing-renewal": {
+      "types": "./dist/billing-renewal.d.ts",
+      "default": "./src/billing-renewal.ts"
+    },
+    "./booking-video": {
+      "types": "./dist/booking-video.d.ts",
+      "default": "./src/booking-video.ts"
+    },
+    "./custom-domains": {
+      "types": "./dist/custom-domains.d.ts",
+      "default": "./src/custom-domains.ts"
+    },
+    "./when": {
+      "types": "./dist/when.d.ts",
+      "default": "./src/when.ts"
+    },
+    "./waitlist": {
+      "types": "./dist/waitlist.d.ts",
+      "default": "./src/waitlist.ts"
+    },
+    "./metrika": {
+      "types": "./dist/metrika.d.ts",
+      "default": "./src/metrika.ts"
+    },
+    "./google-calendar": {
+      "types": "./dist/google-calendar.d.ts",
+      "default": "./src/google-calendar.ts"
+    },
+    "./pro-notices": {
+      "types": "./dist/pro-notices.d.ts",
+      "default": "./src/pro-notices.ts"
+    },
+    "./messenger": {
+      "types": "./dist/messenger/index.d.ts",
+      "default": "./src/messenger/index.ts"
+    },
+    "./staff-agenda": {
+      "types": "./dist/staff-agenda.d.ts",
+      "default": "./src/staff-agenda.ts"
+    },
+    "./workflow-messages": {
+      "types": "./dist/workflow-messages.d.ts",
+      "default": "./src/workflow-messages.ts"
+    },
+    "./account-deletion": {
+      "types": "./dist/account-deletion.d.ts",
+      "default": "./src/account-deletion.ts"
+    },
+    "./data-import": {
+      "types": "./dist/data-import/index.d.ts",
+      "default": "./src/data-import/index.ts"
+    },
+    "./data-export": {
+      "types": "./dist/data-export/index.d.ts",
+      "default": "./src/data-export/index.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "worker": "bun --env-file=../../.env --watch run src/worker.ts",
+    "start": "bun run src/worker.ts",
+    "test": "bun test",
+    "messenger:webhooks": "bun run --cwd ../config build && bun --env-file=../../.env run src/scripts/messenger-webhooks.ts",
+    "domains:sync": "bun run --cwd ../config build && bun --env-file=../../.env run src/scripts/sync-domains.ts",
+    "format": "biome format .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@hatchet-dev/typescript-sdk": "1.46.0",
+    "@synoro/config": "workspace:*",
+    "@synoro/db": "workspace:*",
+    "@synoro/emails": "workspace:*",
+    "@synoro/storage": "workspace:*",
+    "@synoro/validators": "workspace:*",
+    "fflate": "0.8.2",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@synoro/tsconfig": "workspace:*",
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2"
+  }
+}

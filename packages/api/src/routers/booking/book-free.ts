@@ -1,0 +1,83 @@
+import { Booking, isExclusionViolation } from "@synoro/db";
+import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
+import { freeBookingFormSchema } from "@synoro/validators";
+import { z } from "zod";
+
+import { loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import { exportBooking } from "../../lib/google-calendar";
+import {
+  findPractice,
+  findStaffMembership,
+  practiceProcedure,
+} from "../../lib/practice-access";
+import { isScheduledSlot } from "../../lib/schedule";
+
+/**
+ * Book the free intro for a guest (name + phone) — staff only. It lasts
+ * the practice's `introMinutes` and starts on the half-hour grid inside
+ * working hours; no credits involved.
+ * Google Calendar busy time is not checked: staff see it on the calendar
+ * and decide themselves.
+ *
+ * @example client.booking.bookFree({ practiceId, startsAt, guestName: "Иван", guestPhone: "+7 900 000-00-00" })
+ */
+export const bookFree = practiceProcedure
+  .errors({
+    SLOT_UNAVAILABLE: {
+      message: "Это время недоступно для записи",
+    },
+  })
+  .input(
+    freeBookingFormSchema.extend({
+      practiceId: z.uuid(),
+      startsAt: z.date(),
+    }),
+  )
+  .handler(async ({ context, input, errors }) => {
+    const userId = context.session.user.id;
+    const [staff, practice] = await Promise.all([
+      findStaffMembership(context.db, input.practiceId, userId),
+      findPractice(context.db, input.practiceId),
+    ]);
+    if (!staff || !practice) throw errors.FORBIDDEN();
+
+    const rules = await loadRules(context.db, practice.id);
+    const scheduled = isScheduledSlot({
+      rules,
+      startsAt: input.startsAt,
+      timeZone: practice.timezone,
+      kind: "free",
+      introMinutes: practice.introMinutes,
+      now: new Date(),
+    });
+    if (!scheduled) throw errors.SLOT_UNAVAILABLE();
+
+    await releaseExpiredHolds(context.db, practice.id);
+    try {
+      const [booking] = await context.db
+        .insert(Booking)
+        .values({
+          practiceId: practice.id,
+          kind: "free",
+          startsAt: input.startsAt,
+          endsAt: new Date(
+            input.startsAt.getTime() + practice.introMinutes * 60_000,
+          ),
+          guestName: input.guestName,
+          guestPhone: input.guestPhone,
+          guestContact: input.guestContact || null,
+          note: input.note || null,
+          createdById: userId,
+        })
+        .returning();
+      if (!booking) throw new Error("Failed to insert booking");
+      await exportBooking(context.db, booking.id);
+      await notifyBookingConfirmed(context.db, booking.id);
+      return booking;
+    } catch (error) {
+      if (isExclusionViolation(error, "bookings_no_overlap")) {
+        throw errors.SLOT_UNAVAILABLE({ cause: error });
+      }
+      throw error;
+    }
+  });

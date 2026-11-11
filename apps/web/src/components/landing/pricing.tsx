@@ -1,0 +1,209 @@
+import { legal, YOUR_DATA_PATH } from "@synoro/config";
+import { buttonVariants, cn } from "@synoro/ui";
+import {
+  BadgePercentIcon,
+  CheckIcon,
+  GiftIcon,
+  InfinityIcon,
+} from "lucide-react";
+
+import {
+  enterpriseContactUrl,
+  enterpriseGoal,
+  type Plan,
+  paidPlan,
+  planSignupUrl,
+  plans,
+  rubles,
+  signupGoal,
+} from "~/lib/pricing";
+
+import { IconTile, Lead, SectionHeading } from "./primitives";
+
+const perks = [
+  {
+    icon: InfinityIcon,
+    title: "Бесплатно навсегда",
+    text: "Без лимитов на записи и клиентов и без пробного срока.",
+  },
+  {
+    icon: BadgePercentIcon,
+    title: "Без процента с оплат",
+    text: "Деньги клиентов идут сразу на ваш счёт в ЮKassa (сервис приёма платежей) — мы ничего не удерживаем.",
+  },
+  {
+    icon: GiftIcon,
+    title: `${paidPlan.trialDays} дней «${paidPlan.name}» бесплатно`,
+    text: "Попробуйте онлайн-оплату без привязки карты. Продлеваете сами, когда удобно; автопродление — только если вы его включите.",
+  },
+];
+
+function Price({ plan }: { plan: Plan }) {
+  if (plan.custom) {
+    return (
+      <div>
+        <p className="text-[2rem] leading-10 font-semibold tracking-[-0.035em]">
+          По договорённости
+        </p>
+        <p className="text-muted-foreground mt-1.5 text-sm">
+          Стоимость зависит от задач и объёма доработок
+        </p>
+      </div>
+    );
+  }
+
+  if (plan.monthly === null) {
+    return (
+      <div>
+        <p className="flex items-baseline gap-1.5">
+          <span className="text-4xl font-semibold tracking-[-0.035em]">
+            0 ₽
+          </span>
+          <span className="text-muted-foreground text-sm">навсегда</span>
+        </p>
+        <p className="text-muted-foreground mt-1.5 text-sm">
+          Без карты и ограничений по времени
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="flex items-baseline gap-1.5">
+        <span className="text-4xl font-semibold tracking-[-0.035em] tabular-nums">
+          {rubles(plan.monthly)}
+        </span>
+        <span className="text-muted-foreground text-sm">в месяц</span>
+      </p>
+      <p className="text-muted-foreground mt-1.5 text-sm">
+        {plan.yearly
+          ? `Или ${rubles(plan.yearly)} за год — два месяца в подарок`
+          : "Оплата помесячно"}
+        {plan.trialDays && `. Первые ${plan.trialDays} дней бесплатно`}
+      </p>
+    </div>
+  );
+}
+
+function PlanCta({ plan, signupUrl }: { plan: Plan; signupUrl: string }) {
+  const className = cn(
+    buttonVariants({
+      variant: plan.featured ? "default" : "outline",
+      size: "lg",
+    }),
+    "rounded-full",
+  );
+
+  if (plan.id === "enterprise") {
+    return (
+      <a
+        href={enterpriseContactUrl(legal.operator.email)}
+        data-goal={enterpriseGoal}
+        className={className}
+      >
+        Обсудить задачу
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={planSignupUrl(signupUrl, plan.id)}
+      data-goal={signupGoal(plan.id)}
+      className={className}
+    >
+      {plan.id === "free"
+        ? "Начать бесплатно"
+        : `Попробовать «${plan.name}» бесплатно`}
+    </a>
+  );
+}
+
+export function Pricing({ signupUrl }: { signupUrl: string }) {
+  return (
+    <>
+      <div className="flex flex-col items-center gap-5 px-4 pt-16 pb-12 text-center sm:px-10 sm:pt-24">
+        <SectionHeading>
+          Бесплатно для практики. «{paidPlan.name}» — {rubles(paidPlan.monthly)}{" "}
+          в месяц
+        </SectionHeading>
+        <Lead className="mx-auto">
+          Запись, расписание, пакеты и кабинет клиента — бесплатно и без
+          ограничений. «{paidPlan.name}» нужен, чтобы клиенты оплачивали пакеты
+          сами через ЮKassa: {rubles(paidPlan.monthly)} в месяц или{" "}
+          {rubles(paidPlan.yearly)} за год, первые {paidPlan.trialDays} дней
+          бесплатно.
+        </Lead>
+      </div>
+
+      <div className="grid border-t md:grid-cols-3 md:divide-x">
+        {plans.map((plan) => {
+          return (
+            <div
+              key={plan.id}
+              className={cn(
+                "relative flex flex-col gap-6 border-b p-6 sm:p-8 md:border-b-0",
+                plan.featured && "bg-muted/60",
+              )}
+            >
+              {plan.featured && (
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-emerald-500 to-transparent"
+                />
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-lg font-medium">{plan.name}</p>
+                  {plan.featured && (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-500/20 ring-inset">
+                      Хватит большинству
+                    </span>
+                  )}
+                </div>
+                <p className="text-muted-foreground mt-1 min-h-10 text-sm">
+                  {plan.description}
+                </p>
+              </div>
+              <Price plan={plan} />
+              <PlanCta plan={plan} signupUrl={signupUrl} />
+              <ul className="flex flex-col gap-3 text-sm">
+                {plan.features.map((feature) => (
+                  <li key={feature} className="flex gap-2.5">
+                    <CheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+
+      <ul className="grid border-t sm:grid-cols-3 sm:divide-x">
+        {perks.map((perk) => (
+          <li
+            key={perk.title}
+            className="flex gap-3 border-b p-6 last:border-b-0 sm:border-b-0 sm:p-8"
+          >
+            <IconTile icon={perk.icon} className="shrink-0" />
+            <div>
+              <p className="font-medium">{perk.title}</p>
+              <p className="text-muted-foreground mt-1 text-sm">{perk.text}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="text-muted-foreground border-t p-6 text-center text-sm sm:px-8">
+        Ваши данные принадлежат вам: забрать всё можно в любой момент.{" "}
+        <a
+          href={YOUR_DATA_PATH}
+          className="text-foreground underline underline-offset-4"
+        >
+          Как это устроено
+        </a>
+      </p>
+    </>
+  );
+}

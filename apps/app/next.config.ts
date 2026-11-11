@@ -1,0 +1,133 @@
+import type { NextConfig } from "next";
+
+import { env } from "./src/env";
+import {
+  EMBEDDABLE_SOURCE,
+  NOINDEX_SOURCE,
+  SECURE_SOURCE,
+} from "./src/lib/page-routes";
+
+/**
+ * Browser analytics goes through `/ingest` on our own origin (ad blockers
+ * block the PostHog hosts). Everything, static assets included, goes to the API
+ * host: PostHog Cloud's separate `-assets` host sits behind Cloudflare, whose
+ * addresses are throttled from the production server (about half of the TLS
+ * handshakes time out), while `eu.i.posthog.com` is reliable.
+ * @see https://posthog.com/docs/advanced/proxy/nextjs
+ */
+const posthogHost = env.NEXT_PUBLIC_POSTHOG_HOST;
+
+/**
+ * Security headers applied to every response.
+ *
+ * The Content-Security-Policy is a pragmatic baseline that works with the
+ * Next.js App Router and Yandex Metrika out of the box. For the strictest
+ * setup, switch to a nonce-based CSP in `proxy.ts` and drop `'unsafe-inline'`.
+ * @see https://nextjs.org/docs/app/guides/content-security-policy
+ */
+const isDev = process.env.NODE_ENV === "development";
+
+const contentSecurityPolicy = (frameAncestors: string) =>
+  [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://mc.yandex.ru https://yastatic.net`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https: wss://mc.yandex.ru",
+    "child-src blob: https://mc.yandex.ru",
+    `frame-ancestors ${frameAncestors}`,
+    "base-uri 'self'",
+    "form-action 'self'",
+  ]
+    .join("; ")
+    .concat(";");
+
+const sharedHeaders = [
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=()",
+  },
+];
+
+/** Nothing may frame the app: sign-in, the cabinet and the dashboard. */
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: contentSecurityPolicy("'none'") },
+  { key: "X-Frame-Options", value: "DENY" },
+  ...sharedHeaders,
+];
+
+/**
+ * A practice's booking page (`/<slug>`) may sit in an iframe on the
+ * specialist's own site, which we don't know: any origin. There is no
+ * `X-Frame-Options` value for that, so the header is left out. The page is
+ * safe to frame: the session cookie is `SameSite=Lax`, so a cross-site frame
+ * is always a guest, and payment happens on the provider's page in the top
+ * window (`leaveFrame`).
+ */
+const embeddableHeaders = [
+  { key: "Content-Security-Policy", value: contentSecurityPolicy("*") },
+  ...sharedHeaders,
+];
+
+export default async function createNextConfig(): Promise<NextConfig> {
+  const config: NextConfig = {
+    output: "standalone",
+    /** No `X-Powered-By: Next.js` on responses. */
+    poweredByHeader: false,
+    /**
+     * Workspace packages consumed as TypeScript source (`exports` → src/).
+     * Packages that ship a built `dist/` (@synoro/config, @synoro/emails,
+     * @synoro/storage) don't belong here.
+     */
+    transpilePackages: [
+      "@synoro/api",
+      "@synoro/auth",
+      "@synoro/db",
+      "@synoro/jobs",
+      "@synoro/ui",
+      "@synoro/validators",
+    ],
+    /** `Link href` / `router.push` are checked against the app's routes. */
+    typedRoutes: true,
+    /** Automatic memoization; no hand-written useMemo/useCallback needed. */
+    reactCompiler: true,
+    /**
+     * Partial Prerendering: each route gets a static shell; request-time
+     * reads (session, headers) stream in behind <Suspense>. Cache with
+     * "use cache" instead of route segment configs (`dynamic`, `revalidate`).
+     * @see https://nextjs.org/docs/app/guides/authentication-with-cache-components
+     */
+    cacheComponents: true,
+    partialPrefetching: true,
+
+    /** Required by the PostHog proxy: `/ingest/e/` must not be redirected. */
+    skipTrailingSlashRedirect: true,
+
+    async rewrites() {
+      if (!env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return [];
+      return [
+        { source: "/ingest/:path*", destination: `${posthogHost}/:path*` },
+      ];
+    },
+
+    async headers() {
+      return [
+        { source: SECURE_SOURCE, headers: securityHeaders },
+        { source: EMBEDDABLE_SOURCE, headers: embeddableHeaders },
+        {
+          source: NOINDEX_SOURCE,
+          headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+        },
+      ];
+    },
+  };
+
+  return config;
+}

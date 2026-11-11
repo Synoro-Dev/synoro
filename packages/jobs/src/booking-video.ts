@@ -1,0 +1,565 @@
+import { logger } from "@synoro/config";
+import {
+  and,
+  asc,
+  Booking,
+  type Database,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lte,
+  Practice,
+  PracticeMember,
+  user,
+} from "@synoro/db";
+import type { BookingNotice } from "@synoro/emails";
+import { clientCancel } from "@synoro/validators";
+
+import { ownerStaying } from "./account-deletion";
+import { type Deliver, noticeSender } from "./messenger/deliver";
+import { notifyStaff } from "./staff-notices";
+import { cabinetUrl } from "./urls";
+import { describeDates, localHour } from "./when";
+
+/**
+ * Telling a client about their booking: the confirmation, the video link when
+ * the specialist sets or changes it, reminders and cancellation — and the
+ * practice's staff about bookings made and cancelled (`./staff-notices`).
+ * Everything here is best effort — a mail failure is logged and never undoes
+ * a booking or a save.
+ */
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+/** Maximum number of bookings fetched per batch. */
+const MAX_NOTICES = 200;
+/** Day reminders reach clients from 9:00 to 22:00, their own time. */
+const DAY_HOURS = { from: 9, until: 22 };
+
+type Notice = BookingNotice;
+
+/** Kinds of bookings a client is told about (blocks have no client). */
+const CLIENT_KINDS = ["consultation", "free"] as const;
+
+export type { Deliver } from "./messenger/deliver";
+
+/**
+ * Bookings of clients who can be mailed: paid ones, and free intros a client
+ * booked themselves (`booking.bookIntro`; a guest staff booked by phone has
+ * no account and is left out by the join).
+ */
+function confirmedBookings(db: Database) {
+  return db
+    .select({
+      id: Booking.id,
+      kind: Booking.kind,
+      credits: Booking.credits,
+      practiceId: Booking.practiceId,
+      startsAt: Booking.startsAt,
+      meetingUrl: Booking.meetingUrl,
+      seriesId: Booking.seriesId,
+      reminderDaySentAt: Booking.reminderDaySentAt,
+      reminderHourSentAt: Booking.reminderHourSentAt,
+      videoUrl: Practice.videoUrl,
+      practiceName: Practice.name,
+      timezone: Practice.timezone,
+      cancelHours: Practice.cancelHours,
+      lateCancel: Practice.lateCancel,
+      clientTimezone: Booking.clientTimezone,
+      clientId: user.id,
+      clientName: user.name,
+      clientEmail: user.email,
+    })
+    .from(Booking)
+    .innerJoin(Practice, eq(Practice.id, Booking.practiceId))
+    .innerJoin(PracticeMember, eq(PracticeMember.id, Booking.memberId))
+    .innerJoin(user, eq(user.id, PracticeMember.userId));
+}
+
+type Row = Awaited<ReturnType<typeof confirmedBookings>>[number];
+
+/**
+ * The zone a client reads times in: the one they booked from, else the
+ * practice's. Mails to them name it.
+ */
+function clientZone(row: Pick<Row, "clientTimezone" | "timezone">) {
+  return row.clientTimezone ?? row.timezone;
+}
+
+async function send(
+  deliver: Deliver,
+  row: Row,
+  notice: Notice,
+  cancellation?: { by: "client" | "specialist"; refunded: boolean },
+  series?: Date[],
+  moved?: { by: "client" | "specialist"; from: Date },
+) {
+  const { when, dates } = describeDates(
+    series ?? [row.startsAt],
+    clientZone(row),
+    { named: true },
+  );
+  const videoUrl =
+    notice === "cancelled" ? null : (row.meetingUrl ?? row.videoUrl);
+  const subjects: Record<Notice, string> = {
+    confirmed: `Запись подтверждена: ${row.practiceName}`,
+    link: `Ссылка на видеовстречу: ${row.practiceName}`,
+    "reminder-day": `Напоминание: встреча завтра — ${row.practiceName}`,
+    "reminder-hour": `Напоминание: встреча через час — ${row.practiceName}`,
+    cancelled: `Запись отменена: ${row.practiceName}`,
+    moved: `Запись перенесена: ${row.practiceName}`,
+  };
+  await deliver(
+    {
+      template: "booking-notice",
+      to: [row.clientEmail],
+      subject: subjects[notice],
+      props: {
+        notice,
+        name: row.clientName,
+        practiceName: row.practiceName,
+        when,
+        dates,
+        videoUrl,
+        cabinetUrl: cabinetUrl(),
+        cancelledBy: cancellation?.by ?? null,
+        refunded: cancellation?.refunded ?? false,
+        movedBy: moved?.by ?? null,
+        movedFrom: moved
+          ? describeDates([moved.from], clientZone(row), { named: true }).when
+          : null,
+        // Nothing was taken (an intro, paid at the visit): no balance lines.
+        free: row.credits === 0,
+      },
+    },
+    {
+      userId: row.clientId,
+      practiceId: row.practiceId,
+      // A series is cancelled as a whole, from the cabinet — also when one
+      // of its meetings is the notice's subject (a new link, a reminder).
+      cancelBookingId:
+        notice !== "cancelled" &&
+        series === undefined &&
+        row.seriesId === null &&
+        // Only while the credit comes back: a late cancel needs the client
+        // to see what they lose, which a button press can't show.
+        clientCancel(row, Date.now(), row) === "refund"
+          ? row.id
+          : undefined,
+    },
+  );
+}
+
+/**
+ * A mail that carries the link covers the reminders already due: without
+ * this the client would get the same link again at the next worker tick.
+ */
+async function markDueReminders(db: Database, row: Row) {
+  const left = row.startsAt.getTime() - Date.now();
+  const now = new Date();
+  await db
+    .update(Booking)
+    .set({
+      reminderDaySentAt: left <= DAY_MS ? (row.reminderDaySentAt ?? now) : null,
+      reminderHourSentAt:
+        left <= HOUR_MS ? (row.reminderHourSentAt ?? now) : null,
+    })
+    // Moved since `row` was read: these marks aren't about its new time.
+    .where(and(eq(Booking.id, row.id), eq(Booking.startsAt, row.startsAt)));
+}
+
+function settled(bookingId: string, notice: Notice, error: unknown) {
+  logger.warn("booking.video_notice_failed", {
+    bookingId,
+    notice,
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+/**
+ * After payment (or a credit) confirmed a booking, or staff booked a guest:
+ * tell the client (a paid booking only) and the practice's staff. A free
+ * intro the client booked themselves gets its mail from `booking.bookIntro`
+ * (the link, with the video room), which then calls `markRemindersCovered`;
+ * so does a booking paid at the visit (`booking.bookAtVisit`), which passes
+ * `client: false`.
+ */
+export async function notifyBookingConfirmed(
+  db: Database,
+  bookingId: string,
+  deliver: Deliver = noticeSender(db),
+  options: { client?: boolean } = {},
+) {
+  try {
+    const [row] =
+      options.client === false
+        ? []
+        : await confirmedBookings(db).where(
+            and(
+              eq(Booking.id, bookingId),
+              eq(Booking.kind, "consultation"),
+              eq(Booking.status, "active"),
+              isNull(Booking.holdUntil),
+            ),
+          );
+    if (row) {
+      await send(deliver, row, "confirmed");
+      // The confirmation names the time: reminders already due are covered.
+      await markDueReminders(db, row);
+    }
+  } catch (error) {
+    settled(bookingId, "confirmed", error);
+  }
+  await notifyStaff(db, bookingId, "booked", {}, deliver);
+}
+
+/**
+ * A mail with the time and the video link reached the client of `bookingId`
+ * by another way (the link of a free intro): the reminders already due are
+ * covered, so none follows right after. Call it only once that mail went out —
+ * otherwise the reminders are the client's only notice.
+ */
+export async function markRemindersCovered(db: Database, bookingId: string) {
+  try {
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.status, "active"),
+        isNull(Booking.holdUntil),
+      ),
+    );
+    if (row) await markDueReminders(db, row);
+  } catch (error) {
+    settled(bookingId, "confirmed", error);
+  }
+}
+
+/**
+ * After the client or staff cancelled a booking: tell the client and the
+ * practice's staff (but not the one who cancelled). A no-show mark and an
+ * unpaid hold that lapsed are nobody's news.
+ */
+export async function notifyBookingCancelled(
+  db: Database,
+  bookingId: string,
+  options: { refunded: boolean },
+  deliver: Deliver = noticeSender(db),
+) {
+  try {
+    const [booking] = await db
+      .select({ cancelReason: Booking.cancelReason })
+      .from(Booking)
+      .where(eq(Booking.id, bookingId));
+    const reason = booking?.cancelReason;
+    const by = reason === "late_cancel" ? "client" : reason;
+    if (by !== "client" && by !== "staff") return;
+
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        isNull(Booking.holdUntil),
+        gt(Booking.startsAt, new Date()),
+      ),
+    );
+    if (row) {
+      await send(deliver, row, "cancelled", {
+        by: by === "client" ? "client" : "specialist",
+        refunded: options.refunded,
+      });
+    }
+  } catch (error) {
+    settled(bookingId, "cancelled", error);
+  }
+  // Staff are told even when the client's mail failed.
+  await notifyStaff(db, bookingId, "cancelled", options, deliver);
+}
+
+/**
+ * After a booking moved from `from` to its current time: tell the client and
+ * the practice's staff (but not the one who moved it). A guest booked by phone
+ * has no account: staff tell them themselves. The mail names the new time, so
+ * the reminders already due for it are covered.
+ */
+export async function notifyBookingMoved(
+  db: Database,
+  bookingId: string,
+  options: { from: Date; movedById: string },
+  deliver: Deliver = noticeSender(db),
+) {
+  const { from, movedById } = options;
+  try {
+    const [row] = await confirmedBookings(db).where(
+      and(
+        eq(Booking.id, bookingId),
+        inArray(Booking.kind, CLIENT_KINDS),
+        eq(Booking.status, "active"),
+        isNull(Booking.holdUntil),
+      ),
+    );
+    if (row) {
+      const by = row.clientId === movedById ? "client" : "specialist";
+      await send(deliver, row, "moved", undefined, undefined, { by, from });
+      await markDueReminders(db, row);
+    }
+  } catch (error) {
+    settled(bookingId, "moved", error);
+  }
+  await notifyStaff(
+    db,
+    bookingId,
+    "moved",
+    { from, actorId: movedById },
+    deliver,
+  );
+}
+
+/**
+ * Start times of `bookingIds`, earliest first; the first id with it. A mail
+ * never undoes a saved booking, so a failed lookup is logged and gives
+ * undefined.
+ */
+async function seriesDates(db: Database, bookingIds: string[], notice: Notice) {
+  try {
+    const rows = await db
+      .select({ id: Booking.id, startsAt: Booking.startsAt })
+      .from(Booking)
+      .where(inArray(Booking.id, bookingIds))
+      .orderBy(asc(Booking.startsAt));
+    const firstId = rows[0]?.id;
+    return firstId
+      ? { firstId, dates: rows.map((r) => r.startsAt) }
+      : undefined;
+  } catch (error) {
+    settled(bookingIds.join(","), notice, error);
+    return undefined;
+  }
+}
+
+/**
+ * After a recurring booking was made: one mail to the client and one to the
+ * staff with all its dates, instead of one per booking.
+ */
+export async function notifySeriesBooked(
+  db: Database,
+  bookingIds: string[],
+  deliver: Deliver = noticeSender(db),
+) {
+  const found = await seriesDates(db, bookingIds, "confirmed");
+  if (!found) return;
+  const { firstId, dates } = found;
+  try {
+    const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
+    if (row) {
+      await send(deliver, row, "confirmed", undefined, dates);
+      // The first booking may already be within a day: it is covered.
+      await markDueReminders(db, row);
+    }
+  } catch (error) {
+    settled(firstId, "confirmed", error);
+  }
+  await notifyStaff(db, firstId, "booked", { dates }, deliver);
+}
+
+/**
+ * After the upcoming bookings of a series were cancelled together: one mail
+ * to the client and one to the staff (but not the one who cancelled).
+ */
+export async function notifySeriesCancelled(
+  db: Database,
+  bookingIds: string[],
+  options: { by: "client" | "staff"; refunded: boolean },
+  deliver: Deliver = noticeSender(db),
+) {
+  const found = await seriesDates(db, bookingIds, "cancelled");
+  if (!found) return;
+  const { firstId, dates } = found;
+  try {
+    const [row] = await confirmedBookings(db).where(eq(Booking.id, firstId));
+    if (row) {
+      await send(
+        deliver,
+        row,
+        "cancelled",
+        {
+          by: options.by === "client" ? "client" : "specialist",
+          refunded: options.refunded,
+        },
+        dates,
+      );
+    }
+  } catch (error) {
+    settled(firstId, "cancelled", error);
+  }
+  await notifyStaff(
+    db,
+    firstId,
+    "cancelled",
+    { refunded: options.refunded, dates },
+    deliver,
+  );
+}
+
+/**
+ * The link of upcoming confirmed bookings changed: tell their clients. Pass
+ * booking ids, or `practiceId` to take every upcoming booking of the practice
+ * that has no link of its own (the ones the practice's room applies to).
+ * Nothing is sent when no link is left.
+ */
+export async function notifyVideoLinkChanged(
+  db: Database,
+  scope: { bookingId: string } | { practiceId: string },
+  deliver: Deliver = noticeSender(db),
+) {
+  try {
+    const upcoming = and(
+      inArray(Booking.kind, CLIENT_KINDS),
+      eq(Booking.status, "active"),
+      isNull(Booking.holdUntil),
+      gt(Booking.startsAt, new Date()),
+    );
+    let afterId: string | undefined;
+    while (true) {
+      const rows = await confirmedBookings(db)
+        .where(
+          and(
+            "bookingId" in scope
+              ? and(upcoming, eq(Booking.id, scope.bookingId))
+              : and(
+                  upcoming,
+                  eq(Booking.practiceId, scope.practiceId),
+                  isNull(Booking.meetingUrl),
+                ),
+            afterId ? gt(Booking.id, afterId) : undefined,
+          ),
+        )
+        .orderBy(Booking.id)
+        .limit(MAX_NOTICES);
+
+      await Promise.all(
+        rows
+          .filter((row) => row.meetingUrl ?? row.videoUrl)
+          .map(async (row) => {
+            try {
+              await send(deliver, row, "link");
+              await markDueReminders(db, row);
+            } catch (error) {
+              settled(row.id, "link", error);
+            }
+          }),
+      );
+
+      const last = rows.at(-1);
+      if (!last || rows.length < MAX_NOTICES) break;
+      afterId = last.id;
+    }
+  } catch (error) {
+    logger.warn("booking.video_notice_failed", {
+      notice: "link",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Reminders, with the video link when there is one: once when the meeting is
+ * within a day, once when it is within the hour — unless the practice turned
+ * them off (`practices.remind_clients`). The day reminder waits for the
+ * client's daytime (9:00–22:00 where they booked from, else the practice's);
+ * the hour reminder goes at once. A
+ * reminder is claimed in the database before it is sent, so two workers (or
+ * a retry) never send it twice; a failed send gives the claim back.
+ */
+export async function sendBookingReminders(
+  db: Database,
+  deliver: Deliver = noticeSender(db),
+  at = new Date(),
+) {
+  const now = at.getTime();
+  const windows = [
+    {
+      notice: "reminder-day",
+      pending: isNull(Booking.reminderDaySentAt),
+      // Within the hour the hour reminder takes over.
+      from: new Date(now + HOUR_MS),
+      until: new Date(now + DAY_MS),
+      claim: () => ({ reminderDaySentAt: new Date() }),
+      release: { reminderDaySentAt: null },
+    },
+    {
+      notice: "reminder-hour",
+      pending: isNull(Booking.reminderHourSentAt),
+      from: new Date(now),
+      until: new Date(now + HOUR_MS),
+      // The hour reminder also covers the day one it overtook.
+      claim: () => ({
+        reminderHourSentAt: new Date(),
+        reminderDaySentAt: new Date(),
+      }),
+      release: { reminderHourSentAt: null },
+    },
+  ] as const;
+
+  for (const window of windows) {
+    // Page by id: bookings skipped for the night stay pending, and must not
+    // fill the batch ahead of the ones that are due now.
+    let afterId: string | undefined;
+    while (true) {
+      const due = await confirmedBookings(db)
+        .where(
+          and(
+            inArray(Booking.kind, CLIENT_KINDS),
+            eq(Booking.status, "active"),
+            isNull(Booking.holdUntil),
+            eq(Practice.remindClients, true),
+            ownerStaying(Practice.ownerId),
+            window.pending,
+            gt(Booking.startsAt, window.from),
+            lte(Booking.startsAt, window.until),
+            afterId ? gt(Booking.id, afterId) : undefined,
+          ),
+        )
+        .orderBy(Booking.id)
+        .limit(MAX_NOTICES);
+
+      for (const row of due) {
+        if (window.notice === "reminder-day") {
+          // A practice with an unknown time zone must not stop the others.
+          let daytime: boolean;
+          try {
+            const hour = localHour(at, clientZone(row));
+            daytime = hour >= DAY_HOURS.from && hour < DAY_HOURS.until;
+          } catch (error) {
+            settled(row.id, window.notice, error);
+            continue;
+          }
+          if (!daytime) continue;
+        }
+        // Moved or cancelled since it was read: not due, and the marks belong
+        // to its new time.
+        const same = and(
+          eq(Booking.id, row.id),
+          eq(Booking.startsAt, row.startsAt),
+        );
+        const claimed = await db
+          .update(Booking)
+          .set(window.claim())
+          .where(and(same, eq(Booking.status, "active"), window.pending))
+          .returning({ id: Booking.id });
+        if (claimed.length === 0) continue;
+        try {
+          await send(deliver, row, window.notice);
+        } catch (error) {
+          await db.update(Booking).set(window.release).where(same);
+          settled(row.id, window.notice, error);
+        }
+      }
+
+      const last = due.at(-1);
+      if (!last || due.length < MAX_NOTICES) break;
+      afterId = last.id;
+    }
+  }
+}

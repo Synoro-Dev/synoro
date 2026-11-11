@@ -1,0 +1,2 @@
+[test]
+preload = ["./test/async-local-storage.ts", "./test/setup.ts"]

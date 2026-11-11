@@ -1,0 +1,687 @@
+"use client";
+
+import { isDefinedError } from "@orpc/client";
+import {
+  Button,
+  cn,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  Textarea,
+  toast,
+} from "@synoro/ui";
+import {
+  capitalize,
+  formatCredits,
+  formatMinutes,
+  freeBookingFormSchema,
+  serviceStepMinutes,
+} from "@synoro/validators";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  CalendarCheckIcon,
+  CheckIcon,
+  LockIcon,
+  SearchIcon,
+  UserRoundCheckIcon,
+  UserRoundPlusIcon,
+} from "lucide-react";
+import { useState } from "react";
+
+import { orpc } from "~/orpc/react";
+import { matchClients, phoneDigits } from "./client-search";
+import {
+  type Repeat,
+  RepeatSelect,
+  SeriesDateList,
+  seriesChoice,
+  useSeriesPreview,
+} from "./series-fields";
+import { ErrorState } from "./states";
+import { useTerms } from "./terms";
+import {
+  dateKey,
+  nextDate,
+  viewerTimeZone,
+  viewerTimeZoneName,
+  zonedDayStart,
+} from "./time";
+import { TimeSelect } from "./time-select";
+
+type EntryMode = "consultation" | "free" | "block";
+
+export interface EntryDraft {
+  mode: EntryMode;
+  start: Date;
+  end: Date;
+  /** The service to start with; the first switched-on one when missing. */
+  serviceId?: string;
+  /** Book this client (opened from their card). */
+  client?: { id: string; name: string };
+  /** Close whole days (a vacation) rather than hours of one day. */
+  wholeDays?: boolean;
+}
+
+/** The longest block the API takes (`booking.block`). */
+const MAX_BLOCK_DAYS = 31;
+const HALF_HOUR_MS = 30 * 60_000;
+
+const minutesOf = (at: Date) => at.getHours() * 60 + at.getMinutes();
+
+function atMinute(date: string, minute: number) {
+  const [y = 0, m = 1, d = 1] = date.split("-").map(Number);
+  return new Date(y, m - 1, d, 0, minute);
+}
+
+/**
+ * Staff-only "new entry": a paid one-hour booking of a practice client
+ * from their balance (none taken when the practice is paid at the visit), the
+ * free intro for a guest, or a block of the specialist's own time. Opened
+ * from a calendar selection or the toolbar; date and times stay editable.
+ */
+export function EntryDialog({
+  practiceId,
+  timezone,
+  draft,
+  onClose,
+}: {
+  practiceId: string;
+  /** The practice's zone: whole closed days are its calendar days. */
+  timezone: string;
+  draft: EntryDraft | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={draft !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-md [&>*]:min-w-0">
+        {draft && (
+          <EntryForm
+            practiceId={practiceId}
+            timezone={timezone}
+            draft={draft}
+            onDone={onClose}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EntryForm({
+  practiceId,
+  timezone,
+  draft,
+  onDone,
+}: {
+  practiceId: string;
+  timezone: string;
+  draft: EntryDraft;
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const terms = useTerms();
+  const [mode, setMode] = useState<EntryMode>(draft.mode);
+  // Whole days are the practice's calendar days; hours are the viewer's.
+  const firstDate = dateKey(
+    draft.start,
+    draft.wholeDays ? timezone : undefined,
+  );
+  const [date, setDate] = useState(firstDate);
+  const [wholeDays, setWholeDays] = useState(draft.wholeDays ?? false);
+  const [untilDate, setUntilDate] = useState(firstDate);
+  const [start, setStart] = useState(minutesOf(draft.start));
+  const [end, setEnd] = useState(
+    Math.max(minutesOf(draft.end) || 1440, minutesOf(draft.start) + 30),
+  );
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const [guestContact, setGuestContact] = useState("");
+  const [note, setNote] = useState("");
+  const [memberId, setMemberId] = useState<string | null>(
+    draft.client?.id ?? null,
+  );
+  const [search, setSearch] = useState(draft.client?.name ?? "");
+  const [repeat, setRepeat] = useState<Repeat | null>(null);
+  const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
+  const members = useQuery({
+    ...orpc.practice.members.queryOptions({ input: { practiceId } }),
+    // The intro form recognises a caller who is already a client.
+    enabled: mode !== "block",
+  });
+  const practice = useQuery(
+    orpc.practice.get.queryOptions({ input: { practiceId } }),
+  );
+  // What is booked: the picked service, else the first switched-on one.
+  const serviceList = useQuery({
+    ...orpc.service.list.queryOptions({ input: { practiceId } }),
+    enabled: mode === "consultation",
+  });
+  const services = (serviceList.data?.services ?? []).filter((s) => s.active);
+  const [serviceId, setServiceId] = useState<string | null>(
+    draft.serviceId ?? null,
+  );
+  const service = services.find((s) => s.id === serviceId) ?? services[0];
+  const price = service?.credits ?? 1;
+  /** Paid at the visit: bookings take nothing from the balance. */
+  const atVisit = practice.data?.payAtVisit ?? false;
+  const introLength = practice.data
+    ? ` на ${formatMinutes(practice.data.introMinutes)}`
+    : "";
+  const clients = (members.data ?? []).filter((m) => m.role === "client");
+  const client = clients.find((c) => c.id === memberId);
+  const found = matchClients(clients, search);
+  const guestDigits = phoneDigits(guestPhone);
+  const knownCaller =
+    mode === "free" && guestDigits.length >= 11
+      ? clients.find((c) => c.phone && phoneDigits(c.phone) === guestDigits)
+      : undefined;
+  const series = mode === "consultation" && client ? repeat : null;
+  const preview = useSeriesPreview({
+    practiceId,
+    startsAt: series ? atMinute(date, start) : null,
+    repeat: series,
+    memberId: client?.id,
+    serviceId: service?.id,
+  });
+  const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
+
+  const onSuccess = async (message: string) => {
+    toast.success(message);
+    await queryClient.invalidateQueries({ queryKey: orpc.booking.key() });
+    onDone();
+  };
+  const bookFree = useMutation({
+    ...orpc.booking.bookFree.mutationOptions(),
+    onSuccess: () => onSuccess(`${terms.free}: гость записан`),
+    onError: (error) => toast.error(error.message),
+  });
+  const book = useMutation({
+    ...orpc.booking.book.mutationOptions(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+      await onSuccess(`${capitalize(terms.credit[0])}: клиент записан`);
+    },
+    onError: (error) =>
+      toast.error(
+        isDefinedError(error) && error.code === "NO_CREDITS"
+          ? "У клиента пустой баланс — начислите оплату на странице клиентов"
+          : error.message,
+      ),
+  });
+  const bookSeries = useMutation({
+    ...orpc.booking.bookSeries.mutationOptions(),
+    onSuccess: async (result) => {
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+      await onSuccess(
+        `Клиент записан: ${formatCredits(result.dates.length, terms)}`,
+      );
+    },
+    onError: async (error) => {
+      toast.error(
+        isDefinedError(error) && error.code === "NO_CREDITS"
+          ? "На балансе клиента не хватает оплаты на все даты"
+          : error.message,
+      );
+      await preview.refetch();
+    },
+  });
+  const block = useMutation({
+    ...orpc.booking.block.mutationOptions(),
+    onSuccess: () => onSuccess(wholeDays ? "Даты закрыты" : "Время закрыто"),
+    onError: (error) => toast.error(error.message),
+  });
+  const pending =
+    book.isPending ||
+    bookSeries.isPending ||
+    bookFree.isPending ||
+    block.isPending;
+
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (mode === "consultation") {
+      if (!memberId) {
+        toast.error("Выберите клиента");
+        return;
+      }
+      if (series) {
+        bookSeries.mutate({
+          practiceId,
+          memberId,
+          serviceId: service?.id,
+          startsAt: atMinute(date, start),
+          ...series,
+          skip,
+          note: note || undefined,
+        });
+        return;
+      }
+      book.mutate({
+        practiceId,
+        memberId,
+        serviceId: service?.id,
+        startsAt: atMinute(date, start),
+        note: note || undefined,
+      });
+      return;
+    }
+    if (mode === "free") {
+      const parsed = freeBookingFormSchema.safeParse({
+        guestName,
+        guestPhone,
+        guestContact: guestContact || undefined,
+        note: note || undefined,
+      });
+      if (!parsed.success) {
+        toast.error(parsed.error.issues[0]?.message ?? "Проверьте данные");
+        return;
+      }
+      bookFree.mutate({
+        practiceId,
+        startsAt: atMinute(date, start),
+        ...parsed.data,
+      });
+      return;
+    }
+    if (wholeDays) {
+      // Slots are built from midnight in the practice's zone, so that is
+      // where a closed day begins, wherever the viewer is. Inclusive: «по
+      // 14-е» closes the 14th too. The API takes half-hour UTC bounds, which
+      // miss midnight in :45 zones: round outward to close the whole day.
+      const startsAt = new Date(
+        Math.floor(zonedDayStart(date, timezone).getTime() / HALF_HOUR_MS) *
+          HALF_HOUR_MS,
+      );
+      const endsAt = new Date(
+        Math.ceil(
+          zonedDayStart(nextDate(untilDate), timezone).getTime() / HALF_HOUR_MS,
+        ) * HALF_HOUR_MS,
+      );
+      if (endsAt <= startsAt) {
+        toast.error("Последний день не может быть раньше первого");
+        return;
+      }
+      if (endsAt.getTime() - startsAt.getTime() > MAX_BLOCK_DAYS * 86_400_000) {
+        toast.error(
+          `Закрыть можно до ${MAX_BLOCK_DAYS} дня подряд — разбейте на две части`,
+        );
+        return;
+      }
+      block.mutate({ practiceId, startsAt, endsAt, note: note || undefined });
+      return;
+    }
+    if (end <= start) {
+      toast.error("Конец должен быть позже начала");
+      return;
+    }
+    block.mutate({
+      practiceId,
+      startsAt: atMinute(date, start),
+      endsAt: atMinute(date, end),
+      note: note || undefined,
+    });
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-5">
+      <DialogHeader>
+        <DialogTitle>Новая запись</DialogTitle>
+        <DialogDescription>
+          {capitalize(terms.credit[0])}
+          {atVisit ? " клиента" : " с баланса клиента"},{" "}
+          {terms.free.toLowerCase()}
+          {introLength} для гостя или закрытое время.
+        </DialogDescription>
+      </DialogHeader>
+
+      <Tabs value={mode} onValueChange={(value) => setMode(value as EntryMode)}>
+        {/* Narrow phones: the three tabs fit by dropping their icons. */}
+        <TabsList className="w-full max-[420px]:[&_svg]:hidden">
+          <TabsTrigger value="consultation">
+            <CalendarCheckIcon />
+            Клиент
+          </TabsTrigger>
+          <TabsTrigger value="free">
+            <UserRoundPlusIcon />
+            {terms.free}
+          </TabsTrigger>
+          <TabsTrigger value="block">
+            <LockIcon />
+            Закрыть время
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {mode === "block" && (
+        <label className="flex min-h-11 items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="size-4 accent-[var(--brand)]"
+            checked={wholeDays}
+            onChange={(e) => setWholeDays(e.target.checked)}
+          />
+          Целые дни — отпуск, выходные, праздники
+        </label>
+      )}
+      {mode === "block" && wholeDays && viewerTimeZone() !== timezone && (
+        <p className="text-sm text-muted-foreground">
+          Дни считаются по времени практики: {viewerTimeZoneName(timezone)}.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-date">
+            {mode === "block" && wholeDays ? "С" : "Дата"}
+          </Label>
+          <Input
+            id="entry-date"
+            type="date"
+            value={date}
+            onChange={(e) => {
+              setDate(e.target.value);
+              // The last day never comes before the first.
+              if (untilDate < e.target.value) setUntilDate(e.target.value);
+            }}
+            className="w-40"
+          />
+        </div>
+        {mode === "block" && wholeDays ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entry-until">По</Label>
+            <Input
+              id="entry-until"
+              type="date"
+              min={date}
+              value={untilDate}
+              onChange={(e) => setUntilDate(e.target.value)}
+              className="w-40"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <Label>{mode === "block" ? "С" : "Начало"}</Label>
+            <TimeSelect label="Начало" value={start} onChange={setStart} />
+          </div>
+        )}
+        {mode === "block" && !wholeDays && (
+          <div className="flex flex-col gap-1.5">
+            <Label>До</Label>
+            <TimeSelect label="Конец" value={end} onChange={setEnd} endOfDay />
+          </div>
+        )}
+      </div>
+
+      {mode === "consultation" && services.length > 1 && service && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-service">Услуга</Label>
+          <Select
+            items={Object.fromEntries(services.map((s) => [s.id, s.name]))}
+            value={service.id}
+            onValueChange={(id) => {
+              setServiceId(String(id));
+              setRepeat(null);
+              setUnchecked(new Set());
+            }}
+          >
+            <SelectTrigger id="entry-service">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {services.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name} · {formatMinutes(s.minutes, true)}
+                  {!atVisit && ` · ${formatCredits(s.credits, terms)}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {mode === "consultation" && serviceList.isError && (
+        <ErrorState
+          message="Не удалось загрузить услуги."
+          onRetry={() => serviceList.refetch()}
+        />
+      )}
+
+      {mode === "consultation" && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="entry-client">Клиент</Label>
+          {members.isError ? (
+            <ErrorState
+              message="Не удалось загрузить список клиентов."
+              onRetry={() => members.refetch()}
+            />
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="relative">
+                <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="entry-client"
+                  autoFocus
+                  autoComplete="off"
+                  placeholder={
+                    members.isPending ? "Загрузка…" : "Имя или телефон клиента"
+                  }
+                  className="pl-8"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    // A new search may hide the chosen client: never book
+                    // someone no longer on screen.
+                    setMemberId(null);
+                    setRepeat(null);
+                  }}
+                />
+              </div>
+              <div className="flex max-h-48 flex-col overflow-y-auto rounded-md border">
+                {found.slice(0, 50).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={c.id === memberId}
+                    onClick={() => setMemberId(c.id)}
+                    className={cn(
+                      "flex items-center gap-2 border-b px-3 py-2 text-left text-sm transition-colors last:border-b-0 hover:bg-muted/60",
+                      c.id === memberId && "bg-primary/5 dark:bg-primary/10",
+                    )}
+                  >
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate font-medium">{c.name}</span>
+                      <span className="truncate text-xs text-muted-foreground tabular-nums">
+                        {c.phone ?? c.email}
+                      </span>
+                    </span>
+                    {!atVisit && (
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs tabular-nums",
+                          c.credits > 0
+                            ? "text-muted-foreground"
+                            : "text-destructive",
+                        )}
+                      >
+                        {formatCredits(c.credits, terms)}
+                      </span>
+                    )}
+                    {c.id === memberId && (
+                      <CheckIcon className="size-4 shrink-0 text-primary" />
+                    )}
+                  </button>
+                ))}
+                {members.isSuccess && found.length === 0 && (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    {clients.length === 0
+                      ? "В практике пока нет клиентов."
+                      : "Никого не нашли."}{" "}
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-4 hover:underline"
+                      onClick={() => {
+                        setMode("free");
+                        if (/\d{3}/.test(search)) setGuestPhone(search);
+                        else if (search.trim()) setGuestName(search.trim());
+                      }}
+                    >
+                      Записать как нового: {terms.free.toLowerCase()}
+                    </button>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <p className="text-sm text-muted-foreground">
+            {atVisit
+              ? `Оплата — на приёме, баланс не меняется${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`
+              : client && client.credits === 0
+                ? `У ${client.name} нет оплаченных — начислите оплату на странице клиентов.`
+                : client && client.credits < price
+                  ? `На балансе ${client.name} ${formatCredits(client.credits, terms)}, а услуга стоит ${formatCredits(price, terms)} — начислите оплату на странице клиентов.`
+                  : `Спишется ${formatCredits(price, terms)} с баланса клиента за каждую дату${service ? ` (${formatMinutes(service.minutes)})` : ""}; начало — ${serviceStepMinutes(service?.minutes ?? 60) === 60 ? "с начала часа" : "с начала часа или в :30"}, в рабочее время.`}
+          </p>
+          {client && (
+            <RepeatSelect
+              value={repeat}
+              onChange={(next) => {
+                setRepeat(next);
+                setUnchecked(new Set());
+              }}
+              max={
+                atVisit
+                  ? Number.POSITIVE_INFINITY
+                  : Math.floor(client.credits / price)
+              }
+              idPrefix="entry"
+            />
+          )}
+          {series && (
+            <SeriesDateList
+              query={preview}
+              unchecked={unchecked}
+              idPrefix="entry"
+              onToggle={(at, checked) => {
+                const next = new Set(unchecked);
+                if (checked) next.delete(at.getTime());
+                else next.add(at.getTime());
+                setUnchecked(next);
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {mode === "free" && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entry-guest">Имя гостя</Label>
+            <Input
+              id="entry-guest"
+              autoFocus
+              required
+              placeholder="Иван Петров"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="entry-phone">Телефон</Label>
+            <Input
+              id="entry-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              required
+              placeholder="+7 900 000-00-00"
+              value={guestPhone}
+              onChange={(e) => setGuestPhone(e.target.value)}
+            />
+          </div>
+          {knownCaller && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-info/30 bg-info/4 px-3 py-2 text-sm sm:col-span-2">
+              <UserRoundCheckIcon className="size-4 shrink-0 text-info" />
+              <span className="min-w-0 flex-1">
+                Это клиент {knownCaller.name}
+                {!atVisit &&
+                  `, ${formatCredits(knownCaller.credits, terms)} на балансе`}
+              </span>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={() => {
+                  // Search by their phone: the list shows them, chosen,
+                  // whatever was searched for before.
+                  setSearch(knownCaller.phone ?? knownCaller.name);
+                  setMemberId(knownCaller.id);
+                  setRepeat(null);
+                  setMode("consultation");
+                }}
+              >
+                Записать как клиента
+              </Button>
+            </div>
+          )}
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="entry-contact">Почта или Telegram</Label>
+            <Input
+              id="entry-contact"
+              placeholder="По желанию"
+              value={guestContact}
+              onChange={(e) => setGuestContact(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="entry-note">Заметка</Label>
+        <Textarea
+          id="entry-note"
+          rows={2}
+          placeholder={
+            mode === "block" ? "Личное время" : "Видна только вам и команде"
+          }
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </div>
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onDone}>
+          Отмена
+        </Button>
+        <Button
+          type="submit"
+          disabled={
+            pending ||
+            // Without the list the server would pick a service of its own.
+            (mode === "consultation" && !serviceList.isSuccess) ||
+            (series !== null && chosen.length < 2)
+          }
+        >
+          {mode === "block"
+            ? wholeDays
+              ? "Закрыть даты"
+              : "Закрыть время"
+            : series
+              ? `Записать: ${formatCredits(chosen.length, terms)}`
+              : "Записать"}
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}

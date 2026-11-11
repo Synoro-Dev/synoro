@@ -1,0 +1,247 @@
+name: Deploy
+
+# Builds the images (app, demo, tools, landing, admin), pushes them to GHCR and then
+# restarts the Deployments in k3s: the manifests use moving tags (`latest`,
+# `demo`) with `imagePullPolicy: Always`, so a restarted pod pulls the new image.
+# Needs the repository secret KUBECONFIG (a kubeconfig whose server is
+# reachable from GitHub runners) and nothing from the infra repo.
+#
+# Runs on every push to main, with no dependency on CI or any other check, or
+# by hand (Actions -> Deploy -> Run workflow) to rebuild and redeploy a commit.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One build at a time; a newer commit waits instead of cancelling a push
+# halfway through (which could leave `tools` and `app` from different commits).
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io/synoro-dev
+  SHA: ${{ github.sha }}
+
+jobs:
+  # Migrations and the worker, for production and the demo alike. Pushed before
+  # the app: the cluster restarts the app as soon as it sees the new app image,
+  # and its `migrate` init container must already find the matching migrations.
+  tools:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The commit tag is for rollbacks and traceability; the cluster follows
+      # the moving tags: `latest` (production) and `demo` (demo.yaml names it).
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/jobs/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/synoro-tools:${{ env.SHA }}
+            ${{ env.REGISTRY }}/synoro-tools:latest
+            ${{ env.REGISTRY }}/synoro-tools:demo
+          # Links the package to this repo, which grants this workflow write
+          # access to it.
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=tools
+          cache-to: type=gha,mode=max,scope=tools
+
+  app:
+    needs: tools
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          # NEXT_PUBLIC_* are baked into the client bundle: keep them in sync
+          # with the ConfigMaps in the infra repo (synoro/config.yaml, demo.yaml).
+          - name: app
+            tag: ""
+            moving-tag: latest
+            build-args: |
+              NEXT_PUBLIC_APP_URL=https://app.synoro.ru
+              NEXT_PUBLIC_APP_NAME=Synoro
+              NEXT_PUBLIC_APP_SHORT_NAME=Synoro
+              NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${{ vars.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+              NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
+          - name: app-demo
+            tag: demo-
+            moving-tag: demo
+            build-args: |
+              NEXT_PUBLIC_APP_URL=https://demo.synoro.ru
+              NEXT_PUBLIC_APP_NAME=Synoro Demo
+              NEXT_PUBLIC_APP_SHORT_NAME=Synoro
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/app/Dockerfile
+          build-args: ${{ matrix.build-args }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/synoro-app:${{ matrix.tag }}${{ env.SHA }}
+            ${{ env.REGISTRY }}/synoro-app:${{ matrix.moving-tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # The landing (apps/web) on synoro.ru: no database, so it neither waits for
+  # `tools` nor needs migrations.
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # NEXT_PUBLIC_* are baked into the client bundle. APP_URL is where the
+      # sign-up / login buttons lead and DEMO_URL the demo stand; without them
+      # the buttons would point at localhost. The Metrika counter is optional:
+      # set the repository variable NEXT_PUBLIC_YANDEX_METRIKA_ID to enable it.
+      # PostHog likewise: repository variables NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN and
+      # NEXT_PUBLIC_POSTHOG_HOST (the app image above gets the same pair).
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=https://synoro.ru
+            NEXT_PUBLIC_APP_URL=https://app.synoro.ru
+            NEXT_PUBLIC_DEMO_URL=https://demo.synoro.ru
+            NEXT_PUBLIC_YANDEX_METRIKA_ID=${{ vars.NEXT_PUBLIC_YANDEX_METRIKA_ID }}
+            NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=${{ vars.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN }}
+            NEXT_PUBLIC_POSTHOG_HOST=${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/synoro-landing:${{ env.SHA }}
+            ${{ env.REGISTRY }}/synoro-landing:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # The admin site (apps/admin) on admin.synoro.ru: no build-time config, so
+  # one image; it runs no migrations and is restarted after the app's pods
+  # have migrated the database.
+  admin:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/admin/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/synoro-admin:${{ env.SHA }}
+            ${{ env.REGISTRY }}/synoro-admin:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ env.SHA }}
+          cache-from: type=gha,scope=admin
+          cache-to: type=gha,mode=max,scope=admin
+
+  # Runs only when every image above was pushed. The app's `migrate` init
+  # container runs the new migrations before the new pod takes over.
+  deploy:
+    needs: [tools, app, web, admin]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Write kubeconfig
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG }}
+        run: |
+          umask 077
+          mkdir -p ~/.kube
+          printf '%s' "$KUBECONFIG_DATA" > ~/.kube/config
+
+      - name: Restart deployments
+        run: |
+          kubectl rollout restart deploy/synoro-app deploy/synoro-demo deploy/synoro-landing deploy/synoro-worker
+          for d in synoro-app synoro-demo synoro-landing synoro-worker; do
+            kubectl rollout status "deploy/$d" --timeout=10m
+          done
+
+      # After the app: its pods have migrated the database by now. Skipped
+      # until infra/synoro/admin.yaml is applied to the cluster.
+      - name: Restart admin
+        run: |
+          if kubectl get deploy/synoro-admin >/dev/null 2>&1; then
+            kubectl rollout restart deploy/synoro-admin
+            kubectl rollout status deploy/synoro-admin --timeout=10m
+          else
+            echo "deploy/synoro-admin not found: apply infra/synoro/admin.yaml"
+          fi
+
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl get pods -l app.kubernetes.io/name=synoro -o wide || true
+          for d in synoro-app synoro-demo; do
+            kubectl logs "deploy/$d" -c migrate --tail=50 || true
+          done

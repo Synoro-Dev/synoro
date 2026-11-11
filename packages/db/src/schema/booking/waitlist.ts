@@ -1,0 +1,70 @@
+import { sql } from "drizzle-orm";
+import { check, index, pgTable } from "drizzle-orm/pg-core";
+
+import { user } from "../auth/user";
+import { Practice } from "./practice";
+import { Service } from "./service";
+
+/**
+ * Someone waiting for time to free up: they found no suitable window and left
+ * a wish — a service, a range of dates (local days of `Practice.timezone`) and
+ * optionally hours of the day. When a booking of the practice is cancelled or
+ * moved, the entries it fits are told once (`notified_at`) and book the time
+ * on the page themselves; the `bookings_no_overlap` constraint decides who
+ * gets it. An entry is told once, then it is done: asking again is a new one.
+ *
+ * `from_minute` / `to_minute` are minutes since local midnight, on the
+ * half-hour grid, like the working hours; null on either side is no limit.
+ */
+export const WaitlistEntry = pgTable(
+  "waitlist_entries",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    practiceId: t
+      .uuid()
+      .notNull()
+      .references(() => Practice.id, { onDelete: "cascade" }),
+    userId: t
+      .text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** The service wanted; null — whatever the practice offers first. */
+    serviceId: t.uuid().references(() => Service.id, { onDelete: "set null" }),
+    fromDate: t.date({ mode: "string" }).notNull(),
+    toDate: t.date({ mode: "string" }).notNull(),
+    fromMinute: t.smallint(),
+    toMinute: t.smallint(),
+    notifiedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * When the person proved the email is theirs. A signed-in client's wish is
+     * confirmed at once; a visitor's waits for the link mailed to them, and
+     * until then it is never listed, never told of anything and doesn't count
+     * toward the limit. Null and older than `WAITLIST_CONFIRM_HOURS` — gone.
+     */
+    confirmedAt: t.timestamp({ withTimezone: true }),
+    /**
+     * The email (lower case) that was proven for this wish: the account's own
+     * when a verified client asked, the link's address when a visitor
+     * confirmed. Notices go there only while it is still the account's email —
+     * a profile edit can change the address, and the new one has proven nothing.
+     */
+    confirmedEmail: t.text(),
+    /** SHA-256 of the secret in the confirmation link; null for a signed-in client. */
+    confirmTokenHash: t
+      .varchar({ length: 64 })
+      .unique("waitlist_entries_confirm_token_hash_unique"),
+    createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+  }),
+  (table) => [
+    index("waitlist_entries_practice_idx").on(table.practiceId, table.toDate),
+    index("waitlist_entries_user_idx").on(table.userId),
+    check(
+      "waitlist_entries_dates_ordered",
+      sql`${table.fromDate} <= ${table.toDate}`,
+    ),
+    check(
+      "waitlist_entries_minutes_valid",
+      sql`(${table.fromMinute} is null or (${table.fromMinute} between 0 and 1410 and ${table.fromMinute} % 30 = 0)) and (${table.toMinute} is null or (${table.toMinute} between 30 and 1440 and ${table.toMinute} % 30 = 0)) and (${table.fromMinute} is null or ${table.toMinute} is null or ${table.fromMinute} < ${table.toMinute})`,
+    ),
+  ],
+);

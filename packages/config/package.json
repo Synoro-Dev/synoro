@@ -1,0 +1,43 @@
+{
+  "name": "@synoro/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./secrets": {
+      "types": "./dist/secrets.d.ts",
+      "default": "./dist/secrets.mjs"
+    }
+  },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsdown && tsc --tsBuildInfoFile dist/.tsbuildinfo",
+    "build:watch": "tsdown --watch",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc --tsBuildInfoFile dist/.tsbuildinfo",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "1.10.0",
+    "@t3-oss/env-core": "0.13.11",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@opentelemetry/context-async-hooks": "3.0.0",
+    "@synoro/tsconfig": "workspace:*",
+    "@types/bun": "1.4.4",
+    "@types/node": "26.6.6",
+    "tsdown": "0.23.4",
+    "typescript": "7.0.2"
+  }
+}

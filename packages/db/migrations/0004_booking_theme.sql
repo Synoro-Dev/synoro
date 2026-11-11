@@ -1,0 +1,1 @@
+ALTER TABLE "practices" ADD COLUMN IF NOT EXISTS "booking_theme" jsonb DEFAULT '{}'::jsonb NOT NULL;
