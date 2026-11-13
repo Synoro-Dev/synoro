@@ -525,6 +525,17 @@ describe("reportCreatedPractices", () => {
     expect(uploads).toHaveLength(0);
   });
 
+  it("skips an older ad click when the last sign-in has no click", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await signedIn(userId, { yclid: "old-click", createdAt: daysAgo(3) });
+    await signedIn(userId, { yclid: null });
+    await practiceOf(userId);
+
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(0);
+  });
+
   it("tries again after a failed upload, with the payments' cron", async () => {
     stubFetch();
     const userId = await specialist();
@@ -533,8 +544,10 @@ describe("reportCreatedPractices", () => {
 
     metrikaStatus = 500;
     expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    uploads = [];
     metrikaStatus = 200;
-    await reportPaidConversions(api.db);
+    expect(await reportPaidConversions(api.db)).toEqual({ sent: 1 });
+    expect(uploads).toHaveLength(1);
     expect(uploads.map((upload) => upload.csv).join("")).toContain(
       "retry-click,practice_created",
     );

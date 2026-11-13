@@ -268,7 +268,6 @@ function createdPractices(db: Database, now: Date) {
       sql`${SignIn.id} = (
         select latest.id from sign_ins latest
         where latest.user_id = ${Practice.ownerId}
-          and latest.yclid is not null
           and latest.impersonated_by is null
           and latest.created_at <= ${Practice.createdAt}
         order by latest.created_at desc
@@ -279,6 +278,7 @@ function createdPractices(db: Database, now: Date) {
       and(
         gt(Practice.createdAt, new Date(now.getTime() - RETRY_MS)),
         notLike(user.email, DEMO_EMAILS),
+        isNotNull(SignIn.yclid),
         // A second practice is the same specialist, not a new one.
         sql`not exists (
           select 1 from practices earlier
