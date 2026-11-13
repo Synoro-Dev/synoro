@@ -9,9 +9,12 @@ import {
   isNull,
   notLike,
   or,
+  Practice,
   SentNotice,
+  SignIn,
   SubscriptionPayment,
   sql,
+  user,
 } from "@synoro/db";
 
 import { claimNotice } from "./notice-claims";
@@ -32,10 +35,20 @@ import { claimNotice } from "./notice-claims";
  * The bank settles payments in a webhook, long after the browser is gone, so
  * an hourly cron looks for them (`reportPaidConversions`). A conversion goes
  * out once: each is claimed in `sent_notices` like a mail (`claimNotice`).
+ *
+ * A payment comes weeks after the click, too late and too rarely for Direct's
+ * strategy to learn from. So the same cron reports an earlier step as the goal
+ * `practice_created`: a specialist who came from an ad created their first
+ * practice (`reportCreatedPractices`). It is a real sign-up, unlike the
+ * landing's `signup_free`, which is only a click on the button.
  */
 
 export const PAID_YEAR_GOAL = "paid_year";
 export const PAID_MONTH_GOAL = "paid_month";
+export const PRACTICE_CREATED_GOAL = "practice_created";
+
+/** The demo stand's accounts (`DEMO_DOMAIN` in `@synoro/auth/demo`). */
+const DEMO_EMAILS = "%@example.com";
 
 type Period = "month" | "year";
 
@@ -59,9 +72,10 @@ export interface Conversion {
   /** The Metrika visitor (`_ym_uid`), used when there is no `yclid`. */
   ymClientId: string | null;
   target: string;
+  /** When it happened: the payment, or the practice's creation. */
   paidAt: Date;
-  /** Kopecks, RUB. */
-  amount: number;
+  /** Kopecks, RUB; null: the conversion carries no money. */
+  amount: number | null;
 }
 
 /**
@@ -80,6 +94,9 @@ export function conversionCsv(conversion: Conversion, now = new Date()) {
       : ["ClientId", conversion.ymClientId];
   if (!id) throw new Error("A conversion needs a yclid or a Metrika client id");
   const seconds = Math.floor(conversion.paidAt.getTime() / 1000);
+  if (conversion.amount === null) {
+    return `${idColumn},Target,DateTime\n${id},${conversion.target},${seconds}\n`;
+  }
   const price = (conversion.amount / 100).toFixed(2);
   return `${idColumn},Target,DateTime,Price,Currency\n${id},${conversion.target},${seconds},${price},RUB\n`;
 }
@@ -230,8 +247,106 @@ export const reportPaidMonths = (db: Database, now = new Date()) =>
   reportFirstPayments(db, now, "month", PAID_MONTH_GOAL);
 
 /**
- * Both kinds, for the hourly cron. One kind failing (the lookup or a claim
- * threw) must not hold the other back, so both run; the first error is then
+ * First practices from the last two weeks whose owner came from an ad, except
+ * those already sent. The click is the one on the owner's last sign-in before
+ * the practice appeared (`sign_ins`, written from the landing's cookie); an
+ * admin's impersonation is not the owner's visit.
+ */
+function createdPractices(db: Database, now: Date) {
+  return db
+    .select({
+      id: Practice.id,
+      userId: Practice.ownerId,
+      createdAt: Practice.createdAt,
+      yclid: SignIn.yclid,
+      yclidAt: SignIn.yclidAt,
+    })
+    .from(Practice)
+    .innerJoin(user, eq(user.id, Practice.ownerId))
+    .innerJoin(
+      SignIn,
+      sql`${SignIn.id} = (
+        select latest.id from sign_ins latest
+        where latest.user_id = ${Practice.ownerId}
+          and latest.yclid is not null
+          and latest.impersonated_by is null
+          and latest.created_at <= ${Practice.createdAt}
+        order by latest.created_at desc
+        limit 1
+      )`,
+    )
+    .where(
+      and(
+        gt(Practice.createdAt, new Date(now.getTime() - RETRY_MS)),
+        notLike(user.email, DEMO_EMAILS),
+        // A second practice is the same specialist, not a new one.
+        sql`not exists (
+          select 1 from practices earlier
+          where earlier.owner_id = ${Practice.ownerId}
+            and earlier.created_at < ${Practice.createdAt}
+        )`,
+        sql`not exists (
+          select 1 from sent_notices
+          where ${SentNotice.key} = ${claimPrefix(PRACTICE_CREATED_GOAL)} || ${Practice.id}::text
+            and ${SentNotice.sentAt} is not null
+        )`,
+      ),
+    )
+    .orderBy(asc(Practice.createdAt))
+    .limit(BATCH);
+}
+
+/**
+ * The first practice of each specialist who came from an ad:
+ * `practice_created`, matched by the click only (a sign-in keeps no Metrika
+ * visitor id). Claims and retries work as for the payments.
+ */
+export async function reportCreatedPractices(db: Database, now = new Date()) {
+  const counterId = env.METRIKA_COUNTER_ID;
+  const token = env.METRIKA_OAUTH_TOKEN;
+  if (!counterId || !token) return { sent: 0 };
+
+  let sent = 0;
+  for (const practice of await createdPractices(db, now)) {
+    const claim = await claimNotice(
+      db,
+      `${claimPrefix(PRACTICE_CREATED_GOAL)}${practice.id}`,
+      practice.userId,
+    );
+    if (!claim) continue;
+
+    try {
+      const uploading = await uploadConversion(counterId, token, now, {
+        yclid: practice.yclid,
+        yclidAt: practice.yclidAt,
+        ymClientId: null,
+        target: PRACTICE_CREATED_GOAL,
+        paidAt: practice.createdAt,
+        amount: null,
+      });
+      await claim.done();
+      sent += 1;
+      logger.info("metrika.conversion_sent", {
+        practiceId: practice.id,
+        goal: PRACTICE_CREATED_GOAL,
+        uploadId: uploading?.id,
+        by: "yclid",
+      });
+    } catch (error) {
+      await claim.release();
+      logger.warn("metrika.conversion_failed", {
+        practiceId: practice.id,
+        goal: PRACTICE_CREATED_GOAL,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return { sent };
+}
+
+/**
+ * Every kind, for the hourly cron. One kind failing (the lookup or a claim
+ * threw) must not hold the others back, so all run; the first error is then
  * thrown again, for the task's own retry.
  */
 export async function reportPaidConversions(db: Database, now = new Date()) {
@@ -240,6 +355,7 @@ export async function reportPaidConversions(db: Database, now = new Date()) {
   for (const [kind, report] of [
     ["year", reportPaidYears],
     ["month", reportPaidMonths],
+    ["practice", reportCreatedPractices],
   ] as const) {
     try {
       sent += (await report(db, now)).sent;

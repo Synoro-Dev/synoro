@@ -295,7 +295,9 @@ and run `tsc` by hand, build them first.
   stores it and Metrika's `_ym_uid` on `subscription_payments`; the
   `metrika-conversions` cron (`@synoro/jobs/metrika`) uploads the user's first
   paid year and first paid month as the offline conversions `paid_year` and
-  `paid_month` (once per payment, claim in `sent_notices`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
+  `paid_month` (once per payment, claim in `sent_notices`), and before those
+  the first practice of a specialist from an ad as `practice_created` (click
+  from `sign_ins.yclid`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
   goal in Metrika; the landing needs the repo variable
   `NEXT_PUBLIC_YANDEX_METRIKA_ID` (same counter as the app's `COUNTER_ID`).
 - **Sign-in history** (`docs/sign-in-history.md`): one `sign_ins` row per
