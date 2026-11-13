@@ -10,9 +10,17 @@ import {
   spyOn,
 } from "bun:test";
 import { call } from "@orpc/server";
-import { eq, SentNotice, SubscriptionPayment } from "@synoro/db";
+import {
+  eq,
+  Practice,
+  PracticeMember,
+  SentNotice,
+  SignIn,
+  SubscriptionPayment,
+} from "@synoro/db";
 import {
   conversionCsv,
+  reportCreatedPractices,
   reportPaidConversions,
   reportPaidMonths,
   reportPaidYears,
@@ -207,6 +215,12 @@ describe("conversionCsv", () => {
     expect(conversionCsv({ ...click(30), ymClientId: null }, now)).toStartWith(
       "Yclid,",
     );
+  });
+
+  it("leaves the price out of a conversion without money", () => {
+    expect(
+      conversionCsv({ ...base, amount: null, yclid: "42", ymClientId: null }),
+    ).toBe("Yclid,Target,DateTime\n42,paid_year,1793620800\n");
   });
 
   it("refuses a conversion nobody can be matched to", () => {
@@ -417,6 +431,125 @@ describe("reportPaidMonths", () => {
     );
     expect(uploads.map((upload) => upload.csv).join("")).toContain(
       "month-click,paid_month",
+    );
+  });
+});
+
+describe("reportCreatedPractices", () => {
+  const HOUR = 60 * 60 * 1000;
+  const daysAgo = (days: number) => new Date(Date.now() - days * DAY);
+
+  /** A sign-in (by default 2 hours ago) that carried an ad click. */
+  async function signedIn(
+    userId: string,
+    values: Partial<typeof SignIn.$inferInsert> = {},
+  ) {
+    await api.db.insert(SignIn).values({
+      userId,
+      yclid: "practice-click",
+      createdAt: new Date(Date.now() - 2 * HOUR),
+      ...values,
+    });
+  }
+
+  /** A practice the user owns, created (by default) an hour ago. */
+  async function practiceOf(userId: string, createdAt = Date.now() - HOUR) {
+    const [practice] = await api.db
+      .insert(Practice)
+      .values({
+        name: "Практика",
+        slug: `practice-${crypto.randomUUID().slice(0, 12)}`,
+        ownerId: userId,
+        createdAt: new Date(createdAt),
+      })
+      .returning();
+    if (!practice) throw new Error("Failed to insert practice");
+    return practice;
+  }
+
+  it("uploads the first practice once, by the sign-in's click", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await signedIn(userId, { yclid: "old-click", createdAt: daysAgo(3) });
+    await signedIn(userId);
+    // A click after the practice appeared did not lead to it.
+    await signedIn(userId, { yclid: "late-click", createdAt: new Date() });
+    const practice = await practiceOf(userId);
+
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 1 });
+    const seconds = Math.floor(practice.createdAt.getTime() / 1000);
+    expect(uploads.map((upload) => upload.csv)).toEqual([
+      `Yclid,Target,DateTime\npractice-click,practice_created,${seconds}\n`,
+    ]);
+
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(1);
+    const [claim] = await api.db
+      .select()
+      .from(SentNotice)
+      .where(eq(SentNotice.key, `metrika:practice_created:${practice.id}`));
+    expect(claim?.sentAt).toBeInstanceOf(Date);
+  });
+
+  it("skips what is not a new specialist from an ad", async () => {
+    stubFetch();
+    // No ad click at all.
+    await practiceOf(await specialist());
+    // The click was an admin's, signed in as the user.
+    const impersonated = await specialist();
+    await signedIn(impersonated, { impersonatedBy: "admin-id" });
+    await practiceOf(impersonated);
+    // A second practice of the same specialist.
+    const second = await specialist();
+    await practiceOf(second, Date.now() - 30 * DAY);
+    await signedIn(second);
+    await practiceOf(second);
+    // The demo stand.
+    const demo = (await createSession(api.db, { email: "klyuev@example.com" }))
+      .user.id;
+    await signedIn(demo);
+    await practiceOf(demo);
+    // Too old to retry.
+    const old = await specialist();
+    await signedIn(old, { createdAt: daysAgo(20) });
+    await practiceOf(old, Date.now() - 15 * DAY);
+    // A client of someone's practice came from an ad, not the owner.
+    const client = await specialist();
+    await signedIn(client);
+    const practice = await practiceOf(await specialist());
+    await api.db
+      .insert(PracticeMember)
+      .values({ practiceId: practice.id, userId: client, role: "client" });
+
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(0);
+  });
+
+  it("skips an older ad click when the last sign-in has no click", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await signedIn(userId, { yclid: "old-click", createdAt: daysAgo(3) });
+    await signedIn(userId, { yclid: null });
+    await practiceOf(userId);
+
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    expect(uploads).toHaveLength(0);
+  });
+
+  it("tries again after a failed upload, with the payments' cron", async () => {
+    stubFetch();
+    const userId = await specialist();
+    await signedIn(userId, { yclid: "retry-click" });
+    await practiceOf(userId);
+
+    metrikaStatus = 500;
+    expect(await reportCreatedPractices(api.db)).toEqual({ sent: 0 });
+    uploads = [];
+    metrikaStatus = 200;
+    expect(await reportPaidConversions(api.db)).toEqual({ sent: 1 });
+    expect(uploads).toHaveLength(1);
+    expect(uploads.map((upload) => upload.csv).join("")).toContain(
+      "retry-click,practice_created",
     );
   });
 });
