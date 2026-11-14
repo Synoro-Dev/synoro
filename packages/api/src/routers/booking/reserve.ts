@@ -183,25 +183,40 @@ export const reserve = publicProcedure
     const token = newGuestToken();
     let booking: typeof Booking.$inferSelect | undefined;
     try {
-      [booking] = await context.db
-        .insert(Booking)
-        .values({
-          practiceId: practice.id,
-          kind: "consultation",
-          serviceId: service.id,
-          credits: service.credits,
-          startsAt: input.startsAt,
-          endsAt,
-          memberId: guest.memberId,
-          guestPhone: input.phone,
-          note: input.note || null,
-          answers: questionnaire.answers,
-          clientTimezone: input.timezone ?? null,
-          holdUntil: new Date(Date.now() + HOLD_MS),
-          accessTokenHash: hashGuestToken(token),
-          createdById: guest.user.id,
-        })
-        .returning();
+      // One transaction: the booking and its consents stand or fall together.
+      [booking] = await context.db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(Booking)
+          .values({
+            practiceId: practice.id,
+            kind: "consultation",
+            serviceId: service.id,
+            credits: service.credits,
+            startsAt: input.startsAt,
+            endsAt,
+            memberId: guest.memberId,
+            guestPhone: input.phone,
+            note: input.note || null,
+            answers: questionnaire.answers,
+            clientTimezone: input.timezone ?? null,
+            holdUntil: new Date(Date.now() + HOLD_MS),
+            accessTokenHash: hashGuestToken(token),
+            createdById: guest.user.id,
+          })
+          .returning();
+        const [row] = rows;
+        if (row) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: guest.memberId,
+            bookingId: row.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: false,
+          });
+        }
+        return rows;
+      });
     } catch (error) {
       if (isExclusionViolation(error, "bookings_no_overlap")) {
         throw errors.SLOT_UNAVAILABLE({ cause: error });
@@ -209,14 +224,6 @@ export const reserve = publicProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
-    await recordConsents(context.db, {
-      practiceId: practice.id,
-      memberId: guest.memberId,
-      bookingId: booking.id,
-      accept: consents.accept,
-      headers: context.headers,
-      bySession: false,
-    });
 
     try {
       const { confirmationUrl } = await startPayment(context.db, {

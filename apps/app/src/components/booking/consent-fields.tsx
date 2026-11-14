@@ -112,7 +112,13 @@ export function useConsents(
         setInvalid(new Set([...invalid].filter((id) => id !== document.id)));
       }
     },
-    setForMinor,
+    // The ticks are for one capacity: «за себя» ticks must not turn into
+    // «за ребёнка» ones (or back) when the switch is flipped.
+    setForMinor: (on: boolean) => {
+      setForMinor(on);
+      setChecked(new Set());
+      setInvalid(new Set());
+    },
     setRepresentativeName,
     setMinorName,
   };
@@ -196,17 +202,25 @@ export function ConsentFields({
                 className="mt-0.5"
                 checked={consents.checked.has(document.versionId)}
                 aria-invalid={invalid}
+                // The name is the phrase and the title: several documents
+                // must not all be «Принимаю:» to a screen reader.
+                aria-labelledby={`${id}-phrase ${id}-title`}
                 aria-describedby={invalid ? `${id}-error` : undefined}
                 onCheckedChange={(on) => consents.toggle(document, on === true)}
               />
               <span className="text-sm">
-                <Label htmlFor={id} className="inline font-normal">
+                <Label
+                  id={`${id}-phrase`}
+                  htmlFor={id}
+                  className="inline font-normal"
+                >
                   {consents.minor
                     ? `От имени ребёнка ${consentPhrase(document.kind).toLowerCase()}`
                     : consentPhrase(document.kind)}
                 </Label>{" "}
                 <button
                   type="button"
+                  id={`${id}-title`}
                   className="text-left underline underline-offset-2 hover:text-foreground"
                   onClick={() => setReading(document)}
                 >

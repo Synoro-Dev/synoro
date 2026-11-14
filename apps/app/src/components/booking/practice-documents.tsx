@@ -102,17 +102,21 @@ function Editor({ practiceId, saved }: { practiceId: string; saved: Saved }) {
   const [minors, setMinors] = useState(saved.acceptsMinors);
   const [error, setError] = useState<string>();
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  // After a save the list is refetched: show the stored ids and versions,
-  // unless the owner kept editing meanwhile.
+  // The list is refetched after a save, and may change from another tab.
+  // Show what the server has unless the owner has edits of their own:
+  // drafts equal to the previous snapshot (nothing touched) or to the new
+  // one (their own save came back) are replaced, anything else is kept.
   const [seen, setSeen] = useState(saved);
   if (seen !== saved) {
-    setSeen(saved);
-    if (
-      JSON.stringify(toInput(drafts).map(({ id: _, ...d }) => d)) ===
-      JSON.stringify(toInput(toDrafts(saved)).map(({ id: _, ...d }) => d))
-    ) {
+    const content = (list: Draft[]) =>
+      JSON.stringify(toInput(list).map(({ id: _, ...d }) => d));
+    const mine = content(drafts);
+    if (mine === content(toDrafts(seen)) || mine === content(toDrafts(saved))) {
       setDrafts(toDrafts(saved));
     }
+    // The same for the switch: follow the server unless it was flipped here.
+    if (minors === seen.acceptsMinors) setMinors(saved.acceptsMinors);
+    setSeen(saved);
   }
 
   const save = useMutation({

@@ -188,6 +188,18 @@ export const bookSeries = practiceProcedure
             })),
           )
           .returning({ id: Booking.id });
+        // In the series' transaction: a failure here leaves no booking.
+        const first = bookings[0];
+        if (consents && first) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: member.id,
+            bookingId: first.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: true,
+          });
+        }
         if (price > 0) {
           await tx.insert(CreditEntry).values(
             bookings.map((b) => ({
@@ -212,16 +224,6 @@ export const bookSeries = practiceProcedure
       throw error;
     }
 
-    if (consents) {
-      await recordConsents(context.db, {
-        practiceId: practice.id,
-        memberId: member.id,
-        bookingId: created.bookingIds[0] ?? "",
-        accept: consents.accept,
-        headers: context.headers,
-        bySession: true,
-      });
-    }
     // After the commit: Google and mails never undo the bookings.
     for (const id of created.bookingIds) await exportBooking(context.db, id);
     await notifySeriesBooked(context.db, created.bookingIds);

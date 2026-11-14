@@ -505,6 +505,40 @@ describe("undoing an import whose documents were accepted since", () => {
   });
 });
 
+describe("an archive with more documents than a practice may ask", () => {
+  it("brings the first five and leaves the rest behind", async () => {
+    const source = await makeOwner();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const forged = structuredClone(dump);
+    forged.practices[0]?.documents.push(
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `d${index}`,
+        kind: "other" as const,
+        required: true,
+        archived: false,
+        versions: [
+          {
+            id: `v${index}`,
+            number: 1,
+            title: `Документ ${index + 1}`,
+            text: "Текст",
+            created_at: null,
+          },
+        ],
+      })),
+    );
+    const target = await makeOwner();
+    await restore(target, JSON.stringify(forged));
+
+    expect(
+      await api.db.$count(
+        PracticeDocument,
+        eq(PracticeDocument.practiceId, target.practice.id),
+      ),
+    ).toBe(5);
+  });
+});
+
 describe("an attempt that stopped halfway", () => {
   it("is picked up without doubling cards that have no contacts", async () => {
     const source = await makeOwner();

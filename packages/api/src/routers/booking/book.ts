@@ -182,23 +182,39 @@ export const book = practiceProcedure
 
     let booking: typeof Booking.$inferSelect | undefined;
     try {
-      [booking] = await context.db
-        .insert(Booking)
-        .values({
-          practiceId: practice.id,
-          kind: "consultation",
-          serviceId: service.id,
-          credits: price,
-          startsAt: input.startsAt,
-          endsAt,
-          memberId: member.id,
-          note: input.note,
-          answers: questionnaire.answers,
-          // Staff's browser says nothing about the client's zone.
-          clientTimezone: forOther ? null : (input.timezone ?? null),
-          createdById: userId,
-        })
-        .returning();
+      // One transaction: the booking and its consents stand or fall together
+      // (the credit taken above is given back by the catch below).
+      [booking] = await context.db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(Booking)
+          .values({
+            practiceId: practice.id,
+            kind: "consultation",
+            serviceId: service.id,
+            credits: price,
+            startsAt: input.startsAt,
+            endsAt,
+            memberId: member.id,
+            note: input.note,
+            answers: questionnaire.answers,
+            // Staff's browser says nothing about the client's zone.
+            clientTimezone: forOther ? null : (input.timezone ?? null),
+            createdById: userId,
+          })
+          .returning();
+        const [row] = rows;
+        if (row && consents) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: member.id,
+            bookingId: row.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: true,
+          });
+        }
+        return rows;
+      });
     } catch (error) {
       if (price > 0) await adjustCredits(context.db, member.id, price);
       if (isExclusionViolation(error, "bookings_no_overlap")) {
@@ -207,16 +223,6 @@ export const book = practiceProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
-    if (consents) {
-      await recordConsents(context.db, {
-        practiceId: practice.id,
-        memberId: member.id,
-        bookingId: booking.id,
-        accept: consents.accept,
-        headers: context.headers,
-        bySession: true,
-      });
-    }
 
     if (price > 0) {
       await recordCredit(context.db, {

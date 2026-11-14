@@ -26,6 +26,7 @@ import {
   DOCUMENT_BODY_MAX,
   DOCUMENT_KINDS,
   DOCUMENT_TITLE_MAX,
+  DOCUMENTS_MAX,
   normalizePhone,
   normalizeVideoUrl,
   PROFESSIONS,
@@ -706,7 +707,15 @@ export async function applyArchive(
         .where(eq(PracticeDocument.practiceId, practiceId))
         .limit(1);
       if (ownDocuments.length === 0) {
-        const inForce = archive.documents.filter((d) => !d.archived);
+        const inForce = archive.documents
+          .filter((d) => !d.archived)
+          .slice(0, DOCUMENTS_MAX);
+        // A practice asks at most `DOCUMENTS_MAX`: the rest stay behind
+        // (and count as skipped) rather than make settings that can't be saved.
+        skipped += Math.max(
+          0,
+          archive.documents.filter((d) => !d.archived).length - DOCUMENTS_MAX,
+        );
         for (const [position, document] of inForce.entries()) {
           const latest = document.versions.reduce<
             (typeof document.versions)[number] | undefined

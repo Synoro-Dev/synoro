@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
-import { Consent, eq, PracticeMember } from "@synoro/db";
+import { Consent, eq, PracticeMember, user } from "@synoro/db";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { availabilityRouter } from "../availability";
@@ -399,12 +399,22 @@ describe("consents when booking", () => {
         .map((d) => d.versionId),
     });
 
-    const [row] = await api.db
-      .select({ ip: Consent.ip })
+    // The consents of the guest created by this booking, not of anybody else
+    // who happened to book from the same address.
+    const given = await api.db
+      .select({
+        versionId: Consent.versionId,
+        ip: Consent.ip,
+        bySession: Consent.bySession,
+      })
       .from(Consent)
       .innerJoin(PracticeMember, eq(PracticeMember.id, Consent.memberId))
-      .where(eq(Consent.ip, "203.0.113.7"))
-      .limit(1);
-    expect(row?.ip).toBe("203.0.113.7");
+      .innerJoin(user, eq(user.id, PracticeMember.userId))
+      .where(eq(user.email, guest.email));
+    const required = (await page()).filter((d) => d.required);
+    expect(given.map((c) => c.versionId).sort()).toEqual(
+      required.map((d) => d.versionId).sort(),
+    );
+    expect(given.every((c) => c.ip === "203.0.113.7")).toBe(true);
   });
 });

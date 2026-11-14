@@ -301,6 +301,17 @@ export const bookAtVisit = publicProcedure
             createdById: person.userId,
           })
           .returning();
+        // In the booking's transaction: a failure here leaves no booking.
+        if (row) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: person.memberId,
+            bookingId: row.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: context.session !== null,
+          });
+        }
         return row;
       });
     } catch (error) {
@@ -310,14 +321,6 @@ export const bookAtVisit = publicProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
-    await recordConsents(context.db, {
-      practiceId: practice.id,
-      memberId: person.memberId,
-      bookingId: booking.id,
-      accept: consents.accept,
-      headers: context.headers,
-      bySession: context.session !== null,
-    });
 
     await exportBooking(context.db, booking.id);
     // Staff hear about it; the client's mail is the link below, with the
