@@ -174,17 +174,18 @@ export const book = practiceProcedure
     await releaseExpiredHolds(context.db, practice.id);
     // Paid at the visit: the balance is neither needed nor touched.
     const price = practice.payAtVisit ? 0 : service.credits;
-    const credits =
-      price === 0
-        ? member.credits
-        : await adjustCredits(context.db, member.id, -price);
-    if (credits === undefined) throw errors.NO_CREDITS();
 
     let booking: typeof Booking.$inferSelect | undefined;
+    let credits = member.credits;
     try {
-      // One transaction: the booking and its consents stand or fall together
-      // (the credit taken above is given back by the catch below).
+      // One transaction: the credit, the booking, its consents and the
+      // balance log stand or fall together — nothing to give back by hand.
       [booking] = await context.db.transaction(async (tx) => {
+        if (price > 0) {
+          const left = await adjustCredits(tx, member.id, -price);
+          if (left === undefined) throw errors.NO_CREDITS();
+          credits = left;
+        }
         const rows = await tx
           .insert(Booking)
           .values({
@@ -213,10 +214,18 @@ export const book = practiceProcedure
             bySession: true,
           });
         }
+        if (row && price > 0) {
+          await recordCredit(tx, {
+            memberId: member.id,
+            delta: -price,
+            reason: "booking",
+            bookingId: row.id,
+            createdById: userId,
+          });
+        }
         return rows;
       });
     } catch (error) {
-      if (price > 0) await adjustCredits(context.db, member.id, price);
       if (isExclusionViolation(error, "bookings_no_overlap")) {
         throw errors.SLOT_UNAVAILABLE({ cause: error });
       }
@@ -224,15 +233,6 @@ export const book = practiceProcedure
     }
     if (!booking) throw new Error("Failed to insert booking");
 
-    if (price > 0) {
-      await recordCredit(context.db, {
-        memberId: member.id,
-        delta: -price,
-        reason: "booking",
-        bookingId: booking.id,
-        createdById: userId,
-      });
-    }
     await exportBooking(context.db, booking.id);
     await notifyBookingConfirmed(context.db, booking.id);
 

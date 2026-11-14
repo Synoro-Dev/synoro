@@ -510,6 +510,14 @@ describe("an archive with more documents than a practice may ask", () => {
     const source = await makeOwner();
     const dump = await collectAccount(api.db, source.session.user.id);
     const forged = structuredClone(dump);
+    // A document with no wording comes first: it must not take a place.
+    forged.practices[0]?.documents.push({
+      id: "empty",
+      kind: "other" as const,
+      required: true,
+      archived: false,
+      versions: [],
+    });
     forged.practices[0]?.documents.push(
       ...Array.from({ length: 6 }, (_, index) => ({
         id: `d${index}`,
