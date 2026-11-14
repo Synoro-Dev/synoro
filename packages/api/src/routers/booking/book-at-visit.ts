@@ -18,12 +18,19 @@ import {
   AT_VISIT_MAX_UPCOMING,
   bookingAnswersInput,
   clientTimeZoneInput,
+  consentsInput,
   guestBookingFormSchema,
 } from "@synoro/validators";
 import { z } from "zod";
 
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+  sessionMemberId,
+} from "../../lib/consents";
 import { exportBooking, isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findOrCreateGuestMember,
@@ -100,6 +107,7 @@ export const bookAtVisit = publicProcedure
       message: "Слишком много попыток — попробуйте чуть позже",
     },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     z.object({
@@ -111,6 +119,8 @@ export const bookAtVisit = publicProcedure
       guest: guestBookingFormSchema.omit({ note: true }).optional(),
       note: z.string().trim().max(500).optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The client's browser zone: the mails write the time in it. */
       timezone: clientTimeZoneInput,
     }),
@@ -144,6 +154,18 @@ export const bookAtVisit = publicProcedure
     );
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
+    }
+    // The practice's documents, accepted by the client alone.
+    const consents = await checkConsents(
+      context.db,
+      practice,
+      await sessionMemberId(context.db, practice.id, context.session),
+      input.consents,
+    );
+    if (consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
     }
 
     const rules = await loadRules(context.db, practice.id);
@@ -288,6 +310,13 @@ export const bookAtVisit = publicProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
+    await recordConsents(context.db, {
+      practiceId: practice.id,
+      memberId: person.memberId,
+      bookingId: booking.id,
+      accept: consents.accept,
+      headers: context.headers,
+    });
 
     await exportBooking(context.db, booking.id);
     // Staff hear about it; the client's mail is the link below, with the

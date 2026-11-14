@@ -13,6 +13,8 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  PracticeDocument,
+  PracticeDocumentVersion,
   PracticeMember,
   Workflow,
 } from "@synoro/db";
@@ -21,6 +23,9 @@ import {
   cancelHoursSchema,
   canonicalTimeZone,
   DEFAULT_CANCEL_HOURS,
+  DOCUMENT_BODY_MAX,
+  DOCUMENT_KINDS,
+  DOCUMENT_TITLE_MAX,
   normalizePhone,
   normalizeVideoUrl,
   PROFESSIONS,
@@ -106,6 +111,7 @@ const practiceSchema = z.object({
   // that isn't one of `CANCEL_HOURS` is a broken file, not an old one.
   cancel_hours: cancelHoursSchema.default(DEFAULT_CANCEL_HOURS),
   late_cancel: z.boolean().default(false),
+  accepts_minors: z.boolean().default(false),
   intro_minutes: z.union([
     z.literal(30),
     z.literal(45),
@@ -166,6 +172,45 @@ const practiceSchema = z.object({
         payment_id: z.string().max(64).nullish(),
         note: text(500).nullish(),
         created_at: moment.nullish(),
+      }),
+    )
+    .default([]),
+  documents: z
+    .array(
+      z.object({
+        id: z.string().max(64),
+        kind: z.enum(DOCUMENT_KINDS),
+        required: z.boolean().default(true),
+        archived: z.boolean().default(false),
+        versions: z
+          .array(
+            z.object({
+              id: z.string().max(64),
+              number: z.number().int().min(1).max(100_000),
+              title: text(DOCUMENT_TITLE_MAX),
+              text: text(DOCUMENT_BODY_MAX),
+              created_at: moment.nullish(),
+            }),
+          )
+          .max(1000),
+      }),
+    )
+    .max(200)
+    .default([]),
+  consents: z
+    .array(
+      z.object({
+        id: z.string().max(64),
+        client_id: z.string().max(64).nullish(),
+        booking_id: z.string().max(64).nullish(),
+        version_id: z.string().max(64).nullish(),
+        document_title: text(DOCUMENT_TITLE_MAX),
+        document_version: z.number().int().min(1).max(100_000),
+        accepted_at: moment,
+        ip: text(64).nullish(),
+        user_agent: text(300).nullish(),
+        representative_name: text(120).nullish(),
+        minor_name: text(120).nullish(),
       }),
     )
     .default([]),
@@ -546,6 +591,12 @@ export async function applyArchive(
         kind: "offline_payment" as const,
         data,
       })),
+      // Consents stay proof of what was accepted then: history, not rows
+      // of the new practice's own documents.
+      ...archive.consents.map((data) => ({
+        kind: "consent" as const,
+        data,
+      })),
     ];
     for (const { kind, data } of records) {
       const sourceKey = `${kind}:${data.id}`;
@@ -556,7 +607,9 @@ export async function applyArchive(
           practiceId,
           kind,
           data: remap(data),
-          createdAt: date(data.created_at) ?? new Date(),
+          createdAt:
+            date("accepted_at" in data ? data.accepted_at : data.created_at) ??
+            new Date(),
         })
         .returning({ id: ArchivedRecord.id });
       if (record) {
@@ -591,6 +644,7 @@ export async function applyArchive(
         freeBookingEnabled: archive.free_booking_enabled,
         introMinutes: archive.intro_minutes,
         payAtVisit: archive.pay_at_visit,
+        acceptsMinors: archive.accepts_minors,
         cancelHours: archive.cancel_hours,
         lateCancel: archive.late_cancel,
         remindClients: archive.remind_clients,
@@ -613,6 +667,7 @@ export async function applyArchive(
           freeBookingEnabled: practice.freeBookingEnabled,
           introMinutes: practice.introMinutes,
           payAtVisit: practice.payAtVisit,
+          acceptsMinors: practice.acceptsMinors,
           cancelHours: practice.cancelHours,
           lateCancel: practice.lateCancel,
           remindClients: practice.remindClients,
@@ -640,6 +695,39 @@ export async function applyArchive(
             })
             .returning({ id: AvailabilityRule.id });
           if (row) await note(db_, "hours", row.id, `hours:${index}`);
+        }
+      }
+      // The documents in force come over with their current wording, as
+      // version 1 here — unless the practice has documents of its own.
+      const ownDocuments = await tx
+        .select({ id: PracticeDocument.id })
+        .from(PracticeDocument)
+        .where(eq(PracticeDocument.practiceId, practiceId))
+        .limit(1);
+      if (ownDocuments.length === 0) {
+        const inForce = archive.documents.filter((d) => !d.archived);
+        for (const [position, document] of inForce.entries()) {
+          const latest = document.versions.reduce<
+            (typeof document.versions)[number] | undefined
+          >((top, v) => (top && top.number > v.number ? top : v), undefined);
+          if (!latest) continue;
+          const [row] = await tx
+            .insert(PracticeDocument)
+            .values({
+              practiceId,
+              kind: document.kind,
+              required: document.required,
+              position,
+            })
+            .returning({ id: PracticeDocument.id });
+          if (!row) continue;
+          await tx.insert(PracticeDocumentVersion).values({
+            documentId: row.id,
+            number: 1,
+            title: latest.title,
+            body: latest.text,
+          });
+          await note(db_, "document", row.id, `document:${document.id}`);
         }
       }
       for (const pack of archive.packages) {

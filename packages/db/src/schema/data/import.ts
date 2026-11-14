@@ -123,6 +123,7 @@ export const importItemEntity = pgEnum("import_item_entity", [
   "package",
   "message",
   "settings",
+  "document",
 ]);
 
 /**
@@ -174,6 +175,7 @@ export const archivedRecordKind = pgEnum("archived_record_kind", [
   "payment",
   "credit_entry",
   "offline_payment",
+  "consent",
 ]);
 
 export const ArchivedRecord = pgTable(

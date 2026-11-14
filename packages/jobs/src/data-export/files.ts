@@ -286,6 +286,41 @@ export function incomeCsv(practice: PracticeDump, from: Date, to: Date) {
   );
 }
 
+/** Who accepted which document and when: the proof, as a table. */
+function consentsCsv(practices: PracticeDump[]) {
+  const rows: Cell[][] = [];
+  for (const practice of practices) {
+    const people = peopleOf(practice);
+    for (const consent of practice.consents) {
+      rows.push([
+        practice.name,
+        consent.client_id ? people.get(consent.client_id)?.name : null,
+        consent.document_title,
+        consent.document_version,
+        csvDate(consent.accepted_at, practice.timezone),
+        consent.ip,
+        consent.user_agent,
+        consent.minor_name,
+        consent.representative_name,
+      ]);
+    }
+  }
+  return toCsv(
+    [
+      "Практика",
+      "Клиент",
+      "Документ",
+      "Версия",
+      "Принято",
+      "IP-адрес",
+      "Браузер",
+      "За ребёнка",
+      "Представитель",
+    ],
+    rows,
+  );
+}
+
 /** Clients' online payments, then what the specialist paid Synoro. */
 function paymentsCsv(dump: AccountDump) {
   const rows: Cell[][] = [];
@@ -432,6 +467,7 @@ export function fullArchive(dump: AccountDump, now = new Date()) {
     "appointments.csv": strToU8(appointmentsCsv(dump.practices)),
     "services.csv": strToU8(servicesCsv(dump.practices)),
     "payments.csv": strToU8(paymentsCsv(dump)),
+    "consents.csv": strToU8(consentsCsv(dump.practices)),
     "data.json": strToU8(JSON.stringify(dump, null, 2)),
     "calendar.ics": strToU8(calendarIcs(dump, now)),
     "README.txt": strToU8(README_FULL),

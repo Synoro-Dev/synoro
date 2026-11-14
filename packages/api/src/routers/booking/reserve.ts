@@ -12,6 +12,7 @@ import {
 import {
   bookingAnswersInput,
   clientTimeZoneInput,
+  consentsInput,
   guestBookingFormSchema,
 } from "@synoro/validators";
 import { z } from "zod";
@@ -19,6 +20,11 @@ import { z } from "zod";
 import { track } from "../../lib/analytics";
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { HOLD_MS, loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+} from "../../lib/consents";
 import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findOrCreateGuestMember,
@@ -75,6 +81,7 @@ export const reserve = publicProcedure
       message: "Платёжная система не приняла платёж, попробуйте позже",
     },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     guestBookingFormSchema.extend({
@@ -84,6 +91,8 @@ export const reserve = publicProcedure
       /** What to book; the practice's first service when missing. */
       serviceId: z.uuid().optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The visitor's browser zone: the mails write the time in it. */
       timezone: clientTimeZoneInput,
     }),
@@ -121,6 +130,18 @@ export const reserve = publicProcedure
     );
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
+    }
+    // The practice's documents, accepted by the client alone.
+    const consents = await checkConsents(
+      context.db,
+      practice,
+      null,
+      input.consents,
+    );
+    if (consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
     }
 
     const rules = await loadRules(context.db, practice.id);
@@ -188,6 +209,13 @@ export const reserve = publicProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
+    await recordConsents(context.db, {
+      practiceId: practice.id,
+      memberId: guest.memberId,
+      bookingId: booking.id,
+      accept: consents.accept,
+      headers: context.headers,
+    });
 
     try {
       const { confirmationUrl } = await startPayment(context.db, {

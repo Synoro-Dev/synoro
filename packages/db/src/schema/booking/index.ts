@@ -2,6 +2,7 @@ export * from "./availability";
 export * from "./booking";
 export * from "./client";
 export * from "./credit";
+export * from "./document";
 export * from "./domain";
 export * from "./google-calendar";
 export * from "./invitation";

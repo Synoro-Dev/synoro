@@ -7,7 +7,11 @@ import {
   user,
 } from "@synoro/db";
 import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
-import { bookingAnswersInput, clientTimeZoneInput } from "@synoro/validators";
+import {
+  bookingAnswersInput,
+  clientTimeZoneInput,
+  consentsInput,
+} from "@synoro/validators";
 import { z } from "zod";
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import {
@@ -16,6 +20,11 @@ import {
   recordCredit,
   releaseExpiredHolds,
 } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+} from "../../lib/consents";
 import { exportBooking, isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findMembership,
@@ -38,6 +47,8 @@ import { resolveService } from "../../lib/services";
  * PHONE_REQUIRED when a client booking for themselves has no phone yet;
  * ANSWERS_INVALID when they left the practice's questionnaire («Про»)
  * unfilled — `answers` are keyed by question id, staff booking a client skip it;
+ * CONSENTS_REQUIRED when a required document of the practice is neither
+ * ticked (`consents`) nor accepted before — again, not asked of staff;
  * NO_CREDITS when the client's balance is zero; SLOT_UNAVAILABLE when the
  * time is off the schedule, busy in the specialist's Google Calendar (checked
  * for clients only: staff see it on the calendar, as in `bookFree`), or
@@ -70,6 +81,7 @@ export const book = practiceProcedure
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
     SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     z.object({
@@ -81,6 +93,8 @@ export const book = practiceProcedure
       /** Staff only: the client to book; defaults to the caller. */
       memberId: z.uuid().optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The client's browser zone, for mails; not used when staff book. */
       timezone: clientTimeZoneInput,
     }),
@@ -128,6 +142,15 @@ export const book = practiceProcedure
       : await bookingAnswers(context.db, practice, input.answers);
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
+    }
+    // The practice's documents, accepted by the client alone.
+    const consents = forOther
+      ? null
+      : await checkConsents(context.db, practice, member.id, input.consents);
+    if (consents && consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
     }
 
     const rules = await loadRules(context.db, practice.id);
@@ -184,6 +207,15 @@ export const book = practiceProcedure
       throw error;
     }
     if (!booking) throw new Error("Failed to insert booking");
+    if (consents) {
+      await recordConsents(context.db, {
+        practiceId: practice.id,
+        memberId: member.id,
+        bookingId: booking.id,
+        accept: consents.accept,
+        headers: context.headers,
+      });
+    }
 
     if (price > 0) {
       await recordCredit(context.db, {

@@ -17,6 +17,7 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  PracticeDocument,
   sql,
   Workflow,
 } from "@synoro/db";
@@ -263,6 +264,7 @@ export function undoImport(db: Database, batchId: string) {
       [AvailabilityRule, AvailabilityRule.id, added("hours")],
       [PaymentPackage, PaymentPackage.id, added("package")],
       [Workflow, Workflow.id, added("message")],
+      [PracticeDocument, PracticeDocument.id, added("document")],
     ] as const;
     for (const [table, column, ids] of drops) {
       if (ids.length > 0) await tx.delete(table).where(inArray(column, ids));

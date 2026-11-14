@@ -7,11 +7,20 @@ import {
   user,
 } from "@synoro/db";
 import { notifySeriesBooked } from "@synoro/jobs/booking-video";
-import { bookingAnswersInput, clientTimeZoneInput } from "@synoro/validators";
+import {
+  bookingAnswersInput,
+  clientTimeZoneInput,
+  consentsInput,
+} from "@synoro/validators";
 import { z } from "zod";
 
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { adjustCredits, releaseExpiredHolds } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+} from "../../lib/consents";
 import { exportBooking } from "../../lib/google-calendar";
 import {
   findMembership,
@@ -60,6 +69,7 @@ export const bookSeries = practiceProcedure
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
     SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     seriesInput.extend({
@@ -67,6 +77,8 @@ export const bookSeries = practiceProcedure
       skip: z.array(z.date()).max(SERIES_MAX).default([]),
       note: z.string().trim().max(500).optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The client's browser zone, for mails; not used when staff book. */
       timezone: clientTimeZoneInput,
     }),
@@ -107,6 +119,15 @@ export const bookSeries = practiceProcedure
       : await bookingAnswers(context.db, practice, input.answers);
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
+    }
+    // The practice's documents, accepted by the client alone.
+    const consents = forOther
+      ? null
+      : await checkConsents(context.db, practice, member.id, input.consents);
+    if (consents && consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
     }
 
     const skipped = new Set(input.skip.map((d) => d.getTime()));
@@ -191,6 +212,15 @@ export const bookSeries = practiceProcedure
       throw error;
     }
 
+    if (consents) {
+      await recordConsents(context.db, {
+        practiceId: practice.id,
+        memberId: member.id,
+        bookingId: created.bookingIds[0] ?? "",
+        accept: consents.accept,
+        headers: context.headers,
+      });
+    }
     // After the commit: Google and mails never undo the bookings.
     for (const id of created.bookingIds) await exportBooking(context.db, id);
     await notifySeriesBooked(context.db, created.bookingIds);
