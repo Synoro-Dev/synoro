@@ -5,6 +5,7 @@ import {
   and,
   Booking,
   BookingSeries,
+  Consent,
   count,
   type Database,
   eq,
@@ -17,6 +18,8 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  PracticeDocument,
+  PracticeDocumentVersion,
   sql,
   Workflow,
 } from "@synoro/db";
@@ -266,6 +269,32 @@ export function undoImport(db: Database, batchId: string) {
     ] as const;
     for (const [table, column, ids] of drops) {
       if (ids.length > 0) await tx.delete(table).where(inArray(column, ids));
+    }
+    // Documents the import added: one a client has accepted since stays, put
+    // away — deleting it would take the consents with it.
+    const documentIds = added("document");
+    if (documentIds.length > 0) {
+      const used = await tx
+        .selectDistinct({ id: PracticeDocumentVersion.documentId })
+        .from(Consent)
+        .innerJoin(
+          PracticeDocumentVersion,
+          eq(PracticeDocumentVersion.id, Consent.versionId),
+        )
+        .where(inArray(PracticeDocumentVersion.documentId, documentIds));
+      const kept = used.map((row) => row.id);
+      const unused = documentIds.filter((id) => !kept.includes(id));
+      if (unused.length > 0) {
+        await tx
+          .delete(PracticeDocument)
+          .where(inArray(PracticeDocument.id, unused));
+      }
+      if (kept.length > 0) {
+        await tx
+          .update(PracticeDocument)
+          .set({ archived: true })
+          .where(inArray(PracticeDocument.id, kept));
+      }
     }
     for (const item of items) {
       if (item.action !== "merged" || !item.before) continue;

@@ -34,6 +34,11 @@ import { leaveFrame } from "~/lib/leave-frame";
 import { orpc } from "~/orpc/react";
 import { formatRub, packageDeals } from "../payment/format";
 import { BookingQuestionFields } from "./booking-question-fields";
+import {
+  type ConsentDocument,
+  ConsentFields,
+  useConsents,
+} from "./consent-fields";
 
 interface Offer {
   provider: string | null;
@@ -64,6 +69,8 @@ export function GuestBookingForm({
   offer,
   service,
   questions,
+  documents,
+  acceptsMinors,
 }: {
   practice: { id: string; name: string; profession: Profession };
   /** What is being booked; the practice's first service when missing. */
@@ -74,6 +81,9 @@ export function GuestBookingForm({
   offer: Offer;
   /** The practice's questionnaire («Про»); empty when none is asked. */
   questions: BookingQuestion[];
+  /** The practice's documents to accept; empty when it has none. */
+  documents: ConsentDocument[];
+  acceptsMinors: boolean;
 }) {
   const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
@@ -84,6 +94,7 @@ export function GuestBookingForm({
   const selected = deals.find((d) => d.id === packageId) ?? deals[0];
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
+  const consents = useConsents(documents, acceptsMinors);
 
   const form = useForm<GuestBookingFormInput, unknown, GuestBookingFormValues>({
     resolver: zodResolver(guestBookingFormSchema),
@@ -108,6 +119,13 @@ export function GuestBookingForm({
           queryKey: orpc.practice.key(),
         });
       }
+      if (isDefinedError(error) && error.code === "CONSENTS_REQUIRED") {
+        // A document changed meanwhile: show the wording in force now.
+        consents.reject(error.data.documentIds);
+        await queryClient.invalidateQueries({
+          queryKey: orpc.practice.key(),
+        });
+      }
     },
   });
   const leaving = reserve.isPending || reserve.isSuccess;
@@ -117,9 +135,11 @@ export function GuestBookingForm({
     const { errors } = checkBookingAnswers(questions, answers);
     setAnswerErrors(errors);
     if (Object.keys(errors).length > 0) return;
+    if (!consents.validate()) return;
     reserve.mutate({
       ...values,
       answers,
+      consents: consents.value(),
       note: values.note || undefined,
       practiceId: practice.id,
       packageId: selected.id,
@@ -248,6 +268,8 @@ export function GuestBookingForm({
           </FieldLabel>
         ))}
       </RadioGroup>
+
+      <ConsentFields consents={consents} idPrefix="guest" />
 
       <Button type="submit" size="lg" disabled={leaving || !selected}>
         {leaving && <Spinner />}

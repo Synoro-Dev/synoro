@@ -128,6 +128,7 @@ describe("the archive", () => {
       "appointments.csv",
       "calendar.ics",
       "clients.csv",
+      "consents.csv",
       "data.json",
       "payments.csv",
       "services.csv",

@@ -78,6 +78,7 @@ import {
   weekWindow,
 } from "./booking-views";
 import { WeekColumns, WeekGrid, WeekSkeleton } from "./booking-week";
+import { ConsentFields, useConsents } from "./consent-fields";
 import { displayFonts } from "./display-font";
 import { useDisplayZone } from "./display-zone";
 import { GuestBookingForm } from "./guest-booking-form";
@@ -282,6 +283,8 @@ export function PublicBooking({
   });
   const needsPhone = !!me.data && !me.data.phone;
   const { questions } = info;
+  // The signed-in client's own booking; the forms for visitors keep theirs.
+  const consents = useConsents(info.documents, info.acceptsMinors);
   const introLength = formatMinutes(info.introMinutes);
   // Paid hours first; the intro when nothing else can be booked here.
   const kind: Kind = !info.freeBooking
@@ -452,6 +455,7 @@ export function PublicBooking({
       );
       setPicked(null);
       setAnswers({});
+      consents.reset();
       await refresh();
     },
     onError: async (error) => {
@@ -463,13 +467,26 @@ export function PublicBooking({
         await refresh();
         return;
       }
+      if (isDefinedError(error) && error.code === "CONSENTS_REQUIRED") {
+        // A document changed meanwhile: keep the time, show what to accept.
+        consents.reject(error.data.documentIds);
+        await refresh();
+        return;
+      }
       setPicked(null);
       await refresh();
     },
   });
 
+  /** Questionnaire and documents both, so every field to fix is marked. */
+  function ready() {
+    const answeredAll = answered();
+    // One message is enough when both are missing.
+    return consents.validate(!answeredAll) && answeredAll;
+  }
+
   async function confirm(slot: Slot) {
-    if (!answered()) return;
+    if (!ready()) return;
     if (needsPhone) {
       const normalized = normalizePhone(phone);
       if (!normalized) {
@@ -483,6 +500,7 @@ export function PublicBooking({
       startsAt: slot.startsAt,
       serviceId: service?.id,
       answers,
+      consents: consents.value(),
       timezone: zone,
     });
   }
@@ -782,6 +800,8 @@ export function PublicBooking({
                     signedIn={signedIn}
                     needsPhone={needsPhone}
                     questions={questions}
+                    documents={info.documents}
+                    acceptsMinors={info.acceptsMinors}
                     onBooked={async (booking) => {
                       setBookedIntro({ ...booking, atVisit });
                       setPicked(null);
@@ -799,6 +819,8 @@ export function PublicBooking({
                     offer={offer.data}
                     service={service}
                     questions={questions}
+                    documents={info.documents}
+                    acceptsMinors={info.acceptsMinors}
                   />
                 ) : (
                   <div className="flex flex-col gap-4">
@@ -832,6 +854,7 @@ export function PublicBooking({
                         />
                       </div>
                     )}
+                    <ConsentFields consents={consents} idPrefix="booking" />
                     <Button
                       size="lg"
                       disabled={book.isPending || savePhone.isPending}
@@ -844,7 +867,7 @@ export function PublicBooking({
                       <Button
                         variant="outline"
                         onClick={() =>
-                          answered() && setSeriesFrom(picked.startsAt)
+                          ready() && setSeriesFrom(picked.startsAt)
                         }
                       >
                         <RepeatIcon />
@@ -1215,6 +1238,13 @@ export function PublicBooking({
         price={price}
         terms={terms}
         answers={answers}
+        consents={consents.value()}
+        onConsentsRequired={async (documentIds) => {
+          // Back to the form, with the documents in force now.
+          setSeriesFrom(null);
+          consents.reject(documentIds);
+          await refresh();
+        }}
         onAnswersInvalid={async (errors) => {
           // Back to the questionnaire, with the questions asked now.
           setSeriesFrom(null);
@@ -1226,6 +1256,7 @@ export function PublicBooking({
           setSeriesFrom(null);
           setPicked(null);
           setAnswers({});
+          consents.reset();
           setBooked(dates[0] ?? null);
           setBookedCount(dates.length);
           setBookedMinutes(serviceMinutes);

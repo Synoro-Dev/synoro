@@ -7,6 +7,7 @@ import {
   Booking,
   BookingSeries,
   ClientNote,
+  Consent,
   CreditEntry,
   type Database,
   eq,
@@ -17,6 +18,8 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  PracticeDocument,
+  PracticeDocumentVersion,
   PracticeDomain,
   PracticeMember,
   PracticeSlugAlias,
@@ -60,6 +63,23 @@ interface OfflinePaymentDump {
   paid_at: string;
   note: string | null;
   created_at: string | null;
+}
+
+interface ConsentDump {
+  id: string;
+  client_id: string | null;
+  booking_id: string | null;
+  version_id: string | null;
+  /** The wording accepted, named here so the row reads on its own. */
+  document_title: string;
+  document_version: number;
+  accepted_at: string;
+  /** Given signed in; a visitor's consent proves the booking only. */
+  by_session: boolean;
+  ip: string | null;
+  user_agent: string | null;
+  representative_name: string | null;
+  minor_name: string | null;
 }
 
 interface PaymentDump {
@@ -163,6 +183,9 @@ export async function collectPractice(db: Database, practiceId: string) {
     archived,
     notes,
     offline,
+    documents,
+    versions,
+    consents,
   ] = await Promise.all([
     loadPeople(db, practice.id),
     loadBookings(db, practice.id),
@@ -249,11 +272,54 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(OfflinePayment)
       .where(eq(OfflinePayment.practiceId, practice.id))
       .orderBy(asc(OfflinePayment.paidAt), asc(OfflinePayment.id)),
+    db
+      .select()
+      .from(PracticeDocument)
+      .where(eq(PracticeDocument.practiceId, practice.id))
+      .orderBy(asc(PracticeDocument.position), asc(PracticeDocument.createdAt)),
+    db
+      .select({
+        id: PracticeDocumentVersion.id,
+        documentId: PracticeDocumentVersion.documentId,
+        number: PracticeDocumentVersion.number,
+        title: PracticeDocumentVersion.title,
+        body: PracticeDocumentVersion.body,
+        createdAt: PracticeDocumentVersion.createdAt,
+      })
+      .from(PracticeDocumentVersion)
+      .innerJoin(
+        PracticeDocument,
+        eq(PracticeDocument.id, PracticeDocumentVersion.documentId),
+      )
+      .where(eq(PracticeDocument.practiceId, practice.id))
+      .orderBy(asc(PracticeDocumentVersion.number)),
+    db
+      .select({
+        id: Consent.id,
+        memberId: Consent.memberId,
+        bookingId: Consent.bookingId,
+        versionId: Consent.versionId,
+        title: PracticeDocumentVersion.title,
+        number: PracticeDocumentVersion.number,
+        acceptedAt: Consent.acceptedAt,
+        bySession: Consent.bySession,
+        ip: Consent.ip,
+        userAgent: Consent.userAgent,
+        representativeName: Consent.representativeName,
+        minorName: Consent.minorName,
+      })
+      .from(Consent)
+      .innerJoin(
+        PracticeDocumentVersion,
+        eq(PracticeDocumentVersion.id, Consent.versionId),
+      )
+      .where(eq(Consent.practiceId, practice.id))
+      .orderBy(asc(Consent.acceptedAt), asc(Consent.id)),
   ]);
 
   // History from an earlier archive goes out with the live rows, in their form.
   const archivedOf = <T>(
-    kind: "payment" | "credit_entry" | "offline_payment",
+    kind: "payment" | "credit_entry" | "offline_payment" | "consent",
   ) => archived.filter((row) => row.kind === kind).map((row) => row.data as T);
 
   return {
@@ -273,6 +339,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     pay_at_visit: practice.payAtVisit,
     cancel_hours: practice.cancelHours,
     late_cancel: practice.lateCancel,
+    accepts_minors: practice.acceptsMinors,
     remind_clients: practice.remindClients,
     notify_staff: practice.notifyStaff,
     daily_agenda: practice.dailyAgenda,
@@ -308,6 +375,42 @@ export async function collectPractice(db: Database, practiceId: string) {
       created_at: iso(row.createdAt),
     })),
     bookings,
+    // The documents clients accept, every wording there ever was, and who
+    // accepted which — history from an earlier archive first.
+    documents: documents.map((row) => ({
+      id: row.id,
+      kind: row.kind,
+      required: row.required,
+      archived: row.archived,
+      versions: versions
+        .filter((version) => version.documentId === row.id)
+        .map((version) => ({
+          id: version.id,
+          number: version.number,
+          title: version.title,
+          text: version.body,
+          created_at: iso(version.createdAt),
+        })),
+    })),
+    consents: [
+      ...archivedOf<ConsentDump>("consent"),
+      ...consents.map(
+        (row): ConsentDump => ({
+          id: row.id,
+          client_id: row.memberId,
+          booking_id: row.bookingId,
+          version_id: row.versionId,
+          document_title: row.title,
+          document_version: row.number,
+          accepted_at: iso(row.acceptedAt) as string,
+          by_session: row.bySession,
+          ip: row.ip,
+          user_agent: row.userAgent,
+          representative_name: row.representativeName,
+          minor_name: row.minorName,
+        }),
+      ),
+    ],
     // The owner's working notes, decrypted: the archive is theirs. One that
     // won't decrypt (the key was changed) goes out as null, the rest still do.
     notes: notes.map((row) => ({
