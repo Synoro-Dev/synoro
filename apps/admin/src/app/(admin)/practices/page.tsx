@@ -77,10 +77,8 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
           {items.map((practice) => (
             <TableRow key={practice.id}>
               <TableCell>
-                <a
-                  href={bookingPageUrl(practice.slug)}
-                  target="_blank"
-                  rel="noreferrer"
+                <Link
+                  href={`/practices/${practice.id}` as Route}
                   className="flex items-center gap-3 hover:underline"
                 >
                   <Avatar className="size-10">
@@ -94,12 +92,15 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
                       {practice.name.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <span className="flex flex-col">
-                    <span className="font-medium">{practice.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      /{practice.slug}
-                    </span>
-                  </span>
+                  <span className="font-medium">{practice.name}</span>
+                </Link>
+                <a
+                  href={bookingPageUrl(practice.slug)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-muted-foreground pl-13 text-xs hover:underline"
+                >
+                  /{practice.slug}
                 </a>
               </TableCell>
               <TableCell className="text-muted-foreground">
