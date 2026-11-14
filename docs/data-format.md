@@ -25,7 +25,7 @@
 
 Настройки: `id`, `name`, `slug`, `old_slugs`, `domains`, `timezone`, `profession`,
 `video_url`, `client_contact`, `booking_questions`, `booking_theme`,
-`free_booking_enabled`, `intro_minutes`, `pay_at_visit`, `cancel_hours` (срок
+`free_booking_enabled`, `intro_minutes`, `pay_at_visit`, `accepts_minors`, `cancel_hours` (срок
 отмены в часах), `late_cancel` (поздняя отмена без возврата), `remind_clients`, `notify_staff`,
 `daily_agenda`, `created_at`, `working_hours`, `packages`, `messages`,
 `payment_accounts` (без ключей и идентификатора магазина).
@@ -63,6 +63,19 @@
 (→ `clients.id`), `booking_id` (→ `bookings.id`, если заметка к сессии), `text`
 (`null`, если заметку не удалось расшифровать — например, сменили ключ),
 `created_at`, `updated_at`.
+
+### Документы и согласия
+
+`documents`: `id`, `kind` (`offer`, `informed_consent`, `personal_data`, `other`),
+`required`, `archived`, `versions` — все редакции по порядку: `id`, `number`, `title`,
+`text`, `created_at`. Действует редакция с наибольшим `number`.
+
+`consents` (кто какую редакцию принял): `id`, `client_id`, `booking_id`, `version_id`
+(→ `documents[].versions[].id`), `document_title`, `document_version`, `accepted_at`,
+`by_session` (дано после входа в кабинет; без входа согласие подтверждает только ту запись),
+`ip`, `user_agent`, `representative_name` и `minor_name` (если согласие дал родитель
+за ребёнка). Перенесённые из прошлого архива идут первыми; их `version_id` относится
+к прежней практике, поэтому название и номер редакции записаны в самой строке.
 
 ### Деньги
 

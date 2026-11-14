@@ -11,6 +11,7 @@ import { DEFAULT_BOOKING_THEME, readBookingTheme } from "@synoro/validators";
 
 import { protectedProcedure } from "../orpc";
 import { hasPro } from "./billing";
+import { acceptedVersions, currentDocuments } from "./consents";
 import { activeServices } from "./services";
 import { practiceImageUrl } from "./urls";
 
@@ -71,7 +72,8 @@ export async function findOwnerMembership(
  * `freeBooking` — visitors may book the free intro themselves;
  * `introMinutes` — how long it lasts; `payAtVisit` — services are booked
  * without payment (`booking.bookAtVisit`), paid at the visit;
- * `cancelHours` / `lateCancel` — the practice's cancellation terms.
+ * `cancelHours` / `lateCancel` — the practice's cancellation terms;
+ * `documents` / `acceptsMinors` — what a client accepts when booking.
  */
 export async function publicPractice(
   context: { db: Database; session: { user: { id: string } } | null },
@@ -94,6 +96,7 @@ export async function publicPractice(
       payAtVisit: true,
       cancelHours: true,
       lateCancel: true,
+      acceptsMinors: true,
     },
   });
   if (!practice || (await ownerLeaving(context.db, practice.ownerId))) {
@@ -101,11 +104,17 @@ export async function publicPractice(
   }
 
   const userId = context.session?.user.id;
-  const [member, pro, services] = await Promise.all([
+  const [member, pro, services, documents] = await Promise.all([
     userId ? findMembership(context.db, practice.id, userId) : undefined,
     hasPro(context.db, practice.ownerId),
     activeServices(context.db, practice.id),
+    currentDocuments(context.db, practice.id),
   ]);
+  const accepted = await acceptedVersions(
+    context.db,
+    member?.id ?? null,
+    documents.map((d) => d.versionId),
+  );
 
   const {
     image,
@@ -125,6 +134,21 @@ export async function publicPractice(
      * services: it books an hour for one credit.
      */
     services,
+    /**
+     * The documents a client accepts when booking, in the order shown (the
+     * text is read with `document.read`); `accepted` — the caller did
+     * already, signed in, for themselves. For a child the parent accepts every
+     * time: the page can't know which child. With `acceptsMinors` it offers
+     * booking for a child.
+     */
+    documents: documents.map((d) => ({
+      id: d.id,
+      versionId: d.versionId,
+      kind: d.kind,
+      title: d.title,
+      required: d.required,
+      accepted: accepted.has(d.versionId),
+    })),
     /** The questionnaire to fill in when booking; empty without «Про». */
     questions: pro ? questions : [],
     /** How the page looks; the default look without «Про». */

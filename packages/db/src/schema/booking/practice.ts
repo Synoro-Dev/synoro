@@ -112,6 +112,12 @@ export const Practice = pgTable(
      * not returned (`late_cancel`). Off: only staff cancel a late booking.
      */
     lateCancel: t.boolean().notNull().default(false),
+    /**
+     * The specialist works with clients under 18: the booking page offers «за
+     * ребёнка», and a parent or guardian accepts the documents for them
+     * (`consents.representative_name`).
+     */
+    acceptsMinors: t.boolean().notNull().default(false),
     /** Clients get reminders 24 h and 1 h before a meeting. */
     remindClients: t.boolean().notNull().default(true),
     /** Owner and administrators hear of bookings made and cancelled. */

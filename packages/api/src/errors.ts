@@ -15,6 +15,7 @@ export const errorStatusMap: Record<string, number> = {
   TOO_LATE: 409,
   NOT_STARTED: 409,
   NEGATIVE_BALANCE: 409,
+  CONSENTS_REQUIRED: 422,
   PAYMENT_WITHOUT_GRANT: 422,
   ALREADY_PAID: 409,
   PREPAID: 409,

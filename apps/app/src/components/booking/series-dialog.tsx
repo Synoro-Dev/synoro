@@ -11,7 +11,11 @@ import {
   DialogTitle,
   toast,
 } from "@synoro/ui";
-import { formatCredits, type ProfessionTerms } from "@synoro/validators";
+import {
+  type ConsentsInput,
+  formatCredits,
+  type ProfessionTerms,
+} from "@synoro/validators";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -38,7 +42,9 @@ export function SeriesDialog({
   price,
   terms,
   answers,
+  consents,
   onAnswersInvalid,
+  onConsentsRequired,
   onClose,
   onBooked,
 }: {
@@ -55,8 +61,12 @@ export function SeriesDialog({
   terms: ProfessionTerms;
   /** The questionnaire, already filled in on the booking page. */
   answers: Record<string, string>;
+  /** The documents ticked on the booking page (`useConsents().value()`). */
+  consents: ConsentsInput;
   /** The server rejected `answers`: an error per question id. */
   onAnswersInvalid: (errors: Record<string, string>) => void;
+  /** The server wants these documents accepted first. */
+  onConsentsRequired: (documentIds: string[]) => void;
   onClose: () => void;
   onBooked: (dates: Date[]) => void;
 }) {
@@ -76,7 +86,9 @@ export function SeriesDialog({
             price={price}
             terms={terms}
             answers={answers}
+            consents={consents}
             onAnswersInvalid={onAnswersInvalid}
+            onConsentsRequired={onConsentsRequired}
             onBooked={onBooked}
             onCancel={onClose}
           />
@@ -95,7 +107,9 @@ function SeriesForm({
   price,
   terms,
   answers,
+  consents,
   onAnswersInvalid,
+  onConsentsRequired,
   onBooked,
   onCancel,
 }: {
@@ -107,7 +121,9 @@ function SeriesForm({
   price: number;
   terms: ProfessionTerms;
   answers: Record<string, string>;
+  consents: ConsentsInput;
   onAnswersInvalid: (errors: Record<string, string>) => void;
+  onConsentsRequired: (documentIds: string[]) => void;
   onBooked: (dates: Date[]) => void;
   onCancel: () => void;
 }) {
@@ -135,6 +151,10 @@ function SeriesForm({
         onAnswersInvalid(error.data.errors);
         return;
       }
+      if (isDefinedError(error) && error.code === "CONSENTS_REQUIRED") {
+        onConsentsRequired(error.data.documentIds);
+        return;
+      }
       if (isDefinedError(error) && error.code === "SLOT_UNAVAILABLE") {
         await preview.refetch();
       }
@@ -154,6 +174,7 @@ function SeriesForm({
           ...repeat,
           skip,
           answers,
+          consents,
           timezone: timeZone,
         });
       }}

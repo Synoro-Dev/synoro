@@ -46,6 +46,9 @@
  *   account.*       – deleting the account and changing one's mind  (owner)
  *   import.*        – bringing clients in from a table: upload, preview,
  *                     apply, undo (owner), the cards (staff)
+ *   document.*      – the practice's documents clients accept when
+ *                     booking: list, consents (staff), save (owner),
+ *                     read a version (public)
  *   note.*          – the specialist's encrypted working notes on a
  *                     client and their sessions    (owner, in person)
  */
@@ -58,6 +61,7 @@ import { billingRouter } from "./billing";
 import { bookingRouter } from "./booking";
 import { creditRouter } from "./credit";
 import { dataRouter } from "./data";
+import { documentRouter } from "./document";
 import { domainRouter } from "./domain";
 import { googleCalendarRouter } from "./google-calendar";
 import { importRouter } from "./import";
@@ -82,6 +86,7 @@ export const appRouter = {
   booking: bookingRouter,
   credit: creditRouter,
   domain: domainRouter,
+  document: documentRouter,
   payment: paymentRouter,
   offlinePayment: offlinePaymentRouter,
   billing: billingRouter,

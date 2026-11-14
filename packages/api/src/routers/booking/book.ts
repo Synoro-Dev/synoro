@@ -7,7 +7,11 @@ import {
   user,
 } from "@synoro/db";
 import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
-import { bookingAnswersInput, clientTimeZoneInput } from "@synoro/validators";
+import {
+  bookingAnswersInput,
+  clientTimeZoneInput,
+  consentsInput,
+} from "@synoro/validators";
 import { z } from "zod";
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import {
@@ -16,6 +20,11 @@ import {
   recordCredit,
   releaseExpiredHolds,
 } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+} from "../../lib/consents";
 import { exportBooking, isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findMembership,
@@ -38,6 +47,8 @@ import { resolveService } from "../../lib/services";
  * PHONE_REQUIRED when a client booking for themselves has no phone yet;
  * ANSWERS_INVALID when they left the practice's questionnaire («Про»)
  * unfilled — `answers` are keyed by question id, staff booking a client skip it;
+ * CONSENTS_REQUIRED when a required document of the practice is neither
+ * ticked (`consents`) nor accepted before — again, not asked of staff;
  * NO_CREDITS when the client's balance is zero; SLOT_UNAVAILABLE when the
  * time is off the schedule, busy in the specialist's Google Calendar (checked
  * for clients only: staff see it on the calendar, as in `bookFree`), or
@@ -70,6 +81,7 @@ export const book = practiceProcedure
     NOT_FOUND: { message: "Клиент не найден в этой практике" },
     SERVICE_NOT_FOUND: { message: "Услуга не найдена — обновите страницу" },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     z.object({
@@ -81,6 +93,8 @@ export const book = practiceProcedure
       /** Staff only: the client to book; defaults to the caller. */
       memberId: z.uuid().optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The client's browser zone, for mails; not used when staff book. */
       timezone: clientTimeZoneInput,
     }),
@@ -129,6 +143,15 @@ export const book = practiceProcedure
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
     }
+    // The practice's documents, accepted by the client alone.
+    const consents = forOther
+      ? null
+      : await checkConsents(context.db, practice, member.id, input.consents);
+    if (consents && consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
+    }
 
     const rules = await loadRules(context.db, practice.id);
     const scheduled = isScheduledSlot({
@@ -159,23 +182,39 @@ export const book = practiceProcedure
 
     let booking: typeof Booking.$inferSelect | undefined;
     try {
-      [booking] = await context.db
-        .insert(Booking)
-        .values({
-          practiceId: practice.id,
-          kind: "consultation",
-          serviceId: service.id,
-          credits: price,
-          startsAt: input.startsAt,
-          endsAt,
-          memberId: member.id,
-          note: input.note,
-          answers: questionnaire.answers,
-          // Staff's browser says nothing about the client's zone.
-          clientTimezone: forOther ? null : (input.timezone ?? null),
-          createdById: userId,
-        })
-        .returning();
+      // One transaction: the booking and its consents stand or fall together
+      // (the credit taken above is given back by the catch below).
+      [booking] = await context.db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(Booking)
+          .values({
+            practiceId: practice.id,
+            kind: "consultation",
+            serviceId: service.id,
+            credits: price,
+            startsAt: input.startsAt,
+            endsAt,
+            memberId: member.id,
+            note: input.note,
+            answers: questionnaire.answers,
+            // Staff's browser says nothing about the client's zone.
+            clientTimezone: forOther ? null : (input.timezone ?? null),
+            createdById: userId,
+          })
+          .returning();
+        const [row] = rows;
+        if (row && consents) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: member.id,
+            bookingId: row.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: true,
+          });
+        }
+        return rows;
+      });
     } catch (error) {
       if (price > 0) await adjustCredits(context.db, member.id, price);
       if (isExclusionViolation(error, "bookings_no_overlap")) {

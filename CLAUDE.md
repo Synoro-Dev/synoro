@@ -323,6 +323,16 @@ and run `tsc` by hand, build them first.
   get no mail, because mail goes through `practice_members`. Every import is a
   batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
   `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
+- **Documents and consents** (`docs/consents.md`): the owner's documents
+  (`practice_documents` + versions, `document.*`, settings page «Документы»,
+  any plan) are accepted by a client when booking: every client booking
+  procedure takes `consents` and answers `CONSENTS_REQUIRED` (`lib/consents.ts`:
+  `checkConsents` before, `recordConsents` after — version, time, IP, browser
+  in `consents`). A changed text is a new version, asked again; documents are
+  archived, never deleted. `practices.accepts_minors`: a parent consents for a
+  child (`representative_name`, `minor_name`), apart from their own consent.
+  Staff booking a client are not asked. A new client booking path needs both
+  calls too.
 - **Payments outside Synoro** (`docs/offline-payments.md`): `offline_payments`
   (amount in kopecks, method, `paid_at`; linked to a booking paid at the visit
   or a `credit.grant` entry), `offlinePayment.*` (staff): record, list, remove,

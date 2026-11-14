@@ -29,6 +29,7 @@ import { useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import { kindLabel } from "./booking-dialog";
+import { ClientConsents } from "./client-consents";
 import { HistoryList } from "./client-dialogs";
 import { ClientNotes } from "./client-notes";
 import type { Member } from "./practice-clients";
@@ -152,6 +153,7 @@ export function ClientCard({
                 <TabsTrigger value="balance">
                   {canKeepNotes ? "Баланс" : "Журнал баланса"}
                 </TabsTrigger>
+                <TabsTrigger value="consents">Согласия</TabsTrigger>
               </TabsList>
               <TabsContent value="bookings">
                 <ClientBookings
@@ -180,6 +182,9 @@ export function ClientCard({
               )}
               <TabsContent value="balance">
                 <HistoryList memberId={member.id} />
+              </TabsContent>
+              <TabsContent value="consents">
+                <ClientConsents practiceId={practiceId} memberId={member.id} />
               </TabsContent>
             </Tabs>
           </>

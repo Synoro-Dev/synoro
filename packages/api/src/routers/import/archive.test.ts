@@ -4,6 +4,7 @@ import {
   AvailabilityRule,
   Booking,
   BookingSeries,
+  Consent,
   CreditEntry,
   eq,
   ImportBatch,
@@ -14,6 +15,8 @@ import {
   PaymentPackage,
   Practice,
   PracticeClient,
+  PracticeDocument,
+  PracticeDocumentVersion,
   PracticeMember,
   user,
   Workflow,
@@ -242,6 +245,30 @@ async function richPractice() {
     paidAt: at(-30),
     note: "Наличными на приёме",
   });
+  const [document] = await api.db
+    .insert(PracticeDocument)
+    .values({ practiceId, kind: "personal_data", required: true })
+    .returning();
+  if (!document) throw new Error("no document");
+  const [version] = await api.db
+    .insert(PracticeDocumentVersion)
+    .values({
+      documentId: document.id,
+      number: 1,
+      title: "Согласие на обработку данных",
+      body: "Согласен на обработку персональных данных.",
+    })
+    .returning();
+  if (!version) throw new Error("no version");
+  await api.db.insert(Consent).values({
+    practiceId,
+    memberId: olga.id,
+    versionId: version.id,
+    bookingId: past?.id,
+    acceptedAt: at(-31),
+    ip: "203.0.113.7",
+    userAgent: "TestBrowser/1.0",
+  });
   return source;
 }
 
@@ -316,6 +343,28 @@ function canonical(dump: AccountDump) {
         client: who(client_id),
         booking: bookingAt(booking_id),
       })),
+    ),
+    documents: sorted(
+      practice.documents
+        .filter((document) => !document.archived)
+        .map((document) => {
+          const latest = document.versions.at(-1);
+          return {
+            kind: document.kind,
+            required: document.required,
+            title: latest?.title,
+            text: latest?.text,
+          };
+        }),
+    ),
+    consents: sorted(
+      practice.consents.map(
+        ({ id: _, client_id, booking_id, version_id: _version, ...row }) => ({
+          ...row,
+          client: who(client_id),
+          booking: bookingAt(booking_id),
+        }),
+      ),
     ),
     offline_payments: sorted(
       practice.offline_payments.map(
@@ -414,6 +463,79 @@ describe("the round trip", () => {
 
     const after = await collectAccount(api.db, target.session.user.id);
     expect(canonical(after)).toEqual(canonical(before));
+  });
+});
+
+describe("undoing an import whose documents were accepted since", () => {
+  it("keeps what a client accepted: the document is put away, not deleted", async () => {
+    const source = await richPractice();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const target = await makeOwner();
+    const { uploaded } = await restore(target, JSON.stringify(dump));
+
+    const imported = await api.db.query.PracticeDocument.findFirst({
+      where: eq(PracticeDocument.practiceId, target.practice.id),
+    });
+    if (!imported) throw new Error("the import brought no document");
+    const version = await api.db.query.PracticeDocumentVersion.findFirst({
+      where: eq(PracticeDocumentVersion.documentId, imported.id),
+    });
+    if (!version) throw new Error("no version");
+    const client = await createSession(api.db);
+    const [member] = await api.db
+      .insert(PracticeMember)
+      .values({ practiceId: target.practice.id, userId: client.user.id })
+      .returning();
+    await api.db.insert(Consent).values({
+      practiceId: target.practice.id,
+      memberId: member?.id ?? "",
+      versionId: version.id,
+      bySession: true,
+    });
+
+    await call(importRouter.undo, { batchId: uploaded.id }, target.context);
+
+    expect(
+      await api.db.$count(Consent, eq(Consent.practiceId, target.practice.id)),
+    ).toBe(1);
+    const stored = await api.db.query.PracticeDocument.findFirst({
+      where: eq(PracticeDocument.id, imported.id),
+    });
+    expect(stored?.archived).toBe(true);
+  });
+});
+
+describe("an archive with more documents than a practice may ask", () => {
+  it("brings the first five and leaves the rest behind", async () => {
+    const source = await makeOwner();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const forged = structuredClone(dump);
+    forged.practices[0]?.documents.push(
+      ...Array.from({ length: 6 }, (_, index) => ({
+        id: `d${index}`,
+        kind: "other" as const,
+        required: true,
+        archived: false,
+        versions: [
+          {
+            id: `v${index}`,
+            number: 1,
+            title: `Документ ${index + 1}`,
+            text: "Текст",
+            created_at: null,
+          },
+        ],
+      })),
+    );
+    const target = await makeOwner();
+    await restore(target, JSON.stringify(forged));
+
+    expect(
+      await api.db.$count(
+        PracticeDocument,
+        eq(PracticeDocument.practiceId, target.practice.id),
+      ),
+    ).toBe(5);
   });
 });
 
