@@ -368,8 +368,16 @@ async function PracticeCard({ params }: { params: Promise<{ id: string }> }) {
                       <TableCell>
                         {workflow.amount} {preset.amountUnit}
                       </TableCell>
-                      <TableCell className="max-w-64 truncate">
-                        {workflow.subject}
+                      <TableCell className="max-w-64">
+                        <div className="truncate">{workflow.subject}</div>
+                        <details className="mt-1">
+                          <summary className="cursor-pointer text-muted-foreground hover:underline">
+                            Текст письма
+                          </summary>
+                          <p className="mt-2 whitespace-pre-wrap break-words">
+                            {workflow.text}
+                          </p>
+                        </details>
                       </TableCell>
                       <TableCell>
                         {workflow.active ? "включено" : "выключено"}
