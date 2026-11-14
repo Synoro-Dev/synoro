@@ -46,11 +46,10 @@ export function useConsents(
   const [namesInvalid, setNamesInvalid] = useState(false);
 
   const minor = acceptsMinors && forMinor;
-  // What was accepted before is not asked again; a parent's consent for a
-  // child is a separate one.
-  const asked = documents.filter(
-    (d) => !(minor ? d.acceptedForMinor : d.accepted),
-  );
+  // What was accepted before is not asked again — but a parent accepts for a
+  // child every time: the page doesn't know which child, and a consent for one
+  // doesn't hold for another.
+  const asked = documents.filter((d) => minor || !d.accepted);
 
   /** `quiet`: another message is on screen already, mark the fields only. */
   function validate(quiet = false) {

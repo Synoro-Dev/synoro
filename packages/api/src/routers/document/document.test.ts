@@ -15,7 +15,7 @@ let owner: Session;
 let practiceId: string;
 
 // 2030-01-07 is a Monday; Moscow is UTC+3, so 10:00 MSK = 07:00Z.
-const at = (utc: string) => new Date(`2030-01-07T${utc}:00Z`);
+const at = (utc: string, day = "2030-01-07") => new Date(`${day}T${utc}:00Z`);
 const HEADERS = {
   "x-forwarded-for": "203.0.113.7, 10.0.0.1",
   "user-agent": "TestBrowser/1.0",
@@ -295,13 +295,84 @@ describe("consents when booking", () => {
     expect(given).toHaveLength(4);
     expect(given.filter((c) => c.minorName === "Миша")).toHaveLength(2);
     expect(
-      (await page(session))
-        .filter((d) => d.required)
-        .map((d) => [d.accepted, d.acceptedForMinor]),
-    ).toEqual([
-      [true, true],
-      [true, true],
-    ]);
+      (await page(session)).filter((d) => d.required).map((d) => d.accepted),
+    ).toEqual([true, true]);
+  });
+
+  it("takes a consent for one child as a consent for that child only", async () => {
+    const { session, memberId } = await newClient();
+    const versionIds = (await page(session))
+      .filter((d) => d.required)
+      .map((d) => d.versionId);
+    const mother = "Ирина Петрова";
+    await book(session, at("07:00", "2030-01-14"), {
+      versionIds,
+      minor: { representativeName: mother, minorName: "Миша" },
+    });
+
+    // Another child needs the parent's consent of its own, and gets it.
+    const other = { representativeName: mother, minorName: "Даша" };
+    await expect(
+      book(session, at("08:00", "2030-01-14"), {
+        versionIds: [],
+        minor: other,
+      }),
+    ).rejects.toMatchObject({ code: "CONSENTS_REQUIRED" });
+    await book(session, at("08:00", "2030-01-14"), {
+      versionIds,
+      minor: other,
+    });
+    const given = await call(
+      documentRouter.consents,
+      { practiceId, memberId },
+      { context: api.context(owner) },
+    );
+    expect(given.filter((c) => c.minorName === "Даша")).toHaveLength(2);
+
+    // The same child, however the name is typed, is covered by what was given.
+    await book(session, at("09:00", "2030-01-14"), {
+      versionIds: [],
+      minor: { representativeName: mother, minorName: " миша " },
+    });
+  });
+
+  it("never counts a visitor's ticks for the client whose address they typed", async () => {
+    await call(
+      practiceRouter.setFreeBooking,
+      { practiceId, enabled: true },
+      { context: api.context(owner) },
+    );
+    const { session, memberId } = await newClient();
+    const stranger = {
+      name: "Не тот человек",
+      phone: "+7 900 555-30-30",
+      email: session.user.email,
+    };
+    const documents = (await page()).filter((d) => d.required);
+    await call(
+      bookingRouter.bookIntro,
+      {
+        practiceId,
+        startsAt: at("16:30"),
+        guest: stranger,
+        consents: { versionIds: documents.map((d) => d.versionId) },
+      },
+      { context: api.context(null, HEADERS) },
+    );
+
+    // The booking keeps its proof, but it isn't the client's own consent.
+    const given = await api.db
+      .select({ bySession: Consent.bySession })
+      .from(Consent)
+      .where(eq(Consent.memberId, memberId));
+    expect(given).toHaveLength(2);
+    expect(given.every((c) => c.bySession === false)).toBe(true);
+    expect(
+      (await page(session)).filter((d) => d.required).map((d) => d.accepted),
+    ).toEqual([false, false]);
+    await expect(
+      book(session, at("11:30", "2030-01-14")),
+    ).rejects.toMatchObject({ code: "CONSENTS_REQUIRED" });
   });
 
   it("asks a visitor booking the free intro, and records it for their new account", async () => {

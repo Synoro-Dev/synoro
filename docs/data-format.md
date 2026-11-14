@@ -72,6 +72,7 @@
 
 `consents` (кто какую редакцию принял): `id`, `client_id`, `booking_id`, `version_id`
 (→ `documents[].versions[].id`), `document_title`, `document_version`, `accepted_at`,
+`by_session` (дано после входа в кабинет; без входа согласие подтверждает только ту запись),
 `ip`, `user_agent`, `representative_name` и `minor_name` (если согласие дал родитель
 за ребёнка). Перенесённые из прошлого архива идут первыми; их `version_id` относится
 к прежней практике, поэтому название и номер редакции записаны в самой строке.

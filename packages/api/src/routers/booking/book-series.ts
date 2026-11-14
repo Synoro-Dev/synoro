@@ -219,6 +219,7 @@ export const bookSeries = practiceProcedure
         bookingId: created.bookingIds[0] ?? "",
         accept: consents.accept,
         headers: context.headers,
+        bySession: true,
       });
     }
     // After the commit: Google and mails never undo the bookings.

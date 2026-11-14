@@ -215,6 +215,7 @@ export const reserve = publicProcedure
       bookingId: booking.id,
       accept: consents.accept,
       headers: context.headers,
+      bySession: false,
     });
 
     try {

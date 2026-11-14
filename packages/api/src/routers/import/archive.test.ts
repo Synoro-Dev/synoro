@@ -466,6 +466,45 @@ describe("the round trip", () => {
   });
 });
 
+describe("undoing an import whose documents were accepted since", () => {
+  it("keeps what a client accepted: the document is put away, not deleted", async () => {
+    const source = await richPractice();
+    const dump = await collectAccount(api.db, source.session.user.id);
+    const target = await makeOwner();
+    const { uploaded } = await restore(target, JSON.stringify(dump));
+
+    const imported = await api.db.query.PracticeDocument.findFirst({
+      where: eq(PracticeDocument.practiceId, target.practice.id),
+    });
+    if (!imported) throw new Error("the import brought no document");
+    const version = await api.db.query.PracticeDocumentVersion.findFirst({
+      where: eq(PracticeDocumentVersion.documentId, imported.id),
+    });
+    if (!version) throw new Error("no version");
+    const client = await createSession(api.db);
+    const [member] = await api.db
+      .insert(PracticeMember)
+      .values({ practiceId: target.practice.id, userId: client.user.id })
+      .returning();
+    await api.db.insert(Consent).values({
+      practiceId: target.practice.id,
+      memberId: member?.id ?? "",
+      versionId: version.id,
+      bySession: true,
+    });
+
+    await call(importRouter.undo, { batchId: uploaded.id }, target.context);
+
+    expect(
+      await api.db.$count(Consent, eq(Consent.practiceId, target.practice.id)),
+    ).toBe(1);
+    const stored = await api.db.query.PracticeDocument.findFirst({
+      where: eq(PracticeDocument.id, imported.id),
+    });
+    expect(stored?.archived).toBe(true);
+  });
+});
+
 describe("an attempt that stopped halfway", () => {
   it("is picked up without doubling cards that have no contacts", async () => {
     const source = await makeOwner();

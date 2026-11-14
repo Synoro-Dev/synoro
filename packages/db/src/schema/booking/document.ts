@@ -74,7 +74,8 @@ export const PracticeDocumentVersion = pgTable(
  * wording, when, from what address and browser, and with which booking. For a
  * client under 18 a parent or guardian consents: `representativeName` is who,
  * `minorName` — for whom. A consent given for oneself and one given for a
- * child are separate rows. Never updated.
+ * child are separate rows, and one given for a child holds for that child
+ * only. Never updated.
  */
 export const Consent = pgTable(
   "consents",
@@ -95,6 +96,13 @@ export const Consent = pgTable(
     /** The booking it was given with. */
     bookingId: t.uuid().references(() => Booking.id, { onDelete: "set null" }),
     acceptedAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
+    /**
+     * Given while signed in as the member. A visitor booking without signing
+     * in names an address nobody has confirmed, so such a consent proves what
+     * was ticked at that booking and nothing more: it never stands in for the
+     * member's own, and they are asked again when they sign in.
+     */
+    bySession: t.boolean().notNull().default(false),
     /** As the proxy saw it (`clientIp`); null in development. */
     ip: t.varchar({ length: 64 }),
     userAgent: t.varchar({ length: 300 }),

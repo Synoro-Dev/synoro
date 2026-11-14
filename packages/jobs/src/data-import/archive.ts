@@ -207,6 +207,7 @@ const practiceSchema = z.object({
         document_title: text(DOCUMENT_TITLE_MAX),
         document_version: z.number().int().min(1).max(100_000),
         accepted_at: moment,
+        by_session: z.boolean().default(false),
         ip: text(64).nullish(),
         user_agent: text(300).nullish(),
         representative_name: text(120).nullish(),

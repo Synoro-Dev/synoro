@@ -136,9 +136,10 @@ export async function publicPractice(
     services,
     /**
      * The documents a client accepts when booking, in the order shown (the
-     * text is read with `document.read`); `accepted` / `acceptedForMinor` —
-     * the caller did already, for themselves or as a parent. With
-     * `acceptsMinors` the page offers booking for a child.
+     * text is read with `document.read`); `accepted` — the caller did
+     * already, signed in, for themselves. For a child the parent accepts every
+     * time: the page can't know which child. With `acceptsMinors` it offers
+     * booking for a child.
      */
     documents: documents.map((d) => ({
       id: d.id,
@@ -146,8 +147,7 @@ export async function publicPractice(
       kind: d.kind,
       title: d.title,
       required: d.required,
-      accepted: accepted.self.has(d.versionId),
-      acceptedForMinor: accepted.minor.has(d.versionId),
+      accepted: accepted.has(d.versionId),
     })),
     /** The questionnaire to fill in when booking; empty without «Про». */
     questions: pro ? questions : [],

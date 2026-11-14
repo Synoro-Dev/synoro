@@ -21,8 +21,9 @@ import {
  * title or text becomes a new version, and clients are asked to accept it at
  * their next booking; the same wording stays the same version. One without an
  * `id` is new. A document left out is archived, never deleted: consents given
- * to it must stay provable. Saves of one practice run one at a time. Owner
- * only.
+ * to it must stay provable. Saves of one practice run one at a time. Returns
+ * the id of every document, in the order given, so a client that sent new ones
+ * can name them in its next save. Owner only.
  *
  * @example client.document.save({ practiceId, acceptsMinors: false, documents: [{ kind: "offer", title: "Договор-оферта", body: "…", required: true }] })
  */
@@ -39,18 +40,21 @@ export const save = practiceProcedure
     );
     if (!owner) throw errors.FORBIDDEN();
 
-    await context.db.transaction(async (tx) => {
+    const ids = await context.db.transaction(async (tx) => {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`documents:${input.practiceId}`}))`,
       );
       const existing = await currentDocuments(tx, input.practiceId);
       const known = new Map(existing.map((d) => [d.id, d]));
       const kept = new Set<string>();
+      /** The id of each document, in the order given. */
+      const ids: string[] = [];
 
       for (const [position, document] of input.documents.entries()) {
         const current = document.id ? known.get(document.id) : undefined;
         if (current) {
           kept.add(current.id);
+          ids.push(current.id);
           await tx
             .update(PracticeDocument)
             .set({
@@ -82,6 +86,7 @@ export const save = practiceProcedure
           })
           .returning({ id: PracticeDocument.id });
         if (!created) throw new Error("Failed to insert document");
+        ids.push(created.id);
         await tx.insert(PracticeDocumentVersion).values({
           documentId: created.id,
           number: 1,
@@ -105,7 +110,8 @@ export const save = practiceProcedure
         .update(Practice)
         .set({ acceptsMinors: input.acceptsMinors })
         .where(eq(Practice.id, input.practiceId));
+      return ids;
     });
 
-    return { saved: input.documents.length };
+    return { saved: ids.length, ids };
   });

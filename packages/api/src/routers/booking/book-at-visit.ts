@@ -316,6 +316,7 @@ export const bookAtVisit = publicProcedure
       bookingId: booking.id,
       accept: consents.accept,
       headers: context.headers,
+      bySession: context.session !== null,
     });
 
     await exportBooking(context.db, booking.id);

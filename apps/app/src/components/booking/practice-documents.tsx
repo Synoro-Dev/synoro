@@ -172,7 +172,23 @@ function Editor({ practiceId, saved }: { practiceId: string; saved: Saved }) {
       return;
     }
     setError(undefined);
-    save.mutate({ practiceId, ...parsed.data });
+    const sent = drafts.map((d) => d.key);
+    save.mutate(
+      { practiceId, ...parsed.data },
+      {
+        // The new documents are named by the server now: keep the ids even if
+        // the owner went on typing, or the next save would make them again.
+        onSuccess: ({ ids }) => {
+          const named = new Map(sent.map((key, index) => [key, ids[index]]));
+          setDrafts((current) =>
+            current.map((d) => {
+              const id = named.get(d.key);
+              return id && !d.id ? { ...d, id } : d;
+            }),
+          );
+        },
+      },
+    );
   }
 
   // Kinds not on the list yet come first among the suggestions.

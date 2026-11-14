@@ -214,6 +214,7 @@ export const book = practiceProcedure
         bookingId: booking.id,
         accept: consents.accept,
         headers: context.headers,
+        bySession: true,
       });
     }
 

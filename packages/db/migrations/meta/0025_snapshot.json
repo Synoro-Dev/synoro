@@ -1,5 +1,5 @@
 {
-  "id": "f64201eb-05c5-4dbd-beeb-227a46080c7a",
+  "id": "a734d87b-75b2-49e0-855a-987cf228e0ad",
   "prevId": "36b9f0f5-608e-4d0c-af63-925bdde2b761",
   "version": "7",
   "dialect": "postgresql",
@@ -2037,6 +2037,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "by_session": {
+          "name": "by_session",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "ip": {
           "name": "ip",

@@ -8,6 +8,7 @@ CREATE TABLE "consents" (
 	"version_id" uuid NOT NULL,
 	"booking_id" uuid,
 	"accepted_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"by_session" boolean DEFAULT false NOT NULL,
 	"ip" varchar(64),
 	"user_agent" varchar(300),
 	"representative_name" varchar(120),

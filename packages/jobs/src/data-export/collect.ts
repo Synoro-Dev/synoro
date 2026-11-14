@@ -74,6 +74,8 @@ interface ConsentDump {
   document_title: string;
   document_version: number;
   accepted_at: string;
+  /** Given signed in; a visitor's consent proves the booking only. */
+  by_session: boolean;
   ip: string | null;
   user_agent: string | null;
   representative_name: string | null;
@@ -300,6 +302,7 @@ export async function collectPractice(db: Database, practiceId: string) {
         title: PracticeDocumentVersion.title,
         number: PracticeDocumentVersion.number,
         acceptedAt: Consent.acceptedAt,
+        bySession: Consent.bySession,
         ip: Consent.ip,
         userAgent: Consent.userAgent,
         representativeName: Consent.representativeName,
@@ -400,6 +403,7 @@ export async function collectPractice(db: Database, practiceId: string) {
           document_title: row.title,
           document_version: row.number,
           accepted_at: iso(row.acceptedAt) as string,
+          by_session: row.bySession,
           ip: row.ip,
           user_agent: row.userAgent,
           representative_name: row.representativeName,

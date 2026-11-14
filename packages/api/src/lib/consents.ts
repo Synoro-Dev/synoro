@@ -50,34 +50,50 @@ export async function currentDocuments(db: Database, practiceId: string) {
   );
 }
 
+/** A child's name as compared: «  Миша » and «миша» are one child. */
+const nameKey = (name: string) => name.trim().toLowerCase();
+
 /**
- * Which of `versionIds` the member has accepted already: for themselves, and
- * as a parent for a child — the two don't stand in for each other.
+ * Which of `versionIds` the member has accepted already, signed in: for
+ * themselves, or — with `minorName` — as a parent for that child. The two
+ * don't stand in for each other, nor does one child's consent for another's.
+ * Consents given without signing in don't count (`consents.by_session`).
  */
 export async function acceptedVersions(
   db: Database,
   memberId: string | null,
   versionIds: string[],
+  minorName?: string,
 ) {
-  const self = new Set<string>();
-  const minor = new Set<string>();
-  if (!memberId || versionIds.length === 0) return { self, minor };
+  const accepted = new Set<string>();
+  if (!memberId || versionIds.length === 0) return accepted;
   const rows = await db
     .select({
       versionId: Consent.versionId,
       representativeName: Consent.representativeName,
+      minorName: Consent.minorName,
     })
     .from(Consent)
     .where(
       and(
         eq(Consent.memberId, memberId),
+        eq(Consent.bySession, true),
         inArray(Consent.versionId, versionIds),
       ),
     );
   for (const row of rows) {
-    (row.representativeName === null ? self : minor).add(row.versionId);
+    const forChild = row.representativeName !== null;
+    if (minorName === undefined) {
+      if (!forChild) accepted.add(row.versionId);
+    } else if (
+      forChild &&
+      row.minorName !== null &&
+      nameKey(row.minorName) === nameKey(minorName)
+    ) {
+      accepted.add(row.versionId);
+    }
   }
-  return { self, minor };
+  return accepted;
 }
 
 /** The client of `practiceId` behind a session, if they are one already. */
@@ -106,8 +122,8 @@ export async function sessionMemberId(
  * accepted before; `accept` — what to record once the booking exists
  * (`recordConsents`). `memberId` null — a visitor not known yet: everything
  * required must be ticked. Booking for a child (`input.minor`, only where the
- * practice takes minors) needs the parent's consent, whatever they accepted
- * for themselves.
+ * practice takes minors) needs the parent's consent for that child, whatever
+ * they accepted for themselves or for another child.
  */
 export async function checkConsents(
   db: Database,
@@ -118,12 +134,12 @@ export async function checkConsents(
   const documents = await currentDocuments(db, practice.id);
   const minor = practice.acceptsMinors ? input?.minor : undefined;
   const given = new Set(input?.versionIds ?? []);
-  const had = await acceptedVersions(
+  const satisfied = await acceptedVersions(
     db,
     memberId,
     documents.map((d) => d.versionId),
+    minor?.minorName,
   );
-  const satisfied = minor ? had.minor : had.self;
   return {
     missing: documents
       .filter(
@@ -145,10 +161,11 @@ export type ConsentsToRecord = Awaited<
 >["accept"];
 
 /**
- * Write down the consents a booking was made with: the versions ticked that
- * the member hasn't accepted in this capacity yet, with the moment, the
- * address and the browser. Pass `tx` to make it part of the booking's
- * transaction.
+ * Write down the consents a booking was made with: the versions ticked, with
+ * the moment, the address and the browser. `bySession`: the member was signed
+ * in; then a version they already accepted in this capacity isn't written
+ * again. A visitor's consents are always written: each booking keeps its own
+ * proof, and none of them counts for the member (`acceptedVersions`).
  */
 export async function recordConsents(
   db: Database,
@@ -158,12 +175,14 @@ export async function recordConsents(
     bookingId: string;
     accept: ConsentsToRecord;
     headers: Headers;
+    bySession: boolean;
   },
 ) {
   const { versionIds, minor } = input.accept;
   if (versionIds.length === 0) return;
-  const had = await acceptedVersions(db, input.memberId, versionIds);
-  const satisfied = minor ? had.minor : had.self;
+  const satisfied = input.bySession
+    ? await acceptedVersions(db, input.memberId, versionIds, minor?.minorName)
+    : new Set<string>();
   const fresh = versionIds.filter((id) => !satisfied.has(id));
   if (fresh.length === 0) return;
   await db.insert(Consent).values(
@@ -172,6 +191,7 @@ export async function recordConsents(
       memberId: input.memberId,
       versionId,
       bookingId: input.bookingId,
+      bySession: input.bySession,
       ip: clientIp(input.headers),
       userAgent: input.headers.get("user-agent")?.slice(0, 300) ?? null,
       representativeName: minor?.representativeName ?? null,
