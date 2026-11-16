@@ -87,6 +87,8 @@ interface PaymentDump {
   id: string;
   client_id: string | null;
   booking_id: string | null;
+  /** The recurring booking one payment covered, when it did. */
+  series_id?: string | null;
   provider: "yookassa" | "tbank";
   external_id: string | null;
   status: "pending" | "succeeded" | "canceled";
@@ -461,6 +463,7 @@ export async function collectPractice(db: Database, practiceId: string) {
           id: row.id,
           client_id: row.memberId,
           booking_id: row.bookingId,
+          series_id: row.seriesId,
           provider: row.provider,
           external_id: row.externalId,
           status: row.status,

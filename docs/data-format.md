@@ -86,7 +86,9 @@
 `credit_entries` (журнал баланса): `id`, `client_id`, `delta`, `reason` (`purchase`,
 `booking`, `refund`, `adjustment`), `booking_id`, `payment_id`, `note`, `created_at`.
 
-`payments` (онлайн-оплаты клиентов): `id`, `client_id`, `booking_id`, `provider`,
+`payments` (онлайн-оплаты клиентов): `id`, `client_id`, `booking_id`,
+`series_id` (→ `series.id`, если одна оплата покрыла всё постоянное время
+посетителя), `provider`,
 `external_id`, `status`, `credits`, `amount_kopecks`, `paid_at`, `created_at`.
 
 `offline_payments` (оплаты вне Synoro, записанные сотрудниками): `id`, `client_id`,
