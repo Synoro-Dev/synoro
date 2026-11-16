@@ -26,9 +26,9 @@ import { describeDates } from "@synoro/jobs/when";
 
 import { hasPro } from "./billing";
 import { adjustCredits, loadRules, releaseExpiredHolds } from "./bookings";
-import { exportBooking } from "./google-calendar";
+import { exportBooking, googleBusy } from "./google-calendar";
 import { findOpenPractice } from "./practice-access";
-import { isScheduledSlot, seriesSlots } from "./schedule";
+import { isScheduledSlot, overlaps, seriesSlots } from "./schedule";
 import { resolveService } from "./services";
 import { payBookingUrl } from "./urls";
 
@@ -169,10 +169,10 @@ export async function extendStanding(
   await releaseExpiredHolds(db, practice.id);
   // The release may have paused it: a hold of its own ran out.
   const [current] = await db
-    .select({ pausedAt: StandingTime.pausedAt })
+    .select({ pausedAt: StandingTime.pausedAt, endedAt: StandingTime.endedAt })
     .from(StandingTime)
     .where(eq(StandingTime.id, standing.id));
-  if (!current || current.pausedAt) return made;
+  if (!current || current.pausedAt || current.endedAt) return made;
 
   const horizon = new Date(now.getTime() + STANDING_HORIZON_DAYS * DAY_MS);
   const wanted = standingOccurrences(standing, practice.timezone, now, horizon);
@@ -189,7 +189,30 @@ export async function extendStanding(
 
   const rules = await loadRules(db, practice.id);
   const template = options.template ?? (await templateOf(db, standing.id));
+  // What the specialist has in Google Calendar over these dates, like the
+  // first date's check (`previewSeries`); Google being down reads as free.
+  const lastAt = missing.at(-1);
+  const busy =
+    missing[0] && lastAt
+      ? await googleBusy(
+          db,
+          practice.id,
+          missing[0],
+          new Date(lastAt.getTime() + service.minutes * 60_000),
+        )
+      : [];
   for (const startsAt of missing) {
+    const range = {
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + service.minutes * 60_000),
+    };
+    if (busy.some((b) => overlaps(b, range))) {
+      logger.info("standing.slot_busy_in_google", {
+        standingId: standing.id,
+        startsAt: startsAt.toISOString(),
+      });
+      continue;
+    }
     if (
       !isScheduledSlot({
         rules,
@@ -208,6 +231,17 @@ export async function extendStanding(
     }
     try {
       const booking = await db.transaction(async (tx) => {
+        // Under the standing time's lock: `standing.end` and a pause take it
+        // too, so nothing is made, or paid for, after either has happened.
+        const [live] = await tx
+          .select({
+            pausedAt: StandingTime.pausedAt,
+            endedAt: StandingTime.endedAt,
+          })
+          .from(StandingTime)
+          .where(eq(StandingTime.id, standing.id))
+          .for("update");
+        if (!live || live.pausedAt || live.endedAt) return undefined;
         const funded =
           price === 0 ||
           (await adjustCredits(tx, standing.memberId, -price)) !== undefined;
@@ -244,6 +278,8 @@ export async function extendStanding(
         }
         return { id: row.id, holdUntil };
       });
+      // Ended or paused while this run was at work: nothing more is made.
+      if (!booking) break;
       if (booking.holdUntil) {
         made.held.push({ ...booking, startsAt, holdUntil: booking.holdUntil });
       } else made.confirmed.push({ id: booking.id, startsAt });
@@ -300,16 +336,23 @@ export async function settleStandingHolds(
   memberId: string,
   now = new Date(),
 ) {
+  // Only the holds of a standing time that is running, in a practice that is
+  // open (its owner is not deleting the account): money coming in must not
+  // pay for dates nobody is going to keep.
   const held = await db
     .select({ id: Booking.id, credits: Booking.credits })
     .from(Booking)
+    .innerJoin(StandingTime, eq(StandingTime.id, Booking.standingId))
+    .innerJoin(Practice, eq(Practice.id, Booking.practiceId))
     .where(
       and(
         eq(Booking.memberId, memberId),
-        isNotNull(Booking.standingId),
         eq(Booking.status, "active"),
         isNotNull(Booking.holdUntil),
         gt(Booking.holdUntil, now),
+        isNull(StandingTime.endedAt),
+        isNull(StandingTime.pausedAt),
+        ownerStaying(Practice.ownerId),
       ),
     )
     .orderBy(asc(Booking.startsAt));

@@ -2,11 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { call } from "@orpc/server";
 import type { Session } from "@synoro/auth";
 import {
+  AccountDeletion,
   and,
   Booking,
   CreditEntry,
   eq,
   isNotNull,
+  PracticeMember,
   StandingTime,
   Subscription,
 } from "@synoro/db";
@@ -14,10 +16,12 @@ import type { TemplateEmail } from "@synoro/emails";
 
 import { createSession, setupTestApi } from "../../../test/helpers";
 import { releaseExpiredHolds } from "../../lib/bookings";
+import { holdsAtLimit } from "../../lib/guests";
 import {
   extendStanding,
   handleStandingCron,
   runStandingHorizon,
+  settleStandingHolds,
   standingHoldUntil,
   standingOccurrences,
 } from "../../lib/standing";
@@ -622,5 +626,84 @@ describe("the daily endpoint", () => {
       made: expect.any(Number),
       noticed: expect.any(Number),
     });
+  });
+});
+
+describe("review fixes", () => {
+  it("does not count dates held for a standing time as the visitor's holds", async () => {
+    const { memberId } = await newClient(0);
+    const standing = await insertStanding(memberId, firstMonday(120));
+    const now = new Date(firstMonday(120).getTime() - 13 * DAY);
+    const made = await extendStanding(api.db, standing, {
+      now,
+      deliver: recorder().deliver,
+    });
+    expect(made.held.length).toBeGreaterThanOrEqual(2);
+    expect(await holdsAtLimit(api.db, memberId)).toBe(false);
+  });
+
+  it("takes every unpaid hold with the standing time, even a late one", async () => {
+    const { session, memberId } = await newClient(0);
+    const standing = await insertStanding(memberId, firstMonday(130));
+    // A held date ten hours away: inside the cancellation deadline.
+    const startsAt = new Date(Date.now() + 10 * HOUR);
+    const [held] = await api.db
+      .insert(Booking)
+      .values({
+        practiceId,
+        kind: "consultation",
+        credits: 1,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + HOUR),
+        memberId,
+        standingId: standing.id,
+        standingSlot: startsAt,
+        holdUntil: new Date(Date.now() + 5 * HOUR),
+      })
+      .returning();
+    if (!held) throw new Error("no booking");
+
+    const ended = await call(
+      standingRouter.end,
+      { standingId: standing.id },
+      { context: api.context(session) },
+    );
+    expect(ended).toMatchObject({ cancelled: 1, kept: 0 });
+
+    // Money coming in afterwards pays nothing of it.
+    await call(
+      creditRouter.grant,
+      { practiceId, memberId, delta: 3 },
+      { context: api.context(owner) },
+    );
+    const after = await api.db.query.Booking.findFirst({
+      where: eq(Booking.id, held.id),
+    });
+    expect(after?.status).toBe("cancelled");
+    expect(await balance(memberId)).toBe(3);
+  });
+
+  it("pays no hold of a practice whose owner is leaving", async () => {
+    const { memberId } = await newClient(0);
+    const standing = await insertStanding(memberId, firstMonday(140));
+    const now = new Date(firstMonday(140).getTime() - 13 * DAY);
+    await extendStanding(api.db, standing, {
+      now,
+      deliver: recorder().deliver,
+    });
+    await api.db.insert(AccountDeletion).values({
+      userId: owner.user.id,
+      purgeAt: new Date(Date.now() + 30 * DAY),
+    });
+    await api.db
+      .update(PracticeMember)
+      .set({ credits: 5 })
+      .where(eq(PracticeMember.id, memberId));
+
+    expect(await settleStandingHolds(api.db, memberId)).toEqual([]);
+    expect(await balance(memberId)).toBe(5);
+    await api.db
+      .delete(AccountDeletion)
+      .where(eq(AccountDeletion.userId, owner.user.id));
   });
 });

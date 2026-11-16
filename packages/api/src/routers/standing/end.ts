@@ -51,33 +51,40 @@ export const end = protectedProcedure
 
     const now = Date.now();
     const rules = await loadCancelRules(context.db, standing.practiceId);
-    const upcoming = await context.db
-      .select({
-        id: Booking.id,
-        kind: Booking.kind,
-        credits: Booking.credits,
-        startsAt: Booking.startsAt,
-      })
-      .from(Booking)
-      .where(
-        and(
-          eq(Booking.standingId, standing.id),
-          eq(Booking.status, "active"),
-          gt(Booking.startsAt, new Date(now)),
-        ),
-      )
-      .orderBy(asc(Booking.startsAt));
-
     const done = await context.db.transaction(async (tx) => {
-      // Ended first: the cron makes nothing more while the dates go.
+      // Ended first, which takes the standing time's lock: the cron makes
+      // nothing more once it is held, and what it made before is read below.
       await tx
         .update(StandingTime)
         .set({ endedAt: new Date(now) })
         .where(eq(StandingTime.id, standing.id));
+      const upcoming = await tx
+        .select({
+          id: Booking.id,
+          kind: Booking.kind,
+          credits: Booking.credits,
+          startsAt: Booking.startsAt,
+          holdUntil: Booking.holdUntil,
+        })
+        .from(Booking)
+        .where(
+          and(
+            eq(Booking.standingId, standing.id),
+            eq(Booking.status, "active"),
+            gt(Booking.startsAt, new Date(now)),
+          ),
+        )
+        .orderBy(asc(Booking.startsAt));
       const rows: Awaited<ReturnType<typeof cancelBookingRows>>[] = [];
       let kept = 0;
       for (const booking of upcoming) {
-        if (!staff && clientCancel(booking, now, rules) !== "refund") {
+        // An unpaid hold is no booking to keep: it always goes with the
+        // standing time, whatever the cancellation deadline says.
+        if (
+          !staff &&
+          booking.holdUntil === null &&
+          clientCancel(booking, now, rules) !== "refund"
+        ) {
           kept++;
           continue;
         }
