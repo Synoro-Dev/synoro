@@ -59,6 +59,10 @@
       "types": "./dist/workflow-messages.d.ts",
       "default": "./src/workflow-messages.ts"
     },
+    "./standing-notices": {
+      "types": "./dist/standing-notices.d.ts",
+      "default": "./src/standing-notices.ts"
+    },
     "./account-deletion": {
       "types": "./dist/account-deletion.d.ts",
       "default": "./src/account-deletion.ts"

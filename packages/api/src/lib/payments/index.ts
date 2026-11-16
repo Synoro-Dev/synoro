@@ -23,6 +23,7 @@ import { track } from "../analytics";
 import { hasPro } from "../billing";
 import { exportBooking } from "../google-calendar";
 import { decryptSecret, secretsAvailable } from "../secrets";
+import { settleStandingHolds } from "../standing";
 import { guestBookingUrl } from "../urls";
 import { tbank, tbankStatus, verifyTbankToken } from "./tbank";
 import { type PaymentGateway, ProviderError } from "./types";
@@ -305,6 +306,10 @@ async function settlePayment(
       amount: payment.amount,
       bookingId: payment.bookingId,
     });
+  }
+  // The dates held for a standing time are paid from the new credits first.
+  if (wasPending && payment.status === "succeeded" && payment.memberId) {
+    await settleStandingHolds(db, payment.memberId);
   }
   // A confirmed hold goes to the specialist's Google Calendar now.
   if (payment.status === "succeeded" && payment.seriesId) {

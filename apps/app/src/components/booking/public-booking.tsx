@@ -53,6 +53,7 @@ import {
   GiftIcon,
   GlobeIcon,
   LogInIcon,
+  PinIcon,
   RepeatIcon,
   UndoDotIcon,
   WalletIcon,
@@ -84,6 +85,7 @@ import { useDisplayZone } from "./display-zone";
 import { GuestBookingForm } from "./guest-booking-form";
 import { IntroBookingForm } from "./intro-booking-form";
 import { SeriesDialog } from "./series-dialog";
+import { StandingDialog } from "./standing-dialog";
 import { ErrorState } from "./states";
 import { SynoroBadge } from "./synoro-badge";
 import {
@@ -245,6 +247,7 @@ export function PublicBooking({
   /** How many bookings the last booking made: more than one for a series. */
   const [bookedCount, setBookedCount] = useState(1);
   const [seriesFrom, setSeriesFrom] = useState<Date | null>(null);
+  const [standingFrom, setStandingFrom] = useState<Date | null>(null);
   const [topUp, setTopUp] = useState(false);
   const [phone, setPhone] = useState("");
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -260,6 +263,10 @@ export function PublicBooking({
   const services = info.services;
   const service = services.find((s) => s.id === chosenServiceId) ?? services[0];
   const price = service?.credits ?? 1;
+  // «Закрепить это время» is a «Про» feature of the practice's owner.
+  const standingOffer = useQuery(
+    orpc.standing.offer.queryOptions({ input: { practiceId: practice.id } }),
+  );
   const serviceMinutes = service?.minutes ?? 60;
   // Staff see their own page as a preview; only clients book here.
   const isStaff = !!info.membership && info.membership.role !== "client";
@@ -887,6 +894,17 @@ export function PublicBooking({
                         Повторять каждую неделю…
                       </Button>
                     )}
+                    {standingOffer.data?.enabled && !needsPhone && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          ready() && setStandingFrom(picked.startsAt)
+                        }
+                      >
+                        <PinIcon />
+                        Закрепить это время за собой…
+                      </Button>
+                    )}
                   </div>
                 )}
               </section>
@@ -1267,6 +1285,38 @@ export function PublicBooking({
         onClose={() => setSeriesFrom(null)}
         onBooked={async (dates) => {
           setSeriesFrom(null);
+          setPicked(null);
+          setAnswers({});
+          consents.reset();
+          setBooked(dates[0] ?? null);
+          setBookedCount(dates.length);
+          setBookedMinutes(serviceMinutes);
+          await refresh();
+        }}
+      />
+      <StandingDialog
+        practiceId={practice.id}
+        startsAt={standingFrom}
+        timeZone={zone}
+        credits={credits}
+        serviceId={service?.id}
+        price={price}
+        terms={terms}
+        answers={answers}
+        consents={consents.value()}
+        onConsentsRequired={async (documentIds) => {
+          setStandingFrom(null);
+          consents.reject(documentIds);
+          await refresh();
+        }}
+        onAnswersInvalid={async (errors) => {
+          setStandingFrom(null);
+          setAnswerErrors(errors);
+          await refresh();
+        }}
+        onClose={() => setStandingFrom(null)}
+        onBooked={async (dates) => {
+          setStandingFrom(null);
           setPicked(null);
           setAnswers({});
           consents.reset();

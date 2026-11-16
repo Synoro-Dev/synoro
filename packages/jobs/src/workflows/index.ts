@@ -25,4 +25,5 @@ export { scheduledWorkflow } from "./scheduled";
 export { sendEmailTask } from "./send-email";
 export { sendMessengerTask } from "./send-messenger";
 export { staffAgendaWorkflow } from "./staff-agenda";
+export { standingHorizonWorkflow } from "./standing-horizon";
 export { workflowMessagesWorkflow } from "./workflow-messages";

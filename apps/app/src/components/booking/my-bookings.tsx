@@ -55,6 +55,7 @@ import { TopUpDialog } from "../payment/top-up-dialog";
 import { MessengerCard } from "../settings/messenger-notifications";
 import { useDisplayZone } from "./display-zone";
 import { seriesHeads } from "./series-heads";
+import { StandingTimes } from "./standing-times";
 import { EmptyState, ErrorState } from "./states";
 import { formatTime, viewerTimeZoneName } from "./time";
 import { VideoLinkButton, VideoServiceName } from "./video-link";
@@ -718,6 +719,8 @@ export function MyBookings() {
             lastPackage={lastPackage}
             onTopUp={() => setTopUp(practice.practiceId)}
           />
+
+          <StandingTimes practiceId={practice.practiceId} timeZone={zone} />
 
           <Tabs defaultValue="bookings" className="gap-4">
             <TabsList className="w-full">

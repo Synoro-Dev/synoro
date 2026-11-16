@@ -10,4 +10,5 @@ export * from "./note";
 export * from "./practice";
 export * from "./series";
 export * from "./service";
+export * from "./standing";
 export * from "./waitlist";

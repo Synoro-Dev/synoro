@@ -8,12 +8,14 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
   or,
   Practice,
   PracticeMember,
+  StandingTime,
   sql,
 } from "@synoro/db";
 import { notifyBookingCancelled } from "@synoro/jobs/booking-video";
@@ -75,12 +77,14 @@ export function activeBookingOverlaps(
  * tops up the balance (see `settlePayment`).
  */
 export async function releaseExpiredHolds(db: Database, practiceId: string) {
-  await db
+  const released = await db
     .update(Booking)
     .set({
       status: "cancelled",
       cancelledAt: new Date(),
       cancelReason: "hold_expired",
+      // The date is free to be made again once a standing time resumes.
+      standingSlot: null,
     })
     .where(
       and(
@@ -88,6 +92,52 @@ export async function releaseExpiredHolds(db: Database, practiceId: string) {
         eq(Booking.status, "active"),
         isNotNull(Booking.holdUntil),
         lt(Booking.holdUntil, new Date()),
+      ),
+    )
+    .returning({ standingId: Booking.standingId });
+  // A standing time whose hold ran out unpaid is paused (see below).
+  const standing = new Set(
+    released.flatMap((b) => (b.standingId ? [b.standingId] : [])),
+  );
+  if (standing.size > 0) await pauseStandingTimes(db, [...standing]);
+}
+
+/**
+ * Pause standing times whose hold ran out unpaid: nothing more is made for
+ * them until they are resumed, and the dates still held for them are let go
+ * (the client does not keep time they do not pay for). Confirmed bookings
+ * stay. A notice follows from the cron (`runStandingHorizon`).
+ */
+async function pauseStandingTimes(db: Database, ids: string[]) {
+  const now = new Date();
+  const paused = await db
+    .update(StandingTime)
+    .set({ pausedAt: now })
+    .where(
+      and(
+        inArray(StandingTime.id, ids),
+        isNull(StandingTime.pausedAt),
+        isNull(StandingTime.endedAt),
+      ),
+    )
+    .returning({ id: StandingTime.id });
+  if (paused.length === 0) return;
+  await db
+    .update(Booking)
+    .set({
+      status: "cancelled",
+      cancelledAt: now,
+      cancelReason: "hold_expired",
+      standingSlot: null,
+    })
+    .where(
+      and(
+        inArray(
+          Booking.standingId,
+          paused.map((s) => s.id),
+        ),
+        eq(Booking.status, "active"),
+        isNotNull(Booking.holdUntil),
       ),
     );
 }

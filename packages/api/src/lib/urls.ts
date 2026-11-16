@@ -10,6 +10,13 @@ export function publicBookingUrl(slug: string) {
   return new URL(paths.booking.public(slug), bookingOrigin()).href;
 }
 
+/** The booking page with the package purchase open (`?pay=1`). */
+export function payBookingUrl(slug: string) {
+  const url = new URL(paths.booking.public(slug), bookingOrigin());
+  url.searchParams.set("pay", "1");
+  return url.href;
+}
+
 /**
  * Path of a practice's photo, or `null` without one. The `v` query is the
  * stored key's own timestamp, so a new upload busts the long-lived cache.

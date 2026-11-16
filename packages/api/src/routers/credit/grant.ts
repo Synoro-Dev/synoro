@@ -10,6 +10,7 @@ import {
   findStaffMembership,
   practiceProcedure,
 } from "../../lib/practice-access";
+import { settleStandingHolds } from "../../lib/standing";
 
 /**
  * Record paid consultations for a client (`delta` > 0) or correct the
@@ -84,6 +85,20 @@ export const grant = practiceProcedure
       return credits;
     });
     if (credits === undefined) throw errors.NEGATIVE_BALANCE();
-
-    return { memberId: member.id, credits };
+    // Money in: the dates held for a standing time are paid from it first.
+    if (input.delta <= 0) return { memberId: member.id, credits };
+    const confirmed = await settleStandingHolds(context.db, member.id);
+    return {
+      memberId: member.id,
+      // What the standing time's dates took is no longer the client's.
+      credits:
+        confirmed.length === 0
+          ? credits
+          : ((
+              await context.db.query.PracticeMember.findFirst({
+                where: eq(PracticeMember.id, member.id),
+                columns: { credits: true },
+              })
+            )?.credits ?? credits),
+    };
   });

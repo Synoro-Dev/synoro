@@ -206,6 +206,17 @@ and run `tsc` by hand, build them first.
   `TOCHKA_SANDBOX=true` runs the flow against Точка's official sandbox (built-in
   test credentials; its links can't be paid, so the billing page confirms with
   `billing.sandboxPay`); never on a deployment with real customers.
+- **Standing time («Про»)** (`docs/standing-time.md`): a time pinned for a
+  client with no end (`standing_times`, `standing.*`). `extendStanding`
+  (`packages/api/src/lib/standing.ts`) makes the next 4 weeks of bookings
+  (`bookings.standing_id` + `standing_slot`, one per occurrence): confirmed
+  from the balance, else a hold until 48 h before; an unpaid hold that runs
+  out releases the time and pauses it (`releaseExpiredHolds`). The daily run
+  is the Hatchet `standing-horizon`, which only posts to `/api/cron/standing`
+  with `CRON_SECRET` — the API's libraries are out of the worker's reach
+  (the API depends on `@synoro/jobs`). Money in (`settlePayment`,
+  `credit.grant`) calls `settleStandingHolds`. A cron that creates bookings on
+  a practice's behalf needs `findOpenPractice` and `hasPro`, as it has.
 - **Premium addresses** (`docs/premium-slugs.md`): a slug of 3–4 characters
   costs 990 ₽ once (`isPremiumSlug`, `PREMIUM_SLUG_PRICE`; no «Про» needed).
   `practice.create` / `setSlug` open a `slug_orders` payment through Точка; a
