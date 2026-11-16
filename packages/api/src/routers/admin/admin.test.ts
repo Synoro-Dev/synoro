@@ -5,6 +5,7 @@ import {
   Practice,
   PracticeMember,
   SignIn,
+  SlugOrder,
   Subscription,
   SubscriptionPayment,
   user,
@@ -161,6 +162,71 @@ describe("admin", () => {
     expect(overview.pro.paying).toBe(1);
     expect(overview.revenue.month).toBe(14_900);
     expect(overview.practices.total).toBe(1);
+  });
+
+  it("lists premium address orders with the buyer and the practice", async () => {
+    const admin = await createSession(api.db, {
+      role: "admin",
+      emailVerified: true,
+    });
+    const buyer = await createSession(api.db, {
+      name: "Покупатель Адресов",
+      email: "buyer@test.local",
+    });
+    const [practice] = await api.db
+      .insert(Practice)
+      .values({
+        name: "Практика Адресов",
+        slug: "address-shop",
+        ownerId: buyer.user.id,
+      })
+      .returning();
+    if (!practice) throw new Error("no practice");
+    const holdUntil = new Date(Date.now() + DAY);
+    const [order] = await api.db
+      .insert(SlugOrder)
+      .values({
+        userId: buyer.user.id,
+        practiceId: practice.id,
+        slug: "max-address",
+        amount: 99_000,
+        status: "succeeded",
+        paidAt: new Date(),
+        holdUntil,
+      })
+      .returning();
+    if (!order) throw new Error("no order");
+    await api.db.insert(SlugOrder).values({
+      slug: "held-name",
+      amount: 99_000,
+      status: "pending",
+      holdUntil,
+    });
+    const context = { context: api.context(admin) };
+
+    const all = await call(adminRouter.slugOrders.list, {}, context);
+    expect(all.items.map((o) => o.id)).toContain(order.id);
+    expect(all.items.find((o) => o.id === order.id)).toMatchObject({
+      slug: "max-address",
+      status: "succeeded",
+      user: expect.objectContaining({ id: buyer.user.id }),
+      practice: expect.objectContaining({ id: practice.id }),
+    });
+
+    const bySlug = await call(
+      adminRouter.slugOrders.list,
+      { query: "max-address" },
+      context,
+    );
+    expect(bySlug.items.map((o) => o.id)).toEqual([order.id]);
+    const pending = await call(
+      adminRouter.slugOrders.list,
+      { status: "pending", query: "held-name" },
+      context,
+    );
+    expect(pending.items).toHaveLength(1);
+    expect(pending.items[0]?.user).toBeNull();
+    expect(pending.items[0]?.practice).toBeNull();
   });
 
   it("users.list shows where each user came from", async () => {

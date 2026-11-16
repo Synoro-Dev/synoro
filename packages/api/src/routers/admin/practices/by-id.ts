@@ -3,6 +3,7 @@ import {
   and,
   asc,
   count,
+  desc,
   eq,
   GoogleCalendarConnection,
   inArray,
@@ -11,6 +12,7 @@ import {
   PracticeMember,
   PracticeSlugAlias,
   Service,
+  SlugOrder,
   user,
   Workflow,
 } from "@synoro/db";
@@ -56,6 +58,7 @@ export const byId = adminProcedure
       workflows,
       staff,
       clients,
+      pendingSlugOrder,
     ] = await Promise.all([
       findSubscription(context.db, owner.id),
       context.db.query.PracticeSlugAlias.findMany({
@@ -147,6 +150,16 @@ export const byId = adminProcedure
             eq(PracticeMember.role, "client"),
           ),
         ),
+      // A pending order holds the address it bought; the practice doesn't
+      // have it yet, so the card says which name is on hold.
+      context.db.query.SlugOrder.findFirst({
+        where: and(
+          eq(SlugOrder.practiceId, practice.id),
+          eq(SlugOrder.status, "pending"),
+        ),
+        columns: { slug: true, createdAt: true },
+        orderBy: desc(SlugOrder.createdAt),
+      }),
     ]);
 
     const { image, ...info } = practice;
@@ -165,5 +178,6 @@ export const byId = adminProcedure
       workflows,
       staff,
       clients: clients[0]?.value ?? 0,
+      pendingSlugOrder: pendingSlugOrder ?? null,
     };
   });
