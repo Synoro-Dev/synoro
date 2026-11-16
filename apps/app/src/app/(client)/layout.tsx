@@ -3,7 +3,6 @@ import { env, paths } from "@synoro/config";
 import { Skeleton } from "@synoro/ui";
 import type { Route } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 
 import { getSession } from "~/auth/server";
@@ -45,7 +44,9 @@ export default function ClientLayout({ children }: { children: ReactNode }) {
 
 async function SessionMenu() {
   const session = await getSession();
-  if (!session?.user) redirect(paths.auth.login);
+  // No redirect here: the pages do it (`bookings/page.tsx`), because only a
+  // page knows the `?move=` to bring the client back to after sign-in.
+  if (!session?.user) return null;
 
   const practices = await api.practice.mine();
   const staff = practices.find((p) => p.role !== "client");
