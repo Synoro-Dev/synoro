@@ -5,6 +5,7 @@ import {
   type Database,
   eq,
   isNotNull,
+  isNull,
   Payment,
   PaymentAccount,
   type PaymentPackage,
@@ -13,7 +14,10 @@ import {
   type Practice,
   sql,
 } from "@synoro/db";
-import { notifyBookingConfirmed } from "@synoro/jobs/booking-video";
+import {
+  notifyBookingConfirmed,
+  notifySeriesBooked,
+} from "@synoro/jobs/booking-video";
 import { formatCredits, professionTerms } from "@synoro/validators";
 import { track } from "../analytics";
 import { hasPro } from "../billing";
@@ -119,6 +123,8 @@ export async function startPayment(
     user: { id: string; email: string };
     /** The booking being paid for (a visitor's), confirmed on success. */
     bookingId?: string;
+    /** The visitor's recurring booking being paid for: all of it is confirmed. */
+    seriesId?: string;
     returnUrl: (paymentId: string) => string;
   },
 ) {
@@ -130,6 +136,7 @@ export async function startPayment(
       accountId: account.id,
       memberId: input.memberId,
       bookingId: input.bookingId,
+      seriesId: input.seriesId,
       provider: account.provider,
       credits: pkg.credits,
       amount: pkg.price,
@@ -219,8 +226,14 @@ async function settlePayment(
       .update(Payment)
       .set({ status: "canceled", confirmationUrl: null })
       .where(and(eq(Payment.id, paymentId), eq(Payment.status, "pending")))
-      .returning({ bookingId: Payment.bookingId });
-    if (canceled?.bookingId) {
+      .returning({ bookingId: Payment.bookingId, seriesId: Payment.seriesId });
+    // The held time of a single booking, or of every booking of a series.
+    const held = canceled?.seriesId
+      ? eq(Booking.seriesId, canceled.seriesId)
+      : canceled?.bookingId
+        ? eq(Booking.id, canceled.bookingId)
+        : undefined;
+    if (held) {
       await db
         .update(Booking)
         .set({
@@ -229,11 +242,7 @@ async function settlePayment(
           cancelReason: "payment_cancelled",
         })
         .where(
-          and(
-            eq(Booking.id, canceled.bookingId),
-            eq(Booking.status, "active"),
-            isNotNull(Booking.holdUntil),
-          ),
+          and(held, eq(Booking.status, "active"), isNotNull(Booking.holdUntil)),
         );
     }
   } else if (status === "succeeded") {
@@ -248,12 +257,13 @@ async function settlePayment(
         set status = 'succeeded', paid_at = now(), confirmation_url = null,
             updated_at = now()
         where id = ${paymentId} and status = 'pending'
-        returning id, member_id, booking_id, credits, created_by_id
+        returning id, member_id, booking_id, series_id, credits, created_by_id
       ), confirmed as (
         update bookings
         set hold_until = null, updated_at = now()
         from paid
-        where bookings.id = paid.booking_id
+        where (bookings.id = paid.booking_id
+            or bookings.series_id = paid.series_id)
           and bookings.status = 'active'
           and bookings.hold_until is not null
         returning bookings.id, bookings.member_id, bookings.credits
@@ -297,7 +307,23 @@ async function settlePayment(
     });
   }
   // A confirmed hold goes to the specialist's Google Calendar now.
-  if (payment.status === "succeeded" && payment.bookingId) {
+  if (payment.status === "succeeded" && payment.seriesId) {
+    // Those of the series that were confirmed (a hold that ran out is not).
+    const confirmed = await db
+      .select({ id: Booking.id })
+      .from(Booking)
+      .where(
+        and(
+          eq(Booking.seriesId, payment.seriesId),
+          eq(Booking.status, "active"),
+          isNull(Booking.holdUntil),
+        ),
+      );
+    const ids = confirmed.map((b) => b.id);
+    for (const id of ids) await exportBooking(db, id);
+    // One mail for all the dates, from the call that settled the payment.
+    if (wasPending && ids.length > 0) await notifySeriesBooked(db, ids);
+  } else if (payment.status === "succeeded" && payment.bookingId) {
     await exportBooking(db, payment.bookingId);
     // Only the call that settled the payment tells the client.
     if (wasPending) await notifyBookingConfirmed(db, payment.bookingId);

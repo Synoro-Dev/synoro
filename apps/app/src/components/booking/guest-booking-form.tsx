@@ -39,6 +39,13 @@ import {
   ConsentFields,
   useConsents,
 } from "./consent-fields";
+import {
+  type Repeat,
+  RepeatSelect,
+  SeriesDateList,
+  seriesChoice,
+  useGuestSeriesPreview,
+} from "./series-fields";
 
 interface Offer {
   provider: string | null;
@@ -88,8 +95,25 @@ export function GuestBookingForm({
   const queryClient = useQueryClient();
   const terms = professionTerms(practice.profession);
   const price = service?.credits ?? 1;
-  // A package must cover the service: the payment spends its price on the time.
-  const deals = packageDeals(offer.packages).filter((d) => d.credits >= price);
+  const allDeals = packageDeals(offer.packages);
+  // How many times the biggest package pays for: the limit of a repeat.
+  const affordable = Math.floor(
+    Math.max(0, ...allDeals.map((d) => d.credits)) / price,
+  );
+  const [repeat, setRepeat] = useState<Repeat | null>(null);
+  const [unchecked, setUnchecked] = useState<Set<number>>(new Set());
+  const preview = useGuestSeriesPreview({
+    practiceId: practice.id,
+    startsAt,
+    repeat,
+    serviceId: service?.id,
+  });
+  const { chosen, skip } = seriesChoice(preview.data?.dates ?? [], unchecked);
+  // How many times is booked: the chosen dates of a repeat, else one.
+  const times = repeat ? chosen.length : 1;
+  const needed = times * price;
+  // A package must cover every time: the payment spends the price on each.
+  const deals = allDeals.filter((d) => d.credits >= needed);
   const [packageId, setPackageId] = useState(deals[0]?.id ?? "");
   const selected = deals.find((d) => d.id === packageId) ?? deals[0];
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -102,33 +126,59 @@ export function GuestBookingForm({
   });
   const { errors } = form.formState;
 
+  // The practice's questions and documents may have changed meanwhile: fetch
+  // what is in force now (they come from `practice.bySlug`).
+  const refreshPractice = () =>
+    queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+
+  // Keep the button busy until the browser leaves for the payment page.
+  // The booking page may sit in an iframe; the payment page can't.
   const reserve = useMutation({
     ...orpc.booking.reserve.mutationOptions(),
-    // Keep the button busy until the browser leaves for the payment page.
-    // The booking page may sit in an iframe; the payment page can't.
     onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
     onError: async (error) => {
       toast.error(
         isDefinedError(error) ? error.message : "Не удалось начать оплату",
       );
       if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
-        // The questionnaire may have changed meanwhile: fetch the questions
-        // asked now (`questions` comes from `practice.bySlug`).
         setAnswerErrors(error.data.errors);
-        await queryClient.invalidateQueries({
-          queryKey: orpc.practice.key(),
-        });
+        await refreshPractice();
       }
       if (isDefinedError(error) && error.code === "CONSENTS_REQUIRED") {
         // A document changed meanwhile: show the wording in force now.
         consents.reject(error.data.documentIds);
-        await queryClient.invalidateQueries({
-          queryKey: orpc.practice.key(),
-        });
+        await refreshPractice();
       }
     },
   });
-  const leaving = reserve.isPending || reserve.isSuccess;
+  const reserveSeries = useMutation({
+    ...orpc.booking.reserveSeries.mutationOptions(),
+    onSuccess: ({ confirmationUrl }) => leaveFrame(confirmationUrl),
+    onError: async (error) => {
+      toast.error(
+        isDefinedError(error) ? error.message : "Не удалось начать оплату",
+      );
+      if (isDefinedError(error) && error.code === "ANSWERS_INVALID") {
+        setAnswerErrors(error.data.errors);
+        await refreshPractice();
+      }
+      if (isDefinedError(error) && error.code === "CONSENTS_REQUIRED") {
+        consents.reject(error.data.documentIds);
+        await refreshPractice();
+      }
+      // Someone took a date meanwhile: show the dates as they are now.
+      if (isDefinedError(error) && error.code === "SLOT_UNAVAILABLE") {
+        await preview.refetch();
+      }
+    },
+  });
+  const leaving =
+    reserve.isPending ||
+    reserve.isSuccess ||
+    reserveSeries.isPending ||
+    reserveSeries.isSuccess;
+  const confirmationUrl =
+    reserve.data?.confirmationUrl ?? reserveSeries.data?.confirmationUrl;
 
   function submit(values: GuestBookingFormValues) {
     if (!selected) return;
@@ -136,7 +186,7 @@ export function GuestBookingForm({
     setAnswerErrors(errors);
     if (Object.keys(errors).length > 0) return;
     if (!consents.validate()) return;
-    reserve.mutate({
+    const booking = {
       ...values,
       answers,
       consents: consents.value(),
@@ -146,7 +196,9 @@ export function GuestBookingForm({
       serviceId: service?.id,
       startsAt,
       timezone: timeZone,
-    });
+    };
+    if (repeat) reserveSeries.mutate({ ...booking, ...repeat, skip });
+    else reserve.mutate(booking);
   }
 
   return (
@@ -226,14 +278,54 @@ export function GuestBookingForm({
         />
       )}
 
+      {affordable >= 2 && (
+        <div className="flex flex-col gap-3">
+          <h3 className="pt-2 text-base font-semibold">Постоянное время</h3>
+          <p className="text-sm text-muted-foreground">
+            Закрепите это время за собой на несколько недель: все даты
+            подтвердятся после одной оплаты.
+          </p>
+          <RepeatSelect
+            value={repeat}
+            onChange={(next) => {
+              setRepeat(next);
+              setUnchecked(new Set());
+            }}
+            max={affordable}
+            idPrefix="guest-series"
+          />
+          {repeat && (
+            <SeriesDateList
+              query={preview}
+              unchecked={unchecked}
+              timeZone={timeZone}
+              idPrefix="guest-series"
+              onToggle={(at, checked) => {
+                const next = new Set(unchecked);
+                if (checked) next.delete(at.getTime());
+                else next.add(at.getTime());
+                setUnchecked(next);
+              }}
+            />
+          )}
+        </div>
+      )}
+
       <h3 id="guest-package" className="pt-2 text-base font-semibold">
         Что оплатить
       </h3>
-      {deals.length === 0 && (
+      {repeat && chosen.length < 2 ? (
         <p role="alert" className="text-sm text-muted-foreground">
-          Для этой услуги нет подходящего пакета. Выберите другую услугу или
-          напишите специалисту.
+          Оставьте хотя бы две даты.
         </p>
+      ) : (
+        deals.length === 0 && (
+          <p role="alert" className="text-sm text-muted-foreground">
+            {repeat
+              ? "На все выбранные даты нет подходящего пакета. Оставьте меньше дат."
+              : "Для этой услуги нет подходящего пакета. Выберите другую услугу или напишите специалисту."}
+          </p>
+        )
       )}
       <RadioGroup
         value={selected?.id ?? ""}
@@ -254,11 +346,13 @@ export function GuestBookingForm({
                   <Badge variant="success-light">−{deal.discount}%</Badge>
                 )}
               </span>
-              {deal.credits > 1 && (
+              {deal.credits > needed && (
                 <span className="text-xs font-normal text-muted-foreground">
-                  {price > 1
-                    ? `${formatCredits(price, terms)} — на выбранное время, остальные на вашем балансе`
-                    : "Первая — на выбранное время, остальные на вашем балансе"}
+                  {repeat
+                    ? `${formatCredits(needed, terms)} — на выбранные даты, остальные на вашем балансе`
+                    : price > 1
+                      ? `${formatCredits(price, terms)} — на выбранное время, остальные на вашем балансе`
+                      : "Первая — на выбранное время, остальные на вашем балансе"}
                 </span>
               )}
             </span>
@@ -271,13 +365,19 @@ export function GuestBookingForm({
 
       <ConsentFields consents={consents} idPrefix="guest" />
 
-      <Button type="submit" size="lg" disabled={leaving || !selected}>
+      <Button
+        type="submit"
+        size="lg"
+        disabled={
+          leaving || !selected || (repeat !== null && chosen.length < 2)
+        }
+      >
         {leaving && <Spinner />}
         {selected ? `Оплатить ${formatRub(selected.price)}` : "Оплатить"}
       </Button>
-      {reserve.data && (
+      {confirmationUrl && (
         <a
-          href={reserve.data.confirmationUrl}
+          href={confirmationUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm text-primary underline underline-offset-4"

@@ -183,6 +183,13 @@
       "when": 1794681779228,
       "tag": "0025_consents",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794842266752,
+      "tag": "0026_payment_series",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,25 @@ is required everywhere a person is booked or signs up for the cabinet.
    released, the credits just land on the balance (`cancelled` state) and the
    visitor picks another time. A declined payment releases the time at once.
 
+### Постоянное время одним платежом
+
+`booking.reserveSeries` (public) is `reserve` for 2–12 dates at the same local
+time every week or every other week (`intervalWeeks`, `count`, `skip` as in
+`bookSeries`; the dates come from `booking.guestSeriesPreview`, the public
+`seriesPreview`). It holds **all** dates in one transaction with one
+`booking_series` row and one `hold_until`; only the earliest booking carries
+`access_token_hash`, so `/b/<token>` opens it (`booking.guest` adds
+`seriesDates`). The package must cover every date (`PACKAGE_TOO_SMALL`);
+`payments.series_id` names the series and `booking_id` its first booking.
+`settlePayment` then confirms every still-held booking of the series in the
+same statement and spends one price per confirmed booking; the rest stays on
+the balance. A declined payment cancels all the held dates
+(`payment_cancelled`); a hold that ran out is released as a whole, and late
+money only tops up the balance. The series counts as one unpaid hold
+(`countOpenHolds`), and one mail lists all its dates (`notifySeriesBooked`).
+The other dates are managed in the cabinet: `/b/<token>` cancels the first
+booking only.
+
 `booking.cancelGuest` cancels a confirmed booking by the token under the same
 rules as a signed-in client (`docs/cancel-rules.md`): the credit back up to the
 practice's deadline, later only with `forfeit: true` where it is allowed.
