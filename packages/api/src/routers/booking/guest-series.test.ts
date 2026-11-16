@@ -19,8 +19,9 @@ import {
   PracticeMember,
   user,
 } from "@synoro/db";
-
+import { collectAccount } from "@synoro/jobs/data-export";
 import { createSession, setupTestApi } from "../../../test/helpers";
+
 import { hashGuestToken } from "../../lib/guests";
 import { handlePaymentWebhook } from "../../lib/payments";
 import { availabilityRouter } from "../availability";
@@ -406,5 +407,76 @@ describe("booking a series as a visitor", () => {
         skip: [monday(81)],
       }),
     ).rejects.toMatchObject({ code: "TOO_FEW" });
+  });
+});
+
+describe("review fixes", () => {
+  it("keeps a series unconfirmed when its hold ran out before the payment", async () => {
+    acceptsPayment("s-11");
+    const email = "expired-first@visitor.test";
+    const { token } = await reserveSeries(120, email);
+    const held = await seriesBookings(token);
+    // The hold ran out, but nothing has released it yet.
+    await api.db
+      .update(Booking)
+      .set({ holdUntil: new Date(Date.now() - 1000) })
+      .where(eq(Booking.seriesId, held[0]?.seriesId ?? ""));
+
+    remoteStatus({ id: "s-11", status: "succeeded" });
+    await guest(token);
+    expect((await memberOf(email))?.credits).toBe(5);
+    const after = await seriesBookings(token);
+    expect(after.every((b) => b.holdUntil !== null)).toBe(true);
+    // No booking was charged for.
+    const entries = await api.db.query.CreditEntry.findMany({
+      where: eq(CreditEntry.memberId, (await memberOf(email))?.id ?? ""),
+    });
+    expect(entries.map((e) => e.reason)).toEqual(["purchase"]);
+  });
+
+  it("lets only one of two parallel reservations take the last hold", async () => {
+    const email = "parallel@visitor.test";
+    acceptsPayment("s-12");
+    await reserveSeries(130, email);
+    // One hold is open; two requests race for the second, then no more.
+    provider(() => ({
+      id: `s-par-${crypto.randomUUID()}`,
+      status: "pending",
+      confirmation: {
+        type: "redirect",
+        confirmation_url: "https://yoomoney.ru/checkout/par",
+      },
+    }));
+    const attempt = async (week: number) =>
+      call(
+        bookingRouter.reserveSeries,
+        {
+          practiceId,
+          packageId: await packageId(5),
+          startsAt: monday(week),
+          intervalWeeks: 1,
+          count: 2,
+          skip: [],
+          ...visitor(email),
+        },
+        { context: api.context() },
+      );
+    const results = await Promise.allSettled([attempt(140), attempt(150)]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.find((r) => r.status === "rejected");
+    expect(refused).toMatchObject({
+      reason: { code: "TOO_MANY_HOLDS" },
+    });
+  });
+
+  it("names the series in a payment of the export", async () => {
+    acceptsPayment("s-13");
+    const { token } = await reserveSeries(160, "export@visitor.test");
+    const held = await seriesBookings(token);
+    const dump = await collectAccount(api.db, owner.user.id);
+    const payment = dump.practices[0]?.payments.find(
+      (p) => p.series_id === held[0]?.seriesId,
+    );
+    expect(payment).toMatchObject({ booking_id: held[0]?.id });
   });
 });

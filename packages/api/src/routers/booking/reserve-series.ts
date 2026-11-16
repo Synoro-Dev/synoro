@@ -24,10 +24,9 @@ import {
   recordConsents,
 } from "../../lib/consents";
 import {
-  countOpenHolds,
   findOrCreateGuestMember,
   hashGuestToken,
-  MAX_OPEN_HOLDS,
+  holdsAtLimit,
   newGuestToken,
   sendBookingLink,
 } from "../../lib/guests";
@@ -172,9 +171,6 @@ export const reserveSeries = publicProcedure
 
     const guest = await findOrCreateGuestMember(context.db, practice.id, input);
     if (guest.staff) throw errors.SIGN_IN_REQUIRED();
-    if ((await countOpenHolds(context.db, guest.memberId)) >= MAX_OPEN_HOLDS) {
-      throw errors.TOO_MANY_HOLDS();
-    }
 
     const token = newGuestToken();
     const holdUntil = new Date(Date.now() + HOLD_MS);
@@ -183,6 +179,11 @@ export const reserveSeries = publicProcedure
       // One transaction: the series, its bookings and the consents stand or
       // fall together.
       created = await context.db.transaction(async (tx) => {
+        // The limit is checked under the visitor's lock, so parallel requests
+        // can't each see room for one more.
+        if (await holdsAtLimit(tx, guest.memberId)) {
+          throw errors.TOO_MANY_HOLDS();
+        }
         const [series] = await tx
           .insert(BookingSeries)
           .values({

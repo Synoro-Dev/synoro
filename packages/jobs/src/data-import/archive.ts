@@ -238,6 +238,7 @@ const practiceSchema = z.object({
         id: z.string().max(64),
         client_id: z.string().max(64).nullish(),
         booking_id: z.string().max(64).nullish(),
+        series_id: z.string().max(64).nullish(),
         provider: z.enum(["yookassa", "tbank"]),
         external_id: text(64).nullish(),
         status: z.enum(["pending", "succeeded", "canceled"]),
@@ -575,12 +576,21 @@ export async function applyArchive(
   const remap = (record: {
     client_id?: string | null;
     booking_id?: string | null;
+    series_id?: string | null;
   }) => ({
     ...record,
     client_id: record.client_id ? (cardOf.get(record.client_id) ?? null) : null,
     booking_id: record.booking_id
       ? (bookingOf.get(record.booking_id) ?? null)
       : null,
+    // Only a payment names a series; the others don't have the field.
+    ...("series_id" in record
+      ? {
+          series_id: record.series_id
+            ? (seriesOf.get(record.series_id) ?? null)
+            : null,
+        }
+      : {}),
   });
   await db.transaction(async (tx) => {
     const records = [

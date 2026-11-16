@@ -24,10 +24,9 @@ import {
 } from "../../lib/consents";
 import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
-  countOpenHolds,
   findOrCreateGuestMember,
   hashGuestToken,
-  MAX_OPEN_HOLDS,
+  holdsAtLimit,
   newGuestToken,
   sendBookingLink,
 } from "../../lib/guests";
@@ -163,15 +162,16 @@ export const reserve = publicProcedure
     const guest = await findOrCreateGuestMember(context.db, practice.id, input);
     if (guest.staff) throw errors.SIGN_IN_REQUIRED();
 
-    if ((await countOpenHolds(context.db, guest.memberId)) >= MAX_OPEN_HOLDS) {
-      throw errors.TOO_MANY_HOLDS();
-    }
-
     const token = newGuestToken();
     let booking: typeof Booking.$inferSelect | undefined;
     try {
       // One transaction: the booking and its consents stand or fall together.
       [booking] = await context.db.transaction(async (tx) => {
+        // The limit is checked under the visitor's lock, so parallel requests
+        // can't each see room for one more.
+        if (await holdsAtLimit(tx, guest.memberId)) {
+          throw errors.TOO_MANY_HOLDS();
+        }
         const rows = await tx
           .insert(Booking)
           .values({

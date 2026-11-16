@@ -19,13 +19,28 @@ import { findMembership } from "./practice-access";
 import { cabinetUrl, guestBookingUrl } from "./urls";
 
 /** One visitor cannot hold more unpaid times than this at once. */
-export const MAX_OPEN_HOLDS = 2;
+const MAX_OPEN_HOLDS = 2;
+
+/**
+ * Whether the member already holds as many unpaid times as allowed. Call it
+ * first thing in the transaction that adds a hold: it locks the member's row
+ * (`for update`), so two parallel requests are checked one after the other
+ * and can't both slip under the limit.
+ */
+export async function holdsAtLimit(tx: Database, memberId: string) {
+  await tx
+    .select({ id: PracticeMember.id })
+    .from(PracticeMember)
+    .where(eq(PracticeMember.id, memberId))
+    .for("update");
+  return (await countOpenHolds(tx, memberId)) >= MAX_OPEN_HOLDS;
+}
 
 /**
  * How many unpaid holds a member has now: a recurring booking waiting for its
  * payment is one hold, however many dates it takes.
  */
-export async function countOpenHolds(db: Database, memberId: string) {
+async function countOpenHolds(db: Database, memberId: string) {
   const [open] = await db
     .select({
       holds: sql<number>`count(distinct coalesce(${Booking.seriesId}, ${Booking.id}))`,

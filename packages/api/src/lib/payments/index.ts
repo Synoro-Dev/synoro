@@ -246,12 +246,10 @@ async function settlePayment(
         );
     }
   } else if (status === "succeeded") {
-    const before = await db.query.Payment.findFirst({
-      where: eq(Payment.id, paymentId),
-      columns: { status: true },
-    });
-    wasPending = before?.status === "pending";
-    await db.execute(sql`
+    // `paid` below moves it from pending in this one statement, so the rows it
+    // returns say whether THIS call settled it — a read before it would let
+    // two racing calls both think so and mail the client twice.
+    const result: unknown = await db.execute(sql`
       with paid as (
         update payments
         set status = 'succeeded', paid_at = now(), confirmation_url = null,
@@ -262,8 +260,14 @@ async function settlePayment(
         update bookings
         set hold_until = null, updated_at = now()
         from paid
-        where (bookings.id = paid.booking_id
-            or bookings.series_id = paid.series_id)
+        where (
+            -- One booking: confirmed while it still holds its time.
+            (paid.series_id is null and bookings.id = paid.booking_id)
+            -- A series: only while its hold has not run out. A payment that
+            -- comes after it just tops up the balance with the whole package.
+            or (bookings.series_id = paid.series_id
+              and bookings.hold_until > now())
+          )
           and bookings.status = 'active'
           and bookings.hold_until is not null
         returning bookings.id, bookings.member_id, bookings.credits
@@ -282,15 +286,21 @@ async function settlePayment(
         from paid
         where member_id is not null
         returning id
+      ), spent as (
+        insert into credit_entries
+          (member_id, delta, reason, booking_id, note, created_by_id)
+        select confirmed.member_id, -confirmed.credits, 'booking', confirmed.id,
+          'Оплата онлайн',
+          paid.created_by_id
+        from confirmed, paid
+        where confirmed.member_id is not null
+        returning id
       )
-      insert into credit_entries
-        (member_id, delta, reason, booking_id, note, created_by_id)
-      select confirmed.member_id, -confirmed.credits, 'booking', confirmed.id,
-        'Оплата онлайн',
-        paid.created_by_id
-      from confirmed, paid
-      where confirmed.member_id is not null
+      select (select count(*) from paid)::int as settled
     `);
+    // node-postgres and PGlite both expose `rows`.
+    const [settled] = (result as { rows: { settled: number | string }[] }).rows;
+    wasPending = Number(settled?.settled ?? 0) > 0;
   }
 
   const payment = await db.query.Payment.findFirst({
