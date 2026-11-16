@@ -297,6 +297,19 @@ export function PublicBooking({
   /** A service booked without payment: the specialist is paid at the visit. */
   const atVisit = info.payAtVisit && !intro;
 
+  // The «Заканчивается пакет» message links here with `?pay=1`: a signed-in
+  // client lands on the package purchase, once. A boolean dependency, so a
+  // refetched `membership` can't reopen the dialog the client just closed.
+  const mayPay = canPay && !!membership && !info.payAtVisit;
+  const payLinkOpened = useRef(false);
+  useEffect(() => {
+    if (!mayPay || payLinkOpened.current) return;
+    if (new URLSearchParams(window.location.search).get("pay") === "1") {
+      payLinkOpened.current = true;
+      setTopUp(true);
+    }
+  }, [mayPay]);
+
   // Dialogs and popovers render outside <main>: the whole document takes the
   // page's accent and corners while it is open.
   const { accent, radius } = info.theme;

@@ -94,6 +94,7 @@ function Editor({
     время: "19:00",
     баланс: "1",
     ссылка: bookingUrl,
+    оплата: `${bookingUrl}?pay=1`,
     кабинет: new URL("/bookings", bookingUrl).href,
   };
 

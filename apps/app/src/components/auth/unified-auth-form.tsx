@@ -79,6 +79,16 @@ function homeAfterAuth(): Route {
   // `?to=practices` comes from the proxy for a link into the practices (the
   // mailed invitation); only this one value is honoured, never a free path.
   if (query.get("to") === "practices") return paths.booking.practices;
+  // `?to=bookings` likewise: the cabinet, on the booking a messenger's
+  // «Перенести запись» named (a UUID, or nothing).
+  if (query.get("to") === "bookings") {
+    const move = query.get("move") ?? "";
+    return (
+      z.uuid().safeParse(move).success
+        ? `${paths.booking.mine}?move=${move}`
+        : paths.booking.mine
+    ) as Route;
+  }
   return query.get("plan") === "pro"
     ? `${paths.dashboard.root}?plan=pro`
     : paths.dashboard.root;

@@ -41,7 +41,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import {
@@ -566,6 +566,23 @@ export function MyBookings() {
     booking: MyBooking;
     action: BookingAction;
   } | null>(null);
+
+  // The messenger's «Перенести запись» links here with `?move=<booking>`:
+  // open that booking's time picker, once, when it is still upcoming.
+  const moveLinkRead = useRef(false);
+  useEffect(() => {
+    if (moveLinkRead.current || !bookings.data) return;
+    moveLinkRead.current = true;
+    const id = new URLSearchParams(window.location.search).get("move");
+    const booking = bookings.data.find(
+      (b) =>
+        b.id === id && b.status === "active" && b.endsAt.getTime() > Date.now(),
+    );
+    if (booking) {
+      setPicked(booking.practiceId);
+      setActing({ booking, action: "move" });
+    }
+  }, [bookings.data]);
 
   const clientOf = practices.data?.filter((p) => p.role === "client") ?? [];
   const now = Date.now();
