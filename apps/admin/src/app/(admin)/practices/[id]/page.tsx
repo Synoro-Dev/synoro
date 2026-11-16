@@ -403,6 +403,14 @@ async function PracticeCard({ params }: { params: Promise<{ id: string }> }) {
                 ? "—"
                 : card.formerSlugs.map((slug) => `/${slug}`).join(", ")}
             </Row>
+            {card.pendingSlugOrder && (
+              <Row label="Заказ на адрес">
+                <span className="text-muted-foreground">
+                  /{card.pendingSlugOrder.slug} — ожидает оплаты с{" "}
+                  {formatDate(card.pendingSlugOrder.createdAt)}
+                </span>
+              </Row>
+            )}
             {card.domain && (
               <>
                 <Row label="Свой домен">{card.domain.hostname}</Row>

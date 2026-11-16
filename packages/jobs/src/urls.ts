@@ -19,3 +19,13 @@ export function cabinetUrl() {
 export function practicePageUrl(slug: string) {
   return new URL(paths.booking.public(slug), bookingOrigin()).href;
 }
+
+/**
+ * The booking page with the package purchase open (`?pay=1`, read by
+ * `PublicBooking`): where a client is sent when their balance runs out.
+ */
+export function practicePayUrl(slug: string) {
+  const url = new URL(paths.booking.public(slug), bookingOrigin());
+  url.searchParams.set("pay", "1");
+  return url.href;
+}

@@ -76,17 +76,43 @@ function authErrorMessage(
  */
 function homeAfterAuth(): Route {
   const query = new URLSearchParams(window.location.search);
+  const target = readTarget(query);
   // `?to=practices` comes from the proxy for a link into the practices (the
-  // mailed invitation); only this one value is honoured, never a free path.
-  if (query.get("to") === "practices") return paths.booking.practices;
+  // mailed invitation); only the values `readTarget` keeps are honoured,
+  // never a free path.
+  if (target.get("to") === "practices") return paths.booking.practices;
+  // `?to=bookings` likewise: the cabinet, on the booking a messenger's
+  // «Перенести запись» named (a UUID, or nothing).
+  if (target.get("to") === "bookings") {
+    const move = target.get("move");
+    return (
+      move ? `${paths.booking.mine}?move=${move}` : paths.booking.mine
+    ) as Route;
+  }
   return query.get("plan") === "pro"
     ? `${paths.dashboard.root}?plan=pro`
     : paths.dashboard.root;
 }
 
-/** The other auth page, keeping the way back to the practices (`?to=`). */
-function withTarget(path: Route, toPractices: boolean): Route {
-  return (toPractices ? `${path}?to=practices` : path) as Route;
+/**
+ * The way back kept in the address (`?to=`, and `move` for the cabinet):
+ * only the values we honour, so a free path or a stray id never rides along.
+ */
+function readTarget(query: URLSearchParams): URLSearchParams {
+  const kept = new URLSearchParams();
+  const to = query.get("to");
+  if (to === "practices") kept.set("to", to);
+  if (to === "bookings") {
+    kept.set("to", to);
+    const move = query.get("move") ?? "";
+    if (z.uuid().safeParse(move).success) kept.set("move", move);
+  }
+  return kept;
+}
+
+/** The other auth page, keeping the way back (`readTarget`). */
+function withTarget(path: Route, target: string): Route {
+  return (target ? `${path}?${target}` : path) as Route;
 }
 
 /**
@@ -106,12 +132,12 @@ export function UnifiedAuthForm({
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   // Read after mount, so the server and the first client render agree.
-  const [toPractices, setToPractices] = useState(false);
+  const [target, setTarget] = useState("");
   const router = useRouter();
 
   useEffect(() => {
-    setToPractices(
-      new URLSearchParams(window.location.search).get("to") === "practices",
+    setTarget(
+      readTarget(new URLSearchParams(window.location.search)).toString(),
     );
   }, []);
 
@@ -456,7 +482,7 @@ export function UnifiedAuthForm({
                 <>
                   Уже есть аккаунт?{" "}
                   <Link
-                    href={withTarget(paths.auth.login, toPractices)}
+                    href={withTarget(paths.auth.login, target)}
                     className="text-primary underline-offset-4 hover:underline"
                   >
                     Войти
@@ -466,7 +492,7 @@ export function UnifiedAuthForm({
                 <>
                   Нет аккаунта?{" "}
                   <Link
-                    href={withTarget(paths.auth.signup, toPractices)}
+                    href={withTarget(paths.auth.signup, target)}
                     className="text-primary underline-offset-4 hover:underline"
                   >
                     Зарегистрироваться

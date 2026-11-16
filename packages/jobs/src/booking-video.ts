@@ -147,6 +147,14 @@ async function send(
         clientCancel(row, Date.now(), row) === "refund"
           ? row.id
           : undefined,
+      // Moving is allowed on the same terms (`checkMove`), and for one
+      // meeting of a series too: only the series' own notice has no button.
+      moveBookingId:
+        notice !== "cancelled" &&
+        series === undefined &&
+        clientCancel(row, Date.now(), row) === "refund"
+          ? row.id
+          : undefined,
     },
   );
 }

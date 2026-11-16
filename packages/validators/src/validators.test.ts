@@ -630,6 +630,7 @@ describe("workflow texts", () => {
     время: "19:00",
     баланс: "1",
     ссылка: "https://synoro.ru/anna",
+    оплата: "https://synoro.ru/anna?pay=1",
     кабинет: "https://synoro.ru/bookings",
   };
 

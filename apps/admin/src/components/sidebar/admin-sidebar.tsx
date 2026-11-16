@@ -17,6 +17,7 @@ import {
   type LucideIcon,
   ShieldIcon,
   StoreIcon,
+  TagIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react";
@@ -30,6 +31,7 @@ const NAV: { title: string; href: Route; icon: LucideIcon }[] = [
   { title: "Пользователи", href: "/users", icon: UsersIcon },
   { title: "Практики", href: "/practices", icon: StoreIcon },
   { title: "Платежи «Про»", href: "/payments", icon: WalletIcon },
+  { title: "Адреса", href: "/slug-orders", icon: TagIcon },
   { title: "Входы", href: "/sign-ins", icon: LogInIcon },
 ];
 

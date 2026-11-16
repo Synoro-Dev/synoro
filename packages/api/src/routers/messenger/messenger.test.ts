@@ -440,6 +440,55 @@ describe("notices in the messenger", () => {
       },
     ]);
     expect(sent[0]?.text).toContain("Мои записи: http://");
+    // The same booking may be moved: the link opens the cabinet on it.
+    expect(sent[0]?.text).toContain(
+      `Перенести запись: http://localhost:3000/bookings?move=${booking.id}`,
+    );
+  });
+
+  it("offers «Перенести запись» for one booking, not for a series' notice", async () => {
+    const { practiceId } = await newPractice("m-move");
+    const client = await newClient(practiceId);
+    bots();
+    await startTelegram(
+      1601,
+      `/start ${(await codeFor(client, "telegram")).code}`,
+    );
+    const mail = async () => {};
+    const bookingId = crypto.randomUUID();
+    const to = { userId: client.user.id, practiceId, moveBookingId: bookingId };
+
+    sent = [];
+    await dispatchNotice(api.db, notice("Анна Иванова"), to, mail);
+    expect(sent[0]?.buttons).toEqual([
+      "Войти на встречу",
+      "Перенести запись",
+      "Мои записи",
+    ]);
+
+    // Without the permission the button is not there.
+    sent = [];
+    await dispatchNotice(
+      api.db,
+      notice("Анна Иванова"),
+      { userId: client.user.id, practiceId },
+      mail,
+    );
+    expect(sent[0]?.buttons).toEqual(["Войти на встречу", "Мои записи"]);
+
+    // A notice about several dates is not about one booking to move.
+    sent = [];
+    const base = notice("Анна Иванова");
+    await dispatchNotice(
+      api.db,
+      {
+        ...base,
+        props: { ...base.props, dates: ["пн, 7 января", "пн, 14 января"] },
+      },
+      to,
+      mail,
+    );
+    expect(sent[0]?.buttons).toEqual(["Войти на встречу", "Мои записи"]);
   });
 
   it("picks the messenger only on «Про», and falls back to mail", async () => {
