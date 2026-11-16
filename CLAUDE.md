@@ -148,7 +148,9 @@ and run `tsc` by hand, build them first.
 - **Booking without sign-in** (`docs/guest-booking.md`): `booking.reserve`
   holds a time for 15 min (`bookings.hold_until`), opens the payment and mails
   `/b/<token>`; `settlePayment` confirms the booking in the same statement as
-  the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
+  the credit. `booking.reserveSeries` does it for 2–12 dates under one payment
+  (`payments.series_id`: every held booking of the series is confirmed
+  together; a series is one unpaid hold, `countOpenHolds`). Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/<slug>` (the old `/p/<slug>` redirects); build links from
   `packages/api/src/lib/urls.ts`. A slug shares the root with the app's and
@@ -295,7 +297,9 @@ and run `tsc` by hand, build them first.
   stores it and Metrika's `_ym_uid` on `subscription_payments`; the
   `metrika-conversions` cron (`@synoro/jobs/metrika`) uploads the user's first
   paid year and first paid month as the offline conversions `paid_year` and
-  `paid_month` (once per payment, claim in `sent_notices`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
+  `paid_month` (once per payment, claim in `sent_notices`), and before those
+  the first practice of a specialist from an ad as `practice_created` (click
+  from `sign_ins.yclid`). Needs `METRIKA_COUNTER_ID` + `METRIKA_OAUTH_TOKEN` and the
   goal in Metrika; the landing needs the repo variable
   `NEXT_PUBLIC_YANDEX_METRIKA_ID` (same counter as the app's `COUNTER_ID`).
 - **Sign-in history** (`docs/sign-in-history.md`): one `sign_ins` row per
@@ -321,6 +325,16 @@ and run `tsc` by hand, build them first.
   get no mail, because mail goes through `practice_members`. Every import is a
   batch that can be undone. Don't name a procedure `apply`, `call` or `bind`:
   `orpc.x.apply` hits `Function.prototype`, and only the browser notices.
+- **Documents and consents** (`docs/consents.md`): the owner's documents
+  (`practice_documents` + versions, `document.*`, settings page «Документы»,
+  any plan) are accepted by a client when booking: every client booking
+  procedure takes `consents` and answers `CONSENTS_REQUIRED` (`lib/consents.ts`:
+  `checkConsents` before, `recordConsents` after — version, time, IP, browser
+  in `consents`). A changed text is a new version, asked again; documents are
+  archived, never deleted. `practices.accepts_minors`: a parent consents for a
+  child (`representative_name`, `minor_name`), apart from their own consent.
+  Staff booking a client are not asked. A new client booking path needs both
+  calls too.
 - **Payments outside Synoro** (`docs/offline-payments.md`): `offline_payments`
   (amount in kopecks, method, `paid_at`; linked to a booking paid at the visit
   or a `credit.grant` entry), `offlinePayment.*` (staff): record, list, remove,

@@ -1,12 +1,61 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { logger } from "@synoro/config";
-import { type Database, eq, PracticeMember, sql, user } from "@synoro/db";
+import {
+  and,
+  Booking,
+  type Database,
+  eq,
+  gt,
+  isNotNull,
+  PracticeMember,
+  sql,
+  user,
+} from "@synoro/db";
 import { dispatchEmail } from "@synoro/jobs";
 import { describeDates, formatClock } from "@synoro/jobs/when";
 
 import { findMembership } from "./practice-access";
 import { cabinetUrl, guestBookingUrl } from "./urls";
+
+/** One visitor cannot hold more unpaid times than this at once. */
+const MAX_OPEN_HOLDS = 2;
+
+/**
+ * Whether the member already holds as many unpaid times as allowed. Call it
+ * first thing in the transaction that adds a hold: it locks the member's row
+ * (`for update`), so two parallel requests are checked one after the other
+ * and can't both slip under the limit.
+ */
+export async function holdsAtLimit(tx: Database, memberId: string) {
+  await tx
+    .select({ id: PracticeMember.id })
+    .from(PracticeMember)
+    .where(eq(PracticeMember.id, memberId))
+    .for("update");
+  return (await countOpenHolds(tx, memberId)) >= MAX_OPEN_HOLDS;
+}
+
+/**
+ * How many unpaid holds a member has now: a recurring booking waiting for its
+ * payment is one hold, however many dates it takes.
+ */
+async function countOpenHolds(db: Database, memberId: string) {
+  const [open] = await db
+    .select({
+      holds: sql<number>`count(distinct coalesce(${Booking.seriesId}, ${Booking.id}))`,
+    })
+    .from(Booking)
+    .where(
+      and(
+        eq(Booking.memberId, memberId),
+        eq(Booking.status, "active"),
+        isNotNull(Booking.holdUntil),
+        gt(Booking.holdUntil, new Date()),
+      ),
+    );
+  return Number(open?.holds ?? 0);
+}
 
 /**
  * Mail the visitor the link that opens their booking without signing in:
@@ -22,6 +71,8 @@ export async function sendBookingLink(input: {
   /** The zone the mail writes the time in: the client's, else the practice's. */
   timeZone: string;
   startsAt: Date;
+  /** All the dates of a recurring booking, the first one included. */
+  dates?: Date[];
   holdUntil: Date | null;
   intro?: string;
   /** Booked to be paid at the visit (`bookAtVisit`): confirmed at once. */
@@ -40,8 +91,9 @@ export async function sendBookingLink(input: {
       props: {
         name: input.name,
         practiceName: input.practiceName,
-        when: describeDates([input.startsAt], input.timeZone, { named: true })
-          .when,
+        when: describeDates(input.dates ?? [input.startsAt], input.timeZone, {
+          named: true,
+        }).when,
         holdUntil: input.holdUntil
           ? formatClock(input.holdUntil, input.timeZone)
           : "",

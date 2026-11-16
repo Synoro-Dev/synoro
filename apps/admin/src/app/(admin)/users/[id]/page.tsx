@@ -163,18 +163,21 @@ async function UserCard({ params }: { params: Promise<{ id: string }> }) {
                 {card.practices.map((practice) => (
                   <TableRow key={practice.id}>
                     <TableCell>
+                      <Link
+                        href={`/practices/${practice.id}` as Route}
+                        className="hover:underline"
+                      >
+                        {practice.name}
+                      </Link>
                       <a
                         href={bookingPageUrl(practice.slug)}
                         target="_blank"
                         rel="noreferrer"
-                        className="hover:underline"
+                        className="text-muted-foreground hover:underline"
                       >
-                        {practice.name}
-                      </a>
-                      <span className="text-muted-foreground">
                         {" "}
                         /{practice.slug}
-                      </span>
+                      </a>
                     </TableCell>
                     <TableCell>{ROLE_LABELS[practice.role]}</TableCell>
                     <TableCell>{formatDate(practice.joinedAt)}</TableCell>

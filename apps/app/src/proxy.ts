@@ -105,6 +105,13 @@ export async function proxy(request: NextRequest) {
     if (pathname === paths.booking.practices) {
       login.searchParams.set("to", "practices");
     }
+    // The messenger's «Перенести запись» opens the cabinet on one booking;
+    // after signing in the client comes back to it (`homeAfterAuth`).
+    if (pathname === paths.booking.mine) {
+      login.searchParams.set("to", "bookings");
+      const move = request.nextUrl.searchParams.get("move");
+      if (move) login.searchParams.set("move", move);
+    }
     return NextResponse.redirect(login);
   }
 

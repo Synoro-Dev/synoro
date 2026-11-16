@@ -2,16 +2,14 @@ import { logger } from "@synoro/config";
 import {
   and,
   Booking,
-  count,
   eq,
-  gt,
   isExclusionViolation,
-  isNotNull,
   PaymentPackage,
 } from "@synoro/db";
 import {
   bookingAnswersInput,
   clientTimeZoneInput,
+  consentsInput,
   guestBookingFormSchema,
 } from "@synoro/validators";
 import { z } from "zod";
@@ -19,10 +17,16 @@ import { z } from "zod";
 import { track } from "../../lib/analytics";
 import { ANSWERS_INVALID, bookingAnswers } from "../../lib/booking-questions";
 import { HOLD_MS, loadRules, releaseExpiredHolds } from "../../lib/bookings";
+import {
+  CONSENTS_REQUIRED,
+  checkConsents,
+  recordConsents,
+} from "../../lib/consents";
 import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findOrCreateGuestMember,
   hashGuestToken,
+  holdsAtLimit,
   newGuestToken,
   sendBookingLink,
 } from "../../lib/guests";
@@ -37,9 +41,6 @@ import { findOpenPractice } from "../../lib/practice-access";
 import { isScheduledSlot } from "../../lib/schedule";
 import { resolveService } from "../../lib/services";
 import { publicProcedure } from "../../orpc";
-
-/** One visitor cannot hold more unpaid times than this at once. */
-const MAX_OPEN_HOLDS = 2;
 
 /**
  * Book an hour as a visitor, without signing in: reserve the time and open
@@ -75,6 +76,7 @@ export const reserve = publicProcedure
       message: "Платёжная система не приняла платёж, попробуйте позже",
     },
     ANSWERS_INVALID,
+    CONSENTS_REQUIRED,
   })
   .input(
     guestBookingFormSchema.extend({
@@ -84,6 +86,8 @@ export const reserve = publicProcedure
       /** What to book; the practice's first service when missing. */
       serviceId: z.uuid().optional(),
       answers: bookingAnswersInput,
+      /** The practice's documents the client ticked (`consentsInput`). */
+      consents: consentsInput,
       /** The visitor's browser zone: the mails write the time in it. */
       timezone: clientTimeZoneInput,
     }),
@@ -122,6 +126,18 @@ export const reserve = publicProcedure
     if (questionnaire.errors) {
       throw errors.ANSWERS_INVALID({ data: { errors: questionnaire.errors } });
     }
+    // The practice's documents, accepted by the client alone.
+    const consents = await checkConsents(
+      context.db,
+      practice,
+      null,
+      input.consents,
+    );
+    if (consents.missing.length > 0) {
+      throw errors.CONSENTS_REQUIRED({
+        data: { documentIds: consents.missing },
+      });
+    }
 
     const rules = await loadRules(context.db, practice.id);
     const scheduled = isScheduledSlot({
@@ -146,41 +162,48 @@ export const reserve = publicProcedure
     const guest = await findOrCreateGuestMember(context.db, practice.id, input);
     if (guest.staff) throw errors.SIGN_IN_REQUIRED();
 
-    const [open] = await context.db
-      .select({ holds: count() })
-      .from(Booking)
-      .where(
-        and(
-          eq(Booking.memberId, guest.memberId),
-          eq(Booking.status, "active"),
-          isNotNull(Booking.holdUntil),
-          gt(Booking.holdUntil, new Date()),
-        ),
-      );
-    if ((open?.holds ?? 0) >= MAX_OPEN_HOLDS) throw errors.TOO_MANY_HOLDS();
-
     const token = newGuestToken();
     let booking: typeof Booking.$inferSelect | undefined;
     try {
-      [booking] = await context.db
-        .insert(Booking)
-        .values({
-          practiceId: practice.id,
-          kind: "consultation",
-          serviceId: service.id,
-          credits: service.credits,
-          startsAt: input.startsAt,
-          endsAt,
-          memberId: guest.memberId,
-          guestPhone: input.phone,
-          note: input.note || null,
-          answers: questionnaire.answers,
-          clientTimezone: input.timezone ?? null,
-          holdUntil: new Date(Date.now() + HOLD_MS),
-          accessTokenHash: hashGuestToken(token),
-          createdById: guest.user.id,
-        })
-        .returning();
+      // One transaction: the booking and its consents stand or fall together.
+      [booking] = await context.db.transaction(async (tx) => {
+        // The limit is checked under the visitor's lock, so parallel requests
+        // can't each see room for one more.
+        if (await holdsAtLimit(tx, guest.memberId)) {
+          throw errors.TOO_MANY_HOLDS();
+        }
+        const rows = await tx
+          .insert(Booking)
+          .values({
+            practiceId: practice.id,
+            kind: "consultation",
+            serviceId: service.id,
+            credits: service.credits,
+            startsAt: input.startsAt,
+            endsAt,
+            memberId: guest.memberId,
+            guestPhone: input.phone,
+            note: input.note || null,
+            answers: questionnaire.answers,
+            clientTimezone: input.timezone ?? null,
+            holdUntil: new Date(Date.now() + HOLD_MS),
+            accessTokenHash: hashGuestToken(token),
+            createdById: guest.user.id,
+          })
+          .returning();
+        const [row] = rows;
+        if (row) {
+          await recordConsents(tx, {
+            practiceId: practice.id,
+            memberId: guest.memberId,
+            bookingId: row.id,
+            accept: consents.accept,
+            headers: context.headers,
+            bySession: false,
+          });
+        }
+        return rows;
+      });
     } catch (error) {
       if (isExclusionViolation(error, "bookings_no_overlap")) {
         throw errors.SLOT_UNAVAILABLE({ cause: error });

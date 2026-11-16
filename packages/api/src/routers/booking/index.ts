@@ -8,11 +8,13 @@ import { calendar } from "./calendar";
 import { cancel } from "./cancel";
 import { cancelSeries } from "./cancel-series";
 import { cancelGuest, guest } from "./guest";
+import { guestSeriesPreview } from "./guest-series-preview";
 import { markNoShow } from "./mark-no-show";
 import { mine } from "./mine";
 import { reschedule } from "./reschedule";
 import { rescheduleSlots } from "./reschedule-slots";
 import { reserve } from "./reserve";
+import { reserveSeries } from "./reserve-series";
 import { seriesPreview } from "./series-preview";
 import { setMeetingUrl } from "./set-meeting-url";
 import { slots } from "./slots";
@@ -25,6 +27,8 @@ export const bookingRouter = {
   bookSeries,
   cancelSeries,
   reserve,
+  reserveSeries,
+  guestSeriesPreview,
   bookIntro,
   bookAtVisit,
   guest,

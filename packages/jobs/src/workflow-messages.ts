@@ -30,7 +30,7 @@ import {
 import { ownerStaying } from "./account-deletion";
 import { type Deliver, noticeSender } from "./messenger/deliver";
 import { claimNotice } from "./notice-claims";
-import { cabinetUrl, practicePageUrl } from "./urls";
+import { cabinetUrl, practicePageUrl, practicePayUrl } from "./urls";
 import { localHour } from "./when";
 
 /**
@@ -319,6 +319,7 @@ function variablesOf(rule: Rule, client: Candidate) {
     ...formatMeeting(client.startsAt, client.clientTimezone ?? rule.timezone),
     баланс: String(client.credits),
     ссылка: practicePageUrl(rule.slug),
+    оплата: practicePayUrl(rule.slug),
     кабинет: cabinetUrl(),
   } satisfies Record<WorkflowVariable, string>;
 }

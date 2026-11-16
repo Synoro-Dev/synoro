@@ -14,6 +14,7 @@ import {
 } from "@synoro/db";
 
 import { planOf } from "../../../lib/billing";
+import { practiceImageAbsoluteUrl } from "../../../lib/urls";
 import { adminProcedure } from "../../../orpc";
 import { containsPattern } from "../contains";
 import { pageInput } from "../page-input";
@@ -44,6 +45,7 @@ export const list = adminProcedure
         name: Practice.name,
         slug: Practice.slug,
         profession: Practice.profession,
+        image: Practice.image,
         createdAt: Practice.createdAt,
         owner: { id: user.id, name: user.name, email: user.email },
         subscription: Subscription,
@@ -65,8 +67,9 @@ export const list = adminProcedure
       .where(where);
 
     return {
-      items: rows.map(({ subscription, ...row }) => ({
+      items: rows.map(({ subscription, image, ...row }) => ({
         ...row,
+        imageUrl: practiceImageAbsoluteUrl(row.slug, image),
         plan: planOf(subscription ?? undefined).status,
       })),
       total: total?.value ?? 0,

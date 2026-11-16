@@ -10,14 +10,24 @@ import type { MessengerMessage } from "./bots";
  * practice, the time and the link — nothing about the service.
  */
 
+/** What a booking notice may offer beyond reading: see `Recipient`. */
+type MessageOptions = { cancelBookingId?: string; moveBookingId?: string };
+
 type Props<T extends TemplateEmail["template"]> = Extract<
   TemplateEmail,
   { template: T }
 >["props"];
 
+/** The cabinet, opened on `bookingId`'s «Перенести» (`MyBookings`, `?move=`). */
+function moveUrl(cabinetUrl: string, bookingId: string) {
+  const url = new URL(cabinetUrl);
+  url.searchParams.set("move", bookingId);
+  return url.href;
+}
+
 function bookingNotice(
   p: Props<"booking-notice">,
-  cancelBookingId: string | undefined,
+  { cancelBookingId, moveBookingId }: MessageOptions,
 ): MessengerMessage {
   const series = (p.dates?.length ?? 0) > 1;
   const titles = {
@@ -57,6 +67,16 @@ function bookingNotice(
     buttons.push({
       text: "Отменить запись",
       action: actionData({ kind: "cancel", bookingId: cancelBookingId }),
+    });
+  }
+  if (
+    moveBookingId &&
+    p.notice !== "cancelled" &&
+    (p.dates?.length ?? 0) <= 1
+  ) {
+    buttons.push({
+      text: "Перенести запись",
+      url: moveUrl(p.cabinetUrl, moveBookingId),
     });
   }
   buttons.push({ text: "Мои записи", url: p.cabinetUrl });
@@ -164,15 +184,16 @@ function workflowMessage(p: Props<"workflow-message">): MessengerMessage {
 /**
  * The messenger version of `email`, or null for mails that only go by mail
  * (sign-in codes, «Про» notices and the like). A client's notice about a
- * booking they may still cancel (`cancelBookingId`) gets «Отменить запись».
+ * booking they may still cancel (`cancelBookingId`) gets «Отменить запись»,
+ * one they may still move (`moveBookingId`) «Перенести запись».
  */
 export function messengerMessage(
   email: TemplateEmail,
-  options: { cancelBookingId?: string } = {},
+  options: MessageOptions = {},
 ): MessengerMessage | null {
   switch (email.template) {
     case "booking-notice":
-      return bookingNotice(email.props, options.cancelBookingId);
+      return bookingNotice(email.props, options);
     case "staff-agenda":
       return staffAgenda(email.props);
     case "staff-booking":

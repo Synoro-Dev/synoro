@@ -41,7 +41,7 @@ import {
   WalletIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { orpc } from "~/orpc/react";
 import {
@@ -61,6 +61,13 @@ import { VideoLinkButton, VideoServiceName } from "./video-link";
 
 type ClientPractice = RouterOutputs["practice"]["mine"][number];
 type MyBooking = RouterOutputs["booking"]["mine"][number];
+
+/** «Повторная запись · 3 из 8»: the place in the series, when it is known. */
+function seriesLabel(b: MyBooking) {
+  return b.seriesPlace !== null && b.seriesSize !== null
+    ? `Повторная запись · ${b.seriesPlace} из ${b.seriesSize}`
+    : "Повторная запись";
+}
 type MyPayment = RouterOutputs["payment"]["mine"][number];
 
 /** The join button turns primary this long before the start. */
@@ -160,7 +167,7 @@ function NextBooking({
               <dt className="w-24 shrink-0 text-muted-foreground">Повтор</dt>
               <dd className="flex items-center gap-1.5 font-medium">
                 <RepeatIcon className="size-3.5" aria-hidden="true" />
-                Повторная запись
+                {seriesLabel(booking)}
               </dd>
             </div>
           )}
@@ -315,6 +322,9 @@ function BookingRows({
                 {b.kind === "free"
                   ? `${professionTerms(b.profession).free}, бесплатно`
                   : b.practiceName}
+                {b.seriesPlace !== null &&
+                  b.seriesSize !== null &&
+                  ` · ${b.seriesPlace} из ${b.seriesSize}`}
               </span>
             </div>
             {b.status === "cancelled" ? (
@@ -566,6 +576,23 @@ export function MyBookings() {
     booking: MyBooking;
     action: BookingAction;
   } | null>(null);
+
+  // The messenger's «Перенести запись» links here with `?move=<booking>`:
+  // open that booking's time picker, once, when it is still upcoming.
+  const moveLinkRead = useRef(false);
+  useEffect(() => {
+    if (moveLinkRead.current || !bookings.data) return;
+    moveLinkRead.current = true;
+    const id = new URLSearchParams(window.location.search).get("move");
+    const booking = bookings.data.find(
+      (b) =>
+        b.id === id && b.status === "active" && b.endsAt.getTime() > Date.now(),
+    );
+    if (booking) {
+      setPicked(booking.practiceId);
+      setActing({ booking, action: "move" });
+    }
+  }, [bookings.data]);
 
   const clientOf = practices.data?.filter((p) => p.role === "client") ?? [];
   const now = Date.now();

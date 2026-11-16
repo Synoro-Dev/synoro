@@ -280,6 +280,43 @@ function TeamVisual() {
   );
 }
 
+const seriesDates = [
+  { when: "Вт, 17 нояб · 17:00", step: "1 из 8", done: true },
+  { when: "Вт, 24 нояб · 17:00", step: "2 из 8", done: false },
+  { when: "Вт, 1 дек · 17:00", step: "3 из 8", done: false },
+];
+
+function SeriesVisual() {
+  return (
+    <div className="bg-background w-full max-w-64 rounded-xl border p-3 shadow-sm">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium">Каждый вторник, 17:00</p>
+        <span className="bg-muted rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums">
+          8 занятий
+        </span>
+      </div>
+      <div className="mt-3 flex flex-col gap-2">
+        {seriesDates.map((date) => (
+          <div
+            key={date.when}
+            className="flex items-center justify-between rounded-lg border px-2.5 py-2 text-xs"
+          >
+            <span className="flex items-center gap-1.5 tabular-nums">
+              {date.done ? (
+                <CheckIcon className="size-3 text-emerald-600" />
+              ) : null}
+              {date.when}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {date.step}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CabinetVisual() {
   return (
     <div className="bg-background w-full max-w-64 rounded-xl border p-3 shadow-sm">
@@ -315,7 +352,7 @@ export function Bento() {
         </SectionHeading>
       </div>
 
-      <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(even)]:border-r-0 md:[&>*:nth-child(n+5)]:border-b-0 [&>*:last-child]:border-b-0">
+      <div className="grid border-t md:grid-cols-6 [&>*]:border-b md:[&>*]:border-r md:[&>*:nth-child(even)]:border-r-0 md:[&>*:last-child]:border-r-0 [&>*:last-child]:border-b-0">
         <Card
           className="md:col-span-4"
           title="Пакеты с предоплатой"
@@ -332,6 +369,20 @@ export function Bento() {
         </Card>
         <Card
           className="md:col-span-3"
+          title="Постоянное время для постоянных клиентов"
+          text="Закрепите за клиентом «каждый вторник в 17:00» на 2–12 недель вперёд одним действием: время никто не займёт, а все занятия спишутся из пакета сразу. Отдельное занятие можно отменить или перенести."
+        >
+          <SeriesVisual />
+        </Card>
+        <Card
+          className="md:col-span-3"
+          title="Отмена и перенос без переписки"
+          text="Клиент сам отменяет или переносит запись не позднее чем за 24 часа (срок выбираете вы) — занятие вернётся в пакет автоматически. Поздняя отмена может сгорать: правило решаете вы."
+        >
+          <CancelVisual />
+        </Card>
+        <Card
+          className="md:col-span-3"
           title="Напоминания в Telegram и MAX"
           text="Клиент вовремя получит напоминание о встрече со ссылкой на созвон, а вы — мгновенное уведомление о новой записи или отмене. В Telegram и MAX — на тарифе «Про» и с подключённым ботом, иначе на почту."
         >
@@ -339,24 +390,17 @@ export function Bento() {
         </Card>
         <Card
           className="md:col-span-3"
-          title="Отмена без звонков"
-          text="Клиент сам отменяет запись не позднее чем за 24 часа — занятие вернётся в пакет автоматически."
-        >
-          <CancelVisual />
-        </Card>
-        <Card
-          className="md:col-span-3"
-          title="Администратор в команде"
-          text="Помощник ведёт расписание, добавляет занятия в пакеты и записывает новых клиентов на бесплатную встречу, а вы занимаетесь клиентами."
-        >
-          <TeamVisual />
-        </Card>
-        <Card
-          className="md:col-span-3"
           title="Кабинет клиента"
           text="Клиент входит по коду из письма и видит свои записи и сколько занятий осталось."
         >
           <CabinetVisual />
+        </Card>
+        <Card
+          className="md:col-span-6"
+          title="Администратор в команде"
+          text="Помощник ведёт расписание, добавляет занятия в пакеты и записывает новых клиентов на бесплатную встречу, а вы занимаетесь клиентами."
+        >
+          <TeamVisual />
         </Card>
       </div>
 

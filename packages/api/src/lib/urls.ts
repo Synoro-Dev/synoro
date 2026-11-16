@@ -23,6 +23,15 @@ export function practiceImageUrl(slug: string, key: string | null) {
   return `${paths.booking.avatar(slug)}?v=${version}`;
 }
 
+/**
+ * `practiceImageUrl` as an absolute URL on the booking origin, for places
+ * that live on another host (the admin panel). `null` without a photo.
+ */
+export function practiceImageAbsoluteUrl(slug: string, key: string | null) {
+  const path = practiceImageUrl(slug, key);
+  return path ? new URL(path, bookingOrigin()).href : null;
+}
+
 /** A visitor booking page, the link that goes into their email. */
 export function guestBookingUrl(token: string) {
   return new URL(paths.booking.guest(token), bookingOrigin()).href;

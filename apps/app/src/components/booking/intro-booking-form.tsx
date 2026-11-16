@@ -19,6 +19,11 @@ import { useForm } from "react-hook-form";
 import { BookingLegalNotice } from "~/components/legal-links";
 import { orpc } from "~/orpc/react";
 import { BookingQuestionFields } from "./booking-question-fields";
+import {
+  type ConsentDocument,
+  ConsentFields,
+  useConsents,
+} from "./consent-fields";
 
 function FieldError({ id, message }: { id: string; message?: string }) {
   if (!message) return null;
@@ -48,6 +53,8 @@ export function IntroBookingForm({
   signedIn,
   needsPhone,
   questions,
+  documents,
+  acceptsMinors,
   onBooked,
   onTaken,
 }: {
@@ -66,6 +73,9 @@ export function IntroBookingForm({
   signedIn: boolean;
   needsPhone: boolean;
   questions: BookingQuestion[];
+  /** The practice's documents to accept; empty when it has none. */
+  documents: ConsentDocument[];
+  acceptsMinors: boolean;
   onBooked: (booking: { token: string; startsAt: Date; endsAt: Date }) => void;
   onTaken: () => void;
 }) {
@@ -74,6 +84,7 @@ export function IntroBookingForm({
   const [answerErrors, setAnswerErrors] = useState<Record<string, string>>({});
   const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
+  const consents = useConsents(documents, acceptsMinors);
 
   const form = useForm<GuestBookingFormInput, unknown, GuestBookingFormValues>({
     resolver: zodResolver(guestBookingFormSchema),
@@ -91,12 +102,23 @@ export function IntroBookingForm({
   /** `defined`: the error the procedure declared, narrowed by the caller. */
   const failed = async (
     error: Error,
-    defined: false | { code: string; answers?: Record<string, string> },
+    defined:
+      | false
+      | {
+          code: string;
+          answers?: Record<string, string>;
+          documentIds?: string[];
+        },
   ) => {
     toast.error(defined ? error.message : "Не удалось записаться");
     if (!defined) return;
     if (defined.answers) {
       setAnswerErrors(defined.answers);
+      await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
+    }
+    if (defined.documentIds) {
+      // A document changed meanwhile: show the wording in force now.
+      consents.reject(defined.documentIds);
       await queryClient.invalidateQueries({ queryKey: orpc.practice.key() });
     }
     if (defined.code === "SLOT_UNAVAILABLE") onTaken();
@@ -111,6 +133,10 @@ export function IntroBookingForm({
           code: error.code,
           answers:
             error.code === "ANSWERS_INVALID" ? error.data.errors : undefined,
+          documentIds:
+            error.code === "CONSENTS_REQUIRED"
+              ? error.data.documentIds
+              : undefined,
         },
       ),
   });
@@ -124,6 +150,10 @@ export function IntroBookingForm({
           code: error.code,
           answers:
             error.code === "ANSWERS_INVALID" ? error.data.errors : undefined,
+          documentIds:
+            error.code === "CONSENTS_REQUIRED"
+              ? error.data.documentIds
+              : undefined,
         },
       ),
   });
@@ -134,7 +164,13 @@ export function IntroBookingForm({
     guest?: Omit<GuestBookingFormValues, "note">;
     note?: string;
   }) {
-    const common = { practiceId, startsAt, answers, timezone: timeZone };
+    const common = {
+      practiceId,
+      startsAt,
+      answers,
+      consents: consents.value(),
+      timezone: timeZone,
+    };
     if (atVisit) bookVisit.mutate({ ...common, ...input, serviceId });
     else bookIntro.mutate({ ...common, ...input });
   }
@@ -143,7 +179,9 @@ export function IntroBookingForm({
   function answered() {
     const { errors } = checkBookingAnswers(questions, answers);
     setAnswerErrors(errors);
-    return Object.keys(errors).length === 0;
+    // Both checked at once: every field to fix is marked in one go.
+    const accepted = consents.validate();
+    return Object.keys(errors).length === 0 && accepted;
   }
 
   function submitGuest(values: GuestBookingFormValues) {
@@ -177,6 +215,7 @@ export function IntroBookingForm({
   );
   const footer = (
     <>
+      <ConsentFields consents={consents} idPrefix="intro" />
       <Button type="submit" size="lg" disabled={pending}>
         {pending && <Spinner />}
         {submit}

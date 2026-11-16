@@ -36,6 +36,12 @@ export interface Recipient {
    * the messenger message gets «Отменить запись» (the mail doesn't).
    */
   cancelBookingId?: string;
+  /**
+   * The booking the notice is about, when its client may still move it
+   * themselves: the message gets «Перенести запись», a link to the cabinet
+   * with that booking's time picker open. A series' meeting qualifies too.
+   */
+  moveBookingId?: string;
 }
 
 /**

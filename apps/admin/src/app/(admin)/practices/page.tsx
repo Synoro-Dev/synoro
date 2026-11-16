@@ -1,4 +1,7 @@
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Table,
   TableBody,
   TableCell,
@@ -74,16 +77,30 @@ async function Practices({ searchParams }: { searchParams: SearchParams }) {
           {items.map((practice) => (
             <TableRow key={practice.id}>
               <TableCell>
+                <Link
+                  href={`/practices/${practice.id}` as Route}
+                  className="flex items-center gap-3 hover:underline"
+                >
+                  <Avatar className="size-10">
+                    {practice.imageUrl && (
+                      <AvatarImage
+                        src={practice.imageUrl}
+                        alt={practice.name}
+                      />
+                    )}
+                    <AvatarFallback>
+                      {practice.name.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{practice.name}</span>
+                </Link>
                 <a
                   href={bookingPageUrl(practice.slug)}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex flex-col hover:underline"
+                  className="text-muted-foreground pl-13 text-xs hover:underline"
                 >
-                  <span className="font-medium">{practice.name}</span>
-                  <span className="text-muted-foreground text-xs">
-                    /{practice.slug}
-                  </span>
+                  /{practice.slug}
                 </a>
               </TableCell>
               <TableCell className="text-muted-foreground">

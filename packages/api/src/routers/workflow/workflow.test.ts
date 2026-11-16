@@ -502,6 +502,25 @@ describe("low_balance messages", () => {
     });
   });
 
+  it("fills {оплата} with the booking page that opens the purchase", async () => {
+    const { practiceId } = await newPractice("wf-low-pay");
+    const low = await newClient(practiceId, "pay@low.test", 1);
+    await spend(low.memberId, practiceId, HOUR);
+    await rule(practiceId, {
+      trigger: "low_balance",
+      amount: 1,
+      text: "Пополнить: {оплата} Страница: {ссылка}",
+    });
+
+    const mail = recorder();
+    await sendWorkflowMessages(api.db, mail.deliver, NOW);
+    const text = String(
+      (mail.sent[0]?.props as { text?: string } | undefined)?.text,
+    );
+    expect(text).toMatch(/Пополнить: \S+\/wf-low-pay\?pay=1 /);
+    expect(text).toMatch(/Страница: \S+\/wf-low-pay$/);
+  });
+
   it("leaves a client alone who topped up or got a refund since", async () => {
     const { practiceId } = await newPractice("wf-low-topped");
     const client = await newClient(practiceId, "paid@low.test", 1);
