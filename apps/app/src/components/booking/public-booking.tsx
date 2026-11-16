@@ -572,7 +572,7 @@ export function PublicBooking({
             <span>
               {canPay
                 ? `Оплатите ${terms.credits} онлайн — и сразу выбирайте время.`
-                : "Затем администратор добавит оплату."}
+                : "Чтобы записываться, нужно стать клиентом этой практики."}
             </span>
             <div className="flex flex-wrap gap-2">
               {canPay && (
