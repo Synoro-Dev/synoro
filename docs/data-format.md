@@ -52,12 +52,16 @@
 `cancelled`), `starts_at`, `ends_at`, `client_id` (→ `clients.id` или `team.id`),
 `guest_name`, `guest_phone`, `guest_contact`, `note`, `client_timezone`, `answers`
 (`[{ question, answer }]`, с формулировкой вопроса на момент записи),
-`series_id` (→ `series.id`), `meeting_url`, `hold_until`, `cancel_reason`
+`series_id` (→ `series.id`), `standing_id` (→ `standing_times.id`),
+`meeting_url`, `hold_until`, `cancel_reason`
 (`client`, `late_cancel`, `staff`, `no_show`, `hold_expired`, `payment_cancelled`),
 `cancelled_at`, `created_at`.
 
 `series`: `id`, `client_id`, `interval_weeks`, `count`, `cancelled_at`,
 `created_at`.
+
+`standing_times` (постоянное время, без конца): `id`, `client_id`, `starts_at`
+(первая запись), `interval_weeks`, `paused_at`, `ended_at`, `created_at`.
 
 `notes` (рабочие заметки владельца, в открытом виде): `id`, `client_id`
 (→ `clients.id`), `booking_id` (→ `bookings.id`, если заметка к сессии), `text`

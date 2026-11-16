@@ -189,6 +189,10 @@ export const env = createEnv({
 
     // Hatchet (background jobs). Unset: @synoro/jobs runs work inline.
     HATCHET_CLIENT_TOKEN: z.string().optional(),
+    // Shared secret of the worker's calls into the app (`/api/cron/*`, the
+    // standing-time run): without it (or under 16 characters) those endpoints
+    // answer 404.
+    CRON_SECRET: z.string().optional(),
 
     // AWS S3
     AWS_S3_ENDPOINT: z.string().optional(),
@@ -250,6 +254,7 @@ export const env = createEnv({
     MAX_WEBHOOK_SECRET: process.env.MAX_WEBHOOK_SECRET,
     MAX_API_URL: process.env.MAX_API_URL,
     HATCHET_CLIENT_TOKEN: process.env.HATCHET_CLIENT_TOKEN,
+    CRON_SECRET: process.env.CRON_SECRET,
     AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT,
     AWS_S3_FORCE_PATH_STYLE: process.env.AWS_S3_FORCE_PATH_STYLE,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,

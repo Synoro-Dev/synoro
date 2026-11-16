@@ -8,6 +8,7 @@ import {
   eq,
   gt,
   isNotNull,
+  isNull,
   PracticeMember,
   sql,
   user,
@@ -52,6 +53,9 @@ async function countOpenHolds(db: Database, memberId: string) {
         eq(Booking.status, "active"),
         isNotNull(Booking.holdUntil),
         gt(Booking.holdUntil, new Date()),
+        // Dates held for a standing time wait for a package, not for the
+        // visitor's payment page: they are no part of this limit.
+        isNull(Booking.standingId),
       ),
     );
   return Number(open?.holds ?? 0);

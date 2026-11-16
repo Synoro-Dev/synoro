@@ -31,6 +31,8 @@
  *                     on «Про»                                      (owner)
  *   service.*       – what clients book: name, length, price in credits
  *                     (staff list, owner save)
+ *   standing.*      – a time pinned for a client with no end, on «Про»:
+ *                     offer, create, mine, end, resume
  *   waitlist.*      – wishes for freed-up time: join (visitor or client),
  *                     mine, leave, list (staff)
  *   workflow.*      – own messages to clients on «Про»: after a meeting,
@@ -73,6 +75,7 @@ import { postRouter } from "./post";
 import { practiceRouter } from "./practice";
 import { questionRouter } from "./question";
 import { serviceRouter } from "./service";
+import { standingRouter } from "./standing";
 import { userRouter } from "./user";
 import { waitlistRouter } from "./waitlist";
 import { workflowRouter } from "./workflow";
@@ -94,6 +97,7 @@ export const appRouter = {
   workflow: workflowRouter,
   question: questionRouter,
   service: serviceRouter,
+  standing: standingRouter,
   waitlist: waitlistRouter,
   analytics: analyticsRouter,
   messenger: messengerRouter,

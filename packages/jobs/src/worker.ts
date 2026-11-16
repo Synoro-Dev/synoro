@@ -38,6 +38,7 @@ async function main() {
     sendEmailTask,
     sendMessengerTask,
     staffAgendaWorkflow,
+    standingHorizonWorkflow,
     workflowMessagesWorkflow,
   } = await import("./workflows");
 
@@ -52,6 +53,7 @@ async function main() {
       metrikaConversionsWorkflow,
       workflowMessagesWorkflow,
       staffAgendaWorkflow,
+      standingHorizonWorkflow,
       dataExportTask,
       dataImportTask,
       dataExportsCleanupWorkflow,

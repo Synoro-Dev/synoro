@@ -6,6 +6,7 @@ import { PracticeClient } from "./client";
 import { Practice, PracticeMember } from "./practice";
 import { BookingSeries } from "./series";
 import { Service } from "./service";
+import { StandingTime } from "./standing";
 
 /**
  * consultation — paid, 1 hour, booked by a client for one credit.
@@ -101,6 +102,15 @@ export const Booking = pgTable(
     seriesId: t
       .uuid()
       .references(() => BookingSeries.id, { onDelete: "set null" }),
+    /** The standing time this booking is an occurrence of (`standing_times`). */
+    standingId: t
+      .uuid()
+      .references(() => StandingTime.id, { onDelete: "set null" }),
+    /**
+     * The occurrence's own start. Unlike `starts_at` a move never changes it,
+     * so the cron does not make a cancelled or moved occurrence again.
+     */
+    standingSlot: t.timestamp({ withTimezone: true }),
     /**
      * Video room of this booking only; falls back to `practices.video_url`.
      * Shown to the client once the booking is confirmed.
@@ -136,6 +146,10 @@ export const Booking = pgTable(
     index("bookings_practice_starts_idx").on(table.practiceId, table.startsAt),
     index("bookings_member_idx").on(table.memberId),
     index("bookings_series_idx").on(table.seriesId),
+    unique("bookings_standing_slot_unique").on(
+      table.standingId,
+      table.standingSlot,
+    ),
     unique("bookings_access_token_hash_unique").on(table.accessTokenHash),
     check("bookings_valid_range", sql`${table.startsAt} < ${table.endsAt}`),
     check(

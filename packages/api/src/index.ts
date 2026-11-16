@@ -28,6 +28,7 @@ export { handleMaxWebhook, handleTelegramWebhook } from "./lib/messenger";
 export { handlePaymentWebhook } from "./lib/payments";
 export { findOwnerMembership } from "./lib/practice-access";
 export { findPracticeIdBySlug } from "./lib/practice-slugs";
+export { handleStandingCron } from "./lib/standing";
 export { createORPCContext } from "./orpc";
 export { type AppRouter, appRouter } from "./routers";
 export type { RouterInputs, RouterOutputs };

@@ -24,6 +24,7 @@ import {
   PracticeMember,
   PracticeSlugAlias,
   SlugOrder,
+  StandingTime,
   Subscription,
   SubscriptionPayment,
   user,
@@ -151,6 +152,7 @@ async function loadBookings(db: Database, practiceId: string, since?: Date) {
     client_timezone: row.clientTimezone,
     answers: row.answers,
     series_id: row.seriesId,
+    standing_id: row.standingId,
     meeting_url: row.meetingUrl,
     hold_until: iso(row.holdUntil),
     cancel_reason: row.cancelReason,
@@ -177,6 +179,7 @@ export async function collectPractice(db: Database, practiceId: string) {
     domains,
     packages,
     series,
+    standingTimes,
     payments,
     accounts,
     workflows,
@@ -218,6 +221,11 @@ export async function collectPractice(db: Database, practiceId: string) {
       .from(BookingSeries)
       .where(eq(BookingSeries.practiceId, practice.id))
       .orderBy(asc(BookingSeries.createdAt), asc(BookingSeries.id)),
+    db
+      .select()
+      .from(StandingTime)
+      .where(eq(StandingTime.practiceId, practice.id))
+      .orderBy(asc(StandingTime.createdAt), asc(StandingTime.id)),
     db
       .select()
       .from(Payment)
@@ -374,6 +382,16 @@ export async function collectPractice(db: Database, practiceId: string) {
       interval_weeks: row.intervalWeeks,
       count: row.count,
       cancelled_at: iso(row.cancelledAt),
+      created_at: iso(row.createdAt),
+    })),
+    // Standing times: the pinned time of a client, with no end.
+    standing_times: standingTimes.map((row) => ({
+      id: row.id,
+      client_id: row.memberId,
+      starts_at: iso(row.startsAt) as string,
+      interval_weeks: row.intervalWeeks,
+      paused_at: iso(row.pausedAt),
+      ended_at: iso(row.endedAt),
       created_at: iso(row.createdAt),
     })),
     bookings,
