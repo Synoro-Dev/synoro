@@ -152,6 +152,24 @@ export function GuestBooking({ token }: { token: string }) {
                   {formatTime(data.endsAt, zone)} · {viewerTimeZoneName(zone)}
                 </dd>
               </div>
+              {data.seriesDates && data.seriesDates.length > 1 && (
+                <div className="flex justify-between gap-4">
+                  <dt className="shrink-0 text-muted-foreground">
+                    Постоянное время
+                  </dt>
+                  <dd className="min-w-0 text-right font-medium">
+                    <ul className="flex flex-col gap-0.5 first-letter:uppercase">
+                      {data.seriesDates.map((at) => (
+                        <li key={at.getTime()}>{formatDateTime(at, zone)}</li>
+                      ))}
+                    </ul>
+                    <span className="text-xs font-normal text-muted-foreground">
+                      Эта страница открывает первую запись. Остальные можно
+                      отменить или перенести в личном кабинете.
+                    </span>
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">На имя</dt>
                 <dd className="text-right font-medium">{data.name}</dd>

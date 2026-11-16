@@ -148,7 +148,9 @@ and run `tsc` by hand, build them first.
 - **Booking without sign-in** (`docs/guest-booking.md`): `booking.reserve`
   holds a time for 15 min (`bookings.hold_until`), opens the payment and mails
   `/b/<token>`; `settlePayment` confirms the booking in the same statement as
-  the credit. Phone (`users.phone`, E.164 via `phoneSchema`) is required in
+  the credit. `booking.reserveSeries` does it for 2–12 dates under one payment
+  (`payments.series_id`: every held booking of the series is confirmed
+  together; a series is one unpaid hold, `countOpenHolds`). Phone (`users.phone`, E.164 via `phoneSchema`) is required in
   every booking form. `BOOKING_URL` (https://synoro.ru) is the main address of
   `/<slug>` (the old `/p/<slug>` redirects); build links from
   `packages/api/src/lib/urls.ts`. A slug shares the root with the app's and

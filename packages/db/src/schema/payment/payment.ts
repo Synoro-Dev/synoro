@@ -4,6 +4,7 @@ import { check, index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
 import { user } from "../auth/user";
 import { Booking } from "../booking/booking";
 import { Practice, PracticeMember } from "../booking/practice";
+import { BookingSeries } from "../booking/series";
 import { PaymentAccount, paymentProvider } from "./account";
 
 /**
@@ -42,6 +43,15 @@ export const Payment = pgTable(
      * page): on success it is confirmed and one of the credits is spent on it.
      */
     bookingId: t.uuid().references(() => Booking.id, { onDelete: "set null" }),
+    /**
+     * The recurring booking this payment was made for (a guest paying for a
+     * package and several times at once): on success every held booking of it
+     * is confirmed and one price per booking is spent. `bookingId` then names
+     * the first one, the visitor's link.
+     */
+    seriesId: t
+      .uuid()
+      .references(() => BookingSeries.id, { onDelete: "set null" }),
     provider: paymentProvider().notNull(),
     /** The provider's payment id; set once it accepted the payment. */
     externalId: t.varchar({ length: 64 }),
@@ -69,6 +79,7 @@ export const Payment = pgTable(
       table.createdAt,
     ),
     index("payments_member_idx").on(table.memberId),
+    index("payments_series_idx").on(table.seriesId),
     check(
       "payments_positive",
       sql`${table.credits} > 0 and ${table.amount} > 0`,

@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   Booking,
   type Database,
   desc,
@@ -40,6 +41,7 @@ function findByToken(db: Database, token: string) {
       cancelReason: Booking.cancelReason,
       holdUntil: Booking.holdUntil,
       meetingUrl: Booking.meetingUrl,
+      seriesId: Booking.seriesId,
       practiceVideoUrl: Practice.videoUrl,
       practiceContact: Practice.clientContact,
       startsAt: Booking.startsAt,
@@ -112,6 +114,21 @@ export const guest = publicProcedure
         )?.status === "succeeded"
       : false;
 
+    // A recurring booking the visitor paid for: the link opens its first
+    // booking; the dates of the whole series are listed beside it.
+    const series = found.seriesId
+      ? await context.db
+          .select({ startsAt: Booking.startsAt })
+          .from(Booking)
+          .where(
+            and(
+              eq(Booking.seriesId, found.seriesId),
+              eq(Booking.status, "active"),
+            ),
+          )
+          .orderBy(asc(Booking.startsAt))
+      : null;
+
     const now = Date.now();
     const held = found.holdUntil !== null;
     const state =
@@ -140,6 +157,8 @@ export const guest = publicProcedure
       /** The zone the visitor booked from: the page reads times in it. */
       clientTimezone: found.clientTimezone,
       holdUntil: found.holdUntil,
+      /** The dates of its recurring booking (active ones); null for a single. */
+      seriesDates: series?.map((b) => b.startsAt) ?? null,
       ...cancelTerms(state === "confirmed", found, now, found),
       /** The video room, only once the booking is confirmed. */
       videoUrl:

@@ -2,11 +2,8 @@ import { logger } from "@synoro/config";
 import {
   and,
   Booking,
-  count,
   eq,
-  gt,
   isExclusionViolation,
-  isNotNull,
   PaymentPackage,
 } from "@synoro/db";
 import {
@@ -29,6 +26,7 @@ import { isBusyInGoogle } from "../../lib/google-calendar";
 import {
   findOrCreateGuestMember,
   hashGuestToken,
+  holdsAtLimit,
   newGuestToken,
   sendBookingLink,
 } from "../../lib/guests";
@@ -43,9 +41,6 @@ import { findOpenPractice } from "../../lib/practice-access";
 import { isScheduledSlot } from "../../lib/schedule";
 import { resolveService } from "../../lib/services";
 import { publicProcedure } from "../../orpc";
-
-/** One visitor cannot hold more unpaid times than this at once. */
-const MAX_OPEN_HOLDS = 2;
 
 /**
  * Book an hour as a visitor, without signing in: reserve the time and open
@@ -167,24 +162,16 @@ export const reserve = publicProcedure
     const guest = await findOrCreateGuestMember(context.db, practice.id, input);
     if (guest.staff) throw errors.SIGN_IN_REQUIRED();
 
-    const [open] = await context.db
-      .select({ holds: count() })
-      .from(Booking)
-      .where(
-        and(
-          eq(Booking.memberId, guest.memberId),
-          eq(Booking.status, "active"),
-          isNotNull(Booking.holdUntil),
-          gt(Booking.holdUntil, new Date()),
-        ),
-      );
-    if ((open?.holds ?? 0) >= MAX_OPEN_HOLDS) throw errors.TOO_MANY_HOLDS();
-
     const token = newGuestToken();
     let booking: typeof Booking.$inferSelect | undefined;
     try {
       // One transaction: the booking and its consents stand or fall together.
       [booking] = await context.db.transaction(async (tx) => {
+        // The limit is checked under the visitor's lock, so parallel requests
+        // can't each see room for one more.
+        if (await holdsAtLimit(tx, guest.memberId)) {
+          throw errors.TOO_MANY_HOLDS();
+        }
         const rows = await tx
           .insert(Booking)
           .values({

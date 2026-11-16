@@ -150,6 +150,32 @@ export function useSeriesPreview({
   });
 }
 
+/** The dates of a visitor's series: `useSeriesPreview` without an account. */
+export function useGuestSeriesPreview({
+  practiceId,
+  startsAt,
+  repeat,
+  serviceId,
+}: {
+  practiceId: string;
+  startsAt: Date | null;
+  repeat: Repeat | null;
+  serviceId?: string;
+}) {
+  return useQuery({
+    ...orpc.booking.guestSeriesPreview.queryOptions({
+      input: {
+        practiceId,
+        startsAt: startsAt ?? new Date(0),
+        intervalWeeks: repeat?.intervalWeeks ?? 1,
+        count: repeat?.count ?? 2,
+        serviceId,
+      },
+    }),
+    enabled: startsAt !== null && repeat !== null,
+  });
+}
+
 /**
  * What a series books: the free dates the user left checked, and the rest
  * to pass to `bookSeries` as `skip`.
@@ -178,7 +204,12 @@ export function SeriesDateList({
   idPrefix,
   timeZone,
 }: {
-  query: ReturnType<typeof useSeriesPreview>;
+  /** `useSeriesPreview` or `useGuestSeriesPreview`: any query of the dates. */
+  query: {
+    isError: boolean;
+    data?: { dates: SeriesDate[] };
+    refetch: () => unknown;
+  };
   unchecked: Set<number>;
   onToggle: (at: Date, checked: boolean) => void;
   idPrefix: string;
