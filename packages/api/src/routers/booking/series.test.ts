@@ -167,6 +167,23 @@ describe("booking.bookSeries", () => {
     expect(series).toMatchObject({ intervalWeeks: 1, count: 4 });
   });
 
+  it("tells the cabinet the place of each booking in its series", async () => {
+    const { session } = await newClient(5);
+    await call(
+      bookingRouter.bookSeries,
+      { practiceId, startsAt: start(0, 80), intervalWeeks: 1, count: 3 },
+      { context: api.context(session) },
+    );
+    const mine = await call(bookingRouter.mine, undefined, {
+      context: api.context(session),
+    });
+    expect(mine.map((b) => [b.seriesPlace, b.seriesSize])).toEqual([
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ]);
+  });
+
   it("books nothing when the balance is short", async () => {
     const { session, memberId } = await newClient(3);
     const error = await call(

@@ -2,6 +2,7 @@ import {
   and,
   asc,
   Booking,
+  BookingSeries,
   eq,
   gt,
   gte,
@@ -66,6 +67,35 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
     )
     .orderBy(asc(Booking.startsAt));
 
+  // «Занятие 3 из 8»: the place among all bookings of the series, those
+  // already past or cancelled included (older than 30 days, so not in `rows`).
+  const seriesIds = [
+    ...new Set(rows.flatMap((r) => (r.seriesId ? [r.seriesId] : []))),
+  ];
+  const places = new Map<string, number>();
+  const sizes = new Map<string, number>();
+  if (seriesIds.length > 0) {
+    const [all, series] = await Promise.all([
+      context.db
+        .select({ id: Booking.id, seriesId: Booking.seriesId })
+        .from(Booking)
+        .where(inArray(Booking.seriesId, seriesIds))
+        .orderBy(asc(Booking.startsAt)),
+      context.db
+        .select({ id: BookingSeries.id, count: BookingSeries.count })
+        .from(BookingSeries)
+        .where(inArray(BookingSeries.id, seriesIds)),
+    ]);
+    const seen = new Map<string, number>();
+    for (const b of all) {
+      if (!b.seriesId) continue;
+      const place = (seen.get(b.seriesId) ?? 0) + 1;
+      seen.set(b.seriesId, place);
+      places.set(b.id, place);
+    }
+    for (const s of series) sizes.set(s.id, s.count);
+  }
+
   return rows.map(
     ({
       holdUntil,
@@ -79,6 +109,9 @@ export const mine = protectedProcedure.handler(async ({ context }) => {
       const confirmed = row.status === "active" && holdUntil === null;
       return {
         ...row,
+        /** Place in its series and the series' size; null for a single booking. */
+        seriesPlace: row.seriesId ? (places.get(row.id) ?? null) : null,
+        seriesSize: row.seriesId ? (sizes.get(row.seriesId) ?? null) : null,
         charged: row.credits > 0,
         /** The video room of a confirmed booking; null while unpaid or cancelled. */
         videoUrl: confirmed ? (meetingUrl ?? practiceVideoUrl) : null,

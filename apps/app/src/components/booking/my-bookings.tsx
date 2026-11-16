@@ -61,6 +61,13 @@ import { VideoLinkButton, VideoServiceName } from "./video-link";
 
 type ClientPractice = RouterOutputs["practice"]["mine"][number];
 type MyBooking = RouterOutputs["booking"]["mine"][number];
+
+/** «Повторная запись · 3 из 8»: the place in the series, when it is known. */
+function seriesLabel(b: MyBooking) {
+  return b.seriesPlace !== null && b.seriesSize !== null
+    ? `Повторная запись · ${b.seriesPlace} из ${b.seriesSize}`
+    : "Повторная запись";
+}
 type MyPayment = RouterOutputs["payment"]["mine"][number];
 
 /** The join button turns primary this long before the start. */
@@ -160,7 +167,7 @@ function NextBooking({
               <dt className="w-24 shrink-0 text-muted-foreground">Повтор</dt>
               <dd className="flex items-center gap-1.5 font-medium">
                 <RepeatIcon className="size-3.5" aria-hidden="true" />
-                Повторная запись
+                {seriesLabel(booking)}
               </dd>
             </div>
           )}
@@ -315,6 +322,9 @@ function BookingRows({
                 {b.kind === "free"
                   ? `${professionTerms(b.profession).free}, бесплатно`
                   : b.practiceName}
+                {b.seriesPlace !== null &&
+                  b.seriesSize !== null &&
+                  ` · ${b.seriesPlace} из ${b.seriesSize}`}
               </span>
             </div>
             {b.status === "cancelled" ? (
